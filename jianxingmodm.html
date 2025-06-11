@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>剑星MOD管理器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a29bfe;
+            --dark: #2d3436;
+            --light: #f7f9fc;
+            --success: #00b894;
+            --danger: #ff7675;
+            --warning: #fdcb6e;
+            --card-bg: rgba(255, 255, 255, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: var(--light);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-icon {
+            font-size: 2.5rem;
+            color: var(--secondary);
+        }
+        
+        .logo-text h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, var(--secondary), var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .logo-text p {
+            font-size: 0.9rem;
+            color: var(--secondary);
+        }
+        
+        .actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: var(--dark);
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 25px;
+            margin-top: 20px;
+        }
+        
+        .mod-list-container {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            height: 70vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .mod-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .mod-list-header h2 {
+            font-size: 1.4rem;
+        }
+        
+        .mod-search {
+            padding: 8px 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: white;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .mod-list {
+            overflow-y: auto;
+            flex-grow: 1;
+            padding-right: 10px;
+        }
+        
+        .mod-item {
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .mod-item:hover {
+            background: rgba(108, 92, 231, 0.3);
+        }
+        
+        .mod-item.active {
+            background: rgba(108, 92, 231, 0.5);
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .mod-icon {
+            font-size: 1.2rem;
+            color: var(--secondary);
+        }
+        
+        .mod-info {
+            flex-grow: 1;
+        }
+        
+        .mod-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        
+        .mod-size {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        
+        .mod-preview-container {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            height: 70vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .preview-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        
+        .no-preview {
+            text-align: center;
+            padding: 40px;
+            color: #aaa;
+            cursor: pointer;
+        }
+        
+        .no-preview i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+            color: var(--secondary);
+        }
+        
+        .ratio-hint {
+            position: absolute;
+            bottom: 10px;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        
+        .mod-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .detail-card {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .detail-card h3 {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+        
+        .detail-card p {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .mod-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .mod-actions .btn {
+            justify-content: center;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .author-link {
+            color: var(--secondary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .author-link:hover {
+            text-decoration: underline;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .path-info {
+            color: var(--secondary);
+        }
+        
+        .mod-count {
+            color: var(--primary);
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 992px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .mod-list-container, .mod-preview-container {
+                height: auto;
+            }
+            
+            .mod-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-cubes"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>剑星MOD管理器</h1>
+                    <p>轻松管理您的游戏模组</p>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary">
+                    <i class="fas fa-language"></i> 切换语言
+                </button>
+                <button class="btn btn-secondary">
+                    <i class="fas fa-cog"></i> 设置
+                </button>
+            </div>
+        </header>
+        
+        <div class="status-bar">
+            <div class="path-info">
+                <i class="fas fa-folder-open"></i> MOD路径: C:\Games\StellarBlade\Content\Paks\~mods
+            </div>
+            <div class="mod-count">
+                <i class="fas fa-cube"></i> 已加载MOD: 8
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="mod-list-container">
+                <div class="mod-list-header">
+                    <h2><i class="fas fa-list"></i> MOD列表</h2>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <input type="text" class="mod-search" placeholder="搜索MOD...">
+                <div class="mod-list">
+                    <div class="mod-item active">
+                        <div class="mod-icon">
+                            <i class="fas fa-tshirt"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">夏日清凉服装包</div>
+                            <div class="mod-size">12.4 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-sword"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">传奇武器合集</div>
+                            <div class="mod-size">8.7 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-magic"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">粒子特效增强</div>
+                            <div class="mod-size">15.2 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-palette"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">高清材质包</div>
+                            <div class="mod-size">42.5 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-running"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">动作优化补丁</div>
+                            <div class="mod-size">5.3 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-cloud-sun"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">天气系统扩展</div>
+                            <div class="mod-size">18.9 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-user-alt"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">角色自定义包</div>
+                            <div class="mod-size">9.6 MB</div>
+                        </div>
+                    </div>
+                    <div class="mod-item">
+                        <div class="mod-icon">
+                            <i class="fas fa-hat-wizard"></i>
+                        </div>
+                        <div class="mod-info">
+                            <div class="mod-name">巫师套装</div>
+                            <div class="mod-size">7.1 MB</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mod-preview-container">
+                <div class="preview-area">
+                    <img src="https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=600&q=80" alt="MOD预览" class="preview-image">
+                    <div class="ratio-hint">建议使用1:1比例图片</div>
+                </div>
+                
+                <div class="mod-details">
+                    <div class="detail-card">
+                        <h3>MOD名称</h3>
+                        <p>夏日清凉服装包</p>
+                    </div>
+                    <div class="detail-card">
+                        <h3>文件大小</h3>
+                        <p>12.4 MB</p>
+                    </div>
+                    <div class="detail-card">
+                        <h3>创建日期</h3>
+                        <p>2023-06-15</p>
+                    </div>
+                    <div class="detail-card">
+                        <h3>作者</h3>
+                        <p>MOD社区</p>
+                    </div>
+                </div>
+                
+                <div class="mod-actions">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-download"></i> 导入MOD
+                    </button>
+                    <button class="btn btn-danger">
+                        <i class="fas fa-trash"></i> 卸载MOD
+                    </button>
+                    <button class="btn btn-warning">
+                        <i class="fas fa-font"></i> 自定义名称
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="fas fa-image"></i> 修改预览图
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>作者：<a href="#" class="author-link">3DM Mrchanlee</a> | 版本：v1.2.5 | 更多MOD资源请访问社区论坛</p>
+            <p>© 2023 剑星MOD管理器 - 让游戏体验更精彩</p>
+        </div>
+    </div>
+
+    <script>
+        // 交互功能脚本
+        document.addEventListener('DOMContentLoaded', function() {
+            // MOD列表项点击事件
+            const modItems = document.querySelectorAll('.mod-item');
+            modItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 移除所有active类
+                    modItems.forEach(i => i.classList.remove('active'));
+                    // 添加active类到当前项
+                    this.classList.add('active');
+                    
+                    // 这里可以添加加载MOD详情的逻辑
+                });
+            });
+            
+            // 按钮悬停效果
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-3px)';
+                    this.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.3)';
+                });
+                
+                button.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = 'none';
+                });
+            });
+            
+            // 搜索功能
+            const searchInput = document.querySelector('.mod-search');
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                modItems.forEach(item => {
+                    const modName = item.querySelector('.mod-name').textContent.toLowerCase();
+                    if (modName.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

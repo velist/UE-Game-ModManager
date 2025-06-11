@@ -1,0 +1,31 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.idea/
+.DS_Store
+*.log
+*.db
+*.sqlite3
+*.bak
+*.swp
+*.swo
+*.~
+# VSCode
+.vscode/
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 图片文件
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+!icons/*.svg  # 保留icons目录下的svg文件 

@@ -1,0 +1,38 @@
+{
+    "game_path": "",
+    "mods_path": "D:/steam/steamapps/common/StellarBladeDemo/SB/Content/Paks/~mods",
+    "backup_path": "D:/python/mods111",
+    "categories": [
+        "1",
+        "2"
+    ],
+    "mods": {
+        "Lyws_Deathbringers_064e_P": {
+            "name": "Lyws_Deathbringers_064e_P",
+            "files": [
+                "Lyws_Deathbringers_064e_P.pak",
+                "Lyws_Deathbringers_064e_P.ucas",
+                "Lyws_Deathbringers_064e_P.utoc"
+            ],
+            "original_path": "D:\\steam\\steamapps\\common\\StellarBladeDemo\\SB\\Content\\Paks\\~mods\\Lyws_Deathbringers_064e_P.pak",
+            "import_date": "2025-06-12 01:00:18",
+            "enabled": true,
+            "size": 0.0,
+            "category": "1"
+        },
+        "RaceSuit_P": {
+            "name": "RaceSuit_P",
+            "files": [
+                "RaceSuit_P.pak",
+                "RaceSuit_P.ucas",
+                "RaceSuit_P.utoc"
+            ],
+            "original_path": "D:\\steam\\steamapps\\common\\StellarBladeDemo\\SB\\Content\\Paks\\~mods\\RaceSuit_P.pak",
+            "import_date": "2025-06-12 01:00:18",
+            "enabled": true,
+            "size": 0.0,
+            "category": "1"
+        }
+    },
+    "initialized": true
+}
