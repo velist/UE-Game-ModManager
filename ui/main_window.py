@@ -2499,14 +2499,106 @@ class MainWindow(QMainWindow):
 
     def show_help(self):
         info = """
-<b>剑星MOD管理器 使用说明</b><br><br>
-1. <b>首次启动</b>：需选择MOD文件夹和备份文件夹，缺一不可，否则无法进入主界面。<br>
-2. <b>导入MOD</b>：点击右侧"导入MOD"按钮，选择压缩包文件，导入后可启用/禁用。<br>
-3. <b>分类管理</b>：左侧可新建、重命名、删除分类，支持拖动排序和层级调整。<br>
-4. <b>MOD管理</b>：支持重命名、修改预览图、删除、启用/禁用等操作。<br>
-5. <b>设置</b>：可切换语言、修改MOD/备份路径、查看关于信息。<br>
-6. <b>更多</b>：如遇问题请加入QQ群反馈。<br><br>
-<span style='color:#bdbdbd'>本工具仅供学习交流，严禁商用。</span>
+<style>
+    .section { margin-top: 10px; margin-bottom: 5px; }
+    .title { font-weight: bold; color: #cba6f7; }
+    .item { margin-left: 15px; margin-top: 5px; }
+    .note { color: #bdbdbd; font-style: italic; }
+</style>
+
+<div class="title" style="font-size: 16px; text-align: center;">剑星MOD管理器 使用说明</div>
+
+<div class="section">
+    <div class="title">基础操作</div>
+    <div class="item">1. <b>首次启动</b>
+        <ul>
+            <li>选择MOD文件夹和备份文件夹，两者缺一不可</li>
+            <li>推荐MOD文件夹路径：游戏安装目录\\SB\\Content\\Paks\\~mods</li>
+            <li>备份文件夹可以选择任意位置，建议选择空文件夹</li>
+        </ul>
+    </div>
+    <div class="item">2. <b>导入MOD</b>
+        <ul>
+            <li>点击右侧"导入MOD"按钮</li>
+            <li>选择MOD压缩包文件（支持zip、rar、7z格式）</li>
+            <li>支持批量选择多个MOD文件同时导入</li>
+            <li>支持嵌套压缩包（压缩包内包含其他压缩包）</li>
+        </ul>
+    </div>
+    <div class="item">3. <b>管理MOD</b>
+        <ul>
+            <li>单击MOD可查看详细信息</li>
+            <li>点击"启用/禁用MOD"按钮可切换MOD状态</li>
+            <li>右键MOD可显示更多操作选项</li>
+        </ul>
+    </div>
+</div>
+
+<div class="section">
+    <div class="title">高级功能</div>
+    <div class="item">1. <b>分类管理</b>
+        <ul>
+            <li>左侧分类树支持右键菜单操作</li>
+            <li>可新建、重命名、删除分类</li>
+            <li>支持拖动排序和层级调整</li>
+            <li>双击分类可展开/收起子分类</li>
+        </ul>
+    </div>
+    <div class="item">2. <b>MOD编辑模式</b>
+        <ul>
+            <li>点击工具栏"编辑"按钮进入编辑模式</li>
+            <li>支持多选MOD（按住Ctrl键点选或Shift键范围选择）</li>
+            <li>可批量启用/禁用/删除/移动分类</li>
+            <li>拖放功能支持在不同分类间移动MOD</li>
+        </ul>
+    </div>
+    <div class="item">3. <b>预览图管理</b>
+        <ul>
+            <li>点击MOD信息卡片中的预览图区域可更换预览图</li>
+            <li>支持jpg、png、webp等常见图片格式</li>
+            <li>推荐使用1:1或16:9比例的图片</li>
+        </ul>
+    </div>
+    <div class="item">4. <b>收藏工具箱</b>
+        <ul>
+            <li>点击主界面右下角"收藏工具箱"按钮</li>
+            <li>可访问在线MOD收藏和管理工具</li>
+        </ul>
+    </div>
+</div>
+
+<div class="section">
+    <div class="title">常见问题</div>
+    <div class="item">1. <b>MOD无法导入</b>
+        <ul>
+            <li>检查压缩包格式是否支持</li>
+            <li>确认压缩包内包含pak、utoc或ucas文件</li>
+            <li>尝试解压后手动复制到MOD文件夹</li>
+        </ul>
+    </div>
+    <div class="item">2. <b>多层嵌套MOD问题</b>
+        <ul>
+            <li>程序支持最多10层嵌套的压缩包</li>
+            <li>每个包含MOD文件的嵌套压缩包会被视为独立MOD</li>
+            <li>可单独启用/禁用任意嵌套MOD</li>
+        </ul>
+    </div>
+</div>
+
+<div class="section">
+    <div class="title">快捷键</div>
+    <ul>
+        <li>Ctrl+F：搜索MOD</li>
+        <li>Ctrl+E：进入/退出编辑模式</li>
+        <li>Delete：删除选中的MOD</li>
+        <li>F1：显示帮助</li>
+        <li>F5：刷新MOD列表</li>
+    </ul>
+</div>
+
+<div class="note" style="margin-top: 15px; text-align: center;">
+    本工具仅供学习交流，严禁商用。
+</div>
 """
         self.show_message(self.tr('使用说明'), info)
 
