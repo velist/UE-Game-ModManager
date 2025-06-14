@@ -621,7 +621,7 @@ class MainWindow(QMainWindow):
         self.mod_count_label.setObjectName('statusLabel')
         status_bar.addPermanentWidget(self.mod_count_label)
         
-        about_label = QLabel("爱酱MOD管理器 v1.6 (20250613) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
+        about_label = QLabel("爱酱MOD管理器 v1.55 (20250615) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
         about_label.setOpenExternalLinks(True)
         self.statusBar().addPermanentWidget(about_label)
         
@@ -1912,229 +1912,132 @@ class MainWindow(QMainWindow):
         self.refresh_mod_list()
         
     def refresh_mod_list(self, search_text=None, keep_selected=True):
+        """刷新C区MOD列表"""
         print("[调试] refresh_mod_list: 开始刷新C区MOD列表")
-        mods = self.config.get_mods()
-        print("[调试] refresh_mod_list: 当前所有MOD的分类：")
-        for mod_id, mod_info in mods.items():
-            print(f"  - {mod_id}: {mod_info.get('category', '无')}")
         
-        # 记住当前选中的mod_id
+        # 保存当前选中的MOD
         selected_mod_id = None
         if keep_selected and self.mod_list.currentItem():
             selected_mod_id = self.mod_list.currentItem().data(Qt.UserRole)
         
+        # 清空列表
         self.mod_list.clear()
         
-        # 获取当前选中的树项
-        cat_item = self.tree.currentItem()
-        if not cat_item:
-            print("[调试] refresh_mod_list: 未选中分类")
+        # 获取当前分类信息
+        current_item = self.tree.currentItem()
+        if not current_item:
             return
             
-        data = cat_item.data(0, Qt.ItemDataRole.UserRole)
-        cat_type = data['type']
+        data = current_item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+            
+        cat_type = data.get('type', '')
         
-        # 根据选中项类型确定要显示的MOD
+        # 获取所有MOD
+        mods = self.config.get_mods()
+        
+        # 记录所有MOD的分类情况，用于调试
+        mod_categories = {}
+        for mod_id, mod_info in mods.items():
+            mod_categories[mod_id] = mod_info.get('category', '默认分类')
+        print(f"[调试] refresh_mod_list: 当前所有MOD的分类：")
+        for mod_id, category in mod_categories.items():
+            print(f"  - {mod_id}: {category}")
+        
+        # 获取当前选中的分类
+        selected_category = None
         if cat_type == 'category':
-            # 显示一级分类下的MOD
-            cat_name = data['name']
-            print(f"[调试] refresh_mod_list: 当前选中一级分类: {cat_name}")
-        
-            count = 0
-            selected_row = None
-            
-            for idx, (mod_id, mod_info) in enumerate(mods.items()):
-                mod_category = mod_info.get('category', '默认分类')
-                
-                # 显示直接属于该分类的MOD（不包括子分类的MOD）
-                if mod_category == cat_name:
-                    # 标签页过滤
-                    if self.active_tab == "enabled" and not mod_info.get('enabled', False):
-                        continue
-                    if self.active_tab == "disabled" and mod_info.get('enabled', False):
-                        continue
-                    
-                    # 搜索过滤
-                    if search_text:
-                        t = search_text.lower()
-                        if t not in mod_info.get('name', '').lower() and t not in mod_info.get('real_name', '').lower():
-                            continue
-                    
-                    item = QListWidgetItem()
-                    item.setText(f"{mod_info.get('name','未命名MOD')}")
-                    item.setData(Qt.UserRole, mod_id)
-                    item.setToolTip(f"{mod_info.get('name','未命名MOD')}\n{mod_info.get('size','--')} MB")
-                    
-                    # 设置不同状态的MOD显示样式
-                    if mod_info.get('enabled', False):
-                        item.setForeground(Qt.green)
-                    else:
-                        item.setForeground(Qt.gray)
-                        
-                    self.mod_list.addItem(item)
-                    
-                    if selected_mod_id and mod_id == selected_mod_id:
-                        selected_row = count
-                    
-                    count += 1
-            
-            print(f"[调试] refresh_mod_list: 分类 {cat_name} 下有 {count} 个MOD")
-            
+            selected_category = data['name']
+            print(f"[调试] refresh_mod_list: 当前选中一级分类: {selected_category}")
         elif cat_type == 'subcategory':
-            # 显示二级分类下的MOD
-            full_path = data['full_path']
-            print(f"[调试] refresh_mod_list: 当前选中二级分类: {full_path}")
-            
-            count = 0
-            selected_row = None
-            
-            for idx, (mod_id, mod_info) in enumerate(mods.items()):
-                mod_category = mod_info.get('category', '默认分类')
-                
-                # 只显示属于该二级分类的MOD
-                if mod_category == full_path:
-                    # 标签页过滤
-                    if self.active_tab == "enabled" and not mod_info.get('enabled', False):
-                        continue
-                    if self.active_tab == "disabled" and mod_info.get('enabled', False):
-                        continue
-                    
-                    # 搜索过滤
-                    if search_text:
-                        t = search_text.lower()
-                        if t not in mod_info.get('name', '').lower() and t not in mod_info.get('real_name', '').lower():
-                            continue
-                    
-                    item = QListWidgetItem()
-                    item.setText(f"{mod_info.get('name','未命名MOD')}")
-                    item.setData(Qt.UserRole, mod_id)
-                    item.setToolTip(f"{mod_info.get('name','未命名MOD')}\n{mod_info.get('size','--')} MB")
-                    
-                    # 设置不同状态的MOD显示样式
-                    if mod_info.get('enabled', False):
-                        item.setForeground(Qt.green)
-                    else:
-                        item.setForeground(Qt.gray)
-                        
-                    self.mod_list.addItem(item)
-                    
-                    if selected_mod_id and mod_id == selected_mod_id:
-                        selected_row = count
-                    
-                    count += 1
-            
-            print(f"[调试] refresh_mod_list: 分类 {full_path} 下有 {count} 个MOD")
-            
+            selected_category = data['full_path']
+            print(f"[调试] refresh_mod_list: 当前选中二级分类: {selected_category}")
         elif cat_type == 'mod':
-            # 如果选中的是MOD，则显示其所属分类的所有MOD
-            parent = cat_item.parent()
+            # 如果选中的是MOD，则获取其所在的分类
+            parent = current_item.parent()
             if parent:
                 parent_data = parent.data(0, Qt.ItemDataRole.UserRole)
-                if parent_data['type'] == 'subcategory':
-                    # MOD属于二级分类
-                    full_path = parent_data['full_path']
-                    cat_name = full_path
-                else:
-                    # MOD属于一级分类
-                    cat_name = parent.text(0)
-            else:
-                # 如果没有父项，使用第一个分类
-                categories = [self.tree.topLevelItem(i).text(0) for i in range(self.tree.topLevelItemCount())]
-                cat_name = categories[0] if categories else '默认分类'
-            
-            print(f"[调试] refresh_mod_list: 当前选中MOD所属分类: {cat_name}")
-            
-            count = 0
-            selected_row = None
-            
-            for idx, (mod_id, mod_info) in enumerate(mods.items()):
-                mod_category = mod_info.get('category', '默认分类')
-                
-                if mod_category == cat_name:
-                    # 标签页过滤
-                    if self.active_tab == "enabled" and not mod_info.get('enabled', False):
-                        continue
-                    if self.active_tab == "disabled" and mod_info.get('enabled', False):
-                        continue
-                    
-                    # 搜索过滤
-                    if search_text:
-                        t = search_text.lower()
-                        if t not in mod_info.get('name', '').lower() and t not in mod_info.get('real_name', '').lower():
-                            continue
-                    
-                    item = QListWidgetItem()
-                    item.setText(f"{mod_info.get('name','未命名MOD')}")
-                    item.setData(Qt.UserRole, mod_id)
-                    item.setToolTip(f"{mod_info.get('name','未命名MOD')}\n{mod_info.get('size','--')} MB")
-                    
-                    # 设置不同状态的MOD显示样式
-                    if mod_info.get('enabled', False):
-                        item.setForeground(Qt.green)
-                    else:
-                        item.setForeground(Qt.gray)
-                        
-                    self.mod_list.addItem(item)
-                    
-                    if selected_mod_id and mod_id == selected_mod_id:
-                        selected_row = count
-                    elif mod_id == data['id']:  # 如果是当前选中的MOD
-                        selected_row = count
-                    
-                    count += 1
-            
-            print(f"[调试] refresh_mod_list: 分类 {cat_name} 下有 {count} 个MOD")
+                if parent_data['type'] == 'category':
+                    selected_category = parent_data['name']
+                    print(f"[调试] refresh_mod_list: 当前选中MOD所在一级分类: {selected_category}")
+                elif parent_data['type'] == 'subcategory':
+                    selected_category = parent_data['full_path']
+                    print(f"[调试] refresh_mod_list: 当前选中MOD所在二级分类: {selected_category}")
         
-        # 恢复原选中项
-        if selected_row is not None and selected_row < self.mod_list.count():
-            self.mod_list.setCurrentRow(selected_row)
-            self.on_mod_list_clicked(self.mod_list.item(selected_row))
-        elif self.mod_list.count() > 0:
-            self.mod_list.setCurrentRow(0)
-            self.on_mod_list_clicked(self.mod_list.item(0))
-        else:
-            self.clear_info_panel()
+        # 如果没有选中分类，则返回
+        if not selected_category:
+            return
             
-        # 更新标签页上的MOD数量
-        total_count = self.mod_list.count()
-        self.all_tab.setText(f"全部 ({total_count})")
+        # 获取当前选项卡
+        current_tab = "all_tab"  # 默认显示全部
+        if hasattr(self, 'active_tab'):
+            if self.active_tab == "enabled":
+                current_tab = "enabled_tab"
+            elif self.active_tab == "disabled":
+                current_tab = "disabled_tab"
         
-        # 计算已启用和已禁用的MOD数量
-        enabled_count = 0
-        disabled_count = 0
+        # 创建一个集合来跟踪已添加的MOD ID，防止重复添加
+        added_mod_ids = set()
         
-        # 根据当前分类统计
+        # 添加符合条件的MOD到列表
         for mod_id, mod_info in mods.items():
+            # 跳过已添加的MOD
+            if mod_id in added_mod_ids:
+                continue
+                
+            # 检查分类
             mod_category = mod_info.get('category', '默认分类')
+            if mod_category != selected_category:
+                continue
+                
+            # 检查启用状态
+            is_enabled = mod_info.get('enabled', False)
+            if current_tab == 'enabled_tab' and not is_enabled:
+                continue
+            if current_tab == 'disabled_tab' and is_enabled:
+                continue
+                
+            # 检查搜索文本
+            if search_text:
+                mod_name = mod_info.get('name', mod_id)
+                if search_text.lower() not in mod_name.lower():
+                    continue
             
-            # 检查是否属于当前分类
-            if cat_type == 'category' and mod_category == data['name']:
-                if mod_info.get('enabled', False):
-                    enabled_count += 1
-                else:
-                    disabled_count += 1
-            elif cat_type == 'subcategory' and mod_category == data['full_path']:
-                if mod_info.get('enabled', False):
-                    enabled_count += 1
-                else:
-                    disabled_count += 1
-            elif cat_type == 'mod':
-                if parent:
-                    parent_data = parent.data(0, Qt.ItemDataRole.UserRole)
-                    if parent_data['type'] == 'subcategory' and mod_category == parent_data['full_path']:
-                        if mod_info.get('enabled', False):
-                            enabled_count += 1
-                        else:
-                            disabled_count += 1
-                    elif parent_data['type'] == 'category' and mod_category == parent.text(0):
-                        if mod_info.get('enabled', False):
-                            enabled_count += 1
-                        else:
-                            disabled_count += 1
+            # 添加到列表
+            item = QListWidgetItem()
+            item.setText(mod_info.get('name', mod_id))
+            item.setData(Qt.UserRole, mod_id)
+            
+            # 设置图标
+            if is_enabled:
+                item.setIcon(QIcon(resource_path('icons/开启-开启.svg')))
+            else:
+                item.setIcon(QIcon(resource_path('icons/关闭-关闭.svg')))
+                
+            self.mod_list.addItem(item)
+            
+            # 记录已添加的MOD ID
+            added_mod_ids.add(mod_id)
         
-        self.enabled_tab.setText(f"已启用 ({enabled_count})")
-        self.disabled_tab.setText(f"已禁用 ({disabled_count})")
+        # 恢复选中状态
+        if selected_mod_id:
+            for i in range(self.mod_list.count()):
+                item = self.mod_list.item(i)
+                if item.data(Qt.UserRole) == selected_mod_id:
+                    self.mod_list.setCurrentItem(item)
+                    break
         
+        # 更新状态栏
+        self.update_status_info()
+        
+        # 统计当前分类下的MOD数量
+        mod_count = 0
+        for mod_id, mod_info in mods.items():
+            if mod_info.get('category', '默认分类') == selected_category:
+                mod_count += 1
+        print(f"[调试] refresh_mod_list: 分类 {selected_category} 下有 {mod_count} 个MOD")
+
     def on_mod_list_clicked(self, item):
         mod_id = item.data(Qt.UserRole)
         mods = self.config.get_mods()
@@ -2210,7 +2113,7 @@ class MainWindow(QMainWindow):
         # 信息文本
         info_text = f"""
         <div style='text-align:center;'>
-        <b>爱酱剑星MOD管理器</b> v1.6 (20250613)<br>
+        <b>爱酱剑星MOD管理器</b> v1.55 (20250615)<br>
         本管理器完全免费<br>
         作者：爱酱<br>
         QQ群：<a href='https://qm.qq.com/q/bShcpMFj1Y'>682707942</a><br>

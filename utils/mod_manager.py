@@ -123,30 +123,40 @@ class ModManager:
                     # 确定文件相对路径
                     rel_path = file.parent.relative_to(self.mods_path) if file.parent != self.mods_path else Path("")
                     
-                    # 根据文件位置构建相对路径
+                    # 收集同目录下的所有文件
+                    all_files = []
                     if rel_path == Path(""):
-                        # 情况二：文件直接在A文件夹中
-                        files = [
+                        # MOD文件直接在mods目录中
+                        all_files = [
                             str(file.name),
                             str(ucas_file.name),
                             str(utoc_file.name)
                         ]
+                        # 添加同目录下的其他文件
+                        for other_file in file.parent.glob('*'):
+                            if other_file.is_file() and other_file.name not in [file.name, ucas_file.name, utoc_file.name]:
+                                all_files.append(str(other_file.name))
                     else:
-                        # 情况一：文件在子文件夹中
-                        files = [
+                        # MOD文件在子目录中
+                        all_files = [
                             str(rel_path / file.name),
                             str(rel_path / ucas_file.name),
                             str(rel_path / utoc_file.name)
                         ]
+                        # 添加同目录下的其他文件
+                        for other_file in file.parent.glob('*'):
+                            if other_file.is_file() and other_file.name not in [file.name, ucas_file.name, utoc_file.name]:
+                                all_files.append(str(rel_path / other_file.name))
                     
                     mod_info = {
                         'name': mod_name,
-                        'files': files,
+                        'files': all_files,  # 包含所有文件
                         'original_path': str(file),
                         'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                         'enabled': True,
                         'size': round(file.stat().st_size / (1024 * 1024), 2),
-                        'folder_structure': str(rel_path) != ""  # 标记是否在子文件夹中
+                        'folder_structure': str(rel_path) != "",  # 标记是否在子文件夹中
+                        'real_name': mod_name  # 添加real_name字段，保存原始文件名
                     }
                     found_mods.append(mod_info)
                 else:

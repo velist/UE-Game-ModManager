@@ -235,14 +235,23 @@ class ConfigManager:
     def restore_mod_from_backup(self, mod_id, mod_info):
         """从备份还原MOD文件"""
         try:
-            # 确保使用正确的MOD ID
-            actual_mod_id = mod_info.get('name', mod_id)
+            # 确保使用正确的MOD ID（优先使用real_name，这是原始文件名）
+            actual_mod_id = mod_info.get('real_name', mod_info.get('name', mod_id))
             print(f"[调试] restore_mod_from_backup: 开始还原MOD {actual_mod_id}")
             backup_path = Path(self.get_backup_path())
             mod_backup_dir = backup_path / actual_mod_id
             
             if not mod_backup_dir.exists():
-                raise ValueError(f"备份目录不存在: {mod_backup_dir}")
+                # 如果使用real_name找不到备份目录，尝试使用name
+                if mod_info.get('real_name') and mod_info.get('real_name') != mod_info.get('name'):
+                    alt_backup_dir = backup_path / mod_info.get('name')
+                    if alt_backup_dir.exists():
+                        mod_backup_dir = alt_backup_dir
+                        print(f"[调试] restore_mod_from_backup: 使用替代备份目录: {mod_backup_dir}")
+                    else:
+                        raise ValueError(f"备份目录不存在: {mod_backup_dir} 或 {alt_backup_dir}")
+                else:
+                    raise ValueError(f"备份目录不存在: {mod_backup_dir}")
             
             # 检查是否为虚拟MOD（RAR文件）
             is_virtual = mod_info.get('is_virtual', False)
@@ -279,9 +288,9 @@ class ConfigManager:
                     target_dir = mods_path / sub_dir
                     print(f"[调试] restore_mod_from_backup: 检测到Unix路径分隔符，子目录: {sub_dir}")
                 else:
-                    # 没有子目录结构
+                    # 没有子目录结构，使用real_name作为目录名
                     target_dir = mods_path / actual_mod_id
-                    print(f"[调试] restore_mod_from_backup: 没有检测到子目录结构")
+                    print(f"[调试] restore_mod_from_backup: 没有检测到子目录结构，使用actual_mod_id: {actual_mod_id}")
                 
                 # 创建目标目录
                 target_dir.mkdir(parents=True, exist_ok=True)
@@ -352,9 +361,8 @@ class ConfigManager:
         """还原MOD"""
         try:
             # 确保使用正确的MOD ID
-            actual_mod_id = mod_info.get('name', mod_id)
-            print(f"[调试] restore_mod: 开始还原MOD {actual_mod_id}")
-            return self.restore_mod_from_backup(actual_mod_id, mod_info)
+            print(f"[调试] restore_mod: 开始还原MOD {mod_id}, mod_info={mod_info}")
+            return self.restore_mod_from_backup(mod_id, mod_info)
         except Exception as e:
             print(f"[调试] restore_mod: 还原失败 {str(e)}")
             raise ValueError(f"MOD还原失败: {str(e)}")
