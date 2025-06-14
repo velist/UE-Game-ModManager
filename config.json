@@ -1,9 +1,9 @@
 {
-    "game_path": "",
-    "mods_path": "D:/steam/steamapps/common/StellarBladeDemo/SB/Content/Paks/~mods",
+    "game_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB.exe",
+    "mods_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods",
     "backup_path": "D:/python/mods111",
     "categories": [
-        "1",
+        "默认分类",
         "2"
     ],
     "mods": {
@@ -14,24 +14,54 @@
                 "Lyws_Deathbringers_064e_P.ucas",
                 "Lyws_Deathbringers_064e_P.utoc"
             ],
-            "original_path": "D:\\steam\\steamapps\\common\\StellarBladeDemo\\SB\\Content\\Paks\\~mods\\Lyws_Deathbringers_064e_P.pak",
-            "import_date": "2025-06-12 01:00:18",
+            "original_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods\\Lyws_Deathbringers_064e_P.pak",
+            "import_date": "2025-06-15 04:43:14",
             "enabled": true,
             "size": 0.0,
-            "category": "1"
+            "folder_structure": true,
+            "category": "默认分类"
         },
-        "RaceSuit_P": {
-            "name": "RaceSuit_P",
+        "Lemi21_Cowbikini_P": {
+            "name": "Lemi21_Cowbikini_P",
             "files": [
-                "RaceSuit_P.pak",
-                "RaceSuit_P.ucas",
-                "RaceSuit_P.utoc"
+                "Lemi21_Cowbikini_P\\Lemi21_Cowbikini_P.pak",
+                "Lemi21_Cowbikini_P\\Lemi21_Cowbikini_P.ucas",
+                "Lemi21_Cowbikini_P\\Lemi21_Cowbikini_P.utoc"
             ],
-            "original_path": "D:\\steam\\steamapps\\common\\StellarBladeDemo\\SB\\Content\\Paks\\~mods\\RaceSuit_P.pak",
-            "import_date": "2025-06-12 01:00:18",
+            "original_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods\\Lemi21_Cowbikini_P\\Lemi21_Cowbikini_P.pak",
+            "import_date": "2025-06-15 04:43:14",
             "enabled": true,
             "size": 0.0,
-            "category": "1"
+            "folder_structure": true,
+            "category": "默认分类"
+        },
+        "Lemi21_LatexBattlesuit_P": {
+            "name": "Lemi21_LatexBattlesuit_P",
+            "files": [
+                "Lemi21_LatexBattlesuit_P\\Lemi21_LatexBattlesuit_P.pak",
+                "Lemi21_LatexBattlesuit_P\\Lemi21_LatexBattlesuit_P.ucas",
+                "Lemi21_LatexBattlesuit_P\\Lemi21_LatexBattlesuit_P.utoc"
+            ],
+            "original_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods\\Lemi21_LatexBattlesuit_P\\Lemi21_LatexBattlesuit_P.pak",
+            "import_date": "2025-06-15 04:43:14",
+            "enabled": true,
+            "size": 0.0,
+            "folder_structure": true,
+            "category": "默认分类"
+        },
+        "SkinsuitEdit_P": {
+            "name": "SkinsuitEdit_P",
+            "files": [
+                "SkinsuitEdit_P\\SkinsuitEdit_P.pak",
+                "SkinsuitEdit_P\\SkinsuitEdit_P.ucas",
+                "SkinsuitEdit_P\\SkinsuitEdit_P.utoc"
+            ],
+            "original_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods\\SkinsuitEdit_P\\SkinsuitEdit_P.pak",
+            "import_date": "2025-06-15 04:43:14",
+            "enabled": true,
+            "size": 0.0,
+            "folder_structure": true,
+            "category": "默认分类"
         }
     },
     "initialized": true
