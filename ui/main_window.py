@@ -2438,111 +2438,144 @@ class MainWindow(QMainWindow):
             print(f"[调试] update_mod_categories: 已更新 {updated_count} 个MOD的分类信息")
 
     def show_help(self):
-        info = """
-<style>
-    .section { margin-top: 10px; margin-bottom: 5px; }
-    .title { font-weight: bold; color: #cba6f7; }
-    .item { margin-left: 15px; margin-top: 5px; }
-    .note { color: #bdbdbd; font-style: italic; }
-    ul { margin-top: 5px; margin-bottom: 5px; padding-left: 20px; }
-    li { margin-bottom: 3px; }
-</style>
-
-<div class="title" style="font-size: 16px;">剑星MOD管理器 使用说明</div>
-
-<div class="section">
-    <div class="title">基础操作</div>
-    <div class="item">1. <b>首次启动</b>
+        """显示使用说明"""
+        help_dialog = QDialog(self)
+        help_dialog.setWindowTitle(self.tr('使用说明'))
+        help_dialog.setMinimumWidth(600)
+        help_dialog.setMinimumHeight(500)
+        help_dialog.resize(700, 600)
+        
+        layout = QVBoxLayout(help_dialog)
+        
+        # 创建滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # 创建内容容器
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        
+        # 使用HTML格式的帮助文本
+        help_text = """
+        <div style='text-align:left;'>
+        <h2>使用说明</h2>
+        
+        <h3>基本操作</h3>
+        <ol>
+            <li><b>首次运行</b>
+                <ul>
+                    <li>选择MOD文件夹和备份文件夹，两者缺一不可</li>
+                    <li>推荐MOD文件夹路径：游戏安装目录\SB\Content\Paks\~mods</li>
+                    <li>备份文件夹可以选择任意位置，建议选择空文件夹</li>
+                </ul>
+            </li>
+            <li><b>导入MOD</b>
+                <ul>
+                    <li>点击右侧"导入MOD"按钮</li>
+                    <li>选择MOD压缩包文件（支持zip、rar、7z格式）</li>
+                    <li>支持批量选择多个MOD文件同时导入</li>
+                    <li>支持嵌套压缩包（压缩包内包含其他压缩包）</li>
+                </ul>
+            </li>
+            <li><b>管理MOD</b>
+                <ul>
+                    <li>单击MOD可查看详细信息</li>
+                    <li>点击"启用/禁用MOD"按钮可切换MOD状态</li>
+                    <li>右键MOD可显示更多操作选项</li>
+                </ul>
+            </li>
+        </ol>
+        
+        <h3>高级功能</h3>
+        <ol>
+            <li><b>分类管理</b>
+                <ul>
+                    <li>左侧分类树支持右键菜单操作</li>
+                    <li>可新建、重命名、删除分类</li>
+                    <li>支持拖动排序和层级调整</li>
+                    <li>双击分类可展开/收起子分类</li>
+                </ul>
+            </li>
+            <li><b>MOD编辑模式</b>
+                <ul>
+                    <li>点击工具栏"编辑"按钮进入编辑模式</li>
+                    <li>支持多选MOD（按住Ctrl键点选或Shift键范围选择）</li>
+                    <li>可批量启用/禁用/删除/移动分类</li>
+                    <li>拖放功能支持在不同分类间移动MOD</li>
+                </ul>
+            </li>
+            <li><b>预览图管理</b>
+                <ul>
+                    <li>点击MOD信息卡片中的预览图区域可更换预览图</li>
+                    <li>支持jpg、png、webp等常见图片格式</li>
+                    <li>推荐使用1:1或16:9比例的图片</li>
+                </ul>
+            </li>
+        </ol>
+        
+        <h3>常见问题</h3>
+        <ol>
+            <li><b>MOD无法导入</b>
+                <ul>
+                    <li>检查压缩包格式是否支持</li>
+                    <li>确认压缩包内包含pak、utoc或ucas文件</li>
+                    <li>尝试解压后手动复制到MOD文件夹</li>
+                </ul>
+            </li>
+            <li><b>MOD导入后无效果</b>
+                <ul>
+                    <li>确认MOD已启用（显示为绿色状态）</li>
+                    <li>检查游戏是否需要重启</li>
+                    <li>验证MOD文件结构是否正确</li>
+                </ul>
+            </li>
+            <li><b>备份恢复问题</b>
+                <ul>
+                    <li>程序会自动备份原始游戏文件</li>
+                    <li>禁用MOD时会从备份恢复原始文件</li>
+                    <li>如遇问题，可尝试验证游戏完整性</li>
+                </ul>
+            </li>
+        </ol>
+        
+        <h3>快捷键</h3>
         <ul>
-            <li>选择MOD文件夹和备份文件夹，两者缺一不可</li>
-            <li>推荐MOD文件夹路径：游戏安装目录\\SB\\Content\\Paks\\~mods</li>
-            <li>备份文件夹可以选择任意位置，建议选择空文件夹</li>
+            <li>Ctrl+F：搜索MOD</li>
+            <li>Ctrl+E：进入/退出编辑模式</li>
+            <li>Delete：删除选中的MOD</li>
+            <li>F1：显示帮助</li>
+            <li>F5：刷新MOD列表</li>
         </ul>
-    </div>
-    <div class="item">2. <b>导入MOD</b>
-        <ul>
-            <li>点击右侧"导入MOD"按钮</li>
-            <li>选择MOD压缩包文件（支持zip、rar、7z格式）</li>
-            <li>支持批量选择多个MOD文件同时导入</li>
-            <li>支持嵌套压缩包（压缩包内包含其他压缩包）</li>
-        </ul>
-    </div>
-    <div class="item">3. <b>管理MOD</b>
-        <ul>
-            <li>单击MOD可查看详细信息</li>
-            <li>点击"启用/禁用MOD"按钮可切换MOD状态</li>
-            <li>右键MOD可显示更多操作选项</li>
-        </ul>
-    </div>
-</div>
-
-<div class="section">
-    <div class="title">高级功能</div>
-    <div class="item">1. <b>分类管理</b>
-        <ul>
-            <li>左侧分类树支持右键菜单操作</li>
-            <li>可新建、重命名、删除分类</li>
-            <li>支持拖动排序和层级调整</li>
-            <li>双击分类可展开/收起子分类</li>
-        </ul>
-    </div>
-    <div class="item">2. <b>MOD编辑模式</b>
-        <ul>
-            <li>点击工具栏"编辑"按钮进入编辑模式</li>
-            <li>支持多选MOD（按住Ctrl键点选或Shift键范围选择）</li>
-            <li>可批量启用/禁用/删除/移动分类</li>
-            <li>拖放功能支持在不同分类间移动MOD</li>
-        </ul>
-    </div>
-    <div class="item">3. <b>预览图管理</b>
-        <ul>
-            <li>点击MOD信息卡片中的预览图区域可更换预览图</li>
-            <li>支持jpg、png、webp等常见图片格式</li>
-            <li>推荐使用1:1或16:9比例的图片</li>
-        </ul>
-    </div>
-    <div class="item">4. <b>收藏工具箱</b>
-        <ul>
-            <li>点击主界面右下角"收藏工具箱"按钮</li>
-            <li>可访问在线MOD收藏和管理工具</li>
-        </ul>
-    </div>
-</div>
-
-<div class="section">
-    <div class="title">常见问题</div>
-    <div class="item">1. <b>MOD无法导入</b>
-        <ul>
-            <li>检查压缩包格式是否支持</li>
-            <li>确认压缩包内包含pak、utoc或ucas文件</li>
-            <li>尝试解压后手动复制到MOD文件夹</li>
-        </ul>
-    </div>
-    <div class="item">2. <b>多层嵌套MOD问题</b>
-        <ul>
-            <li>程序支持最多10层嵌套的压缩包</li>
-            <li>每个包含MOD文件的嵌套压缩包会被视为独立MOD</li>
-            <li>可单独启用/禁用任意嵌套MOD</li>
-        </ul>
-    </div>
-</div>
-
-<div class="section">
-    <div class="title">快捷键</div>
-    <ul>
-        <li>Ctrl+F：搜索MOD</li>
-        <li>Ctrl+E：进入/退出编辑模式</li>
-        <li>Delete：删除选中的MOD</li>
-        <li>F1：显示帮助</li>
-        <li>F5：刷新MOD列表</li>
-    </ul>
-</div>
-
-<div class="note" style="margin-top: 15px;">
-    本工具仅供学习交流，严禁商用。
-</div>
-"""
-        self.show_message(self.tr('使用说明'), info)
+        </div>
+        """
+        
+        # 创建QLabel显示HTML内容
+        help_label = QLabel()
+        help_label.setTextFormat(Qt.RichText)
+        help_label.setText(help_text)
+        help_label.setWordWrap(True)
+        help_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        help_label.setStyleSheet("padding: 10px;")
+        
+        # 添加到内容布局
+        content_layout.addWidget(help_label)
+        
+        # 设置滚动区域的内容
+        scroll_area.setWidget(content_widget)
+        
+        # 添加滚动区域到主布局
+        layout.addWidget(scroll_area)
+        
+        # 添加确定按钮
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(help_dialog.accept)
+        button_box.button(QDialogButtonBox.Ok).setText(self.tr('确定'))
+        layout.addWidget(button_box)
+        
+        # 显示对话框
+        help_dialog.exec()
 
     def input_dialog(self, title, label, text=''):
         from PySide6.QtWidgets import QInputDialog
