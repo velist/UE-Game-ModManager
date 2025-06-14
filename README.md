@@ -13,7 +13,7 @@
 ## 安装说明
 
 ### 方法一：直接下载
-1. 从 [Releases](https://github.com/yourusername/jianxing-mod-manager/releases) 页面下载最新版本
+1. 从 https://pan.xunlei.com/s/VOSV1m7gYTgOshRDP731Xap4A1?pwd=3hep# 页面下载最新版本，含旧版文件
 2. 解压后运行 `jianxing-mod-manager.exe`
 
 ### 方法二：从源码构建
@@ -130,4 +130,4 @@ MIT License
    - 验证了备份和恢复功能的可靠性
 
 ## 使用说明
-[待添加] 
+[待添加]
