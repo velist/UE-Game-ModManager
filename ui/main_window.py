@@ -2271,14 +2271,51 @@ class MainWindow(QMainWindow):
         return box.exec()
 
     def show_message(self, title, text, icon=QMessageBox.Information):
-        box = QMessageBox(self)
-        box.setIcon(icon)
-        box.setWindowTitle(title)
-        box.setText(f"<div style='text-align:center;width:300px'>{text}</div>")
-        box.setStandardButtons(QMessageBox.Ok)
-        box.button(QMessageBox.Ok).setText('确定' if getattr(self, '_lang', 'zh') == 'zh' else 'OK')
-        box.setStyleSheet(box.styleSheet() + "\nQPushButton { qproperty-alignment: AlignCenter; }")
-        return box.exec()
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QScrollArea
+        from PySide6.QtCore import Qt
+        
+        # 创建自定义对话框，而不是使用QMessageBox
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(500)
+        dialog.setMinimumHeight(400)
+        dialog.resize(550, 450)
+        
+        # 创建垂直布局
+        layout = QVBoxLayout(dialog)
+        
+        # 创建滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # 创建内容标签
+        content = QLabel()
+        content.setTextFormat(Qt.RichText)
+        content.setText(text)
+        content.setWordWrap(True)
+        content.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        content.setStyleSheet("padding: 10px;")
+        
+        # 将内容标签添加到滚动区域
+        scroll_area.setWidget(content)
+        
+        # 添加滚动区域到布局
+        layout.addWidget(scroll_area)
+        
+        # 创建确定按钮
+        ok_button = QPushButton('确定' if getattr(self, '_lang', 'zh') == 'zh' else 'OK')
+        ok_button.setMaximumWidth(100)
+        ok_button.clicked.connect(dialog.accept)
+        
+        # 添加按钮到布局，并设置居中对齐
+        button_layout = QVBoxLayout()
+        button_layout.addWidget(ok_button, 0, Qt.AlignCenter)
+        layout.addLayout(button_layout)
+        
+        # 显示对话框
+        return dialog.exec()
 
     def on_tree_drop_event(self, event):
         """处理目录树的拖放事件"""
@@ -2504,9 +2541,11 @@ class MainWindow(QMainWindow):
     .title { font-weight: bold; color: #cba6f7; }
     .item { margin-left: 15px; margin-top: 5px; }
     .note { color: #bdbdbd; font-style: italic; }
+    ul { margin-top: 5px; margin-bottom: 5px; padding-left: 20px; }
+    li { margin-bottom: 3px; }
 </style>
 
-<div class="title" style="font-size: 16px; text-align: center;">剑星MOD管理器 使用说明</div>
+<div class="title" style="font-size: 16px;">剑星MOD管理器 使用说明</div>
 
 <div class="section">
     <div class="title">基础操作</div>
@@ -2596,7 +2635,7 @@ class MainWindow(QMainWindow):
     </ul>
 </div>
 
-<div class="note" style="margin-top: 15px; text-align: center;">
+<div class="note" style="margin-top: 15px;">
     本工具仅供学习交流，严禁商用。
 </div>
 """
