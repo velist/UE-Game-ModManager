@@ -162,53 +162,55 @@ class ConfigManager:
             # 检查是否为虚拟MOD（RAR文件）
             is_virtual = mod_info.get('is_virtual', False)
             
-            # 无论是虚拟MOD还是普通MOD，都从MOD目录复制所有文件到备份目录
+            # 确定MOD所在的目录
+            mod_folder = None
+            if len(mod_info.get('files', [])) > 0:
+                first_file = mod_info['files'][0]
+                # 确保file_name是字符串
+                if not isinstance(first_file, str):
+                    first_file = str(first_file)
+                
+                # 获取文件夹路径
+                if '/' in first_file:
+                    mod_folder = mods_path / first_file.split('/')[0]
+                elif '\\' in first_file:
+                    mod_folder = mods_path / first_file.split('\\')[0]
+                else:
+                    # 直接在mods目录下的文件
+                    mod_folder = mods_path
+            
+            # 如果找到了MOD文件夹，备份该文件夹中的所有文件
             copied_count = 0
-            for file_name in mod_info.get('files', []):
-                try:
-                    # 确保file_name是字符串
-                    if not isinstance(file_name, str):
-                        print(f"[调试] backup_mod: 文件名不是字符串 {file_name}，尝试转换")
-                        file_name = str(file_name)
-                        
-                    src_file = mods_path / file_name
-                    if src_file.exists():
-                        # 目标文件路径（只保留文件名，不保留路径结构）
+            if mod_folder and mod_folder.exists() and mod_folder.is_dir():
+                print(f"[调试] backup_mod: 备份文件夹 {mod_folder} 中的所有文件")
+                for src_file in mod_folder.glob('*'):
+                    if src_file.is_file():
                         dest_file = mod_backup_dir / src_file.name
-                        
                         print(f"[调试] backup_mod: 复制文件 {src_file} -> {dest_file}")
                         shutil.copy2(src_file, dest_file)
                         copied_count += 1
-                    else:
-                        print(f"[调试] backup_mod: 源文件不存在 {src_file}")
-                except Exception as e:
-                    print(f"[调试] backup_mod: 处理文件 {file_name} 时出错: {e}")
-            
-            # 如果没有复制任何文件，但是文件夹存在，则复制文件夹中的所有文件
-            if copied_count == 0 and is_virtual:
-                # 检查是否有文件夹
-                if len(mod_info.get('files', [])) > 0:
-                    first_file = mod_info['files'][0]
-                    # 确保file_name是字符串
-                    if not isinstance(first_file, str):
-                        first_file = str(first_file)
-                    
-                    # 获取文件夹路径
-                    if '/' in first_file:
-                        folder_path = mods_path / first_file.split('/')[0]
-                    else:
-                        folder_path = mods_path / actual_mod_id
-                    
-                    # 如果文件夹存在，复制所有文件
-                    if folder_path.exists() and folder_path.is_dir():
-                        print(f"[调试] backup_mod: 复制文件夹中的所有文件 {folder_path} -> {mod_backup_dir}")
-                        for src_file in folder_path.glob('**/*'):
-                            if src_file.is_file():
-                                # 目标文件路径（只保留文件名，不保留路径结构）
-                                dest_file = mod_backup_dir / src_file.name
-                                print(f"[调试] backup_mod: 复制文件 {src_file} -> {dest_file}")
-                                shutil.copy2(src_file, dest_file)
-                                copied_count += 1
+            else:
+                # 如果没有找到MOD文件夹，尝试按照文件列表备份
+                print(f"[调试] backup_mod: 按照文件列表备份MOD文件")
+                for file_name in mod_info.get('files', []):
+                    try:
+                        # 确保file_name是字符串
+                        if not isinstance(file_name, str):
+                            print(f"[调试] backup_mod: 文件名不是字符串 {file_name}，尝试转换")
+                            file_name = str(file_name)
+                            
+                        src_file = mods_path / file_name
+                        if src_file.exists():
+                            # 目标文件路径（只保留文件名，不保留路径结构）
+                            dest_file = mod_backup_dir / src_file.name
+                            
+                            print(f"[调试] backup_mod: 复制文件 {src_file} -> {dest_file}")
+                            shutil.copy2(src_file, dest_file)
+                            copied_count += 1
+                        else:
+                            print(f"[调试] backup_mod: 源文件不存在 {src_file}")
+                    except Exception as e:
+                        print(f"[调试] backup_mod: 处理文件 {file_name} 时出错: {e}")
             
             print(f"[调试] backup_mod: 备份完成，复制了 {copied_count} 个文件")
             
