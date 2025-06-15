@@ -105,6 +105,8 @@ class ModManager:
         """递归扫描MOD目录及子目录，支持子文件夹下同名pak/ucas/utoc"""
         print(f"[调试] scan_mods_directory: 开始扫描 {self.mods_path}")
         found_mods = []
+        mod_names_seen = set()  # 用于跟踪已经看到的MOD名称
+        
         try:
             if not self.mods_path.exists():
                 print(f"[调试] scan_mods_directory: 创建MOD目录 {self.mods_path}")
@@ -118,7 +120,18 @@ class ModManager:
                 # 必须同目录下有同名ucas/utoc才算完整MOD
                 if ucas_file.exists() and utoc_file.exists():
                     mod_name = file.stem
-                    print(f"[调试] scan_mods_directory: 找到完整MOD {mod_name} in {file.parent}")
+                    folder_name = file.parent.name
+                    
+                    # 创建MOD ID，优先使用mod_name，如果已存在则使用folder_name_mod_name
+                    mod_id = mod_name
+                    if mod_name in mod_names_seen:
+                        # 如果MOD名称已存在，使用文件夹名称+MOD名称作为唯一标识
+                        if folder_name != "~mods":
+                            mod_id = f"{folder_name}_{mod_name}"
+                            print(f"[调试] scan_mods_directory: MOD名称重复，使用文件夹名称作为标识: {mod_id}")
+                    
+                    mod_names_seen.add(mod_name)  # 记录已看到的MOD名称
+                    print(f"[调试] scan_mods_directory: 找到完整MOD {mod_name} in {file.parent}, MOD ID: {mod_id}")
                     
                     # 确定文件相对路径
                     rel_path = file.parent.relative_to(self.mods_path) if file.parent != self.mods_path else Path("")
@@ -149,15 +162,18 @@ class ModManager:
                                 all_files.append(str(rel_path / other_file.name))
                     
                     mod_info = {
-                        'name': mod_name,
-                        'files': all_files,  # 包含所有文件
+                        'name': mod_id,  # 使用MOD ID作为唯一标识
+                        'files': all_files,  # 包含所有文件，包括txt等
                         'original_path': str(file),
                         'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                         'enabled': True,
                         'size': round(file.stat().st_size / (1024 * 1024), 2),
                         'folder_structure': str(rel_path) != "",  # 标记是否在子文件夹中
-                        'real_name': mod_name  # 添加real_name字段，保存原始文件名
+                        'folder_name': folder_name,  # 记录文件夹名称
+                        'display_name': mod_name,  # 用于UI显示的名称
+                        'mod_name': mod_name  # 保存原始MOD名称
                     }
+                    
                     found_mods.append(mod_info)
                 else:
                     print(f"[调试] scan_mods_directory: MOD文件不完整 {file}")
@@ -350,32 +366,37 @@ class ModManager:
                         for mod_group in filtered_mod_groups:
                             mod_name = mod_group['name']
                             processed_mod_names.add(mod_name)
-                            mod_folder = output_dir / mod_name
-                            if not mod_folder.exists():
-                                mod_folder.mkdir(parents=True, exist_ok=True)
-                            
-                            # 复制MOD文件到目标文件夹
-                            for file in mod_group['files']:
-                                dest_file = mod_folder / file.name
-                                shutil.copy2(file, dest_file)
-                            
-                            # 创建MOD信息
-                            mod_info = {
-                                'name': mod_name,
-                                'files': [f"{mod_name}/{file.name}" for file in mod_group['files']],
-                                'original_path': str(archive_path),
-                                'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                'enabled': True,
-                                'size': round(archive_path.stat().st_size / (1024 * 1024), 2),
-                                'folder_structure': True
-                            }
-                            
-                            # 如果有父压缩包，记录关系
-                            if original_archive_path:
-                                mod_info['parent_archive'] = str(original_archive_path)
-                                mod_info['is_nested'] = True
-                            
-                            processed_mods.append(mod_info)
+
+                            # 只有当有实际文件时才创建目录
+                            if mod_group['files']:
+                                mod_folder = output_dir / mod_name
+                                if not mod_folder.exists():
+                                    mod_folder.mkdir(parents=True, exist_ok=True)
+                                
+                                # 复制MOD文件到目标文件夹
+                                for file in mod_group['files']:
+                                    dest_file = mod_folder / file.name
+                                    shutil.copy2(file, dest_file)
+                                
+                                # 创建MOD信息
+                                mod_info = {
+                                    'name': mod_name,
+                                    'files': [f"{mod_name}/{file.name}" for file in mod_group['files']],
+                                    'original_path': str(archive_path),
+                                    'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    'enabled': True,
+                                    'size': round(archive_path.stat().st_size / (1024 * 1024), 2),
+                                    'folder_structure': True
+                                }
+                                
+                                # 如果有父压缩包，记录关系
+                                if original_archive_path:
+                                    mod_info['parent_archive'] = str(original_archive_path)
+                                    mod_info['is_nested'] = True
+                                
+                                processed_mods.append(mod_info)
+                            else:
+                                print(f"[调试] extract_nested_archive: MOD组 {mod_name} 没有文件，跳过")
                         
                         return processed_mods
                     else:
@@ -449,31 +470,36 @@ class ModManager:
                     for mod_group in direct_mod_groups:
                         mod_name = mod_group['name']
                         processed_mod_names.add(mod_name)
-                        mod_folder = mods_path / mod_name
-                        if not mod_folder.exists():
-                            mod_folder.mkdir(parents=True, exist_ok=True)
                         
-                        # 复制MOD文件到目标文件夹
-                        for file in mod_group['files']:
-                            dest_file = mod_folder / file.name
-                            shutil.copy2(file, dest_file)
-                        
-                        # 创建MOD信息
-                        mod_info = {
-                            'name': mod_name,
-                            'files': [f"{mod_name}/{file.name}" for file in mod_group['files']],
-                            'original_path': str(original_zip),
-                            'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'enabled': True,
-                            'size': round(original_zip.stat().st_size / (1024 * 1024), 2),
-                            'folder_structure': True
-                        }
-                        
-                        # 备份MOD文件
-                        self.config.backup_mod(mod_info['name'], mod_info)
-                        
-                        # 添加到导入列表
-                        imported_mods.append(mod_info)
+                        # 只有当MOD组有实际文件时才进行处理
+                        if mod_group['files']:
+                            mod_folder = mods_path / mod_name
+                            if not mod_folder.exists():
+                                mod_folder.mkdir(parents=True, exist_ok=True)
+                            
+                            # 复制MOD文件到目标文件夹
+                            for file in mod_group['files']:
+                                dest_file = mod_folder / file.name
+                                shutil.copy2(file, dest_file)
+                            
+                            # 创建MOD信息
+                            mod_info = {
+                                'name': mod_name,
+                                'files': [f"{mod_name}/{file.name}" for file in mod_group['files']],
+                                'original_path': str(original_zip),
+                                'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'enabled': True,
+                                'size': round(original_zip.stat().st_size / (1024 * 1024), 2),
+                                'folder_structure': True
+                            }
+                            
+                            # 备份MOD文件
+                            self.config.backup_mod(mod_info['name'], mod_info)
+                            
+                            # 添加到导入列表
+                            imported_mods.append(mod_info)
+                        else:
+                            print(f"[调试] import_mod: MOD组 {mod_name} 没有文件，跳过")
                 
                 # 处理嵌套的压缩包
                 if nested_archives:
@@ -497,35 +523,39 @@ class ModManager:
                 
                 # 如果没有找到任何MOD文件，创建一个虚拟MOD
                 if not imported_mods:
-                    print(f"[调试] import_mod: 未找到MOD文件，创建虚拟MOD")
+                    print(f"[调试] import_mod: 未找到MOD文件，尝试创建虚拟MOD")
                     
-                    # 创建以压缩包名称命名的文件夹
-                    mod_name = original_zip.stem
-                    mod_folder = mods_path / mod_name
-                    if not mod_folder.exists():
-                        mod_folder.mkdir(parents=True, exist_ok=True)
-                    
-                    # 复制原始压缩包到目标文件夹
-                    dest_file = mod_folder / original_zip.name
-                    shutil.copy2(original_zip, dest_file)
-                    
-                    # 创建虚拟MOD信息
-                    mod_info = {
-                        'name': mod_name,
-                        'files': [f"{mod_name}/{original_zip.name}"],
-                        'original_path': str(original_zip),
-                        'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'enabled': True,
-                        'size': round(original_zip.stat().st_size / (1024 * 1024), 2),
-                        'folder_structure': True,
-                        'is_virtual': True  # 标记为虚拟MOD
-                    }
-                    
-                    # 备份MOD文件
-                    self.config.backup_mod(mod_info['name'], mod_info)
-                    
-                    # 返回结果
-                    imported_mods = [mod_info]
+                    # 检查原始文件是否存在
+                    if original_zip.exists():
+                        # 创建以压缩包名称命名的文件夹
+                        mod_name = original_zip.stem
+                        mod_folder = mods_path / mod_name
+                        if not mod_folder.exists():
+                            mod_folder.mkdir(parents=True, exist_ok=True)
+                        
+                        # 复制原始压缩包到目标文件夹
+                        dest_file = mod_folder / original_zip.name
+                        shutil.copy2(original_zip, dest_file)
+                        
+                        # 创建虚拟MOD信息
+                        mod_info = {
+                            'name': mod_name,
+                            'files': [f"{mod_name}/{original_zip.name}"],
+                            'original_path': str(original_zip),
+                            'import_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'enabled': True,
+                            'size': round(original_zip.stat().st_size / (1024 * 1024), 2),
+                            'folder_structure': True,
+                            'is_virtual': True  # 标记为虚拟MOD
+                        }
+                        
+                        # 备份MOD文件
+                        self.config.backup_mod(mod_info['name'], mod_info)
+                        
+                        # 返回结果
+                        imported_mods = [mod_info]
+                    else:
+                        print(f"[警告] import_mod: 原始文件不存在，无法创建虚拟MOD: {original_zip}")
                 
                 # 返回导入的MOD列表
                 if len(imported_mods) == 1:
@@ -543,77 +573,64 @@ class ModManager:
             print(f"[调试] import_mod: 导入失败 {str(e)}")
             raise
 
-    def enable_mod(self, mod_id, mod_info=None, parent_widget=None):
-        """启用MOD，优先从备份还原"""
-        if not mod_info:
-            mod_info = self.config.get_mods().get(mod_id)
-        
-        print(f"[调试] enable_mod: mod_id={mod_id}, mod_info={mod_info}")
-        if not mod_info:
-            print("[调试] enable_mod: MOD不存在")
-            raise ValueError('MOD不存在')
-            
+    def enable_mod(self, mod_id):
+        """启用指定mod"""
         try:
-            # 优先从备份还原
-            restore_result = self.config.restore_mod_from_backup(mod_id, mod_info)
-            print(f"[调试] restore_mod_from_backup结果: {restore_result}")
+            print(f"[调试] enable_mod: 开始启用MOD {mod_id}")
+            mods = self.config.get_mods()
             
-            if not restore_result:
-                # 如果是嵌套MOD，尝试从父压缩包重新导入
-                if mod_info.get('is_nested', False) and 'parent_archive' in mod_info:
-                    parent_archive = Path(mod_info['parent_archive'])
-                    if parent_archive.exists():
-                        print(f"[调试] enable_mod: 尝试从父压缩包重新导入嵌套MOD: {parent_archive}")
-                        # 重新导入父压缩包
-                        imported_mods = self.import_mod(parent_archive)
-                        if isinstance(imported_mods, list):
-                            # 查找匹配的嵌套MOD
-                            for imported_mod in imported_mods:
-                                if imported_mod.get('name') == mod_id:
-                                    return True
-                        return True
+            if mod_id not in mods:
+                print(f"[错误] enable_mod: 找不到MOD {mod_id}")
+                return False
                 
-                # 如果是虚拟MOD，尝试直接使用原始文件
-                if mod_info.get('is_virtual', False) and 'original_path' in mod_info:
-                    original_path = Path(mod_info['original_path'])
-                    if original_path.exists():
-                        # 确保目标目录存在
-                        mods_path = Path(self.config.get_mods_path())
-                        if len(mod_info.get('files', [])) > 0:
-                            first_file = mod_info['files'][0]
-                            # 确保file_name是字符串
-                            if not isinstance(first_file, str):
-                                first_file = str(first_file)
-                            
-                            # 解析目标路径
-                            if '/' in first_file:
-                                # 有子目录结构
-                                sub_dir = first_file.split('/')[0]
-                                target_dir = mods_path / sub_dir
-                            else:
-                                # 没有子目录结构
-                                target_dir = mods_path / mod_id
-                            
-                            # 创建目标目录
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            
-                            # 复制文件到目标目录
-                            target_file = target_dir / original_path.name
-                            print(f"[调试] enable_mod: 直接从原始文件复制 {original_path} -> {target_file}")
-                            shutil.copy2(original_path, target_file)
-                            return True
-                
-                raise ValueError('MOD还原失败，备份不存在或解压失败')
+            mod = mods[mod_id]
             
-            print(f"[调试] enable_mod: 完成，目标目录文件列表: {list(Path(self.config.get_mods_path()).rglob('*'))}")
+            # 检查备份是否存在
+            backup_path = Path(self.config.get_backup_path()) / mod_id
+            if not backup_path.exists() or not list(backup_path.glob('**/*')):
+                print(f"[警告] enable_mod: MOD {mod_id} 的备份目录不存在或为空: {backup_path}")
+                
+                # 尝试其他可能的名称
+                alternate_names = [
+                    mod.get('display_name', ''),
+                    mod.get('mod_name', ''),
+                    mod.get('folder_name', ''),
+                    mod.get('name', ''),
+                    mod.get('real_name', '')
+                ]
+                
+                # 过滤掉空名称和重复名称
+                alternate_names = list(set([name for name in alternate_names if name]))
+                
+                backup_found = False
+                for name in alternate_names:
+                    alternate_backup = Path(self.config.get_backup_path()) / name
+                    if alternate_backup.exists() and list(alternate_backup.glob('**/*')):
+                        print(f"[调试] enable_mod: 找到替代备份目录: {alternate_backup}")
+                        backup_path = alternate_backup
+                        backup_found = True
+                        break
+                
+                if not backup_found:
+                    print(f"[错误] enable_mod: MOD {mod_id} 没有可用的备份")
+                    return False
+                
+            # 从备份中恢复文件
+            result = self.restore_mod_from_backup(mod_id, backup_path)
+            if not result:
+                print(f"[错误] enable_mod: 恢复MOD {mod_id} 的文件失败")
+                return False
+                
+            # 更新MOD状态为已启用
+            mod['enabled'] = True
+            self.config._save_config()
+            print(f"[调试] enable_mod: MOD {mod_id} 已成功启用")
             return True
         except Exception as e:
-            if parent_widget:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.warning(parent_widget, "警告", f"启用MOD失败：{str(e)}\n\n这可能是因为备份文件丢失或损坏。")
-            print(f"[调试] enable_mod: 启用失败: {e}")
+            print(f"[错误] enable_mod: 启用MOD {mod_id} 时出错: {str(e)}")
+            traceback.print_exc()
             return False
-            
+
     def disable_mod(self, mod_id):
         """禁用MOD"""
         try:
@@ -687,4 +704,162 @@ class ModManager:
             return True
         except Exception as e:
             print(f"[调试] set_preview_image: 设置预览图失败 {str(e)}")
+            return False
+
+    def backup_mod(self, mod_id):
+        """备份指定mod的所有文件"""
+        try:
+            print(f"[调试] backup_mod: 开始备份MOD {mod_id}")
+            mods = self.config.get_mods()
+            if mod_id not in mods:
+                print(f"[错误] backup_mod: 找不到MOD {mod_id}")
+                return False
+            
+            mod = mods[mod_id]
+            files = mod.get('files', [])
+            # 备份路径为自定义备份路径 + mod_id
+            backup_dir = Path(self.config.get_backup_path()) / mod_id
+            
+            # 确保备份目录存在
+            if not backup_dir.exists():
+                print(f"[调试] backup_mod: 创建备份目录 {backup_dir}")
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                
+            # 备份文件
+            successful_backups = 0
+            for file in files:
+                source_path = Path(self.config.get_mods_path()) / file
+                # 创建备份目标路径，保留子目录结构
+                file_parts = Path(file).parts
+                if len(file_parts) > 1:  # 有子目录结构
+                    # 使用除去第一个部分(mod文件夹名)后的路径
+                    rel_path = Path(*file_parts[1:])
+                    target_path = backup_dir / rel_path
+                    # 确保目标目录存在
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                else:
+                    # 直接放在备份根目录
+                    target_path = backup_dir / file_parts[0]
+                
+                print(f"[调试] backup_mod: 从 {source_path} 备份到 {target_path}")
+                if source_path.exists():
+                    # 确保目标目录存在
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    # 复制文件
+                    if not source_path.is_dir():
+                        shutil.copy2(source_path, target_path)
+                        print(f"[调试] backup_mod: 成功备份文件 {source_path}")
+                        successful_backups += 1
+                    else:
+                        # 如果是目录，复制整个目录
+                        if target_path.exists() and target_path.is_dir():
+                            # 如果目标目录已存在，先清空
+                            shutil.rmtree(target_path)
+                        shutil.copytree(source_path, target_path)
+                        print(f"[调试] backup_mod: 成功备份目录 {source_path}")
+                        successful_backups += 1
+                else:
+                    print(f"[警告] backup_mod: 源文件不存在 {source_path}")
+            
+            print(f"[调试] backup_mod: MOD {mod_id} 备份完成，成功备份 {successful_backups}/{len(files)} 个文件")
+            if successful_backups == 0:
+                print(f"[错误] backup_mod: MOD {mod_id} 没有成功备份任何文件")
+                return False
+                
+            return True
+        except Exception as e:
+            print(f"[错误] backup_mod: 备份MOD {mod_id} 时出错: {str(e)}")
+            traceback.print_exc()
+            return False
+
+    def restore_mod_from_backup(self, mod_id, backup_path):
+        """从备份目录恢复MOD文件到游戏目录"""
+        try:
+            print(f"[调试] restore_mod_from_backup: 开始从 {backup_path} 恢复MOD {mod_id}")
+            mods = self.config.get_mods()
+            if mod_id not in mods:
+                print(f"[错误] restore_mod_from_backup: 找不到MOD {mod_id}")
+                return False
+                
+            mod = mods[mod_id]
+            mod_files = mod.get('files', [])
+            
+            # 如果文件列表为空，尝试从备份目录推断
+            if not mod_files:
+                print(f"[警告] restore_mod_from_backup: MOD {mod_id} 没有记录文件列表，将从备份目录推断")
+                # 获取备份目录中的所有文件
+                backup_files = list(backup_path.glob('**/*'))
+                backup_files = [f for f in backup_files if f.is_file()]
+                
+                # 生成MOD目录路径
+                mod_name = mod.get('folder_name') or mod.get('display_name') or mod.get('mod_name') or mod_id
+                
+                # 为每个备份文件构建目标路径
+                for backup_file in backup_files:
+                    # 计算相对于备份目录的路径
+                    rel_path = backup_file.relative_to(backup_path)
+                    # 构建完整的MOD文件路径
+                    mod_file = f"{mod_name}/{str(rel_path)}"
+                    mod_files.append(mod_file)
+                
+                # 更新MOD文件列表
+                print(f"[调试] restore_mod_from_backup: 从备份推断的文件列表: {mod_files}")
+                mod['files'] = mod_files
+                self.config._save_config()
+            
+            # 将所有备份文件复制到游戏目录
+            success_count = 0
+            error_count = 0
+            mods_path = Path(self.config.get_mods_path())
+            
+            for mod_file in mod_files:
+                # 生成目标文件路径
+                target_path = mods_path / mod_file
+                
+                # 确定备份文件路径
+                # 如果有文件夹结构，需要去掉第一层（MOD目录名）
+                file_parts = Path(mod_file).parts
+                if len(file_parts) > 1:
+                    # 使用除去第一个部分后的路径
+                    rel_path = Path(*file_parts[1:])
+                    source_path = backup_path / rel_path
+                else:
+                    # 直接从备份根目录获取
+                    source_path = backup_path / file_parts[0]
+                
+                print(f"[调试] restore_mod_from_backup: 从 {source_path} 恢复到 {target_path}")
+                
+                # 检查源文件是否存在
+                if not source_path.exists():
+                    print(f"[警告] restore_mod_from_backup: 备份文件不存在 {source_path}")
+                    error_count += 1
+                    continue
+                    
+                try:
+                    # 确保目标目录存在
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # 复制文件
+                    if not source_path.is_dir():
+                        shutil.copy2(source_path, target_path)
+                        print(f"[调试] restore_mod_from_backup: 成功恢复文件 {target_path}")
+                        success_count += 1
+                    else:
+                        # 如果是目录，复制整个目录
+                        if target_path.exists() and target_path.is_dir():
+                            # 如果目标目录已存在，先清空
+                            shutil.rmtree(target_path)
+                        shutil.copytree(source_path, target_path)
+                        print(f"[调试] restore_mod_from_backup: 成功恢复目录 {target_path}")
+                        success_count += 1
+                except Exception as e:
+                    print(f"[错误] restore_mod_from_backup: 恢复文件 {source_path} 到 {target_path} 失败: {str(e)}")
+                    error_count += 1
+            
+            print(f"[调试] restore_mod_from_backup: MOD {mod_id} 恢复完成，成功: {success_count}, 失败: {error_count}")
+            return success_count > 0
+                
+        except Exception as e:
+            print(f"[错误] restore_mod_from_backup: 恢复MOD {mod_id} 时出错: {str(e)}")
+            traceback.print_exc()
             return False
