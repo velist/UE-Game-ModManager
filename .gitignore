@@ -1,0 +1,49 @@
+# 忽略MOD文件
+*.ucas
+*.rar
+*.zip
+
+# 忽略临时文件夹
+modbackup/
+release/
+temp/
+__pycache__/
+
+# 忽略测试文件
+test_*.py
+debug_*.py
+
+# 忽略IDE配置
+.idea/
+.vscode/
+*.pyc
+
+# 忽略日志文件
+*.log
+
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.DS_Store
+*.db
+*.sqlite3
+*.bak
+*.swp
+*.swo
+*.~
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 图片文件
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+!icons/*.svg  # 保留icons目录下的svg文件 

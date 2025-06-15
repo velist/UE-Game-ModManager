@@ -1,0 +1,7 @@
+Drag and Drop or Extract the files (.pak,.ucas,.utoc) from the .RAR file and place it at this folder location
+
+"SteamLibrary\steamapps\common\StellarBladeDemo\SB\Content\Paks\~Mods"
+
+If the "~Mods" doesn't exist, create it manually.
+
+Check out my work at my Patreon page: patreon.com/lemi21
