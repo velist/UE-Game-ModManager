@@ -230,6 +230,12 @@ def main():
         
         print("[调试] 启动程序...")
         
+        # 显示当前工作目录和可执行文件路径
+        print(f"[调试] 当前工作目录: {os.getcwd()}")
+        if getattr(sys, 'frozen', False):
+            print(f"[调试] 可执行文件路径: {sys.executable}")
+            print(f"[调试] 可执行文件目录: {os.path.dirname(sys.executable)}")
+        
         # 设置路径
         setup_paths()
         

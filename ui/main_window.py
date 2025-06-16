@@ -132,12 +132,16 @@ class MainWindow(QMainWindow):
         # 更新启动游戏按钮状态
         self.update_launch_button()
         
+        # 检查是否需要设置备份目录
+        if not self.config.get_backup_path():
+            self.set_backup_directory()
+        
         # 检查是否需要设置MOD文件夹
         if not self.config.get_mods_path():
             self.set_mods_directory()
             
         # 检查是否需要设置游戏路径
-        if self.config.is_initialized() and not self.config.get_game_path():
+        if not self.config.get_game_path():
             reply = self.msgbox_question_zh('设置游戏路径', '是否设置游戏路径以便直接启动游戏？\n游戏可执行文件名为SB-Win64-Shipping.exe')
             if reply == QMessageBox.StandardButton.Yes:
                 self.set_game_path()
@@ -632,7 +636,7 @@ class MainWindow(QMainWindow):
         self.mod_count_label.setObjectName('statusLabel')
         status_bar.addPermanentWidget(self.mod_count_label)
         
-        about_label = QLabel("爱酱MOD管理器 v1.56 (20250615) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
+        about_label = QLabel("爱酱MOD管理器 v1.6.2 (20250617) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
         about_label.setOpenExternalLinks(True)
         self.statusBar().addPermanentWidget(about_label)
         
@@ -775,8 +779,9 @@ class MainWindow(QMainWindow):
                     primary_categories.append(category)
         
         # 确保默认分类在列表中
-        if "默认分类" not in primary_categories:
-            primary_categories.insert(0, "默认分类")
+        default_category_name = self.config.default_category_name
+        if default_category_name not in primary_categories:
+            primary_categories.insert(0, default_category_name)
         
         # 按照配置中的顺序添加一级分类（已经按时间戳排序）
         ordered_primary_categories = []
@@ -820,7 +825,7 @@ class MainWindow(QMainWindow):
         mods = self.config.get_mods()
         
         for mod_id, mod_info in mods.items():
-            category = mod_info.get('category', '默认分类')
+            category = mod_info.get('category', self.config.default_category_name)
             # 检查是否包含 / 分隔符，表示二级分类
             if '/' in category:
                 main_cat, sub_cat = category.split('/', 1)
@@ -867,7 +872,7 @@ class MainWindow(QMainWindow):
             menu.addAction(rename_action)
             
             # 移除对默认分类的特殊处理，所有分类都可以删除
-            if data['name'] != '默认分类':
+            if data['name'] != self.config.default_category_name:
                 delete_action = QAction('删除分类', self)
                 delete_action.triggered.connect(lambda: self.delete_category(item))
                 menu.addAction(delete_action)
@@ -920,6 +925,12 @@ class MainWindow(QMainWindow):
                 
             # 添加到配置
             self.config.add_category(name)
+            
+            # 添加到树控件
+            item = QTreeWidgetItem([name])
+            item.setData(0, Qt.ItemDataRole.UserRole, {'type': 'category', 'name': name})
+            item.setIcon(0, QIcon(resource_path('icons/文件夹.svg')))
+            self.tree.addTopLevelItem(item)
             
             # 保存分类顺序
             self.save_category_order()
@@ -976,8 +987,8 @@ class MainWindow(QMainWindow):
     def rename_category(self, item):
         """重命名分类"""
         old_name = item.data(0, Qt.ItemDataRole.UserRole)['name']
-        
-        # 删除禁止重命名默认分类的代码块
+        print(f"[调试] rename_category: 准备重命名分类 {old_name}")
+        print(f"[调试] rename_category: 当前默认分类名称: {self.config.default_category_name}")
         
         new_name, ok = self.input_dialog('重命名分类', '请输入新的分类名称：', old_name)
         
@@ -1095,21 +1106,22 @@ class MainWindow(QMainWindow):
     def delete_category(self, item):
         """删除分类"""
         name = item.data(0, Qt.ItemDataRole.UserRole)['name']
-        if name == '默认分类':
+        default_category_name = self.config.default_category_name
+        if name == default_category_name:
             return
             
-        reply = self.msgbox_question_zh('确认删除', f'确定要删除分类"{name}"吗？\n该分类下的MOD将移至默认分类。')
+        reply = self.msgbox_question_zh('确认删除', f'确定要删除分类"{name}"吗？\n该分类下的MOD将移至{default_category_name}分类。')
         
         if reply == QMessageBox.StandardButton.Yes:
             # 更新所有MOD的分类信息
             mods = self.config.get_mods()
             for mod_id, mod_info in mods.items():
                 if mod_info.get('category') == name:
-                    mod_info['category'] = '默认分类'
+                    mod_info['category'] = default_category_name
                     self.config.update_mod(mod_id, mod_info)
                 # 同时处理二级分类
                 elif '/' in mod_info.get('category', '') and mod_info.get('category', '').startswith(name + '/'):
-                    mod_info['category'] = '默认分类'
+                    mod_info['category'] = default_category_name
                     self.config.update_mod(mod_id, mod_info)
             
             # 从分类列表中删除所有相关分类
@@ -1332,9 +1344,6 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage('MOD已启用', 3000)
             self.config.update_mod(mod_id, mod_info)
             print(f"[调试] toggle_mod: 更新config，enabled={mod_info['enabled']}")
-            
-            # 刷新UI
-            self.load_mods()
             
             # 保存当前标签页状态
             current_tab = self.active_tab
@@ -1563,6 +1572,12 @@ class MainWindow(QMainWindow):
             self.config.set_mods_path(path)
             self.mod_manager.mods_path = Path(path)
             
+            # 检查是否为特定路径，并且是否为首次设置
+            expected_path = "steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods"
+            if expected_path.replace("\\", "/") in str(path).replace("\\", "/") and not self.config.get('mods_path_notified', False):
+                self.show_message('提示', f'已成功设置MOD存放路径为:\n{path}\n\n您可以将MOD文件放入此文件夹。')
+                self.config.set('mods_path_notified', True)
+            
             # 扫描现有MOD
             found_mods = self.mod_manager.scan_mods_directory()
             for mod_info in found_mods:
@@ -1672,11 +1687,14 @@ class MainWindow(QMainWindow):
             
     def select_default_category(self):
         """选中默认分类"""
+        # 获取默认分类名称
+        default_category_name = self.config.default_category_name
+        
         # 查找默认分类
         for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)
             data = item.data(0, Qt.ItemDataRole.UserRole)
-            if data['type'] == 'category' and data['name'] == '默认分类':
+            if data['type'] == 'category' and data['name'] == default_category_name:
                 self.tree.setCurrentItem(item)
                 self.refresh_mod_list()
                 return True
@@ -1933,10 +1951,26 @@ class MainWindow(QMainWindow):
         
     def set_backup_directory(self):
         """设置备份目录"""
-        backup_path = QFileDialog.getExistingDirectory(self, self.tr('选择备份目录（用于存放MOD压缩包和解压文件）'))
-        if backup_path:
-            self.config.set_backup_path(backup_path)
-            self.show_message(self.tr('成功'), self.tr('备份目录已修改')) 
+        # 获取当前备份目录或默认目录
+        current_backup_path = self.config.get_backup_path()
+        if not current_backup_path:
+            current_backup_path = os.path.join(os.getcwd(), "modbackup")
+            
+        # 询问用户是否使用默认路径
+        reply = self.msgbox_question_zh('备份目录', f'是否使用默认备份目录？\n{current_backup_path}')
+        if reply == QMessageBox.StandardButton.Yes:
+            # 确保目录存在
+            backup_dir = Path(current_backup_path)
+            if not backup_dir.exists():
+                backup_dir.mkdir(parents=True, exist_ok=True)
+            self.config.set_backup_path(str(backup_dir))
+            self.show_message(self.tr('成功'), f'备份目录已设置为: {current_backup_path}')
+        else:
+            # 用户选择自定义目录
+            backup_path = QFileDialog.getExistingDirectory(self, self.tr('选择备份目录（用于存放MOD压缩包和解压文件）'))
+            if backup_path:
+                self.config.set_backup_path(backup_path)
+                self.show_message(self.tr('成功'), f'备份目录已设置为: {backup_path}')
 
     def on_tab_clicked(self, tab_name):
         """处理标签页点击事件"""
@@ -1984,7 +2018,7 @@ class MainWindow(QMainWindow):
         # 记录所有MOD的分类情况，用于调试
         mod_categories = {}
         for mod_id, mod_info in mods.items():
-            mod_categories[mod_id] = mod_info.get('category', '默认分类')
+            mod_categories[mod_id] = mod_info.get('category', self.config.default_category_name)
         print(f"[调试] refresh_mod_list: 当前所有MOD的分类：")
         for mod_id, category in mod_categories.items():
             print(f"  - {mod_id}: {category}")
@@ -2037,7 +2071,7 @@ class MainWindow(QMainWindow):
                 continue
                 
             # 检查分类
-            mod_category = mod_info.get('category', '默认分类')
+            mod_category = mod_info.get('category', self.config.default_category_name)
             if mod_category != selected_category:
                 continue
                 
@@ -2325,10 +2359,10 @@ class MainWindow(QMainWindow):
         # 信息文本
         info_text = f"""
         <div style='text-align:center;'>
-        <b>爱酱剑星MOD管理器</b> v1.56 (20250615)<br>
+        <b>爱酱剑星MOD管理器</b> v1.6.2 (20250617)<br>
         本管理器完全免费<br>
         作者：爱酱<br>
-        QQ群：<a href='https://qm.qq.com/q/bShcpMFj1Y'>682707942</a><br>
+        QQ群：<a href='https://qm.qq.com/q/Ej0DqPPa9i'>788566495</a> (<a href='https://qm.qq.com/q/2rU31GUAKE'>682707942</a>)<br>
         <span style='color:#bdbdbd'>欢迎加入QQ群获取最新MOD和反馈建议！</span>
         </div>
         """
@@ -2357,7 +2391,7 @@ class MainWindow(QMainWindow):
             layout.addWidget(donation_img)
         
         # 添加捐赠文字
-        donation_text = QLabel(self.tr('如果对你有帮助，可以请我喝一杯咖啡~'))
+        donation_text = QLabel(self.tr('如果对你有帮助，可以请我喝一杯蜜雪冰城~\n\n捐赠感谢：\n胖虎、YUki\n春告鳥、蘭\n神秘不保底男\n文铭、阪、……、林墨\n爱酱游戏群全体群友'))
         donation_text.setAlignment(Qt.AlignCenter)
         layout.addWidget(donation_text)
         
@@ -3185,7 +3219,14 @@ class MainWindow(QMainWindow):
                 game_path = selected_files[0]
                 self.config.set_game_path(game_path)
                 self.setup_mods_folder(game_path)
-                self.show_message('成功', f'游戏路径已设置为: {game_path}')
+                
+                # 检查是否为首次设置SB-Win64-Shipping.exe
+                if "SB-Win64-Shipping.exe" in game_path and not self.config.get('game_path_notified', False):
+                    self.show_message('提示', f'已成功设置游戏启动路径为:\n{game_path}\n\n现在您可以使用"启动游戏"按钮直接启动游戏。')
+                    self.config.set('game_path_notified', True)
+                else:
+                    self.show_message('成功', f'游戏路径已设置为: {game_path}')
+                
                 self.update_launch_button()
                 
     def setup_mods_folder(self, game_exe_path):
@@ -3215,6 +3256,12 @@ class MainWindow(QMainWindow):
                     self.mod_manager.mods_path = mods_path
                     print(f"[调试] MOD文件夹已设置为: {mods_path}")
                     self.statusBar().showMessage(f'MOD文件夹已自动设置为: {mods_path}', 5000)
+                    
+                    # 检查是否为特定路径，并且是否为首次设置
+                    expected_path = "steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods"
+                    if expected_path.replace("\\", "/") in str(mods_path).replace("\\", "/") and not self.config.get('mods_path_notified', False):
+                        self.show_message('提示', f'已成功设置MOD存放路径为:\n{mods_path}\n\n您可以将MOD文件放入此文件夹。')
+                        self.config.set('mods_path_notified', True)
                     
                     # 刷新MOD列表
                     self.refresh_mods()

@@ -1,10 +1,8 @@
-import PyInstaller.__main__
 import os
 import shutil
 import zipfile
 import subprocess
 from pathlib import Path
-import json
 import sys
 
 def create_backup_dir():
@@ -15,27 +13,15 @@ def create_backup_dir():
         print(f"创建modbackup目录: {backup_dir}")
     return backup_dir
 
-def backup_config():
-    """备份配置文件但不删除原文件"""
+def create_empty_config():
+    """创建空的配置文件，确保它被包含在打包中"""
     config_file = os.path.join(os.getcwd(), "config.json")
-    if os.path.exists(config_file):
-        backup_file = f"{config_file}.bak"
-        shutil.copy2(config_file, backup_file)
-        print(f"备份当前config.json到: {backup_file}")
-        # 保留配置文件，确保它被包含在打包中
-        print("保留config.json，确保它被包含在打包中")
-
-def restore_config():
-    """恢复配置文件"""
-    config_file = os.path.join(os.getcwd(), "config.json")
-    backup_file = f"{config_file}.bak"
-    if os.path.exists(backup_file):
-        # 如果原配置文件不存在，则从备份恢复
-        if not os.path.exists(config_file):
-            shutil.copy2(backup_file, config_file)
-            print("从备份恢复config.json")
-        os.remove(backup_file)
-        print("删除config.json备份")
+    if not os.path.exists(config_file):
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write('{}')
+        print(f"创建空的配置文件: {config_file}")
+    else:
+        print(f"配置文件已存在: {config_file}")
 
 def build_executable():
     """构建可执行文件"""
@@ -51,11 +37,12 @@ def build_executable():
         "pyinstaller",
         "--onefile",  # 单文件模式
         "--windowed",  # 无控制台窗口
-        "--name", "剑星MOD管理器_v1.6.1",  # 输出文件名
-        "--icon=icons/app.ico",  # 使用app.ico作为图标
+        "--name", "剑星MOD管理器_v1.6.2",  # 输出文件名
+        "--icon=app.ico",  # 使用根目录下的app.ico作为图标
         "--add-data", "icons;icons",  # 添加图标资源
         "--add-data", "ui/style.qss;ui",  # 添加样式表
         "--add-data", "config.json;.",  # 添加配置文件
+        "--add-data", "捐赠.png;.",  # 添加捐赠图片
         "main.py"  # 主程序
     ]
 
@@ -68,8 +55,8 @@ def build_executable():
         os.mkdir("release")
 
     # 复制可执行文件到发布目录
-    dist_file = os.path.join("dist", "剑星MOD管理器_v1.6.1.exe")
-    release_file = os.path.join("release", "剑星MOD管理器_v1.6.1.exe")
+    dist_file = os.path.join("dist", "剑星MOD管理器_v1.6.2.exe")
+    release_file = os.path.join("release", "剑星MOD管理器_v1.6.2.exe")
 
     if os.path.exists(dist_file):
         shutil.copy(dist_file, release_file)
@@ -87,7 +74,7 @@ def create_release_package():
     print("开始创建发布包...")
 
     # 版本信息
-    version = "1.6.1"
+    version = "1.6.2"
     release_name = f"剑星MOD管理器_{version}_修复版"
 
     # 创建发布目录
@@ -102,7 +89,7 @@ def create_release_package():
     os.makedirs(temp_dir)
 
     # 复制源代码文件
-    source_files = ["main.py", "README.md", "requirements.txt", "build.py"]
+    source_files = ["main.py", "config.json", "README.md", "requirements.txt", "build_fixed.py"]
     for file in source_files:
         if os.path.exists(file):
             shutil.copy2(file, os.path.join(temp_dir, file))
@@ -142,20 +129,19 @@ def create_release_package():
     print("8. 首次探索到SB-Win64-Shipping.exe时，设为游戏启动按钮并弹窗提醒用户")
     print("9. 探索到steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods路径时，设为MOD存放路径并弹窗提醒用户")
     print("10. 修复了配置文件保存问题，确保设置能够正确保存并在重启后保留")
+    print("11. 修复了点击C2区禁用/启用MOD时自动创建子分类并且删除一个子分类导致所有子分类一起删除的问题")
 
 if __name__ == "__main__":
     # 创建备份目录
     create_backup_dir()
 
-    # 备份配置文件
-    backup_config()
+    # 创建空的配置文件
+    create_empty_config()
 
     # 构建可执行文件
     build_executable()
 
-    # 恢复配置文件
-    restore_config()
-    print("打包成功，输出目录: dist/剑星MOD管理器_v1.6.1.exe")
+    print("打包成功，输出目录: dist/剑星MOD管理器_v1.6.2.exe")
 
     # 创建发布包
     create_release_package() 

@@ -92,7 +92,7 @@ def extract_rar_with_winrar(rar_file, extract_path):
 class ModManager:
     """MOD管理器类"""
     
-    VERSION = "1.59"  # 版本号
+    VERSION = "1.62"  # 版本号
     
     def __init__(self, config_manager):
         self.config = config_manager

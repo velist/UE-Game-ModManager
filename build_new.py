@@ -1,11 +1,9 @@
-import PyInstaller.__main__
 import os
 import shutil
 import zipfile
 import subprocess
-from pathlib import Path
-import json
 import sys
+from pathlib import Path
 
 def create_backup_dir():
     """创建备份目录"""
@@ -15,27 +13,15 @@ def create_backup_dir():
         print(f"创建modbackup目录: {backup_dir}")
     return backup_dir
 
-def backup_config():
-    """备份配置文件但不删除原文件"""
+def create_empty_config():
+    """创建空的配置文件，确保它被包含在打包中"""
     config_file = os.path.join(os.getcwd(), "config.json")
-    if os.path.exists(config_file):
-        backup_file = f"{config_file}.bak"
-        shutil.copy2(config_file, backup_file)
-        print(f"备份当前config.json到: {backup_file}")
-        # 保留配置文件，确保它被包含在打包中
-        print("保留config.json，确保它被包含在打包中")
-
-def restore_config():
-    """恢复配置文件"""
-    config_file = os.path.join(os.getcwd(), "config.json")
-    backup_file = f"{config_file}.bak"
-    if os.path.exists(backup_file):
-        # 如果原配置文件不存在，则从备份恢复
-        if not os.path.exists(config_file):
-            shutil.copy2(backup_file, config_file)
-            print("从备份恢复config.json")
-        os.remove(backup_file)
-        print("删除config.json备份")
+    if not os.path.exists(config_file):
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write('{}')
+        print(f"创建空的配置文件: {config_file}")
+    else:
+        print(f"配置文件已存在: {config_file}")
 
 def build_executable():
     """构建可执行文件"""
@@ -46,7 +32,7 @@ def build_executable():
         print("正在安装PyInstaller...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
 
-    # 构建命令 - 使用默认的build和dist文件夹
+    # 构建命令
     build_cmd = [
         "pyinstaller",
         "--onefile",  # 单文件模式
@@ -77,7 +63,7 @@ def build_executable():
     else:
         print("构建失败，未找到可执行文件")
 
-    # 不清理临时文件，保留原始结构
+    # 保留build和dist文件夹
     print("保留build和dist文件夹，以便调试")
 
     print("构建完成!")
@@ -102,7 +88,7 @@ def create_release_package():
     os.makedirs(temp_dir)
 
     # 复制源代码文件
-    source_files = ["main.py", "README.md", "requirements.txt", "build.py"]
+    source_files = ["main.py", "config.json", "README.md", "requirements.txt", "build_new.py"]
     for file in source_files:
         if os.path.exists(file):
             shutil.copy2(file, os.path.join(temp_dir, file))
@@ -147,14 +133,12 @@ if __name__ == "__main__":
     # 创建备份目录
     create_backup_dir()
 
-    # 备份配置文件
-    backup_config()
+    # 创建空的配置文件
+    create_empty_config()
 
     # 构建可执行文件
     build_executable()
 
-    # 恢复配置文件
-    restore_config()
     print("打包成功，输出目录: dist/剑星MOD管理器_v1.6.1.exe")
 
     # 创建发布包
