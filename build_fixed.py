@@ -4,6 +4,7 @@ import zipfile
 import subprocess
 from pathlib import Path
 import sys
+from download_unrar import download_unrar_dll, download_unrar64_dll
 
 def create_backup_dir():
     """创建备份目录"""
@@ -23,125 +24,197 @@ def create_empty_config():
     else:
         print(f"配置文件已存在: {config_file}")
 
-def build_executable():
-    """构建可执行文件"""
-    # 确保PyInstaller已安装
-    try:
-        import PyInstaller
-    except ImportError:
-        print("正在安装PyInstaller...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
+def ensure_unrar_dll():
+    """确保UnRAR.dll存在于libs目录中"""
+    libs_dir = os.path.join(os.getcwd(), "libs")
+    if not os.path.exists(libs_dir):
+        os.makedirs(libs_dir)
+        print(f"创建libs目录: {libs_dir}")
+    
+    # 确保32位UnRAR.dll存在
+    unrar_dll_path = os.path.join(libs_dir, "UnRAR.dll")
+    if not os.path.exists(unrar_dll_path):
+        print("未找到UnRAR.dll，尝试下载...")
+        if not download_unrar_dll():
+            print("下载UnRAR.dll失败，请手动下载并放置在libs目录中")
+            return False
+    
+    # 确保64位UnRAR.dll存在
+    unrar64_dll_path = os.path.join(libs_dir, "UnRAR64.dll")
+    if not os.path.exists(unrar64_dll_path):
+        print("未找到UnRAR64.dll，尝试下载...")
+        if not download_unrar64_dll():
+            print("下载UnRAR64.dll失败，请手动下载并放置在libs目录中")
+            # 不返回False，因为32位DLL已经存在
+    
+    return True
 
-    # 构建命令 - 使用默认的build和dist文件夹
-    build_cmd = [
-        "pyinstaller",
-        "--onefile",  # 单文件模式
-        "--windowed",  # 无控制台窗口
-        "--name", "剑星MOD管理器_v1.6.2",  # 输出文件名
-        "--icon=app.ico",  # 使用根目录下的app.ico作为图标
-        "--add-data", "icons;icons",  # 添加图标资源
-        "--add-data", "ui/style.qss;ui",  # 添加样式表
-        "--add-data", "config.json;.",  # 添加配置文件
-        "--add-data", "捐赠.png;.",  # 添加捐赠图片
-        "main.py"  # 主程序
-    ]
-
-    # 执行构建
-    print("正在构建可执行文件...")
-    subprocess.check_call(build_cmd)
-
-    # 创建发布目录
-    if not os.path.exists("release"):
-        os.mkdir("release")
-
-    # 复制可执行文件到发布目录
-    dist_file = os.path.join("dist", "剑星MOD管理器_v1.6.2.exe")
-    release_file = os.path.join("release", "剑星MOD管理器_v1.6.2.exe")
-
-    if os.path.exists(dist_file):
-        shutil.copy(dist_file, release_file)
-        print(f"可执行文件已复制到: {release_file}")
+def build_exe():
+    """使用PyInstaller构建可执行文件"""
+    # 确保libs目录和UnRAR.dll存在
+    if not ensure_unrar_dll():
+        print("确保UnRAR.dll失败，构建中止")
+        return False
+    
+    # 创建空的配置文件
+    create_empty_config()
+    
+    # 检查图标文件
+    icon_path = "icons/4.png"
+    if not os.path.exists(icon_path):
+        print(f"图标文件 {icon_path} 不存在，使用默认图标")
+        icon_option = ""
     else:
-        print("构建失败，未找到可执行文件")
-
-    # 不清理临时文件，保留原始结构
-    print("保留build和dist文件夹，以便调试")
-
-    print("构建完成!")
-
-def create_release_package():
-    """创建发布包"""
-    print("开始创建发布包...")
-
-    # 版本信息
-    version = "1.6.2"
-    release_name = f"剑星MOD管理器_{version}_修复版"
-
-    # 创建发布目录
+        icon_option = f"--icon={icon_path}"
+    
+    # 构建命令
+    cmd = [
+        "pyinstaller",
+        "--noconfirm",
+        "--onefile",
+        "--windowed",
+    ]
+    
+    # 添加图标选项（如果存在）
+    if icon_option:
+        cmd.append(icon_option)
+    
+    # 添加其他选项
+    cmd.extend([
+        "--add-data=icons;icons",
+        "--add-data=libs;libs",  # 添加libs目录
+        "--add-data=ui/style.qss;ui",  # 添加样式表文件
+        "--add-data=捐赠.png;.",  # 添加捐赠图片
+        "--name=剑星MOD管理器_v1.6.3",
+        "main.py"
+    ])
+    
+    # 执行构建命令
+    print("开始构建可执行文件...")
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        text=True
+    )
+    stdout, stderr = process.communicate()
+    
+    print(stdout)
+    if stderr:
+        print(f"构建错误: {stderr}")
+    
+    if process.returncode != 0:
+        print("构建失败")
+        return False
+    
+    # 复制可执行文件到release目录
     release_dir = os.path.join(os.getcwd(), "release")
     if not os.path.exists(release_dir):
         os.makedirs(release_dir)
+    
+    exe_path = os.path.join(os.getcwd(), "dist", "剑星MOD管理器_v1.6.3.exe")
+    release_exe_path = os.path.join(release_dir, "剑星MOD管理器_v1.6.3.exe")
+    
+    if os.path.exists(exe_path):
+        shutil.copy2(exe_path, release_exe_path)
+        print(f"可执行文件已复制到: {release_exe_path}")
+    else:
+        print(f"可执行文件未找到: {exe_path}")
+        return False
+    
+    print("保留build和dist文件夹，以便调试")
+    
+    return True
 
-    # 临时目录用于准备打包的文件
-    temp_dir = os.path.join(os.getcwd(), "_temp_release")
+def create_source_package():
+    """创建源代码包"""
+    version = "1.6.3"
+    release_dir = os.path.join(os.getcwd(), "release")
+    if not os.path.exists(release_dir):
+        os.makedirs(release_dir)
+    
+    zip_path = os.path.join(release_dir, f"剑星MOD管理器_{version}_修复版_源码.zip")
+    
+    print("开始创建发布包...")
+    print("=" * 52)
+    print(f"开始打包剑星MOD管理器 v{version}")
+    print("=" * 52)
+    
+    # 读取README.md文件
+    readme_path = os.path.join(os.getcwd(), "README.md")
+    if os.path.exists(readme_path):
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            readme_content = f.read()
+        print("\n" + readme_content + "\n")
+    
+    # 创建临时目录
+    temp_dir = os.path.join(os.getcwd(), "temp_package")
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
-
+    
     # 复制源代码文件
-    source_files = ["main.py", "config.json", "README.md", "requirements.txt", "build_fixed.py"]
-    for file in source_files:
+    files_to_copy = [
+        "main.py",
+        "config.json",
+        "README.md",
+        "requirements.txt",
+        "build_fixed.py",
+        "download_unrar.py"
+    ]
+    
+    for file in files_to_copy:
         if os.path.exists(file):
             shutil.copy2(file, os.path.join(temp_dir, file))
             print(f"已复制: {file}")
-
+    
     # 复制目录
-    source_dirs = ["utils", "ui", "icons"]
-    for dir_name in source_dirs:
+    dirs_to_copy = [
+        "utils",
+        "ui",
+        "icons",
+        "libs"  # 确保包含libs目录
+    ]
+    
+    for dir_name in dirs_to_copy:
         if os.path.exists(dir_name):
-            shutil.copytree(dir_name, os.path.join(temp_dir, dir_name))
+            shutil.copytree(
+                dir_name,
+                os.path.join(temp_dir, dir_name),
+                dirs_exist_ok=True
+            )
             print(f"已复制目录: {dir_name}")
-
-    # 打包为zip
-    release_zip = os.path.join(release_dir, f"{release_name}_源码.zip")
-    with zipfile.ZipFile(release_zip, 'w') as zipf:
-        for root, dirs, files in os.walk(temp_dir):
+    
+    # 创建ZIP文件
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(temp_dir):
             for file in files:
                 file_path = os.path.join(root, file)
-                arc_name = os.path.relpath(file_path, temp_dir)
-                zipf.write(file_path, arc_name)
-
+                arcname = os.path.relpath(file_path, temp_dir)
+                zipf.write(file_path, arcname)
+    
     # 清理临时目录
     shutil.rmtree(temp_dir)
     print("临时目录已清理")
+    
+    print(f"发布包创建完成: {zip_path}")
+    return True
 
-    print(f"发布包创建完成: {release_zip}")
-
-    # 打印修复内容
-    print("\n本次修复内容:")
-    print("1. 修复了默认分类重命名后MOD无法正常显示的问题")
-    print("2. 改进了分类顺序，确保按创建时间自上而下排序，默认分类始终在最前面")
-    print("3. 修复了拖拽后导致部分分类消失的问题")
-    print("4. 实现了MOD可以通过拖拽或右键菜单移动到指定分类")
-    print("5. 实现了C2区拖拽至目标分类后，直接定位到目标分类并选中已拖拽的MOD")
-    print("6. 在C2区的编辑模式下显示复选框，支持批量操作")
-    print("7. 修复了勾选复选框批量多选后，拖拽只对单个MOD生效的问题")
-    print("8. 首次探索到SB-Win64-Shipping.exe时，设为游戏启动按钮并弹窗提醒用户")
-    print("9. 探索到steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods路径时，设为MOD存放路径并弹窗提醒用户")
-    print("10. 修复了配置文件保存问题，确保设置能够正确保存并在重启后保留")
-    print("11. 修复了点击C2区禁用/启用MOD时自动创建子分类并且删除一个子分类导致所有子分类一起删除的问题")
+def main():
+    """主函数"""
+    # 构建可执行文件
+    if build_exe():
+        print("构建完成!")
+        print(f"打包成功，输出目录: dist/剑星MOD管理器_v1.6.3.exe")
+        
+        # 创建源代码包
+        create_source_package()
+    else:
+        print("构建失败!")
+        return 1
+    
+    return 0
 
 if __name__ == "__main__":
-    # 创建备份目录
-    create_backup_dir()
-
-    # 创建空的配置文件
-    create_empty_config()
-
-    # 构建可执行文件
-    build_executable()
-
-    print("打包成功，输出目录: dist/剑星MOD管理器_v1.6.2.exe")
-
-    # 创建发布包
-    create_release_package() 
+    sys.exit(main()) 

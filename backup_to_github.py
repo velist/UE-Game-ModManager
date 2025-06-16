@@ -22,7 +22,7 @@ def create_github_backup():
         return False
     
     # 准备版本信息
-    version = "1.6.2"
+    version = "1.6.3"
     version_tag = f"v{version}"
     
     # 检查当前目录是否是git仓库
@@ -47,7 +47,7 @@ def create_github_backup():
     print(status_out)
     
     # 提交更改
-    commit_message = f"更新到版本 {version}: 修复点击C2区禁用/启用MOD引起的子分类问题"
+    commit_message = f"更新到版本 {version}: 修复RAR导入问题并改进错误处理"
     print(f"提交更改: {commit_message}")
     
     # 配置git用户信息（如果需要）
@@ -103,7 +103,7 @@ def create_github_backup():
         print(f"git push <remote> {version_tag}")
     
     print(f"\n代码已成功备份到本地git仓库，版本标签: {version_tag}")
-    print("修改内容: 修复点击C2区禁用/启用MOD时自动创建子分类并且删除一个子分类导致所有子分类一起删除的问题")
+    print("修改内容: 修复RAR导入失败问题，改进临时文件管理，优化错误处理和日志系统")
     return True
 
 if __name__ == "__main__":

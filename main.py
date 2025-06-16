@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QTranslator, QLocale
 from PySide6.QtGui import QIcon, QFont
 from ui.main_window import MainWindow
 from utils.config_manager import ConfigManager
-from utils.mod_manager import ModManager
+from utils.mod_manager import ModManager, cleanup_temp_directories
 from utils.game_locator import GameLocator
 
 # 配置日志
@@ -36,6 +36,10 @@ def setup_paths():
     # 创建备份目录
     backup_dir = Path("modbackup")
     backup_dir.mkdir(exist_ok=True)
+    
+    # 创建错误日志目录
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
 
 def setup_qt_application():
     """设置QT应用程序"""
@@ -242,6 +246,66 @@ def main():
         # 初始化应用
         app = setup_qt_application()
         
+        # 为程序异常添加全局处理
+        def exception_hook(exctype, value, tb):
+            # 确保所有临时文件被清理
+            cleanup_temp_directories()
+            
+            # 记录异常到日志文件
+            error_msg = ''.join(traceback.format_exception(exctype, value, tb))
+            logging.error(f"未捕获的异常: {error_msg}")
+            
+            # 将详细错误写入单独的错误日志文件
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            error_log_path = Path(f"logs/error_{timestamp}.log")
+            
+            try:
+                with open(error_log_path, "w", encoding="utf-8") as f:
+                    f.write(f"时间: {datetime.now()}\n")
+                    f.write(f"错误类型: {exctype.__name__}\n")
+                    f.write(f"错误消息: {value}\n\n")
+                    f.write("详细错误信息:\n")
+                    f.write(error_msg)
+                    f.write("\n\n系统信息:\n")
+                    f.write(f"Python版本: {sys.version}\n")
+                    f.write(f"操作系统: {os.name} {sys.platform}\n")
+                    if hasattr(os, 'uname'):
+                        f.write(f"详细系统信息: {os.uname()}\n")
+            except Exception as e:
+                logging.error(f"写入错误日志文件失败: {e}")
+            
+            # 显示错误对话框
+            if QApplication.instance():
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Critical)
+                msg.setText("程序发生错误，需要退出")
+                msg.setInformativeText(f"错误类型: {exctype.__name__}\n错误消息: {str(value)}")
+                msg.setDetailedText(error_msg)
+                msg.setWindowTitle("程序错误")
+                msg.setStandardButtons(QMessageBox.Ok)
+                
+                # 添加保存错误日志的按钮
+                save_btn = msg.addButton("保存错误日志", QMessageBox.ActionRole)
+                
+                msg.exec()
+                
+                if msg.clickedButton() == save_btn:
+                    save_path, _ = QFileDialog.getSaveFileName(
+                        None,
+                        "保存错误日志",
+                        str(error_log_path),
+                        "日志文件 (*.log)"
+                    )
+                    if save_path:
+                        try:
+                            shutil.copy2(error_log_path, save_path)
+                            QMessageBox.information(None, "保存成功", f"错误日志已保存至：\n{save_path}")
+                        except Exception as e:
+                            QMessageBox.warning(None, "保存失败", f"保存错误日志失败：\n{e}")
+        
+        # 设置全局异常处理钩子
+        sys.excepthook = exception_hook
+        
         # 初始化配置管理器
         print("[调试] 初始化配置管理器")
         config = ConfigManager()
@@ -273,13 +337,28 @@ def main():
         main_window.show()
         
         print("[调试] 进入主事件循环")
-        return app.exec()
+        exit_code = app.exec()
+        
+        # 在程序退出前清理所有临时文件
+        cleanup_temp_directories()
+        
+        return exit_code
     except Exception as e:
         app = QApplication(sys.argv) if 'app' not in locals() else app
         print("应用启动失败:", str(e))
         traceback.print_exc()
         QMessageBox.critical(None, "错误", f"应用程序启动失败:\n{str(e)}")
+        
+        # 确保临时文件被清理
+        cleanup_temp_directories()
         return 1
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    from datetime import datetime
+    import shutil
+    
+    try:
+        sys.exit(main())
+    finally:
+        # 最后的清理操作，确保所有临时文件都被删除
+        cleanup_temp_directories() 

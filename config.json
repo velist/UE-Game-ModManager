@@ -58,6 +58,22 @@
             "folder_name": "SkinsuitEdit_P",
             "display_name": "SkinsuitEdit_P",
             "mod_name": "SkinsuitEdit_P"
+        },
+        "EVE_P": {
+            "name": "EVE_P",
+            "files": [
+                "EVE_P\\EVE_P.pak",
+                "EVE_P\\EVE_P.ucas",
+                "EVE_P\\EVE_P.utoc"
+            ],
+            "original_path": "D:\\Steam\\steamapps\\common\\StellarBlade\\SB\\Content\\Paks\\~mods\\EVE_P\\EVE_P.pak",
+            "import_date": "2025-06-16 22:41:07",
+            "enabled": true,
+            "size": 0.0,
+            "folder_structure": true,
+            "folder_name": "EVE_P",
+            "display_name": "EVE_P",
+            "mod_name": "EVE_P"
         }
     },
     "game_path_notified": false,

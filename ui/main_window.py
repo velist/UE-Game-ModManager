@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QSplitter, QDialog, QLineEdit, QTextEdit,
     QDialogButtonBox, QFormLayout, QToolBar, QToolButton,
     QStatusBar, QProgressBar, QListWidget, QListWidgetItem,
-    QScrollArea, QAbstractItemView, QCheckBox
+    QScrollArea, QAbstractItemView, QCheckBox, QProgressDialog
 )
 from PySide6.QtCore import Qt, QSize, Signal, QThread, QMimeData, QPoint, QByteArray
 from PySide6.QtGui import QAction, QIcon, QPixmap, QFont, QImage, QDrag, QPainter
@@ -105,21 +105,51 @@ class ModInfoDialog(QDialog):
 
 class ImportModThread(QThread):
     finished = Signal(object, str)  # 修改为接收任何类型的结果（单个MOD或MOD列表）
+    
     def __init__(self, mod_manager, file_path):
         super().__init__()
         self.mod_manager = mod_manager
         self.file_path = file_path
-        self.result = None
-        self.error = None
+    
     def run(self):
+        """在单独线程中执行MOD导入过程"""
         try:
             mod_info = self.mod_manager.import_mod(self.file_path)
-            self.result = mod_info
-            self.error = None
+            self.finished.emit(mod_info, "")
         except Exception as e:
-            self.result = None
-            self.error = str(e)
-        self.finished.emit(self.result, self.error)
+            # 捕获所有异常，并获取详细的错误信息
+            error_msg = str(e)
+            import traceback
+            trace_info = traceback.format_exc()
+            
+            # 记录详细错误到日志
+            print(f"[错误] ImportModThread.run: 导入MOD失败: {error_msg}")
+            print(f"[错误] 详细错误信息: {trace_info}")
+            
+            # 将详细的错误堆栈写入错误日志文件
+            try:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                error_log_path = f"logs/import_error_{timestamp}.log"
+                os.makedirs("logs", exist_ok=True)
+                with open(error_log_path, "w", encoding="utf-8") as f:
+                    f.write(f"时间: {datetime.now()}\n")
+                    f.write(f"导入文件: {self.file_path}\n")
+                    f.write(f"错误消息: {error_msg}\n\n")
+                    f.write("详细错误信息:\n")
+                    f.write(trace_info)
+                error_msg += f"\n\n详细错误已记录到: {error_log_path}"
+            except Exception as log_e:
+                print(f"[错误] 写入错误日志失败: {log_e}")
+                
+            # 确保清理所有临时文件
+            try:
+                from utils.mod_manager import cleanup_temp_directories
+                cleanup_temp_directories()
+            except Exception as cleanup_e:
+                print(f"[错误] 清理临时文件失败: {cleanup_e}")
+            
+            self.finished.emit(None, error_msg)
 
 class MainWindow(QMainWindow):
     def __init__(self, config_manager):
@@ -636,7 +666,7 @@ class MainWindow(QMainWindow):
         self.mod_count_label.setObjectName('statusLabel')
         status_bar.addPermanentWidget(self.mod_count_label)
         
-        about_label = QLabel("爱酱MOD管理器 v1.6.2 (20250617) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
+        about_label = QLabel("爱酱MOD管理器 v1.6.3 (20250620) | 作者：爱酱 | <a href='https://qm.qq.com/q/bShcpMFj1Y'>QQ群：682707942</a>")
         about_label.setOpenExternalLinks(True)
         self.statusBar().addPermanentWidget(about_label)
         
@@ -1223,25 +1253,59 @@ class MainWindow(QMainWindow):
             '压缩文件 (*.zip *.rar *.7z)'
         )
         if file_path:
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                self.show_message(self.tr('导入失败'), self.tr(f'文件不存在: {file_path}'), QMessageBox.Critical)
+                return
+                
+            # 检查文件大小
+            try:
+                file_size = os.path.getsize(file_path)
+                size_mb = file_size / (1024 * 1024)
+                if size_mb > 300:  # 警告超过300MB的文件
+                    reply = self.msgbox_question_zh(
+                        '文件较大', 
+                        f'选择的文件大小为 {size_mb:.2f}MB，较大的文件可能需要更长的处理时间。\n是否继续导入？'
+                    )
+                    if reply != QMessageBox.StandardButton.Yes:
+                        return
+            except Exception as e:
+                print(f"[警告] 检查文件大小失败: {e}")
+            
+            # 显示进度对话框
+            progress_dialog = QProgressDialog("正在导入MOD...", "取消", 0, 0, self)
+            progress_dialog.setWindowTitle("导入MOD")
+            progress_dialog.setWindowModality(Qt.WindowModal)
+            progress_dialog.setMinimumDuration(500)  # 显示对话框前的延迟时间（毫秒）
+            progress_dialog.setAutoClose(False)
+            progress_dialog.setCancelButton(None)  # 禁用取消按钮
+            
+            # 更新状态栏
             self.statusBar().showMessage(self.tr('正在导入MOD...'))
+            
+            # 创建并启动导入线程
             self.import_thread = ImportModThread(self.mod_manager, file_path)
-            self.import_thread.finished.connect(self.on_import_mod_finished)
+            self.import_thread.finished.connect(lambda mod_info, error: self.on_import_mod_finished(mod_info, error, progress_dialog))
             self.import_thread.start()
 
-    def on_import_mod_finished(self, mod_info, error):
+    def on_import_mod_finished(self, mod_info, error, progress_dialog=None):
         """处理MOD导入完成事件"""
+        # 关闭进度对话框
+        if progress_dialog is not None:
+            progress_dialog.close()
+            
         if error:
             self.statusBar().showMessage(self.tr('导入MOD失败'), 3000)
-            self.show_message(self.tr('导入MOD失败'), error)
+            self.show_message(self.tr('导入MOD失败'), error, QMessageBox.Critical)
             return
-            
+                
         if not mod_info:
             self.statusBar().showMessage(self.tr('导入失败，未找到有效MOD文件！'), 3000)
-            self.show_message(self.tr('错误'), self.tr('导入失败，未找到有效MOD文件！'))
+            self.show_message(self.tr('错误'), self.tr('导入失败，未找到有效MOD文件！'), QMessageBox.Warning)
             return
-            
+                
         imported_mod_ids = []
-        
+            
         # 获取当前选中的分类
         current_category = '默认分类'
         current_item = self.tree.currentItem()
@@ -1252,45 +1316,51 @@ class MainWindow(QMainWindow):
                     current_category = data['name']
                 elif data['type'] == 'subcategory':
                     current_category = data['full_path']
-                    
+                        
         print(f"[调试] on_import_mod_finished: 当前选中的分类: {current_category}")
-        
+            
         # 处理单个MOD或MOD列表
         if isinstance(mod_info, list):
             mod_infos = mod_info
         else:
             mod_infos = [mod_info]
-            
+                
+        # 报告错误计数
+        error_count = 0
+                
         # 导入所有MOD
         for info in mod_infos:
             try:
                 # 获取MOD ID
                 mod_id = info.get('name', str(uuid.uuid4()))
-                
+                    
                 # 设置MOD分类为当前选中的分类
                 info['category'] = current_category
                 print(f"[调试] on_import_mod_finished: 设置MOD {mod_id} 分类为: {current_category}")
-                
+                    
                 # 添加MOD到配置
                 self.config.add_mod(mod_id, info)
-                
+                    
                 # 启用MOD
                 try:
                     enable_result = self.mod_manager.enable_mod(mod_id)
                     if not enable_result:
                         print(f"[警告] on_import_mod_finished: 启用MOD {mod_id} 失败")
+                        error_count += 1
                 except Exception as e:
                     print(f"[错误] on_import_mod_finished: 启用MOD {mod_id} 时出错: {e}")
-                    
+                    error_count += 1
+                        
                 imported_mod_ids.append(mod_id)
             except Exception as e:
                 print(f"[错误] on_import_mod_finished: 处理MOD导入结果时出错: {e}")
                 import traceback
                 traceback.print_exc()
-                
+                error_count += 1
+                    
         # 刷新MOD列表
         self.refresh_mod_list()
-        
+            
         # 如果导入了MOD，选中第一个
         if imported_mod_ids:
             for i in range(self.mod_list.count()):
@@ -1299,17 +1369,25 @@ class MainWindow(QMainWindow):
                     self.mod_list.setCurrentRow(i)
                     self.on_mod_list_clicked(item)
                     break
-            
+                
             # 显示成功消息
             if len(imported_mod_ids) == 1:
-                self.statusBar().showMessage(self.tr('MOD导入并已启用！'), 3000)
-                self.show_message(self.tr('成功'), self.tr('MOD导入并已启用！'))
+                if error_count > 0:
+                    self.statusBar().showMessage(self.tr('MOD导入成功，但启用过程中有错误。'), 3000)
+                    self.show_message(self.tr('警告'), self.tr('MOD导入成功，但启用过程中有错误。'), QMessageBox.Warning)
+                else:
+                    self.statusBar().showMessage(self.tr('MOD导入并已启用！'), 3000)
+                    self.show_message(self.tr('成功'), self.tr('MOD导入并已启用！'))
             else:
-                self.statusBar().showMessage(self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD！'), 3000)
-                self.show_message(self.tr('成功'), self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD！'))
+                if error_count > 0:
+                    self.statusBar().showMessage(self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD，但有 {error_count} 个MOD启用失败！'), 3000)
+                    self.show_message(self.tr('警告'), self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD，但有 {error_count} 个MOD启用失败！'), QMessageBox.Warning)
+                else:
+                    self.statusBar().showMessage(self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD！'), 3000)
+                    self.show_message(self.tr('成功'), self.tr(f'成功导入 {len(imported_mod_ids)} 个MOD！'))
         else:
             self.statusBar().showMessage(self.tr('导入失败，未找到有效MOD文件！'), 3000)
-            self.show_message(self.tr('错误'), self.tr('导入失败，未找到有效MOD文件！'))
+            self.show_message(self.tr('错误'), self.tr('导入失败，未找到有效MOD文件！'), QMessageBox.Warning)
 
     def toggle_mod(self):
         """启用/禁用MOD（以C区选中为准）"""
@@ -2359,7 +2437,7 @@ class MainWindow(QMainWindow):
         # 信息文本
         info_text = f"""
         <div style='text-align:center;'>
-        <b>爱酱剑星MOD管理器</b> v1.6.2 (20250617)<br>
+        <b>爱酱剑星MOD管理器</b> v1.6.3 (20250620)<br>
         本管理器完全免费<br>
         作者：爱酱<br>
         QQ群：<a href='https://qm.qq.com/q/Ej0DqPPa9i'>788566495</a> (<a href='https://qm.qq.com/q/2rU31GUAKE'>682707942</a>)<br>
