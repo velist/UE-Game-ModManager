@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UE Mod Manager - 虚幻引擎MOD管理器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0B1426 0%, #1A2332 100%);
+            color: #F1F5F9;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00D4AA, #0EA5E9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #9CA3AF;
+            margin-bottom: 2rem;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        
+        .feature-card {
+            background: rgba(26, 35, 51, 0.6);
+            border: 1px solid #2A3441;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #FBBF24;
+        }
+        
+        .feature-desc {
+            color: #D1D5DB;
+            line-height: 1.6;
+        }
+        
+        .download-section {
+            text-align: center;
+            margin: 3rem 0;
+            padding: 3rem;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 12px;
+            border: 1px solid #10B981;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: #FBBF24;
+            color: #1A2332;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            margin: 0.5rem;
+        }
+        
+        .download-btn:hover {
+            background: #F59E0B;
+            transform: translateY(-2px);
+        }
+        
+        .github-btn {
+            background: transparent;
+            border: 1px solid #9CA3AF;
+            color: #9CA3AF;
+        }
+        
+        .github-btn:hover {
+            background: #9CA3AF;
+            color: #1A2332;
+        }
+        
+        .supported-games {
+            margin: 3rem 0;
+        }
+        
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .game-card {
+            background: rgba(31, 41, 55, 0.8);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid #374151;
+        }
+        
+        .game-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #10B981;
+        }
+        
+        .game-subtitle {
+            font-size: 0.9rem;
+            color: #9CA3AF;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 2rem;
+            border-top: 1px solid #374151;
+            color: #6B7280;
+        }
+        
+        .auth-callback {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(26, 35, 51, 0.95);
+            border: 2px solid #FBBF24;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🎮</div>
+            <h1>UE Mod Manager</h1>
+            <p class="subtitle">专业的虚幻引擎游戏MOD管理工具</p>
+            <p class="subtitle">轻松管理你的游戏MOD，让游戏体验更加精彩</p>
+        </header>
+        
+        <section class="features">
+            <div class="feature-card">
+                <div class="feature-icon">📦</div>
+                <h3 class="feature-title">智能MOD管理</h3>
+                <p class="feature-desc">自动识别MOD文件，支持批量导入、启用/禁用操作，让MOD管理变得简单高效</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3 class="feature-title">预览支持</h3>
+                <p class="feature-desc">支持MOD预览图显示，直观展示MOD效果，帮助您快速找到心仪的MOD</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💾</div>
+                <h3 class="feature-title">备份恢复</h3>
+                <p class="feature-desc">强大的备份恢复功能，保护您的游戏MOD配置，避免意外丢失</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h3 class="feature-title">多语言支持</h3>
+                <p class="feature-desc">支持中文和英文界面，为全球玩家提供本地化体验</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🔧</div>
+                <h3 class="feature-title">CNS模式</h3>
+                <p class="feature-desc">专为剑星游戏优化的CNS模式，智能处理复杂MOD文件关联</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3 class="feature-title">高性能</h3>
+                <p class="feature-desc">基于.NET 8.0开发，运行稳定高效，占用资源少</p>
+            </div>
+        </section>
+        
+        <section class="download-section">
+            <h2>立即下载体验</h2>
+            <p style="margin: 1rem 0; color: #D1D5DB;">当前版本: v1.7.35 CNS修复增强版</p>
+            <a href="https://github.com/velist/StellarBladeModManager/releases" class="download-btn">
+                📥 下载最新版本
+            </a>
+            <a href="https://github.com/velist/StellarBladeModManager" class="download-btn github-btn">
+                ⭐ GitHub 源码
+            </a>
+        </section>
+        
+        <section class="supported-games">
+            <h2 style="text-align: center; margin-bottom: 1rem; color: #FBBF24;">支持的游戏</h2>
+            <div class="games-grid">
+                <div class="game-card">
+                    <div class="game-title">剑星</div>
+                    <div class="game-subtitle">Stellar Blade</div>
+                </div>
+                <div class="game-card">
+                    <div class="game-title">黑神话：悟空</div>
+                    <div class="game-subtitle">Black Myth: Wukong</div>
+                </div>
+                <div class="game-card">
+                    <div class="game-title">鸣潮</div>
+                    <div class="game-subtitle">Wuthering Waves</div>
+                </div>
+                <div class="game-card">
+                    <div class="game-title">尼尔：机械纪元</div>
+                    <div class="game-subtitle">NieR: Automata</div>
+                </div>
+                <div class="game-card">
+                    <div class="game-title">光与影：33号远征队</div>
+                    <div class="game-subtitle">专业MOD支持</div>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <!-- 认证回调处理 -->
+    <div id="authCallback" class="auth-callback">
+        <h3>🎉 认证成功！</h3>
+        <p>正在跳转回应用程序...</p>
+    </div>
+    
+    <footer>
+        <p>&copy; 2025 爱酱工作室. 保留所有权利.</p>
+        <p>本项目采用 MIT 许可证开源</p>
+    </footer>
+    
+    <script>
+        // 处理Supabase认证回调
+        if (window.location.hash.includes('access_token')) {
+            document.getElementById('authCallback').style.display = 'block';
+            
+            // 3秒后自动关闭
+            setTimeout(() => {
+                document.getElementById('authCallback').style.display = 'none';
+                // 清除URL中的认证参数
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }, 3000);
+        }
+        
+        // 添加平滑滚动效果
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+</html>
