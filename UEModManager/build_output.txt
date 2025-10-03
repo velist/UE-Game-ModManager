@@ -1,0 +1,24 @@
+  正在确定要还原的项目…
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-8g4q-xg66-9fp4 [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-hh2w-p6rv-4g7w [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+  所有项目均是最新的，无法还原。
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-8g4q-xg66-9fp4
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-hh2w-p6rv-4g7w
+  UEModManager.Core -> D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\bin\Debug\net8.0-windows\UEModManager.Core.dll
+C:\Program Files\dotnet\sdk\9.0.302\Microsoft.Common.CurrentVersion.targets(2434,5): warning MSB3246: 解析的文件包含错误图像、无元数据或不可访问。PE image does not have metadata. PE image does not have metadata. [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+C:\Program Files\dotnet\sdk\9.0.302\Roslyn\Microsoft.CSharp.Core.targets(84,5): error MSB3883: 意外的异常:  [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager_omsdqypm_wpftmp.csproj]
+C:\Program Files\dotnet\sdk\9.0.302\Roslyn\Microsoft.CSharp.Core.targets(84,5): error : An error occurred trying to start process 'C:\Program Files\dotnet\dotnet.exe' with working directory 'D:\cursor\2.0backup\backup_v1.7.32\UEModManager'. 内存资源不足，无法处理此命令。 [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager_omsdqypm_wpftmp.csproj]
+
+生成失败。
+
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-8g4q-xg66-9fp4 [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-hh2w-p6rv-4g7w [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-8g4q-xg66-9fp4
+D:\cursor\2.0backup\backup_v1.7.32\UEModManager.Core\UEModManager.Core.csproj : warning NU1903: 包 "System.Text.Json" 8.0.0 具有已知的 高 严重性漏洞，https://github.com/advisories/GHSA-hh2w-p6rv-4g7w
+C:\Program Files\dotnet\sdk\9.0.302\Microsoft.Common.CurrentVersion.targets(2434,5): warning MSB3246: 解析的文件包含错误图像、无元数据或不可访问。PE image does not have metadata. PE image does not have metadata. [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager.csproj]
+C:\Program Files\dotnet\sdk\9.0.302\Roslyn\Microsoft.CSharp.Core.targets(84,5): error MSB3883: 意外的异常:  [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager_omsdqypm_wpftmp.csproj]
+C:\Program Files\dotnet\sdk\9.0.302\Roslyn\Microsoft.CSharp.Core.targets(84,5): error : An error occurred trying to start process 'C:\Program Files\dotnet\dotnet.exe' with working directory 'D:\cursor\2.0backup\backup_v1.7.32\UEModManager'. 内存资源不足，无法处理此命令。 [D:\cursor\2.0backup\backup_v1.7.32\UEModManager\UEModManager_omsdqypm_wpftmp.csproj]
+    5 个警告
+    2 个错误
+
+已用时间 00:00:02.43

@@ -1,0 +1,159 @@
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+*.dll
+*.exe
+!inno_setup_installer.exe
+*.pdb
+*.ilk
+*.log
+*.tlog
+*.manifest
+*.cache
+*.obj
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+# Environment files (sensitive data)
+*.env
+!.env.example
+
+# Temporary and test files
+nul
+*.tmp
+_mods.json
+exclude.txt
+
+# Installer outputs
+installer_output/
+installer_outputUEModManager_v1.7.35resources/
+installer_outputUEModManager_v1.7.35resources
+dist/
+
+# Test scripts and temporary scripts
+test_*.ps1
+test_*.py
+test_*.bat
+analyze_log.py
+quick_fix.py
+recover_categories.py
+test_cns_grouping.py
+test_friendly_names.py
+*.bat
+*.ps1
+!Build-Installer.ps1
+
+# Temporary documentation and reports
+*反馈/
+codex分析/
+*修复报告.md
+*配置步骤.md
+*说明.md
+*完成报告.md
+*技术文档.md
+*发布说明.md
+0804修复.md
+0826_认证窗口修复报告.md
+v1.7.*.md
+
+# Temporary web files
+website/
+index.html
+update-QRcode-*/
+
+# Environment variable directories
+env/
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Mac OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Local database
+local.db
+local.db-shm
+local.db-wal
+
+# Logs
+*.log
+console.log
+
+# C# specific
+[Oo]bj/
+[Bb]in/
+.vs/
+*.user
+*.suo
+*.cache
+*.vssscc
+*.pidb
+*.userprefs
+
+# Keep these essential files
+!.gitignore
+!README.md
+!CLAUDE.md
+!LICENSE
+!UEModManager.sln
+!installer_clean.iss

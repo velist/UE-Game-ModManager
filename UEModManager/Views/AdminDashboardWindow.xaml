@@ -1,0 +1,398 @@
+<Window x:Class="UEModManager.Views.AdminDashboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="UEModManager - 管理员仪表盘" Height="900" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B1426"
+        MinWidth="1200" MinHeight="800" Style="{StaticResource DarkFlatWindow}">
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+
+    <Window.Resources>
+        <!-- 深色主题样式 -->
+        <Style x:Key="DashboardHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,20"/>
+        </Style>
+        
+        <Style x:Key="SectionHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+        
+        <Style x:Key="StatCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="10"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.3" Color="Black"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="StatValueTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#3B82F6"/>
+            <Setter Property="FontSize" Value="32"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style x:Key="StatLabelTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+        
+        <Style x:Key="DarkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="6" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 页面标题 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,30">
+            <TextBlock Text="🎛️" FontSize="32" VerticalAlignment="Center" Margin="0,0,15,0" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+            <TextBlock Text="管理员仪表盘" Style="{StaticResource DashboardHeaderTextStyle}" VerticalAlignment="Center"/>
+            <Border Background="#10B981" CornerRadius="12" Padding="8,4" Margin="20,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="在线" Foreground="White" FontSize="12" FontWeight="Bold"/>
+            </Border>
+        </StackPanel>
+
+        <!-- 统计卡片区域 -->
+        <Grid Grid.Row="1" Margin="0,0,0,30">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource StatCardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="TotalUsersText" Text="0" Style="{StaticResource StatValueTextStyle}"/>
+                    <TextBlock Text="总用户数" Style="{StaticResource StatLabelTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource StatCardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="ActiveUsersText" Text="0" Style="{StaticResource StatValueTextStyle}"/>
+                    <TextBlock Text="活跃用户" Style="{StaticResource StatLabelTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource StatCardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="DatabaseStatusText" Text="健康" Style="{StaticResource StatValueTextStyle}" Foreground="#10B981"/>
+                    <TextBlock Text="数据库状态" Style="{StaticResource StatLabelTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3" Style="{StaticResource StatCardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="EmailsSentText" Text="0" Style="{StaticResource StatValueTextStyle}"/>
+                    <TextBlock Text="邮件发送数" Style="{StaticResource StatLabelTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="4" Style="{StaticResource StatCardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="SystemUptimeText" Text="--" Style="{StaticResource StatValueTextStyle}" Foreground="#F59E0B"/>
+                    <TextBlock Text="系统运行时间" Style="{StaticResource StatLabelTextStyle}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 主要内容区域 -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧导航和控制面板 -->
+            <Border Grid.Column="0" Background="#1E293B" CornerRadius="8" Padding="20" Margin="0,0,20,0">
+                <StackPanel>
+                    <TextBlock Text="🛠️ 管理功能" Style="{StaticResource SectionHeaderTextStyle}" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="👥 用户管理" Style="{StaticResource DarkButtonStyle}"
+                            Click="UserManagementButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="🗃️ 数据库管理" Style="{StaticResource DarkButtonStyle}"
+                            Click="DatabaseManagementButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="📧 邮件服务" Style="{StaticResource DarkButtonStyle}"
+                            Click="EmailServiceButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="📊 统计报表" Style="{StaticResource DarkButtonStyle}"
+                            Click="StatisticsButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="🔧 系统设置" Style="{StaticResource DarkButtonStyle}"
+                            Click="SystemSettingsButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Separator Margin="0,20" Background="#374151"/>
+
+                    <TextBlock Text="⚡ 快速操作" Style="{StaticResource SectionHeaderTextStyle}" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="🔄 刷新数据" Style="{StaticResource DarkButtonStyle}"
+                            Click="RefreshDataButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="🧹 清理缓存" Style="{StaticResource DarkButtonStyle}"
+                            Click="ClearCacheButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="📤 导出数据" Style="{StaticResource DarkButtonStyle}"
+                            Click="ExportDataButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+
+                    <Button Content="💾 数据备份" Style="{StaticResource DarkButtonStyle}"
+                            Click="BackupDataButton_Click" HorizontalAlignment="Stretch" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 右侧主要内容区域 -->
+            <TabControl Grid.Column="1" Background="Transparent" BorderThickness="0">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Background" Value="#374151"/>
+                        <Setter Property="Foreground" Value="#E5E7EB"/>
+                        <Setter Property="Padding" Value="15,8"/>
+                        <Setter Property="Margin" Value="2,0"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border Name="Border" Background="{TemplateBinding Background}" 
+                                            CornerRadius="8,8,0,0" Margin="0,0,2,0">
+                                        <ContentPresenter x:Name="ContentSite" 
+                                                        VerticalAlignment="Center" 
+                                                        HorizontalAlignment="Center"
+                                                        ContentSource="Header" 
+                                                        Margin="{TemplateBinding Padding}"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Border" Property="Background" Value="#1E293B"/>
+                                            <Setter Property="Foreground" Value="#F1F5F9"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Border" Property="Background" Value="#4B5563"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
+
+                <!-- 用户管理标签页 -->
+                <TabItem Header="👥 用户管理" FontFamily="Segoe UI Emoji, Segoe UI, Arial">
+                    <Border Background="#1E293B" CornerRadius="0,8,8,8" Padding="20">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="用户管理" Style="{StaticResource SectionHeaderTextStyle}"/>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,20">
+                                <TextBox x:Name="UserSearchBox" Width="200" Height="35"
+                                        Background="#374151" Foreground="White"
+                                        BorderBrush="#4B5563" BorderThickness="1"
+                                        Padding="10,8" ToolTip="搜索用户..."/>
+                                <Button Content="🔍 搜索" Style="{StaticResource DarkButtonStyle}"
+                                        Click="SearchUsersButton_Click" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                <Button Content="➕ 新增用户" Style="{StaticResource DarkButtonStyle}"
+                                        Click="AddUserButton_Click" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                            </StackPanel>
+
+                            <DataGrid Grid.Row="2" x:Name="UsersDataGrid" AutoGenerateColumns="False"
+                                    Background="#0F172A" Foreground="White" GridLinesVisibility="Horizontal"
+                                    HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                                    RowBackground="#1E293B" AlternatingRowBackground="#334155">
+                                <DataGrid.Resources>
+                                    <!-- 确保DataGrid单元格文字颜色正确 -->
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Foreground" Value="#F1F5F9"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderBrush" Value="#4B5563"/>
+                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#3B82F6"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                    <!-- 确保DataGrid行样式正确 -->
+                                    <Style TargetType="DataGridRow">
+                                        <Setter Property="Background" Value="#1E293B"/>
+                                        <Setter Property="Foreground" Value="#F1F5F9"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#374151"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#3B82F6"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                    <!-- 确保DataGrid表头样式正确 -->
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#374151"/>
+                                        <Setter Property="Foreground" Value="#F1F5F9"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="8"/>
+                                        <Setter Property="BorderBrush" Value="#4B5563"/>
+                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="用户ID" Binding="{Binding Id}" Width="80"/>
+                                    <DataGridTextColumn Header="邮箱" Binding="{Binding Email}" Width="200"/>
+                                    <DataGridTextColumn Header="注册时间" Binding="{Binding CreatedAt}" Width="150"/>
+                                    <DataGridTextColumn Header="最后登录" Binding="{Binding LastLoginAt}" Width="150"/>
+                                    <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="100"/>
+                                    <DataGridTemplateColumn Header="操作" Width="200">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="编辑" Style="{StaticResource DarkButtonStyle}"
+                                                            Click="EditUserButton_Click" Tag="{Binding Id}"/>
+                                                    <Button Content="删除" Style="{StaticResource DarkButtonStyle}"
+                                                            Background="#DC2626" Click="DeleteUserButton_Click" Tag="{Binding Id}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <!-- 系统监控标签页 -->
+                <TabItem Header="📊 系统监控" FontFamily="Segoe UI Emoji, Segoe UI, Arial">
+                    <Border Background="#1E293B" CornerRadius="0,8,8,8" Padding="20">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="系统监控" Style="{StaticResource SectionHeaderTextStyle}"/>
+
+                                <!-- 数据库状态 -->
+                                <GroupBox Header="🗃️ 数据库状态" Margin="0,10" Padding="15"
+                                        Foreground="#E5E7EB" BorderBrush="#4B5563" FontFamily="Segoe UI Emoji, Segoe UI, Arial">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="主数据库 (Supabase)" Foreground="#CBD5E1" FontWeight="Bold"/>
+                                            <TextBlock x:Name="PrimaryDbStatusText" Text="🟡 未配置" Margin="0,5" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                            <TextBlock x:Name="PrimaryDbLatencyText" Text="延迟: --ms" Foreground="#9CA3AF"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="备用数据库 (未配置)" Foreground="#CBD5E1" FontWeight="Bold"/>
+                                            <TextBlock x:Name="BackupDbStatusText" Text="🟡 未配置" Margin="0,5" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                            <TextBlock x:Name="BackupDbLatencyText" Text="延迟: --ms" Foreground="#9CA3AF"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="本地数据库 (SQLite)" Foreground="#CBD5E1" FontWeight="Bold"/>
+                                            <TextBlock x:Name="LocalDbStatusText" Text="🟢 正常" Margin="0,5" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                            <TextBlock x:Name="LocalDbSizeText" Text="大小: --MB" Foreground="#9CA3AF"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </GroupBox>
+
+                                <!-- 服务状态 -->
+                                <GroupBox Header="⚙️ 服务状态" Margin="0,10" Padding="15"
+                                        Foreground="#E5E7EB" BorderBrush="#4B5563" FontFamily="Segoe UI Emoji, Segoe UI, Arial">
+                                    <StackPanel>
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="100"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="邮件服务"/>
+                                            <TextBlock Grid.Column="1" x:Name="EmailServiceStatusText" Text="🟡 未配置" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                            <Button Grid.Column="2" Content="测试" Style="{StaticResource DarkButtonStyle}"
+                                                    Click="TestEmailServiceButton_Click"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="100"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="认证服务"/>
+                                            <TextBlock Grid.Column="1" x:Name="AuthServiceStatusText" Text="🟢 正常运行" FontFamily="Segoe UI Emoji, Segoe UI, Arial"/>
+                                            <Button Grid.Column="2" Content="重启" Style="{StaticResource DarkButtonStyle}"
+                                                    Click="RestartAuthServiceButton_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </GroupBox>
+
+                                <!-- 实时日志 -->
+                                <GroupBox Header="📋 实时日志" Margin="0,10" Padding="15"
+                                        Foreground="#E5E7EB" BorderBrush="#4B5563" FontFamily="Segoe UI Emoji, Segoe UI, Arial">
+                                    <ScrollViewer Height="200" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock x:Name="LogTextBlock" FontFamily="Consolas" FontSize="11"
+                                                Background="#0F172A" Padding="10" Foreground="#E5E7EB"
+                                                TextWrapping="Wrap"/>
+                                    </ScrollViewer>
+                                </GroupBox>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</Window>

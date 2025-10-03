@@ -1,0 +1,196 @@
+﻿<Window Style="{StaticResource DarkFlatWindow}" x:Class="UEModManager.Views.AddCustomGameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="添加自定义游戏"
+        Height="300" Width="500"
+        WindowStartupLocation="CenterOwner"
+        AllowsTransparency="True" 
+        WindowStyle="None"
+        Background="Transparent">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1f2937"/>
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderBrush" Value="#4b5563"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="3"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="false" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#6b7280"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#84cc16"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#374151"/>
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#4b5563"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4b5563"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1f2937"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#84cc16"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#84cc16"/>
+             <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#a3e635"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#65a30d"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0"
+                                    Background="#1f2937"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,1,1,0"
+                                    CornerRadius="3,3,0,0"
+                                    Padding="8,5">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                            </Border>
+                            <Border Grid.Row="1" 
+                                    Background="#1f2937"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,0,1,1"
+                                    CornerRadius="0,0,3,3"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Border Background="#0f172a" CornerRadius="8" BorderBrush="#374151" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 自定义标题栏 -->
+            <Border Grid.Row="0" Background="#1f2937" CornerRadius="8,8,0,0" MouseDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" 
+                               HorizontalAlignment="Center" VerticalAlignment="Center" 
+                               Foreground="#d1d5db" FontSize="16"/>
+                    <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center" 
+                            Width="40" Height="40" Background="Transparent" BorderThickness="0"
+                            Click="CancelButton_Click" Foreground="#9ca3af"/>
+                </Grid>
+            </Border>
+
+            <!-- 内容区域 -->
+            <Grid Grid.Row="1" Margin="20">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="添加新游戏" FontSize="20" FontWeight="Bold" 
+                               Foreground="#84cc16" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+                    <TextBlock Text="请输入自定义的游戏名称" Foreground="#9ca3af" 
+                               Margin="0,0,0,20" HorizontalAlignment="Center"/>
+
+                    <TextBox x:Name="GameNameTextBox" 
+                             Text="{Binding GameName, UpdateSourceTrigger=PropertyChanged}"
+                             TextChanged="GameNameTextBox_TextChanged"/>
+                    
+                    <TextBlock x:Name="ValidationMessageText" 
+                               Text="{Binding ValidationMessage}"
+                               Foreground="#ef4444" 
+                               Margin="0,5,0,0"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Grid>
+            
+            <!-- 按钮区域 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" 
+                        HorizontalAlignment="Right" Margin="20">
+                <Button Content="取消" Width="80" Margin="0,0,10,0" Click="CancelButton_Click"/>
+                <Button Content="确认" Width="80" Style="{StaticResource PrimaryButton}" Click="ConfirmButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window> 

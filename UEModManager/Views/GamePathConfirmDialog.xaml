@@ -1,0 +1,255 @@
+﻿<Window Style="{StaticResource DarkFlatWindow}" x:Class="UEModManager.Views.GamePathConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="确认游戏路径配置"
+        Width="600" Height="600"
+        WindowStartupLocation="CenterOwner"
+        AllowsTransparency="True" 
+        WindowStyle="None"
+        Background="Transparent">
+
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1f2937"/>
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderBrush" Value="#4b5563"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="3"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" 
+                                          Focusable="false" 
+                                          HorizontalScrollBarVisibility="Hidden" 
+                                          VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#6b7280"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#0ea5e9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#374151"/>
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#4b5563"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4b5563"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1f2937"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#0ea5e9"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0ea5e9"/>
+             <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#0284c7"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#0369a1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BrowseButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+        
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#d1d5db"/>
+            <Setter Property="BorderBrush" Value="#374151"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0"
+                                    Background="#1f2937"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,1,1,0"
+                                    CornerRadius="3,3,0,0"
+                                    Padding="8,5">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                            </Border>
+                            <Border Grid.Row="1" 
+                                    Background="#1f2937"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,0,1,1"
+                                    CornerRadius="0,0,3,3"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Border Background="#0f172a" CornerRadius="8" BorderBrush="#374151" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 自定义标题栏 -->
+            <Border Grid.Row="0" Background="#1f2937" CornerRadius="8,8,0,0" MouseDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" 
+                               HorizontalAlignment="Center" VerticalAlignment="Center" 
+                               Foreground="#d1d5db" FontSize="16"/>
+                    <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center" 
+                            Width="40" Height="40" Background="Transparent" BorderThickness="0"
+                            Click="CloseButton_Click" Foreground="#9ca3af"/>
+                </Grid>
+            </Border>
+            
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 标题 -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="{Binding GameName}" FontSize="20" FontWeight="Bold" 
+                               Foreground="#0ea5e9" Margin="0,0,0,10"/>
+                    <TextBlock Text="请确认以下路径配置是否正确，或手动修改：" FontSize="14" 
+                               Foreground="#9ca3af"/>
+                </StackPanel>
+
+                <!-- 路径配置 -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+
+                        <!-- 游戏路径 -->
+                        <GroupBox Header="游戏安装路径" Margin="0,0,0,15">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding GamePath, UpdateSourceTrigger=PropertyChanged}" 
+                                             Grid.Column="0"/>
+                                    <Button Content="浏览..." Grid.Column="1" 
+                                            Style="{StaticResource BrowseButton}"
+                                            Command="{Binding BrowseGamePathCommand}"/>
+                                </Grid>
+                        </GroupBox>
+
+                        <!-- MOD路径 -->
+                        <GroupBox Header="MOD安装路径" Margin="0,0,0,15">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding ModPath, UpdateSourceTrigger=PropertyChanged}" 
+                                             Grid.Column="0"/>
+                                    <Button Content="浏览..." Grid.Column="1" 
+                                            Style="{StaticResource BrowseButton}"
+                                            Command="{Binding BrowseModPathCommand}"/>
+                                </Grid>
+                        </GroupBox>
+
+                        <!-- 备份路径 -->
+                        <GroupBox Header="MOD备份路径" Margin="0,0,0,15">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding BackupPath, UpdateSourceTrigger=PropertyChanged}" 
+                                             Grid.Column="0"/>
+                                    <Button Content="浏览..." Grid.Column="1" 
+                                            Style="{StaticResource BrowseButton}"
+                                            Command="{Binding BrowseBackupPathCommand}"/>
+                                </Grid>
+                                <CheckBox Content="使用默认备份路径（推荐）" 
+                                          IsChecked="{Binding UseDefaultBackupPath}"
+                                          Foreground="White" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 按钮区域 -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" 
+                            HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button Content="取消" Width="80" Margin="0,0,10,0"
+                            Command="{Binding CancelCommand}"/>
+                    <Button Content="确认" Width="80"
+                            Style="{StaticResource PrimaryButton}"
+                            Command="{Binding ConfirmCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window> 

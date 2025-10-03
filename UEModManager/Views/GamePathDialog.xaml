@@ -1,0 +1,207 @@
+<Window x:Class="UEModManager.Views.GamePathDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="游戏路径配置" Height="600" Width="700"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B1426"
+        ResizeMode="CanResize"
+        MinHeight="600" MinWidth="700"
+        Style="{StaticResource DarkFlatWindow}">
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+    
+    <Window.Resources>
+        <Style x:Key="PathTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#1A2433"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#2A3441"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        
+        <Style x:Key="BrowseButton" TargetType="Button">
+            <Setter Property="Background" Value="#FBBF24"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Margin" Value="10,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="20"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <TextBlock Grid.Row="0" Text="{Binding GameName, StringFormat='配置游戏路径 - {0}'}" 
+                   FontSize="18" FontWeight="Bold" Foreground="White" 
+                   HorizontalAlignment="Center"/>
+        
+        <!-- 游戏路径 -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="5"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock Grid.Row="0" Text="游戏路径" Foreground="White" FontWeight="Bold"/>
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="GamePathTextBox" Style="{StaticResource PathTextBox}" IsReadOnly="True"/>
+                <Button Grid.Column="1" Content="浏览" Style="{StaticResource BrowseButton}" Click="BrowseGamePath_Click"/>
+            </Grid>
+        </Grid>
+        
+        <!-- MOD路径 -->
+        <Grid Grid.Row="4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="5"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock Grid.Row="0" Text="MOD路径" Foreground="White" FontWeight="Bold"/>
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="ModPathTextBox" Style="{StaticResource PathTextBox}" IsReadOnly="True"/>
+                <Button Grid.Column="1" Content="浏览" Style="{StaticResource BrowseButton}" Click="BrowseModPath_Click"/>
+            </Grid>
+        </Grid>
+        
+        <!-- 备份路径 -->
+        <Grid Grid.Row="6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="5"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock Grid.Row="0" Text="MOD备份路径" Foreground="White" FontWeight="Bold"/>
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="BackupPathTextBox" Style="{StaticResource PathTextBox}" IsReadOnly="True"/>
+                <Button Grid.Column="1" Content="浏览" Style="{StaticResource BrowseButton}" Click="BrowseBackupPath_Click"/>
+            </Grid>
+        </Grid>
+        
+        <!-- 确认信息 -->
+        <Border Grid.Row="8" Background="#1A2433" CornerRadius="8" Padding="15" Margin="0,10">
+            <StackPanel>
+                <TextBlock Text="路径确认信息" FontWeight="Bold" Foreground="#FBBF24" Margin="0,0,0,10"/>
+                
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Grid.Row="0" Foreground="#9CA3AF" FontSize="11">
+                        <Run Text="• 游戏路径: "/><Run Text="{Binding GamePath}" Foreground="White"/>
+                    </TextBlock>
+                    
+                    <TextBlock Grid.Row="2" Foreground="#9CA3AF" FontSize="11">
+                        <Run Text="• MOD文件夹: "/><Run Text="{Binding ModPath}" Foreground="White"/>
+                    </TextBlock>
+                    
+                    <TextBlock Grid.Row="4" Foreground="#9CA3AF" FontSize="11">
+                        <Run Text="• 备份文件夹: "/><Run Text="{Binding BackupPath}" Foreground="White"/>
+                    </TextBlock>
+                </Grid>
+                
+                <TextBlock x:Name="SearchStatusText" Text="正在自动搜索路径..." 
+                           Foreground="#00D4AA" HorizontalAlignment="Center" Margin="0,15,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- 按钮 -->
+        <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="确定并扫描MOD" Width="120" Height="35" Margin="0,0,10,0"
+                    Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0"
+                    Click="Confirm_Click" IsEnabled="{Binding IsPathsValid}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="border" CornerRadius="6" Background="{TemplateBinding Background}" Padding="12,8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#059669"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#047857"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="border" Property="Background" Value="#6B7280"/>
+                                            <Setter Property="Foreground" Value="#9CA3AF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="取消" Width="80" Height="35"
+                    Background="#374151" Foreground="White" BorderThickness="1" BorderBrush="#6B7280"
+                    Click="Cancel_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="border" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="12,8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#4B5563"/>
+                                            <Setter TargetName="border" Property="BorderBrush" Value="#9CA3AF"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#1F2937"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window> 

@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="UEModManager">
+      <HintPath>..\..\bin\Debug\net8.0-windows\UEModManager.dll</HintPath>
+    </Reference>
+      <Reference Include="CUE4Parse">      <HintPath>..\..\bin\Debug\net8.0-windows\CUE4Parse.dll</HintPath>    </Reference>  </ItemGroup>
+</Project>
+

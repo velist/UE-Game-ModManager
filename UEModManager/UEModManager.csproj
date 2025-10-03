@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyVersion>1.7.37.0</AssemblyVersion>
+    <FileVersion>1.7.37.0</FileVersion>
+    <ApplicationIcon>..\图标.ico</ApplicationIcon>
+    <!-- 避免 wpftmp 项目重复特性，引入手写 AssemblyInfo 保证版本匹配 -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpCompress" Version="0.38.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Supabase" Version="1.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
+    <PackageReference Include="Npgsql" Version="8.0.3" />
+    <PackageReference Include="CUE4Parse" Version="1.2.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UEModManager.Core\UEModManager.Core.csproj" />
+  </ItemGroup>
+  <!-- 排除 Tools 子目录（独立小工具工程）避免被WPF临时项目编译引入 -->
+  <ItemGroup>
+    <Compile Remove="Tools\**\*.cs" />
+    <EmbeddedResource Remove="Tools\**\*.*" />
+    <None Remove="Tools\**\*.*" />
+    <Page Remove="Tools\**\*.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="捐赠.png" />
+    <Resource Include="黑神话悟空MOD-百度网盘.png" />
+    <Resource Include="黑神话悟空MOD-迅雷云盘.png" />
+    <Resource Include="剑星MOD-百度网盘.png" />
+    <Resource Include="剑星MOD-迅雷云盘.png" />
+    <Resource Include="光与影百度网盘mod.png" />
+    <Resource Include="光与影迅雷云盘mod.png" />
+    <Resource Include="明末MOD-百度网盘.png" />
+    <Resource Include="明末MOD-迅雷云盘.png" />
+  </ItemGroup>
+</Project>
