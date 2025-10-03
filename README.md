@@ -141,9 +141,11 @@ UE Mod Manager 是一款专为虚幻引擎游戏设计的 MOD 管理器，提供
 ---
 ## 开发支持
 如果你觉得我的产品好用，可以请我喝一杯咖啡支持我的开发哦~
-![微信支付][(https://github.com/velist/UE-Game-ModManager/blob/main/%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98.jpg)
-![支付宝][(https://github.com/velist/UE-Game-ModManager/blob/main/%E6%94%AF%E4%BB%98%E5%AE%9D.jpg))
 
+<!-- 表格布局：一行两列，列内容居中 -->
+| 微信支付 | 支付宝 |
+| :---: | :---: |
+| <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98.jpg" alt="微信支付" width="50%"> | <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E6%94%AF%E4%BB%98%E5%AE%9D.jpg" alt="支付宝" width="40%"> |
 ---
 
 ## ❓ 常见问题
