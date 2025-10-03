@@ -1,0 +1,1786 @@
+﻿<Window x:Class="UEModManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:system="clr-namespace:System;assembly=mscorlib"
+        xmlns:local="clr-namespace:UEModManager"
+        xmlns:converters="clr-namespace:UEModManager.Converters"
+        Title="爱酱MOD管理器" 
+        Height="800" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B1426"
+        Style="{StaticResource DarkFlatWindow}"
+        
+        PreviewMouseDown="MainWindow_PreviewMouseDown"
+        SourceInitialized="Window_SourceInitialized"
+        >
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+    
+    <Window.Resources>
+        <!-- 全局转换器 -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        
+        <!-- 空值转换器 -->
+        <system:String x:Key="NullValueConverter">null</system:String>
+        
+        <!-- Null 转 Visibility 转换器 -->
+        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <local:InverseNullToVisibilityConverter x:Key="InverseNullToVisibilityConverter"/>
+        <local:CategoryTypeVisibilityConverter x:Key="CategoryTypeVisibilityConverter"/>
+        <local:CategoryItemTypeVisibilityConverter x:Key="CategoryItemTypeVisibilityConverter"/>
+        <converters:HandPlaceholderVisibilityConverter x:Key="HandPlaceholderVisibilityConverter"/>
+        <converters:HandColorConverter x:Key="HandColorConverter"/>
+        
+        <!-- 分类项样式 - 支持多级分类和拖拽 -->
+        <converters:ModConflictCountConverter x:Key="ModConflictCountConverter"/>
+        <Style x:Key="CategoryItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="AllowDrop" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Name="Border" Background="Transparent" CornerRadius="8" Padding="12,10" Margin="0"
+                                AllowDrop="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- 分类名称 -->
+                                <TextBlock Name="CategoryName" Grid.Column="0" Text="{Binding Name}" Foreground="#F1F5F9" 
+                                           FontSize="14" FontWeight="Normal" VerticalAlignment="Center"/>
+                                
+                                <!-- 数字徽章 -->
+                                <Border Grid.Column="1" Background="#FBBF24" CornerRadius="8" Padding="8,4" MinWidth="24" Height="20">
+                                    <TextBlock Text="{Binding Count}" Foreground="#1E2A3A" 
+                                               FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <!-- 拖拽手柄 -->
+                                <Border x:Name="DragHandle" Grid.Column="2" MinWidth="24" Padding="2"
+                                        Background="Transparent" Cursor="SizeAll"
+                                        PreviewMouseLeftButtonDown="DragHandle_PreviewMouseLeftButtonDown">
+                                    <TextBlock Text="⋮⋮" FontSize="16" FontWeight="Bold"
+                                               Foreground="White"
+                                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Name}" Value="全部">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Name}" Value="已启用">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Name}" Value="已禁用">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#10B981"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                                <!-- 手柄占位符 -->
+                                <Border Grid.Column="2" MinWidth="24" Padding="2" Background="Transparent"
+                                        Visibility="{Binding Name, Converter={StaticResource HandPlaceholderVisibilityConverter}}"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#1A2433"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#80FBBF24"/>
+                                <Setter TargetName="CategoryName" Property="Foreground" Value="#F1F5F9"/>
+                            </Trigger>
+
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- 圆角渐变按钮样式 - 增强对比度 -->
+        <Style x:Key="GradientCornerButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#1E2A3A"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" CornerRadius="8" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="#00D4AA" Offset="0"/>
+                                    <GradientStop Color="#FBBF24" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                                <Setter Property="Foreground" Value="#0B1426"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.7"/>
+                                <Setter Property="Foreground" Value="#0B1426"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 次要操作药丸按钮样式 - 增强对比度 -->
+        <Style x:Key="SecondaryPillButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" CornerRadius="20" Background="#374151" BorderBrush="#6B7280" BorderThickness="1" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4B5563"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#9CA3AF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1F2937"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 确认按钮样式 - 高对比度绿色 -->
+        <Style x:Key="ConfirmButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" CornerRadius="6" Background="#10B981" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#059669"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#047857"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#6B7280"/>
+                                <Setter Property="Foreground" Value="#9CA3AF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 取消按钮样式 - 高对比度灰色 -->
+        <Style x:Key="CancelButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#6B7280"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" CornerRadius="6" Background="#374151" BorderBrush="#6B7280" BorderThickness="1" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4B5563"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#9CA3AF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1F2937"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 游戏选择下拉框样式 - 修复对比度 -->
+        <Style x:Key="GameSelectorComboBox" TargetType="ComboBox">
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="BorderBrush" Value="#6B7280"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="templateRoot" 
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="true">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="0"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <ContentPresenter x:Name="contentPresenter"
+                                                      Grid.Column="0"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                    
+                                    <Path x:Name="arrow" 
+                                          Grid.Column="2"
+                                          Data="M 0 0 L 4 4 L 8 0 Z"
+                                          Fill="#9CA3AF"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="8,0,8,0"/>
+                                </Grid>
+                            </Border>
+                            
+                            <Popup x:Name="PART_Popup" 
+                                   Placement="Bottom"
+                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   AllowsTransparency="true"
+                                   PopupAnimation="Slide">
+                                <Border Background="#1F2937" 
+                                        BorderBrush="#6B7280" 
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,1,0,0">
+                                    <ScrollViewer>
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="templateRoot" Property="Background" Value="#374151"/>
+                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#9CA3AF"/>
+                                <Setter TargetName="arrow" Property="Fill" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="templateRoot" Property="BorderBrush" Value="#FBBF24"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 游戏选择下拉框项目样式 -->
+        <Style x:Key="GameSelectorComboBoxItem" TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="templateRoot" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="templateRoot" Property="Background" Value="#FBBF24"/>
+                                <Setter Property="Foreground" Value="#1E2A3A"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="templateRoot" Property="Background" Value="#374151"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色主题滚动条样式 -->
+        <Style x:Key="DarkScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="#4A5568"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#6B7280"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Background" Value="#9CA3AF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkScrollBarButton" TargetType="RepeatButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Path x:Name="ArrowPath" Fill="#6B7280" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#374151"/>
+                                <Setter TargetName="ArrowPath" Property="Fill" Value="#9CA3AF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#4B5563"/>
+                                <Setter TargetName="ArrowPath" Property="Fill" Value="#F1F5F9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkScrollBar" TargetType="ScrollBar">
+            <Setter Property="Background" Value="#1A2433"/>
+            <Setter Property="BorderBrush" Value="#2A3441"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="MinWidth" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="12"/>
+                            </Grid.RowDefinitions>
+                            
+                            <!-- 向上按钮 -->
+                            <RepeatButton Grid.Row="0" Style="{StaticResource DarkScrollBarButton}" 
+                                          Command="ScrollBar.LineUpCommand">
+                                <Path Data="M 0 4 L 4 0 L 8 4 Z" Fill="#6B7280" Width="6" Height="3"/>
+                            </RepeatButton>
+                            
+                            <!-- 滚动轨道 -->
+                            <Track Grid.Row="1" x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource DarkScrollBarButton}" 
+                                                  Command="ScrollBar.PageUpCommand"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource DarkScrollBarButton}" 
+                                                  Command="ScrollBar.PageDownCommand"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource DarkScrollBarThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                            
+                            <!-- 向下按钮 -->
+                            <RepeatButton Grid.Row="2" Style="{StaticResource DarkScrollBarButton}" 
+                                          Command="ScrollBar.LineDownCommand">
+                                <Path Data="M 0 0 L 4 4 L 8 0 Z" Fill="#6B7280" Width="6" Height="3"/>
+                            </RepeatButton>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter Property="Height" Value="12"/>
+                                <Setter Property="MinHeight" Value="12"/>
+                                <Setter Property="Width" Value="Auto"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色主题ScrollViewer样式 -->
+        <Style x:Key="DarkScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ScrollContentPresenter Grid.Column="0" Grid.Row="0" 
+                                                    Content="{TemplateBinding Content}"
+                                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            
+                            <ScrollBar Grid.Column="1" Grid.Row="0" x:Name="PART_VerticalScrollBar"
+                                       Style="{StaticResource DarkScrollBar}"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            
+                            <ScrollBar Grid.Column="0" Grid.Row="1" x:Name="PART_HorizontalScrollBar"
+                                       Style="{StaticResource DarkScrollBar}"
+                                       Orientation="Horizontal"
+                                       Value="{TemplateBinding HorizontalOffset}"
+                                       Maximum="{TemplateBinding ScrollableWidth}"
+                                       ViewportSize="{TemplateBinding ViewportWidth}"
+                                       Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A区功能按钮样式 -->
+        <Style x:Key="HeaderFunctionButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FBBF24"/>
+                                <Setter Property="Foreground" Value="#1E2A3A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="#1E2A3A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色ContextMenu样式 -->
+        <Style x:Key="DarkContextMenu" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#1A2332"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="BorderBrush" Value="#2A3441"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色MenuItem样式 -->
+        <Style x:Key="DarkMenuItem" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <ContentPresenter Grid.Column="0" x:Name="Icon" 
+                                                  Content="{TemplateBinding Icon}"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Center"/>
+                                
+                                <ContentPresenter Grid.Column="1" x:Name="HeaderHost"
+                                                  Content="{TemplateBinding Header}"
+                                                  VerticalAlignment="Center"/>
+                                
+                                <!-- 子菜单箭头 -->
+                                <Path x:Name="ArrowPath" Grid.Column="2"
+                                      Data="M 0 0 L 4 3.5 L 0 7 Z"
+                                      Fill="#9CA3AF"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Visibility="Collapsed"/>
+                                
+                                <!-- 子菜单弹出层 -->
+                                <Popup x:Name="PART_Popup" 
+                                       Placement="Right"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="Slide">
+                                    <Border Background="#1A2433" 
+                                            BorderBrush="#2A3441" 
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Margin="2,0,0,0">
+                                        <ScrollViewer Style="{DynamicResource {ComponentResourceKey ResourceId=MenuScrollViewer, TypeInTargetAssembly={x:Type FrameworkElement}}}">
+                                            <ItemsPresenter x:Name="ItemsPresenter"
+                                                            KeyboardNavigation.DirectionalNavigation="Cycle"
+                                                            Grid.IsSharedSizeScope="True"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#2A3441"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#374151"/>
+                            </Trigger>
+                            <Trigger Property="HasItems" Value="True">
+                                <Setter TargetName="ArrowPath" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色Separator样式 -->
+        <Style x:Key="DarkSeparator" TargetType="Separator">
+            <Setter Property="Background" Value="#2A3441"/>
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="8,4"/>
+        </Style>
+
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="40"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
+        
+        <!-- A区：顶部导航栏 -->
+        <Border Grid.ColumnSpan="3" Grid.Row="0" Background="#1A2332" BorderBrush="#2A3441" BorderThickness="0,0,0,1">
+            <Grid Margin="20,10">
+                
+                <!-- 左侧：用户状态和游戏选择器 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <!-- 用户状态区域（移动到左侧） -->
+                    <Border x:Name="UserStatusPanel" BorderBrush="#6B7280" BorderThickness="1" CornerRadius="8" 
+                            Background="#1F2937" Padding="10,8" Margin="0,0,20,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <!-- 用户头像 -->
+                            <Border Grid.Column="0" Width="32" Height="32" CornerRadius="16" 
+                                    Background="#374151" Margin="0,0,8,0" Cursor="Hand"
+                                    MouseLeftButtonDown="UserAvatar_Click">
+                                <Border.Clip>
+                                    <EllipseGeometry Center="16,16" RadiusX="16" RadiusY="16"/>
+                                </Border.Clip>
+                                <Grid>
+                                    <!-- 默认头像图标 -->
+                                    <TextBlock x:Name="UserAvatarIcon" Text="👤" FontSize="16" 
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="Visible"/>
+                                    <!-- 自定义头像图片 -->
+                                    <Image x:Name="UserAvatarImage" Stretch="UniformToFill" 
+                                           Visibility="Collapsed"/>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- 用户信息 -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="UserNameText" Text="未登录" Foreground="#F1F5F9" 
+                                           FontSize="12" FontWeight="Bold"/>
+                                <TextBlock x:Name="UserStatusText" Text="离线模式" Foreground="#9CA3AF" 
+                                           FontSize="10"/>
+                            </StackPanel>
+                            
+                            <!-- 菜单按钮 -->
+                            <Button Grid.Column="2" Content="▼" Cursor="Hand" Background="Transparent"
+                                    BorderThickness="0" FontSize="10" Foreground="#9CA3AF"
+                                    Click="UserMenuButton_Click" ToolTip="用户菜单" Margin="8,0,0,0"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- 游戏选择器 - 简化样式确保事件正常触发 -->
+                    <ComboBox x:Name="GameList" 
+                              Background="#1F2937"
+                              Foreground="#F1F5F9"
+                              BorderBrush="#6B7280" 
+                              BorderThickness="1"
+                              FontSize="14" 
+                              MinWidth="160" 
+                              Padding="12,8"
+                              VerticalContentAlignment="Center"
+                              SelectionChanged="GameList_SelectionChanged"
+                              Margin="25,0,0,0">
+                        <ComboBoxItem Content="请选择游戏"/>
+                        <ComboBoxItem Content="剑星 (Stellar Blade)"/>
+                        <ComboBoxItem Content="剑星（CNS模式）"/>
+                        <ComboBoxItem Content="黑神话·悟空"/>
+                        <ComboBoxItem Content="光与影：33号远征队"/>
+                        <ComboBoxItem Content="明末·渊虚之羽"/>
+                        <ComboBoxItem Content="无主之地4"/>
+                        <ComboBoxItem Content="添加新游戏..." Foreground="#FBBF24"/>
+                        <ComboBox.Style>
+                            <Style TargetType="ComboBox">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ComboBox">
+                                            <Grid>
+                                                <ToggleButton x:Name="ToggleButton" 
+                                                              Grid.Column="2" 
+                                                              Focusable="false"
+                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                              ClickMode="Press">
+                                                    <ToggleButton.Template>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border x:Name="templateRoot" 
+                                                                    Background="#1F2937"
+                                                                    BorderBrush="#6B7280"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    SnapsToDevicePixels="true">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="20"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Path x:Name="arrow" 
+                                                                          Grid.Column="1"
+                                                                          Data="M 0 0 L 4 4 L 8 0 Z"
+                                                                          Fill="#9CA3AF"
+                                                                          HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="templateRoot" Property="Background" Value="#374151"/>
+                                                                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="#9CA3AF"/>
+                                                                    <Setter TargetName="arrow" Property="Fill" Value="#F1F5F9"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter TargetName="templateRoot" Property="Background" Value="#4B5563"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </ToggleButton.Template>
+                                                </ToggleButton>
+                                                
+                                                <ContentPresenter x:Name="contentPresenter"
+                                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                  Margin="12,8,32,8"
+                                                                  SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                                
+                                                <Popup x:Name="PART_Popup" 
+                                                       Placement="Bottom"
+                                                       IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                                       AllowsTransparency="true"
+                                                       PopupAnimation="Slide">
+                                                    <Border Background="#1F2937" 
+                                                            BorderBrush="#6B7280" 
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Margin="0,1,0,0">
+                                                        <ScrollViewer>
+                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ComboBox.Style>
+                        <ComboBox.ItemContainerStyle>
+                            <Style TargetType="ComboBoxItem">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                                <Setter Property="Padding" Value="12,8"/>
+                                <Setter Property="FontSize" Value="14"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsHighlighted" Value="True">
+                                        <Setter Property="Background" Value="#FBBF24"/>
+                                        <Setter Property="Foreground" Value="#1E2A3A"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#374151"/>
+                                        <Setter Property="Foreground" Value="#F1F5F9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ComboBox.ItemContainerStyle>
+                    </ComboBox>
+                </StackPanel>
+                
+                <!-- 中间：剑星专属功能按钮（仅剑星显示） -->
+                <StackPanel x:Name="StellarBladePanel" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                    <!-- 收集工具箱按钮 -->
+                    <Button x:Name="CollectionToolButton" Content="📋 收集工具箱" Style="{StaticResource SecondaryPillButton}" 
+                            ToolTip="剑星收集工具" Margin="0,0,15,0" Click="CollectionToolButton_Click">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="CollectionToolMenu" Style="{StaticResource DarkContextMenu}">
+                                <MenuItem Header="物品收集" Click="ItemCollectionMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <TextBlock Text="💎" FontSize="12" Foreground="#10B981"/>
+                                </MenuItem>
+                                <MenuItem Header="衣服收集" Click="ClothingCollectionMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                </MenuItem>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    
+                    <!-- 剑星MOD合集按钮 -->
+                    <Button x:Name="StellarModCollectionButton" Content="🗂️ 剑星MOD合集" Style="{StaticResource SecondaryPillButton}"
+                            ToolTip="访问剑星MOD云盘合集" Click="StellarModCollectionButton_Click"/>
+                </StackPanel>
+                
+                <!-- 右侧：搜索框和功能按钮 -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+
+                    <!-- 搜索框 - 修改提示文字并添加点击清除功能 -->
+                    <Border BorderBrush="#6B7280" BorderThickness="1" CornerRadius="8" Margin="0,0,15,0" Padding="4,2" MinWidth="280">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Margin="12,6">
+                                <TextBlock Text="🔍" Margin="0,0,8,0" Foreground="#FBBF24" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox x:Name="SearchBox" Text="" 
+                                         Foreground="#F1F5F9" Background="Transparent" BorderThickness="0" 
+                                         FontSize="12" VerticalAlignment="Center" Width="200"
+                                         GotFocus="SearchBox_GotFocus" LostFocus="SearchBox_LostFocus"/>
+                                <TextBlock x:Name="SearchPlaceholder" Text="输入MOD名称或描述关键词..." 
+                                           Foreground="#9CA3AF" FontSize="12" VerticalAlignment="Center" 
+                                           IsHitTestVisible="False" Margin="-200,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- 功能按钮组 -->
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="🔄" Style="{StaticResource HeaderFunctionButton}"
+                                Click="RefreshButton_Click" ToolTip="刷新数据"/>
+                        <Button Content="🔔" Style="{StaticResource HeaderFunctionButton}"
+                                Click="NotificationButton_Click" ToolTip="通知设置"/>
+                        <!-- 设置下拉菜单按钮 -->
+                        <Button Content="⚙️" Style="{StaticResource HeaderFunctionButton}" ToolTip="设置" Click="SettingsMenuButton_Click">
+                            <Button.ContextMenu>
+                                <ContextMenu x:Name="SettingsContextMenu" Style="{StaticResource DarkContextMenu}">
+                                    <MenuItem Header="路径设置" Click="PathSettingsMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="📁" FontSize="12" Foreground="#FBBF24"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="使用说明" Click="UserManualMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="📖" FontSize="12" Foreground="#10B981"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="切换英文 (Language)" Click="LanguageMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="🌐" FontSize="12" Foreground="#10B981"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="关于爱酱MOD管理器" Click="AboutMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="ℹ️" FontSize="12" Foreground="#6B7280"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="检查更新" Click="UpdateMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                        <MenuItem.Icon>
+                                            <TextBlock Text="🔄" FontSize="12" Foreground="#3B82F6"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- B区：左侧面板 -->
+        <Border Grid.Row="1" Grid.Column="0" Background="#0F1B2E" BorderBrush="#1A2332" BorderThickness="0,0,1,0" MouseDown="CategoryArea_MouseDown" PreviewMouseDown="CategoryArea_PreviewMouseDown">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <!-- B1区：MOD分类 - 固定标题 -->
+                <Border Grid.Row="0" Background="#0F1B2E" Padding="20,15,20,10">
+                    <StackPanel>
+                        <!-- 标题行 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="📁" Foreground="#00D4AA" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="MOD分类" Foreground="#00D4AA" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <!-- 状态过滤按钮组 - 改进布局对齐 -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="EnabledFilterBtn" Grid.Column="0" Content="已启用" Background="#10B981" Foreground="White" 
+                                    BorderThickness="0" Padding="12,8" FontSize="12" Margin="0,0,4,0"
+                                    Click="EnabledFilterBtn_Click" ToolTip="显示已启用的MOD">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="0.8"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button x:Name="DisabledFilterBtn" Grid.Column="1" Content="已禁用" Background="#DC2626" Foreground="White" 
+                                    BorderThickness="0" Padding="12,8" FontSize="12" Margin="4,0,0,0"
+                                    Click="DisabledFilterBtn_Click" ToolTip="显示已禁用的MOD">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="0.8"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </Grid>
+                        
+                        <!-- 操作按钮行 -->
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="新增" Background="Transparent" Foreground="White" 
+                                    BorderBrush="White" BorderThickness="1" Padding="12,6" FontSize="12" Margin="0,0,8,0"
+                                    Click="AddCategoryButton_Click" ToolTip="添加新分类"/>
+                            <Button Content="删除" Background="Transparent" Foreground="White" 
+                                    BorderBrush="White" BorderThickness="1" Padding="12,6" FontSize="12" Margin="0,0,8,0"
+                                    Click="DeleteCategoryButton_Click" ToolTip="删除分类"/>
+                            <Button Content="重命名" Background="Transparent" Foreground="White" 
+                                    BorderBrush="White" BorderThickness="1" Padding="12,6" FontSize="12"
+                                    Click="RenameCategoryButton_Click" ToolTip="重命名分类"/>
+                        </StackPanel>
+                        
+                    </StackPanel>
+                </Border>
+                
+                <!-- 分类列表容器 -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource DarkScrollViewer}">
+                    <StackPanel Margin="15,0,15,20">
+                        <!-- 分类列表 -->
+                        <ListBox x:Name="CategoryList" 
+                                 Background="Transparent" BorderThickness="0" 
+                                 ItemContainerStyle="{StaticResource CategoryItemStyle}"
+                                 SelectionMode="Extended"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.CanContentScroll="False"
+                                 ScrollViewer.PanningMode="VerticalOnly"
+                                 SelectionChanged="CategoryList_SelectionChanged"
+                                 PreviewMouseWheel="CategoryList_PreviewMouseWheel" 
+                                 MouseMove="CategoryList_MouseMove"
+                                 MouseUp="CategoryList_MouseUp"
+                                 AllowDrop="True"
+                                 DragEnter="CategoryList_DragEnter"
+                                 DragOver="CategoryList_DragOver"
+                                 Drop="CategoryList_Drop">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="Red" Padding="10">
+                                        <TextBlock Text="TEST" FontSize="30" Foreground="White"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="CategoryContextMenu_Opened">
+                                    <MenuItem Header="重命名" Click="RenameCategoryMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                            <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
+                                    </MenuItem>
+                                    <MenuItem Header="删除" Click="DeleteCategoryMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                            <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        
+        <!-- 主内容区 -->
+        <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" Background="#0B1426" Style="{StaticResource DarkScrollViewer}"
+                      MouseDown="MainContentArea_MouseDown" PreviewMouseDown="MainContentArea_PreviewMouseDown">
+            <StackPanel Margin="20">
+                <Grid Margin="0,0,0,20">
+                    <!-- 动态显示当前MOD数量 -->
+                    <TextBlock x:Name="ModCountText" Text="全部 MOD (0)" FontSize="18" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Border BorderBrush="#2A3441" BorderThickness="1" CornerRadius="8" Padding="8,5" Margin="0,0,10,0">
+                            <CheckBox x:Name="SelectAllCheckBox" Content="全选" Foreground="White" VerticalAlignment="Center" 
+                                      PreviewMouseDown="SelectAllCheckBox_PreviewMouseDown"/>
+                        </Border>
+                        <Button x:Name="ImportModBtn" Content="📥 导入MOD" Style="{StaticResource GradientCornerButton}"/>
+                        <Button x:Name="ConflictCheckBtn" Content="🧩 冲突检测" Style="{StaticResource GradientCornerButton}" Click="ConflictCheckButton_Click" ToolTip="扫描已启用MOD的资源冲突"/>
+                    </StackPanel>
+                </Grid>
+                
+                <!-- C1区工具栏：排序功能和视图切换 -->
+                <Border Background="#1A2433" CornerRadius="6" Padding="12,8" Margin="0,0,0,15" BorderBrush="#2A3441" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- 左侧：排序功能 -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="排序:" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            
+                            <ComboBox x:Name="SortComboBox" Width="120" Height="28" 
+                                      Background="#2A3441" BorderBrush="#4A5568" BorderThickness="1"
+                                      Foreground="#F1F5F9" FontSize="12"
+                                      SelectionChanged="SortComboBox_SelectionChanged">
+                                <ComboBox.Style>
+                                    <Style TargetType="ComboBox">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ComboBox">
+                                                    <Grid>
+                                                        <ToggleButton Name="ToggleButton" 
+                                                                      Background="{TemplateBinding Background}" 
+                                                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                                                      IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                      ClickMode="Press">
+                                                            <ToggleButton.Style>
+                                                                <Style TargetType="ToggleButton">
+                                                                    <Setter Property="Template">
+                                                                        <Setter.Value>
+                                                                            <ControlTemplate TargetType="ToggleButton">
+                                                                                <Border Background="{TemplateBinding Background}" 
+                                                                                        BorderBrush="{TemplateBinding BorderBrush}" 
+                                                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                        CornerRadius="3">
+                                                                                    <Grid>
+                                                                                        <Grid.ColumnDefinitions>
+                                                                                            <ColumnDefinition Width="*"/>
+                                                                                            <ColumnDefinition Width="20"/>
+                                                                                        </Grid.ColumnDefinitions>
+                                                                                        <ContentPresenter Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                                                        <Path Grid.Column="1" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#94A3B8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </ControlTemplate>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Style>
+                                                            </ToggleButton.Style>
+                                                        </ToggleButton>
+                                                        <ContentPresenter Name="ContentSite" IsHitTestVisible="False" 
+                                                                          Content="{TemplateBinding SelectionBoxItem}"
+                                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                                          Margin="6,3,23,3" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                        <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                               AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                                            <Grid Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="200">
+                                                                <Border Background="#2A3441" BorderBrush="#4A5568" BorderThickness="1" CornerRadius="3">
+                                                                    <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="True">
+                                                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                                    </ScrollViewer>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Popup>
+                                                    </Grid>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ComboBox.Style>
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#F1F5F9"/>
+                                        <Setter Property="Padding" Value="6,3"/>
+                                        <Setter Property="FontSize" Value="12"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#374151"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#00D4AA"/>
+                                                <Setter Property="Foreground" Value="#1A2433"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBoxItem Content="名称 ↑" Tag="Name_Asc"/>
+                                <ComboBoxItem Content="名称 ↓" Tag="Name_Desc"/>
+                                <ComboBoxItem Content="安装日期 ↑" Tag="Date_Asc"/>
+                                <ComboBoxItem Content="安装日期 ↓" Tag="Date_Desc"/>
+                                <ComboBoxItem Content="文件大小 ↑" Tag="Size_Asc"/>
+                                <ComboBoxItem Content="文件大小 ↓" Tag="Size_Desc"/>
+                            </ComboBox>
+                        </StackPanel>
+                        
+                        <!-- 右侧：视图切换按钮 -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <TextBlock Text="视图:" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            
+                            <Button x:Name="CardViewBtn" Content="⊞" Background="Transparent" BorderThickness="1" 
+                                    BorderBrush="#00D4AA" Foreground="#00D4AA" Padding="6,3" Margin="0,0,4,0" 
+                                    FontSize="14" Cursor="Hand" ToolTip="卡片视图"
+                                    Click="CardViewBtn_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="#1A3332"/>
+                                        <Setter Property="BorderBrush" Value="#00D4AA"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#2A4443"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            
+                            <Button x:Name="ListViewBtn" Content="☰" Background="Transparent" BorderThickness="1" 
+                                    BorderBrush="#4A5568" Foreground="#F1F5F9" Padding="6,3" 
+                                    FontSize="14" Cursor="Hand" ToolTip="列表视图"
+                                    Click="ListViewBtn_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderBrush" Value="#4A5568"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#374151"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                
+                <!-- 卡片视图 - 直接使用主ScrollViewer，无需嵌套 -->
+                <ItemsControl x:Name="ModsCardView" Visibility="Visible">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" Margin="-10"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                                                    <Border x:Name="CardBorder" Width="240" Height="270" Margin="10" Background="#1A2433" 
+                                        CornerRadius="8" BorderBrush="#2A3441" BorderThickness="1" 
+                                        MouseDown="ModCard_MouseDown" Cursor="Hand"
+                                        PreviewMouseWheel="Card_PreviewMouseWheel"
+                                        MouseWheel="Card_PreviewMouseWheel">
+                                        <!-- 添加右键菜单 -->
+                                        <Border.ContextMenu>
+                                            <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="ModContextMenu_Opened">
+                                                <MenuItem x:Name="EnableModMenuItem" Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="✅" FontSize="12" Foreground="#10B981"/>
+                                                </MenuItem>
+                                                <MenuItem x:Name="DisableModMenuItem" Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="⏸️" FontSize="12" Foreground="#DC2626"/>
+                                                </MenuItem>
+                                                <Separator Style="{StaticResource DarkSeparator}"/>
+                                                <MenuItem Header="移动到分类" x:Name="MoveToCategoryMenuItem" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="📁" FontSize="12" Foreground="#FBBF24"/>
+                                                    <!-- 动态子菜单将在代码中生成 -->
+                                                </MenuItem>
+                                                <Separator Style="{StaticResource DarkSeparator}"/>
+                                                <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
+                                                </MenuItem>
+                                                <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="🖼️" FontSize="12" Foreground="#6B7280"/>
+                                                </MenuItem>
+                                                <Separator Style="{StaticResource DarkSeparator}"/>
+                                                <MenuItem Header="删除MOD" Click="DeleteModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                                        <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
+                                                </MenuItem>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Effect" Value="{x:Null}"/>
+                                                <Setter Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <TranslateTransform Y="0"/>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <!-- 选中状态样式 -->
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="BorderBrush" Value="#10B981"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                        <Setter Property="Effect">
+                                                            <Setter.Value>
+                                                                <DropShadowEffect ShadowDepth="0" BlurRadius="15" Color="#10B981" Opacity="0.6"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                    <!-- 鼠标悬停样式 -->
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="BorderBrush" Value="#FBBF24"/>
+                                                        <Setter Property="Effect">
+                                                            <Setter.Value>
+                                                                <DropShadowEffect ShadowDepth="0" BlurRadius="15" Color="#FBBF24" Opacity="0.5"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <TranslateTransform Y="-5"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            
+                                            <!-- 预览图区域 -->
+                                            <Border Grid.Row="0" Margin="4" CornerRadius="8" Background="#0F1B2E" ClipToBounds="True">
+                                                <Grid>
+                                                    <!-- 预览图片 - 直接绑定到预加载的ImageSource -->
+                                                    <Image x:Name="PreviewImage"
+                                                           Source="{Binding PreviewImageSource}" 
+                                                           Stretch="UniformToFill" 
+                                                           VerticalAlignment="Center" 
+                                                           HorizontalAlignment="Center"
+                                                           Visibility="{Binding PreviewImageSource, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                    
+                                                    <!-- 图标占位符 - 在没有ImageSource时显示 -->
+                                                    <Viewbox Visibility="{Binding PreviewImageSource, Converter={StaticResource InverseNullToVisibilityConverter}}">
+                                                        <TextBlock Text="📦" FontSize="60" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                    </Viewbox>
+                                                </Grid>
+                                            </Border>
+                                            
+                                            <!-- 状态徽章 -->
+                                            <Border CornerRadius="8" Padding="10,5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#6B7280"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                                <Setter Property="Background" Value="#10B981"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                            </Border>
+                                            
+                                            <!-- 冲突徽章（当冲突数>0显示） -->
+                                            <Border x:Name="ConflictCountBadge" CornerRadius="8" Padding="6,3" Background="#DC2626"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0"
+                                                    Tag="{Binding RealName, Converter={StaticResource ModConflictCountConverter}}"
+                                                    Visibility="{Binding Tag, RelativeSource={RelativeSource Self}, Converter={StaticResource CountToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="⚠️" FontSize="12" Foreground="White" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource Self}}" FontSize="12" Foreground="White"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- 内容区域 -->
+                                            <StackPanel Grid.Row="1" Margin="15,12">
+                                                <!-- 双行标题：上为“管理器显示名称”（无备注时为默认名称），下为实际文件名称（RealName，暗色） -->
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="White" FontSize="15" Margin="0,0,0,2"/>
+                                                    <TextBlock Text="{Binding RealName}" FontSize="11" Foreground="#9CA3AF"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#9CA3AF" 
+                                                           TextWrapping="Wrap" Height="34" Margin="0,0,0,10"/>
+                                                <Grid>
+                                                    <!-- 类型标签 - 改为可点击切换，优化样式防止背景溢出 -->
+                                                    <Border Background="#40FBBF24" CornerRadius="8" Padding="6,3" HorizontalAlignment="Left" VerticalAlignment="Center" 
+                                                            Cursor="Hand" MouseDown="TypeTag_MouseDown" Tag="{Binding}" 
+                                                            BorderThickness="0" ClipToBounds="True">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="#40FBBF24"/>
+                                                                <Style.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Background" Value="#60FBBF24"/>
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding Type}" FontSize="11" Foreground="#FBBF24" FontWeight="Medium"/>
+                                                    </Border>
+                                                    
+                                                    <!-- 操作按钮 -->
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        <!-- 滑块开关 -->
+                                                        <Border x:Name="ModToggle" CornerRadius="8" 
+                                                               Height="16" Width="30" VerticalAlignment="Center" Cursor="Hand" 
+                                                               MouseDown="ModToggle_MouseDown" Tag="{Binding}" ToolTip="切换启用/禁用" Margin="0,0,4,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="#4A5568"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                                            <Setter Property="Background" Value="#FBBF24"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border x:Name="ToggleThumb" Background="White" CornerRadius="6" 
+                                                                   Height="12" Width="12" VerticalAlignment="Center" Margin="2,0,0,0">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="HorizontalAlignment" Value="Left"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
+                                                        </Border>
+                                                        
+                                                        <!-- 编辑按钮 - 铅笔图标 -->
+                                                        <Button Content="✏️" Background="Transparent" BorderThickness="0" Foreground="#9CA3AF" 
+                                                                Padding="4" FontSize="12" ToolTip="编辑MOD" Tag="{Binding}" Click="EditModButton_Click" Margin="0,0,2,0"/>
+                                                        
+                                                        <!-- 删除按钮 -->
+                                                        <Button Content="🗑" Background="Transparent" BorderThickness="0" Foreground="#9CA3AF" 
+                                                                Padding="4" FontSize="12" ToolTip="删除MOD" Tag="{Binding}" Click="DeleteModButton_Click"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                
+                <!-- 列表视图 -->
+                <ListView x:Name="ModsListView" Background="Transparent" BorderThickness="0" Visibility="Collapsed"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.PanningMode="VerticalOnly" ScrollViewer.CanContentScroll="False"
+                          PreviewMouseWheel="ModsListView_PreviewMouseWheel"
+                          SelectionChanged="ModsListView_SelectionChanged"
+                          SelectionMode="Extended">
+                    <ListView.ContextMenu>
+                        <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="ModContextMenu_Opened">
+                            <MenuItem x:Name="EnableModMenuItem" Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="✅" FontSize="12" Foreground="#10B981"/>
+                            </MenuItem>
+                            <MenuItem x:Name="DisableModMenuItem" Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="⏸️" FontSize="12" Foreground="#DC2626"/>
+                            </MenuItem>
+                            <Separator Style="{StaticResource DarkSeparator}"/>
+                            <MenuItem Header="移动到分类" x:Name="MoveToCategoryMenuItem" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="📁" FontSize="12" Foreground="#FBBF24"/>
+                                <!-- 动态子菜单将在代码中生成 -->
+                            </MenuItem>
+                            <Separator Style="{StaticResource DarkSeparator}"/>
+                            <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
+                            </MenuItem>
+                            <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="🖼️" FontSize="12" Foreground="#6B7280"/>
+                            </MenuItem>
+                            <Separator Style="{StaticResource DarkSeparator}"/>
+                            <MenuItem Header="删除MOD" Click="DeleteModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
+                                    <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
+                            </MenuItem>
+                        </ContextMenu>
+                    </ListView.ContextMenu>
+                    
+                    <!-- 列表视图样式 -->
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,0,0,1"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border x:Name="Border" Background="{TemplateBinding Background}" 
+                                                BorderBrush="#2A3441" BorderThickness="0,0,0,1" Padding="0,8">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#1E2A3A"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#1A3332"/>
+                                                <Setter TargetName="Border" Property="BorderBrush" Value="#10B981"/>
+                                                <Setter TargetName="Border" Property="BorderThickness" Value="0,0,0,2"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    
+                    <!-- 列表视图模板 -->
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="60" Margin="15,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60"/>  <!-- 缩略图 -->
+                                    <ColumnDefinition Width="*"/>   <!-- 名称 -->
+                                    <ColumnDefinition Width="120"/> <!-- 状态 -->
+                                    <ColumnDefinition Width="120"/> <!-- 日期 -->
+                                    <ColumnDefinition Width="100"/> <!-- 大小 -->
+                                    <ColumnDefinition Width="80"/>  <!-- 操作 -->
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- 缩略图 -->
+                                <Border Grid.Column="0" Width="50" Height="50" Background="#0F1B2E" CornerRadius="6" 
+                                        Margin="0,5" ClipToBounds="True" Cursor="Hand" MouseDown="ModCard_MouseDown" Tag="{Binding}">
+                                    <Grid>
+                                        <Image Source="{Binding PreviewImageSource}" 
+                                               Stretch="UniformToFill" 
+                                               Visibility="{Binding PreviewImageSource, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                        <TextBlock Text="📦" FontSize="20" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                   Visibility="{Binding PreviewImageSource, Converter={StaticResource InverseNullToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- 名称（双行）与描述 -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="15,0">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="White" FontSize="14" 
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="250"/>
+                                        <TextBlock Text="{Binding RealName}" FontSize="11" Foreground="#9CA3AF" 
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="250"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#9CA3AF" 
+                                               TextTrimming="CharacterEllipsis" MaxWidth="250" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                
+                                <!-- 状态 -->
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Border CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#6B7280"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                        <Setter Property="Background" Value="#10B981"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Status}" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </StackPanel>
+                                
+                                <!-- 导入日期 -->
+                                <TextBlock Grid.Column="3" Text="{Binding ImportDate}" Foreground="#94A3B8" FontSize="12" 
+                                           VerticalAlignment="Center"/>
+                                
+                                <!-- 文件大小 -->
+                                <TextBlock Grid.Column="4" Text="{Binding Size}" Foreground="#FFD700" FontSize="12" FontWeight="500"
+                                           VerticalAlignment="Center"/>
+                                
+                                <!-- 操作按钮 -->
+                                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- 滑块开关 -->
+                                    <Border x:Name="ModToggle" CornerRadius="6" 
+                                           Height="14" Width="26" VerticalAlignment="Center" Cursor="Hand" 
+                                           MouseDown="ModToggle_MouseDown" Tag="{Binding}" ToolTip="切换启用/禁用" Margin="0,0,6,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#4A5568"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                        <Setter Property="Background" Value="#FBBF24"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Border x:Name="ToggleThumb" Background="White" CornerRadius="5" 
+                                               Height="10" Width="10" VerticalAlignment="Center" Margin="2,0,0,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="HorizontalAlignment" Value="Left"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="已启用">
+                                                            <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </Border>
+                                    
+                                    <!-- 编辑按钮 -->
+                                    <Button Content="✏️" Background="Transparent" BorderThickness="0" Foreground="#9CA3AF" 
+                                            Padding="3" FontSize="11" ToolTip="编辑MOD" Tag="{Binding}" Click="EditModButton_Click" Margin="0,0,2,0"/>
+                                    
+                                    <!-- 删除按钮 -->
+                                    <Button Content="🗑" Background="Transparent" BorderThickness="0" Foreground="#9CA3AF" 
+                                            Padding="3" FontSize="11" ToolTip="删除MOD" Tag="{Binding}" Click="DeleteModButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- 右侧面板 -->
+        <Border Grid.Row="1" Grid.Column="2" Background="#0F1B2E" BorderBrush="#1A2332" BorderThickness="1,0,0,0">
+            <ScrollViewer Style="{StaticResource DarkScrollViewer}">
+                <StackPanel Margin="20">
+                    <Border Margin="0,0,0,20" BorderBrush="#1A2332" BorderThickness="0,0,0,1" Padding="0,0,0,15">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0" x:Name="ModNameText" Text="伊芙战斗服" FontSize="20" FontWeight="600" 
+                                      Foreground="#F1F5F9" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            
+                            <!-- 自定义滑块开关 -->
+                            <Border Grid.Column="1" x:Name="CustomToggle" Background="#4A5568" CornerRadius="12" 
+                                   Height="24" Width="44" VerticalAlignment="Center" Cursor="Hand" 
+                                   MouseDown="CustomToggle_MouseDown">
+                                <Border x:Name="ToggleThumb" Background="White" CornerRadius="10" 
+                                       Height="20" Width="20" HorizontalAlignment="Left" Margin="2,0,0,0"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <Border Height="200" CornerRadius="12" Background="#0B1426" Margin="0,0,0,20" BorderBrush="#1A2332" BorderThickness="1" ClipToBounds="True"
+                            MouseDown="ModDetailPreviewImage_MouseDown">
+                        <Grid>
+                            <!-- 预览图片 -->
+                            <Image x:Name="ModDetailPreviewImage" 
+                                   Stretch="UniformToFill" 
+                                   VerticalAlignment="Center" 
+                                   HorizontalAlignment="Center"/>
+                            
+                            <!-- 无预览图时的提示区域 -->
+                            <Border x:Name="PreviewPlaceholder" Background="Transparent" Cursor="Hand">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <!-- 图标占位符 -->
+                                    <Viewbox x:Name="ModDetailIconContainer" Height="60" Width="60" Margin="0,0,0,10">
+                                        <TextBlock x:Name="ModDetailIcon" Text="📷" FontSize="60" Foreground="#334155"/>
+                            </Viewbox>
+                                    
+                                    <!-- 提示文字 -->
+                                    <TextBlock Text="请上传图片，建议比例1:1或16:9" 
+                                               Foreground="#6B7280" FontSize="14" 
+                                               TextAlignment="Center" TextWrapping="Wrap" 
+                                               Margin="10,0,10,0"/>
+                                    
+                                    <TextBlock Text="点击此处导入预览图" 
+                                               Foreground="#4B5563" FontSize="12" 
+                                               TextAlignment="Center" TextWrapping="Wrap" 
+                                               Margin="10,5,10,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <Border Background="#0B1426" CornerRadius="8" Padding="20" Margin="0,0,0,20">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="状态:" Width="100" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="ModStatusText" Text="未选择" Foreground="#6B7280" FontWeight="500"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="原始名称:" Width="100" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="ModOriginalNameText" Text="-" Foreground="#F1F5F9"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="导入日期:" Width="100" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="ModImportDateText" Text="-" Foreground="#F1F5F9"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="文件大小:" Width="100" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="ModSizeText" Text="-" Foreground="#FFD700" FontWeight="500"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="描述:" Width="80" Foreground="#94A3B8" VerticalAlignment="Top"/>
+                                <TextBlock x:Name="ModDescriptionText" Text="请选择一个MOD查看详情" 
+                                           Foreground="#F1F5F9" TextWrapping="Wrap" Width="200"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <!-- 操作按钮 - 恢复为2x2栅格布局，并修复文字折叠问题 -->
+                    <UniformGrid Columns="2" Rows="2" Margin="0,0,0,20">
+                        <Button MinHeight="48" BorderBrush="#2A3441" BorderThickness="1" Padding="8,4" Margin="4"
+                                Click="RenameModButton_Click" ToolTip="编辑MOD信息">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#1A2433" BorderBrush="{TemplateBinding BorderBrush}" 
+                                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" 
+                                            Padding="{TemplateBinding Padding}">
+                                        <TextBlock Text="✏️ 编辑" Foreground="#F1F5F9" FontSize="13"
+                                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Button MinHeight="48" BorderBrush="#2A3441" BorderThickness="1" Padding="8,4" Margin="4"
+                                Click="ChangePreviewButton_Click" ToolTip="修改MOD预览图">
+                             <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#1A2433" BorderBrush="{TemplateBinding BorderBrush}" 
+                                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" 
+                                            Padding="{TemplateBinding Padding}">
+                                        <TextBlock Text="🖼️ 修改预览图" Foreground="#F1F5F9" FontSize="13"
+                                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Button Name="DisableModButton" MinHeight="48" BorderBrush="#2A3441" BorderThickness="1" Padding="8,4" Margin="4"
+                                Click="DisableModButton_Click" ToolTip="禁用当前MOD">
+                             <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#1A2433" BorderBrush="{TemplateBinding BorderBrush}" 
+                                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" 
+                                            Padding="{TemplateBinding Padding}">
+                                        <TextBlock Name="DisableModButtonText" Text="⛔ 禁用MOD" Foreground="#F1F5F9" FontSize="13"
+                                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Button MinHeight="48" BorderBrush="#2A3441" BorderThickness="1" Padding="8,4" Margin="4"
+                                Click="DeleteCurrentModButton_Click" ToolTip="删除当前MOD">
+                             <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#1A2433" BorderBrush="{TemplateBinding BorderBrush}" 
+                                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" 
+                                            Padding="{TemplateBinding Padding}">
+                                        <TextBlock Text="🗑️ 删除MOD" Foreground="#F1F5F9" FontSize="13"
+                                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </UniformGrid>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+        
+        <!-- 底部状态栏 -->
+        <Border Grid.Row="2" Grid.ColumnSpan="3" Background="#0F1B2E" BorderBrush="#1A2332" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- MOD加载信息 - 移到右侧 -->
+                <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,20,0">
+                    <TextBlock x:Name="SystemInfoText" Text="已加载MOD: 0/0 | 内存占用: 0MB" 
+                               Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <!-- MOD目录信息 - 移到左侧 -->
+                <TextBlock x:Name="ModDirectoryText" Grid.Column="0" Grid.Row="0" Text="MOD目录: 未配置" 
+                           Foreground="#94A3B8" FontSize="12" Margin="20,8,0,0" VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                
+                <!-- 捐赠按钮 - 更小巧的底部中间按钮 -->
+                <Button Grid.Column="1" Grid.Row="0" 
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Cursor="Hand" Background="#1A2433" BorderBrush="#FFD700" BorderThickness="1"
+                        Padding="10,5" Margin="0,8,0,4"
+                        MouseEnter="DonationText_MouseEnter" MouseLeave="DonationText_MouseLeave"
+                        PreviewMouseDown="DonationText_MouseDown" Height="28">
+                    <StackPanel Orientation="Horizontal">
+                        <!-- 金币图标 SVG -->
+                        <Viewbox Width="14" Height="14" Margin="0,0,6,0">
+                            <Path Data="M119.466667 143.473778c68.266667-37.176889 157.866667-57.827556 256-57.827556 93.866667 0 174.933333 20.650667 243.2 53.674667 64 33.052444 119.466667 82.602667 128 148.650667 4.266667 20.650667-12.8 45.425778-34.133334 49.550222-21.333333 4.124444-46.933333-12.373333-51.2-33.024-4.266667-28.899556-29.866667-61.952-85.333333-86.698667-51.2-24.775111-123.733333-41.301333-204.8-41.301333-85.333333 0-162.133333 20.650667-213.333333 49.550222C106.666667 246.698667 85.333333 279.722667 85.333333 308.622222c0 24.775111 12.8 53.674667 51.2 78.449778 34.133333 24.775111 85.333333 45.425778 149.333334 57.799111 21.333333 4.152889 38.4 24.775111 34.133333 49.550222-4.266667 20.650667-25.6 37.176889-51.2 33.052445-64-12.401778-123.733333-33.052444-170.666667-61.952 0 0 0 4.124444-4.266666 4.124444-4.266667 12.401778-8.533333 20.650667-8.533334 33.052445 0 24.746667 12.8 49.550222 51.2 78.449777 34.133333 24.746667 85.333333 45.397333 149.333334 57.799112 21.333333 4.124444 38.4 24.746667 34.133333 49.550222-4.266667 20.650667-25.6 37.148444-51.2 33.024-68.266667-12.373333-128-33.024-174.933333-66.048-4.266667 8.248889-8.533333 20.622222-8.533334 32.995555 0 28.928 21.333333 57.827556 68.266667 86.755556 46.933333 28.871111 115.2 49.521778 192 53.646222 21.333333 0 38.4 20.650667 38.4 41.301333 0 24.775111-21.333333 41.301333-46.933333 37.148445-89.6-4.124444-170.666667-28.899556-230.4-66.048C46.933333 808.248889 0 754.545778 0 688.497778c0-28.899556 8.533333-53.674667 21.333333-78.449778l12.8-12.401778C12.8 568.746667 0 539.875556 0 502.698667c0-28.899556 8.533333-53.674667 21.333333-78.449778 4.266667-8.248889 8.533333-12.401778 17.066667-16.526222C12.8 382.947556 0 349.923556 0 308.622222c0-70.200889 51.2-128 119.466667-165.148444z M1024 564.622222c0-61.923556-46.933333-111.502222-102.4-140.373333-59.733333-33.052444-136.533333-49.550222-217.6-49.550222-81.066667 0-157.866667 16.497778-217.6 49.550222-55.466667 28.899556-102.4 78.449778-102.4 140.373333 0 28.899556 12.8 57.799111 29.866667 78.449778-17.066667 20.650667-29.866667 45.425778-29.866667 78.449778 0 61.952 46.933333 111.502222 102.4 140.401778a494.705778 494.705778 0 0 0 217.6 49.550222c85.333333 0 157.866667-16.526222 217.6-49.550222 55.466667-28.899556 102.4-78.449778 102.4-140.401778 0-33.024-12.8-57.799111-25.6-78.449778 12.8-20.650667 25.6-49.550222 25.6-78.449778z m-145.066667 227.100445c-42.666667 24.746667-106.666667 37.148444-174.933333 37.148444-68.266667 0-132.266667-16.497778-174.933333-37.148444-42.666667-24.775111-59.733333-49.550222-59.733334-70.200889 0-8.248889 0-12.373333 8.533334-20.650667 59.733333 33.052444 140.8 53.674667 226.133333 53.674667s166.4-20.622222 226.133333-53.674667c4.266667 8.248889 8.533333 12.401778 8.533334 20.650667 0 20.650667-17.066667 45.425778-59.733334 70.200889z m34.133334-181.674667c-38.4 33.024-115.2 61.923556-209.066667 61.923556-89.6 0-162.133333-24.746667-200.533333-53.674667l-4.266667-4.124445-4.266667-4.124444c-17.066667-16.497778-25.6-33.024-25.6-45.425778 0-20.650667 17.066667-45.425778 59.733334-70.200889 42.666667-24.746667 106.666667-37.148444 174.933333-37.148444 68.266667 0 132.266667 16.497778 174.933333 37.148444 42.666667 24.775111 59.733333 49.550222 59.733334 70.200889 0 12.401778-8.533333 28.899556-25.6 45.425778z" 
+                                  Fill="#FFD700" />
+                        </Viewbox>
+                        <!-- 文字 -->
+                        <TextBlock Text="支持捐赠" Foreground="#F1F5F9" FontSize="13" FontWeight="Medium"/>
+                    </StackPanel>
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                                CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#2A3441"/>
+                                                <Setter TargetName="border" Property="BorderBrush" Value="#FFEC80"/>
+                                                <Setter TargetName="border" Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect ShadowDepth="0" Color="#FFD700" Opacity="0.7" BlurRadius="6"/>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#1F2937"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                    <Button.ToolTip>
+                        <ToolTip Background="#0F1B2E" BorderBrush="#2A3441" BorderThickness="1" 
+                                 Padding="0">
+                            <Border Padding="15" CornerRadius="8">
+                                <StackPanel>
+                                    <TextBlock Text="支持开发" Foreground="White" FontSize="16" 
+                                               FontWeight="Bold" HorizontalAlignment="Center" 
+                                               Margin="0,0,0,10"/>
+                                    <Image Source="pack://application:,,,/UEModManager;component/捐赠.png" Width="180" Height="180" 
+                                           Stretch="Uniform" Margin="0,0,0,10"/>
+                                    <TextBlock Text="如果对你有帮助，可以请我喝一杯蜜雪冰城~" 
+                                               Foreground="#94A3B8" FontSize="12" 
+                                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                                               TextAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </ToolTip>
+                    </Button.ToolTip>
+                </Button>
+            </Grid>
+        </Border>
+        
+        <!-- 操作工具栏 (悬浮Bar) -->
+        <Border Grid.Row="1" Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" 
+                Background="#1A2433" CornerRadius="8" Padding="10" Margin="0,0,0,25"
+                BorderBrush="#2A3441" BorderThickness="1">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="ImportModBtn2" Content="📥 导入MOD" Style="{StaticResource GradientCornerButton}" Margin="0,0,10,0"/>
+                <Button Content="🚫 禁用全部" Style="{StaticResource SecondaryPillButton}" Click="DisableAllButton_Click" ToolTip="禁用所有MOD" Margin="0,0,10,0"/>
+                <Button Content="✅ 启用全部" Style="{StaticResource SecondaryPillButton}" Click="EnableAllButton_Click" ToolTip="启用所有MOD" Margin="0,0,10,0"/>
+                <Button Content="🗑️ 删除所选" Style="{StaticResource SecondaryPillButton}" Click="DeleteSelectedButton_Click" ToolTip="删除选中的MOD" Margin="0,0,10,0"/>
+                <Button x:Name="LaunchGameBtn" Content="▶️ 启动游戏" Style="{StaticResource GradientCornerButton}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window> 
+
+
+

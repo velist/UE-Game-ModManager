@@ -1,0 +1,175 @@
+﻿<Window x:Class="UEModManager.Views.RegisterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="用户注册 - UEModManager" Height="640" Width="400"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B1426"
+        ResizeMode="NoResize"
+        Style="{StaticResource DarkFlatWindow}">
+    
+    <Window.Resources>
+        <Style x:Key="InputTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#1A2433"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#2A3441"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,5"/>
+        </Style>
+
+        <Style x:Key="InputPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#1A2433"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#2A3441"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,5"/>
+        </Style>
+        
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#FBBF24"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,10"/>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="BorderBrush" Value="#9CA3AF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,5"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="40"><Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="20"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>        <Button x:Name="LangToggleButton" Content="EN" Width="40" Height="24" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,0,6" Click="LangToggleButton_Click"/>
+        
+        <!-- Logo和标题 -->
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center">
+            <TextBlock Text="🎮 UEModManager" 
+                       FontSize="24" FontWeight="Bold" 
+                       Foreground="White" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="SubtitleText" Text="创建新账户" 
+                       FontSize="14" Foreground="#9CA3AF" 
+                       HorizontalAlignment="Center" Margin="0,5"/>
+        </StackPanel>
+
+        <!-- 用户名输入 -->
+        <StackPanel Grid.Row="2">
+            <TextBlock x:Name="UsernameLabel" Text="用户名（可选）" Foreground="White" FontSize="12" Margin="0,0,0,5"/>
+            <TextBox x:Name="UsernameTextBox" 
+                     Style="{StaticResource InputTextBox}"
+                     MaxLength="20"/>
+        </StackPanel>
+
+        <!-- 邮箱输入 -->
+        <StackPanel Grid.Row="4">
+            <TextBlock x:Name="EmailLabel" Text="邮箱地址 *" Foreground="White" FontSize="12" Margin="0,0,0,5"/>
+            <TextBox x:Name="EmailTextBox" 
+                     Style="{StaticResource InputTextBox}"/>
+        </StackPanel>
+
+        <!-- 密码输入 -->
+        <StackPanel Grid.Row="6">
+            <TextBlock x:Name="PasswordLabel" Text="登录密码 *" Foreground="White" FontSize="12" Margin="0,0,0,5"/>
+            <PasswordBox x:Name="PasswordBox" 
+                         Style="{StaticResource InputPasswordBox}"/>
+        </StackPanel>
+
+        <!-- 确认密码输入 -->
+        <StackPanel Grid.Row="8">
+            <TextBlock x:Name="ConfirmPasswordLabel" Text="确认密码 *" Foreground="White" FontSize="12" Margin="0,0,0,5"/>
+            <PasswordBox x:Name="ConfirmPasswordBox" 
+                         Style="{StaticResource InputPasswordBox}"/>
+        </StackPanel>
+
+        <!-- 密码强度提示 -->
+        <TextBlock Grid.Row="10" 
+                   x:Name="PasswordStrengthText"
+                   Text="密码至少8位，建议包含字母、数字和特殊字符"
+                   FontSize="11" 
+                   Foreground="#9CA3AF" 
+                   TextWrapping="Wrap"/>
+
+        <!-- 用户协议 -->
+        <CheckBox Grid.Row="12" 
+                  x:Name="AgreeCheckBox"
+                  Foreground="White" 
+                  FontSize="12">
+            <CheckBox.Content>
+                <TextBlock TextWrapping="Wrap">
+                    <Run Text="我已阅读并同意"/>
+                    <Hyperlink x:Name="UserAgreementLink" Click="UserAgreementLink_Click">
+                        <Run Text="用户协议" Foreground="#FBBF24"/>
+                    </Hyperlink>
+                    <Run Text="和"/>
+                    <Hyperlink x:Name="PrivacyPolicyLink" Click="PrivacyPolicyLink_Click">
+                        <Run Text="隐私政策" Foreground="#FBBF24"/>
+                    </Hyperlink>
+                </TextBlock>
+            </CheckBox.Content>
+        </CheckBox>
+
+        <!-- 注册按钮 -->
+        <Button Grid.Row="14" 
+                x:Name="RegisterButton" 
+                Style="{StaticResource PrimaryButton}"
+                Content="创建账户" 
+                Click="RegisterButton_Click"/>
+
+        <!-- 返回登录按钮 -->
+        <Button Grid.Row="16" 
+                x:Name="BackToLoginButton" 
+                Style="{StaticResource SecondaryButton}"
+                Content="已有账户？返回登录" 
+                Click="BackToLoginButton_Click"/>
+
+        <!-- 加载指示器 -->
+        <Grid x:Name="LoadingOverlay" Grid.RowSpan="17" Background="#80000000" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="100" Height="4" 
+                             Foreground="#FBBF24" Background="#1A2433"/>
+                <TextBlock x:Name="LoadingText" Text="正在创建账户..." 
+                           Foreground="White" HorizontalAlignment="Center" 
+                           Margin="0,10"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
+
+
+
+
+
+

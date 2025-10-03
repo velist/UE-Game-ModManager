@@ -1,0 +1,96 @@
+<Window x:Class="UEModManager.Views.ConflictResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MOD冲突检测结果" Height="540" Width="880" Background="#0B1426" WindowStartupLocation="CenterOwner" Style="{StaticResource DarkFlatWindow}">
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+    <Border BorderBrush="#2A3441" BorderThickness="1" CornerRadius="8" Padding="10">
+        <DockPanel>
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <TextBlock x:Name="SummaryText" Foreground="#E5E7EB" FontSize="14" DockPanel.Dock="Left"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <CheckBox x:Name="EnabledOnlyCheck" Content="仅扫描已启用" Foreground="#E5E7EB" Margin="10,0"/>
+                    <Button Content="导出JSON" Click="ExportJson_Click" Margin="10,0" Padding="10,4"/>
+                    <Button Content="关闭" Click="Close_Click" Margin="10,0" Padding="10,4"/>
+                </StackPanel>
+            </DockPanel>
+            <TabControl>
+                <TabItem Header="冲突摘要">
+                    <DataGrid x:Name="SummaryGrid" AutoGenerateColumns="False" HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                              Background="#0F172A" Foreground="#F1F5F9" GridLinesVisibility="Horizontal"
+                              RowBackground="#111827" AlternatingRowBackground="#0B1320" AlternationCount="2"
+                              FontSize="13" RowHeight="28" HorizontalGridLinesBrush="#2A3441" VerticalGridLinesBrush="#2A3441">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1F2937"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderBrush" Value="#2A3441"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Setter Property="Padding" Value="6,4"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MOD名称" Binding="{Binding ModName}" Width="*"/>
+                            <DataGridTextColumn Header="冲突数量" Binding="{Binding ConflictCount}" Width="120"/>
+                            <DataGridTextColumn Header="示例资源(Top5)" Binding="{Binding ConflictAssetsTop5}" Width="2*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+                <TabItem Header="冲突明细">
+                    <DataGrid x:Name="DetailGrid" AutoGenerateColumns="False" HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False"
+                              Background="#0F172A" Foreground="#F1F5F9" GridLinesVisibility="Horizontal"
+                              RowBackground="#111827" AlternatingRowBackground="#0B1320" AlternationCount="2"
+                              FontSize="13" RowHeight="28" HorizontalGridLinesBrush="#2A3441" VerticalGridLinesBrush="#2A3441">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1F2937"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderBrush" Value="#2A3441"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Setter Property="Padding" Value="6,4"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="资源路径" Binding="{Binding AssetPath}" Width="*"/>
+                            <DataGridTextColumn Header="涉及MOD" Binding="{Binding ModsJoined}" Width="2*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+                <TabItem Header="MOD对MOD">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="筛选：" VerticalAlignment="Center" Foreground="#E5E7EB" Margin="0,0,6,0"/>
+                            <TextBox x:Name="PeersFilterText" Width="220" Height="26" Padding="6,2" TextChanged="PeersFilterText_TextChanged"/>
+                            <Button Content="清除" Margin="8,0,0,0" Padding="10,2" Click="PeersFilterClear_Click"/>
+                        </StackPanel>
+                    <DataGrid x:Name="PeersGrid" AutoGenerateColumns="False" HeadersVisibility="Column" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True"
+                              Background="#0F172A" Foreground="#F1F5F9" GridLinesVisibility="Horizontal"
+                              RowBackground="#111827" AlternatingRowBackground="#0B1320" AlternationCount="2"
+                              FontSize="13" RowHeight="28" HorizontalGridLinesBrush="#2A3441" VerticalGridLinesBrush="#2A3441">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1F2937"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="BorderBrush" Value="#2A3441"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Setter Property="Padding" Value="6,4"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MOD名称" Binding="{Binding ModName}" Width="220" SortMemberPath="ModName"/>
+                            <DataGridTextColumn Header="冲突MOD（分号隔开）" Binding="{Binding ConflictsWith}" Width="*" SortMemberPath="ConflictsWith"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    </DockPanel>
+                </TabItem>
+            </TabControl>
+        </DockPanel>
+    </Border>
+</Window>

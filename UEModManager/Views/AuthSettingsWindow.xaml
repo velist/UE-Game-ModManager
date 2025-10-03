@@ -1,0 +1,211 @@
+﻿<Window x:Class="UEModManager.Views.AuthSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="认证设置" Height="450" Width="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#0B1426" Style="{StaticResource DarkFlatWindow}">
+    
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Margin" Value="0,10"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+        
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="LineHeight" Value="20"/>
+        </Style>
+        
+        <Style TargetType="Border">
+            <Setter Property="Background" Value="#3E3E42"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Margin" Value="10"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>`r`n
+        <Button x:Name="LangToggleButton" Content="EN" Width="40" Height="24" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,0,6" Click="LangToggleButton_Click"/>
+
+        <!-- 标题 -->
+        <TextBlock Grid.Row="0" x:Name="HeaderText" Text="选择认证模式" 
+                   FontSize="24" FontWeight="Bold" 
+                   HorizontalAlignment="Center" 
+                   Margin="0,0,0,20"/>
+
+        <!-- 认证模式选项 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- 混合模式 -->
+                <Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <RadioButton x:Name="HybridModeRadio" 
+                                   Grid.Column="0"
+                                   IsChecked="True"
+                                   VerticalAlignment="Top"
+                                   Margin="0,5,15,0"/>
+                        
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="混合模式 (推荐)" 
+                                     FontSize="16" FontWeight="Bold" 
+                                     Foreground="#4FC3F7"/>
+                            <TextBlock Text="智能结合本地和云端认证，提供最佳的用户体验：" 
+                                     Margin="0,5,0,0"/>
+                            <TextBlock Text="• 优先尝试云端登录，获取最新数据和设置" 
+                                     Margin="10,5,0,0" FontSize="13"/>
+                            <TextBlock Text="• 网络异常时自动切换到本地认证" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 支持数据同步和多设备共享" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 离线时保持完整功能" 
+                                     Margin="10,0,0,5" FontSize="13"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 仅云端模式 -->
+                <Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <RadioButton x:Name="OnlineOnlyRadio" 
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,5,15,0"/>
+                        
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="仅云端模式" 
+                                     FontSize="16" FontWeight="Bold" 
+                                     Foreground="#66BB6A"/>
+                            <TextBlock Text="所有认证和数据都通过云端服务器处理：" 
+                                     Margin="0,5,0,0"/>
+                            <TextBlock Text="• 实时同步所有数据和设置" 
+                                     Margin="10,5,0,0" FontSize="13"/>
+                            <TextBlock Text="• 多设备无缝切换体验" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 需要稳定的网络连接" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 无网络时无法使用" 
+                                     Margin="10,0,0,5" FontSize="13" Foreground="#FFA726"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 仅本地模式 -->
+                <Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <RadioButton x:Name="OfflineOnlyRadio" 
+                                   Grid.Column="0"
+                                   VerticalAlignment="Top"
+                                   Margin="0,5,15,0"/>
+                        
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="仅本地模式" 
+                                     FontSize="16" FontWeight="Bold" 
+                                     Foreground="#AB47BC"/>
+                            <TextBlock Text="所有数据存储在本地SQLite数据库中：" 
+                                     Margin="0,5,0,0"/>
+                            <TextBlock Text="• 完全离线运行，无需网络" 
+                                     Margin="10,5,0,0" FontSize="13"/>
+                            <TextBlock Text="• 数据隐私和安全性最高" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 响应速度最快" 
+                                     Margin="10,0,0,0" FontSize="13"/>
+                            <TextBlock Text="• 不支持多设备同步" 
+                                     Margin="10,0,0,5" FontSize="13" Foreground="#FFA726"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 网络状态显示 -->
+        <Border Grid.Row="2" Background="#1E1E1E" Margin="10,10,10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" x:Name="NetworkLabelText" Text="网络状态：" 
+                         VerticalAlignment="Center"/>
+                
+                <TextBlock x:Name="NetworkStatusText" 
+                         Grid.Column="1"
+                         Text="检查中..." 
+                         VerticalAlignment="Center"
+                         Margin="10,0"/>
+                
+                <Button x:Name="RefreshNetworkButton" 
+                      Grid.Column="2"
+                      Content="刷新" 
+                      Click="RefreshNetwork_Click"
+                      Padding="10,5"
+                      FontSize="12"/>
+            </Grid>
+        </Border>
+
+        <!-- 按钮区域 -->
+        <Grid Grid.Row="3" Margin="0,15,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <Button x:Name="TestConnectionButton" 
+                  Grid.Column="0"
+                  Content="测试连接" 
+                  Click="TestConnection_Click"
+                  HorizontalAlignment="Left"
+                  Background="#FF9800"/>
+            
+            <Button x:Name="CancelButton" 
+                  Grid.Column="1"
+                  Content="取消" 
+                  Click="Cancel_Click"
+                  Background="#757575"/>
+            
+            <Button x:Name="SaveButton" 
+                  Grid.Column="2"
+                  Content="保存设置" 
+                  Click="Save_Click"/>
+        </Grid>
+    </Grid>
+</Window>
+
+

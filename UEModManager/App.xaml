@@ -1,0 +1,170 @@
+<Application x:Class="UEModManager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:UEModManager.Converters"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+    <Application.Resources>
+        <ResourceDictionary>
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+            <converters:InverseNullToVisibilityConverter x:Key="InverseNullToVisibilityConverter"/>
+            <converters:ImagePathToSourceConverter x:Key="ImagePathToSourceConverter"/>
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
+            <converters:ModConflictCountConverter x:Key="ModConflictCountConverter"/>
+            <converters:BooleanToStatusBrushConverter x:Key="BooleanToStatusBrushConverter"/>
+            <converters:BooleanToToggleTooltipConverter x:Key="BooleanToToggleTooltipConverter"/>
+            <converters:BooleanToToggleTextConverter x:Key="BooleanToToggleTextConverter"/>
+            <converters:LevelToMarginConverter x:Key="LevelToMarginConverter"/>
+            <converters:FileSizeConverter x:Key="FileSizeConverter"/>
+            <converters:MultiBooleanAndConverter x:Key="MultiBooleanAndConverter"/>
+            <converters:MultiBooleanOrConverter x:Key="MultiBooleanOrConverter"/>
+            
+            <Style x:Key="WindowControlButton" TargetType="{x:Type Button}">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width" Value="45"/>
+                <Setter Property="Height" Value="35"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border x:Name="border" Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#2A3441"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#374151"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            
+            <Style x:Key="CloseWindowButton" TargetType="Button" BasedOn="{StaticResource WindowControlButton}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border" Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#E11D48"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#BE123C"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            
+            <Style x:Key="DarkFlatWindow" TargetType="{x:Type Window}">
+                <Setter Property="WindowStyle" Value="None"/>
+                <Setter Property="Background" Value="#0B1426"/>
+                <Setter Property="BorderBrush" Value="#1A2332"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="ResizeMode" Value="CanResizeWithGrip"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                <Setter Property="shell:WindowChrome.WindowChrome">
+                    <Setter.Value>
+                        <shell:WindowChrome CaptionHeight="35" 
+                                      ResizeBorderThickness="6" 
+                                      GlassFrameThickness="0" 
+                                      CornerRadius="0"
+                                      UseAeroCaptionButtons="False"/>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Window}">
+                            <Border BorderBrush="{TemplateBinding BorderBrush}" 
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Background="{TemplateBinding Background}"
+                                    UseLayoutRounding="True"
+                                    SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="35"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <Border Grid.Row="0" Background="#1A2332" BorderBrush="#2A3441" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="📦" FontSize="16" Margin="0,0,8,0" Foreground="#F1F5F9"/>
+                                                <TextBlock Text="{TemplateBinding Title}" Foreground="#F1F5F9" FontSize="14" 
+                                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button x:Name="MinimizeButton" Style="{StaticResource WindowControlButton}"
+                                                        WindowChrome.IsHitTestVisibleInChrome="True"
+                                                        Command="{x:Static SystemCommands.MinimizeWindowCommand}"
+                                                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <Button.Content>
+                                                        <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#9CA3AF"/>
+                                                    </Button.Content>
+                                                </Button>
+                                                
+                                                <Button x:Name="MaximizeButton" Style="{StaticResource WindowControlButton}"
+                                                        WindowChrome.IsHitTestVisibleInChrome="True"
+                                                        Command="{x:Static SystemCommands.MaximizeWindowCommand}"
+                                                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <Button.Content>
+                                                        <TextBlock x:Name="MaximizeIcon" Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#9CA3AF"/>
+                                                    </Button.Content>
+                                                </Button>
+                                                
+                                                <Button x:Name="CloseButton" Style="{StaticResource CloseWindowButton}"
+                                                        WindowChrome.IsHitTestVisibleInChrome="True"
+                                                        Command="{x:Static SystemCommands.CloseWindowCommand}"
+                                                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <Button.Content>
+                                                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#9CA3AF"/>
+                                                    </Button.Content>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    
+                                    <ContentPresenter Grid.Row="1"/>
+                                </Grid>
+                            </Border>
+                            
+                            <ControlTemplate.Triggers>
+                                <!-- 最大化时切换为“还原”图标与命令 -->
+                                <Trigger Property="WindowState" Value="Maximized">
+                                    <Setter TargetName="MaximizeIcon" Property="Text" Value="&#xE923;"/>
+                                    <Setter TargetName="MaximizeButton" Property="Command" Value="{x:Static SystemCommands.RestoreWindowCommand}"/>
+                                </Trigger>
+                                
+                                <!-- 当窗口禁止调整大小时，隐藏最大化/最小化按钮 -->
+                                <Trigger Property="ResizeMode" Value="NoResize">
+                                    <Setter TargetName="MinimizeButton" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="MaximizeButton" Property="Visibility" Value="Collapsed"/>
+                                </Trigger>
+                                
+                                <!-- 仅允许最小化时，隐藏最大化按钮 -->
+                                <Trigger Property="ResizeMode" Value="CanMinimize">
+                                    <Setter TargetName="MaximizeButton" Property="Visibility" Value="Collapsed"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

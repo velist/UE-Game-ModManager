@@ -1,0 +1,219 @@
+<Window x:Class="UEModManager.Views.EmailConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="邮件服务配置" 
+        Height="600" 
+        Width="500" 
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="#0B1426" Style="{StaticResource DarkFlatWindow}">
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+    
+    <Window.Resources>
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#2c3e50"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,5,0,3"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+        
+        <Style x:Key="InputStyle" TargetType="TextBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderBrush" Value="#bdc3c7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        
+        <Style x:Key="PasswordStyle" TargetType="PasswordBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderBrush" Value="#bdc3c7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        
+        <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderBrush" Value="#bdc3c7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="20,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#3498db"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#95a5a6"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style x:Key="TestButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#27ae60"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <TextBlock Grid.Row="0" 
+                   Text="邮件服务配置" 
+                   Style="{StaticResource HeaderTextStyle}"
+                   HorizontalAlignment="Center"/>
+
+        <!-- 配置表单 -->
+        <ScrollViewer Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="0,10,0,20">
+            <StackPanel>
+                <!-- 邮件提供商选择 -->
+                <TextBlock Text="邮件提供商:" Style="{StaticResource LabelStyle}"/>
+                <ComboBox x:Name="ProviderComboBox" 
+                          Style="{StaticResource ComboBoxStyle}"
+                          SelectionChanged="ProviderComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Gmail (推荐)" Tag="Gmail"/>
+                    <ComboBoxItem Content="Outlook/Hotmail" Tag="Outlook"/>
+                    <ComboBoxItem Content="QQ邮箱" Tag="QQ"/>
+                    <ComboBoxItem Content="网易163邮箱" Tag="NetEase163"/>
+                    <ComboBoxItem Content="新浪邮箱" Tag="Sina"/>
+                    <ComboBoxItem Content="自定义配置" Tag="Custom"/>
+                </ComboBox>
+
+                <!-- 发送邮箱 -->
+                <TextBlock Text="发送邮箱:" Style="{StaticResource LabelStyle}"/>
+                <TextBox x:Name="SenderEmailTextBox" 
+                         Style="{StaticResource InputStyle}"
+                         ToolTip="用于发送激活码的邮箱地址"/>
+
+                <!-- 邮箱密码/授权码 -->
+                <TextBlock Text="邮箱密码/授权码:" Style="{StaticResource LabelStyle}"/>
+                <PasswordBox x:Name="SenderPasswordBox" 
+                             Style="{StaticResource PasswordStyle}"
+                             ToolTip="邮箱密码或应用专用密码"/>
+                
+                <!-- 提示信息 -->
+                <TextBlock x:Name="PasswordHintTextBlock"
+                           FontSize="11"
+                           Foreground="#7f8c8d"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"/>
+
+                <!-- 发送者姓名 -->
+                <TextBlock Text="发送者姓名:" Style="{StaticResource LabelStyle}"/>
+                <TextBox x:Name="SenderNameTextBox" 
+                         Style="{StaticResource InputStyle}"
+                         Text="UEModManager"
+                         ToolTip="邮件显示的发送者名称"/>
+
+                <!-- 自定义SMTP配置 (仅在选择自定义时显示) -->
+                <StackPanel x:Name="CustomConfigPanel" Visibility="Collapsed">
+                    <TextBlock Text="SMTP服务器:" Style="{StaticResource LabelStyle}"/>
+                    <TextBox x:Name="SmtpServerTextBox" 
+                             Style="{StaticResource InputStyle}"
+                             ToolTip="SMTP服务器地址"/>
+
+                    <TextBlock Text="SMTP端口:" Style="{StaticResource LabelStyle}"/>
+                    <TextBox x:Name="SmtpPortTextBox" 
+                             Style="{StaticResource InputStyle}"
+                             Text="587"
+                             ToolTip="SMTP服务器端口号"/>
+
+                    <CheckBox x:Name="EnableSslCheckBox" 
+                              Content="启用SSL/TLS加密" 
+                              IsChecked="True"
+                              Margin="0,5,0,10"/>
+                </StackPanel>
+
+                <!-- 测试按钮 -->
+                <Button x:Name="TestConfigButton" 
+                        Content="🧪 测试配置" 
+                        Style="{StaticResource TestButton}"
+                        Click="TestConfig_Click"
+                        HorizontalAlignment="Left"
+                        Margin="0,10,0,0"/>
+
+                <!-- 测试结果 -->
+                <TextBlock x:Name="TestResultTextBlock"
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 按钮区域 -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right">
+            <Button Content="保存" 
+                    Style="{StaticResource PrimaryButton}"
+                    Click="Save_Click"/>
+            <Button Content="取消" 
+                    Style="{StaticResource SecondaryButton}"
+                    Click="Cancel_Click"/>
+        </StackPanel>
+
+        <!-- 加载遮罩 -->
+        <Grid x:Name="LoadingOverlay" 
+              Grid.RowSpan="3" 
+              Background="#80000000" 
+              Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" 
+                        VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" 
+                             Width="200" 
+                             Height="4" 
+                             Margin="0,0,0,10"/>
+                <TextBlock x:Name="LoadingText" 
+                           Text="正在测试..." 
+                           Foreground="White" 
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,13 @@
+﻿name = "modmanger-api"
+main = "src/index.ts"
+compatibility_date = "2025-10-02"
+account_id = "4c1d8aa164a8e9f8a174a9e89fd3bffe"
+
+routes = [
+  { pattern = "api.modmanger.com/*", zone_name = "modmanger.com" }
+]
+
+# KV 命名空间会在创建后回填 id
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "7bca3c2fb15b4bc09034695d3435360f"

@@ -1,0 +1,299 @@
+<Window x:Class="UEModManager.Views.DatabaseConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="数据库配置" 
+        Height="700" 
+        Width="600" 
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="#0B1426" Style="{StaticResource DarkFlatWindow}">
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+    
+    <Window.Resources>
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#2c3e50"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+        
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#34495e"/>
+            <Setter Property="Margin" Value="0,15,0,8"/>
+        </Style>
+        
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,8,0,3"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+        
+        <Style x:Key="InputStyle" TargetType="TextBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderBrush" Value="#bdc3c7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        
+        <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="BorderBrush" Value="#bdc3c7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#3498db"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#95a5a6"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style x:Key="TestButton" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#27ae60"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style x:Key="InfoTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#7f8c8d"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,5,0,10"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="25">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="PostgreSQL数据库配置" 
+                       Style="{StaticResource HeaderTextStyle}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="配置云端PostgreSQL数据库连接，支持多种免费服务商" 
+                       Style="{StaticResource InfoTextStyle}"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- 配置表单 -->
+        <ScrollViewer Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="0,10,0,20">
+            <StackPanel>
+                <!-- 数据库提供商选择 -->
+                <TextBlock Text="数据库提供商" Style="{StaticResource SectionHeaderStyle}"/>
+                <ComboBox x:Name="ProviderComboBox" 
+                          Style="{StaticResource ComboBoxStyle}"
+                          SelectionChanged="ProviderComboBox_SelectionChanged">
+                    <ComboBoxItem Content="本地PostgreSQL" Tag="Local"/>
+                    <ComboBoxItem Content="ElephantSQL (免费20MB)" Tag="ElephantSQL"/>
+                    <ComboBoxItem Content="Neon (免费3GB)" Tag="Neon"/>
+                    <ComboBoxItem Content="Railway (免费512MB)" Tag="Railway"/>
+                    <ComboBoxItem Content="Supabase (免费500MB)" Tag="Supabase"/>
+                    <ComboBoxItem Content="自定义配置" Tag="Custom"/>
+                </ComboBox>
+                
+                <!-- 提供商说明 -->
+                <TextBlock x:Name="ProviderDescriptionTextBlock"
+                           Style="{StaticResource InfoTextStyle}"/>
+
+                <!-- 连接参数 -->
+                <TextBlock Text="连接参数" Style="{StaticResource SectionHeaderStyle}"/>
+                
+                <TextBlock Text="主机地址:" Style="{StaticResource LabelStyle}"/>
+                <TextBox x:Name="HostTextBox" 
+                         Style="{StaticResource InputStyle}"
+                         ToolTip="PostgreSQL服务器主机地址"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="数据库名:" Style="{StaticResource LabelStyle}"/>
+                        <TextBox x:Name="DatabaseTextBox" 
+                                 Style="{StaticResource InputStyle}"
+                                 Text="uemodmanager"
+                                 ToolTip="数据库名称"/>
+                    </StackPanel>
+                    
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="端口:" Style="{StaticResource LabelStyle}"/>
+                        <TextBox x:Name="PortTextBox" 
+                                 Style="{StaticResource InputStyle}"
+                                 Text="5432"
+                                 ToolTip="PostgreSQL服务器端口"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="用户名:" Style="{StaticResource LabelStyle}"/>
+                <TextBox x:Name="UsernameTextBox" 
+                         Style="{StaticResource InputStyle}"
+                         ToolTip="数据库用户名"/>
+
+                <TextBlock Text="密码:" Style="{StaticResource LabelStyle}"/>
+                <PasswordBox x:Name="PasswordBox" 
+                             Style="{StaticResource InputStyle}"
+                             ToolTip="数据库密码"/>
+
+                <!-- 高级选项 -->
+                <TextBlock Text="高级选项" Style="{StaticResource SectionHeaderStyle}"/>
+                
+                <CheckBox x:Name="EnableSslCheckBox" 
+                          Content="启用SSL加密连接" 
+                          IsChecked="True"
+                          Margin="0,5,0,10"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="连接超时(秒):" Style="{StaticResource LabelStyle}"/>
+                        <TextBox x:Name="ConnectionTimeoutTextBox" 
+                                 Style="{StaticResource InputStyle}"
+                                 Text="30"
+                                 ToolTip="连接超时时间"/>
+                    </StackPanel>
+                    
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="命令超时(秒):" Style="{StaticResource LabelStyle}"/>
+                        <TextBox x:Name="CommandTimeoutTextBox" 
+                                 Style="{StaticResource InputStyle}"
+                                 Text="60"
+                                 ToolTip="命令执行超时时间"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 测试和初始化按钮 -->
+                <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
+                    <Button x:Name="TestConnectionButton" 
+                            Content="🔗 测试连接" 
+                            Style="{StaticResource TestButton}"
+                            Click="TestConnection_Click"/>
+                    <Button x:Name="InitializeDatabaseButton" 
+                            Content="🏗️ 初始化数据库" 
+                            Style="{StaticResource PrimaryButton}"
+                            Click="InitializeDatabase_Click"
+                            IsEnabled="False"/>
+                </StackPanel>
+
+                <!-- 测试结果 -->
+                <TextBlock x:Name="TestResultTextBlock"
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+                
+                <!-- 免费服务商推荐 -->
+                <TextBlock Text="免费PostgreSQL服务商推荐" Style="{StaticResource SectionHeaderStyle}"/>
+                <ItemsControl x:Name="FreeProvidersItemsControl" Margin="0,0,0,10">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#ecf0f1" 
+                                    CornerRadius="4" 
+                                    Padding="10" 
+                                    Margin="0,5">
+                                <StackPanel>
+                                    <TextBlock FontWeight="Bold" 
+                                               Text="{Binding Name}" 
+                                               FontSize="12"/>
+                                    <TextBlock Text="{Binding Description}" 
+                                               FontSize="11" 
+                                               Foreground="#7f8c8d" 
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock FontSize="10" 
+                                               Foreground="#3498db" 
+                                               Cursor="Hand">
+                                        <Hyperlink NavigateUri="{Binding Url}" 
+                                                   RequestNavigate="Hyperlink_RequestNavigate">
+                                            <TextBlock Text="{Binding Url}"/>
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 按钮区域 -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right">
+            <Button Content="保存配置" 
+                    Style="{StaticResource PrimaryButton}"
+                    Click="Save_Click"/>
+            <Button Content="取消" 
+                    Style="{StaticResource SecondaryButton}"
+                    Click="Cancel_Click"/>
+        </StackPanel>
+
+        <!-- 加载遮罩 -->
+        <Grid x:Name="LoadingOverlay" 
+              Grid.RowSpan="3" 
+              Background="#80000000" 
+              Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" 
+                        VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" 
+                             Width="250" 
+                             Height="4" 
+                             Margin="0,0,0,15"/>
+                <TextBlock x:Name="LoadingText" 
+                           Text="正在连接..." 
+                           Foreground="White" 
+                           FontSize="14"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

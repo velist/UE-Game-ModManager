@@ -1,0 +1,9 @@
+{
+  "outputStyle": "codex-integration",
+  "hooks": {
+    "user-prompt-submit-hook": {
+      "command": "echo '🔮 [Codex 准备中] 正在为复杂任务准备 codex 分析...'",
+      "when": "before"
+    }
+  }
+}
