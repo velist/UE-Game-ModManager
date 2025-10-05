@@ -14,7 +14,7 @@
     <meta property="og:description" content="详细的虚幻引擎MOD管理器使用教程，包含安装、配置、高级功能等全方位指南。">
     <meta property="og:image" content="https://modmanger.com/website/wechat_2025-10-03_193549_707.png">
 
-    <title>使用说明 - 爱酱虚幻引擎MOD管理器 完整教程</title>
+    <title data-lang="page_title">使用说明 - 爱酱虚幻引擎MOD管理器 完整教程</title>
 
     <style>
         * {
@@ -96,6 +96,23 @@
         .nav-links a:hover {
             color: var(--steam-text-bright);
             background: var(--steam-hover);
+        }
+
+        .lang-btn {
+            background: transparent;
+            color: var(--steam-text);
+            border: 1px solid var(--steam-border);
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .lang-btn:hover {
+            color: var(--steam-text-bright);
+            background: var(--steam-hover);
+            border-color: var(--steam-blue);
         }
 
         /* 侧边导航 */
@@ -519,12 +536,13 @@
     <!-- 导航栏 -->
     <nav>
         <div class="nav-container">
-            <a href="index.html" class="logo">爱酱虚幻引擎MOD管理器</a>
+            <a href="index.html" class="logo" data-lang="site_title">爱酱虚幻引擎MOD管理器</a>
             <ul class="nav-links">
-                <li><a href="index.html">首页</a></li>
-                <li><a href="docs.html" style="color: var(--steam-blue);">使用说明</a></li>
-                <li><a href="index.html#download">下载</a></li>
+                <li><a href="index.html" data-lang="nav_home">首页</a></li>
+                <li><a href="docs.html" style="color: var(--steam-blue);" data-lang="nav_docs">使用说明</a></li>
+                <li><a href="index.html#download" data-lang="nav_download">下载</a></li>
                 <li><a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener">GitHub</a></li>
+                <li><button id="langSwitch" class="lang-btn" aria-label="Switch Language">EN</button></li>
             </ul>
         </div>
     </nav>
@@ -533,40 +551,40 @@
     <aside class="sidebar">
         <ul class="sidebar-nav">
             <li class="sidebar-section">
-                <div class="sidebar-section-title">快速开始</div>
+                <div class="sidebar-section-title" data-lang="sidebar_quick_start">快速开始</div>
             </li>
-            <li><a href="#install" class="active">安装指南</a></li>
-            <li><a href="#first-use">首次使用</a></li>
-            <li><a href="#interface">界面介绍</a></li>
+            <li><a href="#install" class="active" data-lang="sidebar_install">安装指南</a></li>
+            <li><a href="#first-use" data-lang="sidebar_first_use">首次使用</a></li>
+            <li><a href="#interface" data-lang="sidebar_interface">界面介绍</a></li>
 
             <li class="sidebar-section">
-                <div class="sidebar-section-title">基础功能</div>
+                <div class="sidebar-section-title" data-lang="sidebar_basic">基础功能</div>
             </li>
-            <li><a href="#add-mod">安装MOD</a></li>
-            <li><a href="#manage-mod">管理MOD</a></li>
-            <li><a href="#category">分类管理</a></li>
-            <li><a href="#conflict">冲突检测</a></li>
+            <li><a href="#add-mod" data-lang="sidebar_add_mod">安装MOD</a></li>
+            <li><a href="#manage-mod" data-lang="sidebar_manage_mod">管理MOD</a></li>
+            <li><a href="#category" data-lang="sidebar_category">分类管理</a></li>
+            <li><a href="#conflict" data-lang="sidebar_conflict">冲突检测</a></li>
 
             <li class="sidebar-section">
-                <div class="sidebar-section-title">高级功能</div>
+                <div class="sidebar-section-title" data-lang="sidebar_advanced">高级功能</div>
             </li>
-            <li><a href="#backup">备份还原</a></li>
-            <li><a href="#custom">自定义配置</a></li>
-            <li><a href="#batch">批量操作</a></li>
-            <li><a href="#cloud">云端同步</a></li>
+            <li><a href="#backup" data-lang="sidebar_backup">备份还原</a></li>
+            <li><a href="#custom" data-lang="sidebar_custom">自定义配置</a></li>
+            <li><a href="#batch" data-lang="sidebar_batch">批量操作</a></li>
+            <li><a href="#cloud" data-lang="sidebar_cloud">云端同步</a></li>
 
             <li class="sidebar-section">
-                <div class="sidebar-section-title">游戏专题</div>
+                <div class="sidebar-section-title" data-lang="sidebar_games">游戏专题</div>
             </li>
-            <li><a href="#stellar-blade">剑星 Stellar Blade</a></li>
-            <li><a href="#wukong">黑神话：悟空</a></li>
-            <li><a href="#other-games">其他游戏</a></li>
+            <li><a href="#stellar-blade" data-lang="sidebar_stellar">剑星 Stellar Blade</a></li>
+            <li><a href="#wukong" data-lang="sidebar_wukong">黑神话：悟空</a></li>
+            <li><a href="#other-games" data-lang="sidebar_other">其他游戏</a></li>
 
             <li class="sidebar-section">
-                <div class="sidebar-section-title">疑难解答</div>
+                <div class="sidebar-section-title" data-lang="sidebar_help">疑难解答</div>
             </li>
-            <li><a href="#troubleshooting">常见问题</a></li>
-            <li><a href="#faq">FAQ</a></li>
+            <li><a href="#troubleshooting" data-lang="sidebar_troubleshooting">常见问题</a></li>
+            <li><a href="#faq" data-lang="sidebar_faq">FAQ</a></li>
         </ul>
     </aside>
 
@@ -574,653 +592,653 @@
     <main class="main-content">
         <!-- 欢迎 -->
         <section class="content-section" id="welcome">
-            <h1>🎮 使用说明文档</h1>
-            <p>欢迎使用<strong>爱酱虚幻引擎MOD管理器</strong>！本文档将帮助您快速掌握软件的使用方法，从基础安装到高级功能，全面覆盖所有操作要点。</p>
+            <h1 data-lang="welcome_title">🎮 使用说明文档</h1>
+            <p data-lang="welcome_intro">欢迎使用<strong>爱酱虚幻引擎MOD管理器</strong>！本文档将帮助您快速掌握软件的使用方法，从基础安装到高级功能，全面覆盖所有操作要点。</p>
 
             <div class="alert alert-info">
-                <strong>💡 提示：</strong>本文档适用于 v1.7.37 及以上版本。如果您使用的是旧版本，建议先更新到最新版。
+                <strong data-lang="welcome_alert_title">💡 提示：</strong><span data-lang="welcome_alert_text">本文档适用于 v1.7.37 及以上版本。如果您使用的是旧版本，建议先更新到最新版。</span>
             </div>
 
             <div class="quick-nav">
                 <a href="#install" class="quick-nav-item">
-                    <h3>📥 安装指南</h3>
-                    <p>下载、安装、系统要求</p>
+                    <h3 data-lang="quicknav_install_title">📥 安装指南</h3>
+                    <p data-lang="quicknav_install_desc">下载、安装、系统要求</p>
                 </a>
                 <a href="#add-mod" class="quick-nav-item">
-                    <h3>🎯 安装MOD</h3>
-                    <p>快速上手MOD安装</p>
+                    <h3 data-lang="quicknav_addmod_title">🎯 安装MOD</h3>
+                    <p data-lang="quicknav_addmod_desc">快速上手MOD安装</p>
                 </a>
                 <a href="#conflict" class="quick-nav-item">
-                    <h3>⚠️ 冲突检测</h3>
-                    <p>避免MOD冲突问题</p>
+                    <h3 data-lang="quicknav_conflict_title">⚠️ 冲突检测</h3>
+                    <p data-lang="quicknav_conflict_desc">避免MOD冲突问题</p>
                 </a>
                 <a href="#backup" class="quick-nav-item">
-                    <h3>📦 备份还原</h3>
-                    <p>保护您的MOD配置</p>
+                    <h3 data-lang="quicknav_backup_title">📦 备份还原</h3>
+                    <p data-lang="quicknav_backup_desc">保护您的MOD配置</p>
                 </a>
             </div>
         </section>
 
         <!-- 安装指南 -->
         <section class="content-section" id="install">
-            <h1>📥 安装指南</h1>
+            <h1 data-lang="install_title">📥 安装指南</h1>
 
-            <h2>系统要求</h2>
+            <h2 data-lang="install_sysreq_title">系统要求</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>项目</th>
-                        <th>最低配置</th>
-                        <th>推荐配置</th>
+                        <th data-lang="table_sysreq_col1">项目</th>
+                        <th data-lang="table_sysreq_col2">最低配置</th>
+                        <th data-lang="table_sysreq_col3">推荐配置</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td>操作系统</td>
-                        <td>Windows 10 64位</td>
-                        <td>Windows 11 64位</td>
+                        <td data-lang="table_sysreq_os">操作系统</td>
+                        <td>Windows 10 64<span data-lang="table_sysreq_bit">位</span></td>
+                        <td>Windows 11 64<span data-lang="table_sysreq_bit">位</span></td>
                     </tr>
                     <tr>
-                        <td>.NET 运行库</td>
+                        <td data-lang="table_sysreq_runtime">.NET 运行库</td>
                         <td>.NET 8.0 Runtime</td>
-                        <td>.NET 8.0 Runtime（自动安装）</td>
+                        <td>.NET 8.0 Runtime<span data-lang="table_sysreq_auto">（自动安装）</span></td>
                     </tr>
                     <tr>
-                        <td>磁盘空间</td>
+                        <td data-lang="table_sysreq_disk">磁盘空间</td>
                         <td>50 MB</td>
-                        <td>100 MB（含缓存）</td>
+                        <td>100 MB<span data-lang="table_sysreq_cache">（含缓存）</span></td>
                     </tr>
                     <tr>
-                        <td>内存</td>
+                        <td data-lang="table_sysreq_ram">内存</td>
                         <td>2 GB</td>
                         <td>4 GB</td>
                     </tr>
                 </tbody>
             </table>
 
-            <h2>下载软件</h2>
+            <h2 data-lang="install_download_title">下载软件</h2>
             <ol class="step-list">
                 <li>
-                    <strong>选择下载渠道</strong>
-                    <p>访问<a href="index.html#download" style="color: var(--steam-blue);">官网下载页面</a>，选择以下任意渠道：</p>
+                    <strong data-lang="install_step1_title">选择下载渠道</strong>
+                    <p data-lang="install_step1_desc">访问<a href="index.html#download" style="color: var(--steam-blue);">官网下载页面</a>，选择以下任意渠道：</p>
                     <ul>
-                        <li>百度网盘（提取码：6679）</li>
-                        <li>迅雷网盘</li>
-                        <li>UC网盘</li>
-                        <li>夸克网盘</li>
-                        <li>GitHub Releases（国际用户推荐）</li>
+                        <li data-lang="install_step1_baidu">百度网盘（提取码：6679）</li>
+                        <li data-lang="install_step1_xunlei">迅雷网盘</li>
+                        <li data-lang="install_step1_uc">UC网盘</li>
+                        <li data-lang="install_step1_quark">夸克网盘</li>
+                        <li data-lang="install_step1_github">GitHub Releases（国际用户推荐）</li>
                     </ul>
                 </li>
                 <li>
-                    <strong>下载安装包</strong>
-                    <p>下载 <code>UEModManager_v1.7.37_Setup.exe</code> 安装包（约 30 MB）</p>
+                    <strong data-lang="install_step2_title">下载安装包</strong>
+                    <p data-lang="install_step2_desc">下载 <code>UEModManager_v1.7.37_Setup.exe</code> 安装包（约 30 MB）</p>
                 </li>
                 <li>
-                    <strong>验证文件完整性</strong>
-                    <p>确保下载的文件大小正确，避免下载不完整导致安装失败。</p>
+                    <strong data-lang="install_step3_title">验证文件完整性</strong>
+                    <p data-lang="install_step3_desc">确保下载的文件大小正确，避免下载不完整导致安装失败。</p>
                 </li>
             </ol>
 
-            <h2>安装步骤</h2>
+            <h2 data-lang="install_steps_title">安装步骤</h2>
             <ol class="step-list">
                 <li>
-                    <strong>运行安装程序</strong>
-                    <p>双击 <code>UEModManager_v1.7.37_Setup.exe</code>，如果出现 Windows 安全提示，点击"更多信息" → "仍要运行"。</p>
+                    <strong data-lang="install_step4_title">运行安装程序</strong>
+                    <p data-lang="install_step4_desc">双击 <code>UEModManager_v1.7.37_Setup.exe</code>，如果出现 Windows 安全提示，点击"更多信息" → "仍要运行"。</p>
                     <div class="alert alert-warning">
-                        <strong>⚠️ 注意：</strong>软件未签名可能会触发 Windows Defender 警告，这是正常现象。软件完全开源且安全。
+                        <strong data-lang="install_alert_warning_title">⚠️ 注意：</strong><span data-lang="install_alert_warning_text">软件未签名可能会触发 Windows Defender 警告，这是正常现象。软件完全开源且安全。</span>
                     </div>
                 </li>
                 <li>
-                    <strong>选择安装路径</strong>
-                    <p>默认安装路径：<code>C:\Program Files\UEModManager</code></p>
-                    <p>建议使用默认路径，避免权限问题。</p>
+                    <strong data-lang="install_step5_title">选择安装路径</strong>
+                    <p data-lang="install_step5_desc1">默认安装路径：<code>C:\Program Files\UEModManager</code></p>
+                    <p data-lang="install_step5_desc2">建议使用默认路径，避免权限问题。</p>
                 </li>
                 <li>
-                    <strong>选择组件</strong>
+                    <strong data-lang="install_step6_title">选择组件</strong>
                     <ul>
-                        <li>✅ 主程序（必选）</li>
-                        <li>✅ 桌面快捷方式（推荐）</li>
-                        <li>✅ 开始菜单快捷方式（推荐）</li>
+                        <li data-lang="install_step6_main">✅ 主程序（必选）</li>
+                        <li data-lang="install_step6_desktop">✅ 桌面快捷方式（推荐）</li>
+                        <li data-lang="install_step6_start">✅ 开始菜单快捷方式（推荐）</li>
                     </ul>
                 </li>
                 <li>
-                    <strong>完成安装</strong>
-                    <p>点击"安装"按钮，等待安装完成（约 10-30 秒）。</p>
-                    <p>安装完成后，选择"立即运行"启动程序。</p>
+                    <strong data-lang="install_step7_title">完成安装</strong>
+                    <p data-lang="install_step7_desc1">点击"安装"按钮，等待安装完成（约 10-30 秒）。</p>
+                    <p data-lang="install_step7_desc2">安装完成后，选择"立即运行"启动程序。</p>
                 </li>
             </ol>
 
             <div class="alert alert-success">
-                <strong>✅ 安装成功！</strong>首次运行会自动安装 .NET 8.0 运行库（如果系统未安装），请耐心等待。
+                <strong data-lang="install_alert_success_title">✅ 安装成功！</strong><span data-lang="install_alert_success_text">首次运行会自动安装 .NET 8.0 运行库（如果系统未安装），请耐心等待。</span>
             </div>
         </section>
 
         <!-- 首次使用 -->
         <section class="content-section" id="first-use">
-            <h1>🚀 首次使用</h1>
+            <h1 data-lang="firstuse_title">🚀 首次使用</h1>
 
-            <h2>初始化配置</h2>
+            <h2 data-lang="firstuse_init_title">初始化配置</h2>
             <ol class="step-list">
                 <li>
-                    <strong>选择游戏</strong>
-                    <p>首次启动时，软件会自动扫描已安装的虚幻引擎游戏。如果未检测到，可以手动添加：</p>
+                    <strong data-lang="firstuse_step1_title">选择游戏</strong>
+                    <p data-lang="firstuse_step1_desc">首次启动时，软件会自动扫描已安装的虚幻引擎游戏。如果未检测到，可以手动添加：</p>
                     <ul>
-                        <li>点击顶部"设置"按钮</li>
-                        <li>点击"添加游戏"</li>
-                        <li>浏览到游戏根目录（包含 <code>.exe</code> 文件的文件夹）</li>
-                        <li>点击"确定"</li>
+                        <li data-lang="firstuse_step1_1">点击顶部"设置"按钮</li>
+                        <li data-lang="firstuse_step1_2">点击"添加游戏"</li>
+                        <li data-lang="firstuse_step1_3">浏览到游戏根目录（包含 <code>.exe</code> 文件的文件夹）</li>
+                        <li data-lang="firstuse_step1_4">点击"确定"</li>
                     </ul>
                 </li>
                 <li>
-                    <strong>设置MOD目录</strong>
-                    <p>软件会自动定位游戏的 <code>~mods</code> 文件夹，通常位于：</p>
-                    <pre><code>游戏根目录\游戏名\Content\Paks\~mods</code></pre>
+                    <strong data-lang="firstuse_step2_title">设置MOD目录</strong>
+                    <p data-lang="firstuse_step2_desc">软件会自动定位游戏的 <code>~mods</code> 文件夹，通常位于：</p>
+                    <pre><code data-lang="firstuse_step2_path">游戏根目录\游戏名\Content\Paks\~mods</code></pre>
                     <div class="alert alert-info">
-                        <strong>💡 提示：</strong>如果游戏未创建 <code>~mods</code> 文件夹，软件会自动创建。
+                        <strong data-lang="firstuse_step2_tip_title">💡 提示：</strong><span data-lang="firstuse_step2_tip_text">如果游戏未创建 <code>~mods</code> 文件夹，软件会自动创建。</span>
                     </div>
                 </li>
                 <li>
-                    <strong>云端登录（可选）</strong>
-                    <p>如需使用云端同步功能，可以注册/登录账号：</p>
+                    <strong data-lang="firstuse_step3_title">云端登录（可选）</strong>
+                    <p data-lang="firstuse_step3_desc">如需使用云端同步功能，可以注册/登录账号：</p>
                     <ul>
-                        <li>点击右上角"登录"按钮</li>
-                        <li>使用邮箱注册或登录</li>
-                        <li>登录后可同步MOD配置到云端</li>
+                        <li data-lang="firstuse_step3_1">点击右上角"登录"按钮</li>
+                        <li data-lang="firstuse_step3_2">使用邮箱注册或登录</li>
+                        <li data-lang="firstuse_step3_3">登录后可同步MOD配置到云端</li>
                     </ul>
                     <div class="alert alert-warning">
-                        <strong>⚠️ 注意：</strong>不登录也可正常使用所有本地功能，云端登录仅用于跨设备同步。
+                        <strong data-lang="firstuse_step3_warn_title">⚠️ 注意：</strong><span data-lang="firstuse_step3_warn_text">不登录也可正常使用所有本地功能，云端登录仅用于跨设备同步。</span>
                     </div>
                 </li>
             </ol>
 
-            <h2>界面语言</h2>
-            <p>软件默认为中文界面，如需切换语言：</p>
+            <h2 data-lang="firstuse_lang_title">界面语言</h2>
+            <p data-lang="firstuse_lang_desc">软件默认为中文界面，如需切换语言：</p>
             <ul>
-                <li>点击"设置" → "语言"</li>
-                <li>选择"English"或"中文"</li>
-                <li>重启软件生效</li>
+                <li data-lang="firstuse_lang_1">点击"设置" → "语言"</li>
+                <li data-lang="firstuse_lang_2">选择"English"或"中文"</li>
+                <li data-lang="firstuse_lang_3">重启软件生效</li>
             </ul>
         </section>
 
         <!-- 界面介绍 -->
         <section class="content-section" id="interface">
-            <h1>🖥️ 界面介绍</h1>
+            <h1 data-lang="interface_title">🖥️ 界面介绍</h1>
 
-            <h2>主界面布局</h2>
-            <p>主界面分为四个区域：</p>
+            <h2 data-lang="interface_layout_title">主界面布局</h2>
+            <p data-lang="interface_layout_desc">主界面分为四个区域：</p>
 
-            <h3>1️⃣ 顶部工具栏</h3>
+            <h3 data-lang="interface_toolbar_title">1️⃣ 顶部工具栏</h3>
             <ul>
-                <li><strong>游戏选择器</strong>：切换不同游戏</li>
-                <li><strong>刷新按钮</strong>：重新扫描MOD文件夹</li>
-                <li><strong>冲突检测</strong>：一键检测MOD冲突</li>
-                <li><strong>备份管理</strong>：管理MOD配置备份</li>
-                <li><strong>设置</strong>：软件设置和游戏配置</li>
-                <li><strong>登录/账户</strong>：云端账户管理</li>
+                <li data-lang="interface_toolbar_1"><strong>游戏选择器</strong>：切换不同游戏</li>
+                <li data-lang="interface_toolbar_2"><strong>刷新按钮</strong>：重新扫描MOD文件夹</li>
+                <li data-lang="interface_toolbar_3"><strong>冲突检测</strong>：一键检测MOD冲突</li>
+                <li data-lang="interface_toolbar_4"><strong>备份管理</strong>：管理MOD配置备份</li>
+                <li data-lang="interface_toolbar_5"><strong>设置</strong>：软件设置和游戏配置</li>
+                <li data-lang="interface_toolbar_6"><strong>登录/账户</strong>：云端账户管理</li>
             </ul>
 
-            <h3>2️⃣ 左侧分类栏</h3>
+            <h3 data-lang="interface_sidebar_title">2️⃣ 左侧分类栏</h3>
             <ul>
-                <li><strong>全部</strong>：显示所有MOD</li>
-                <li><strong>已启用</strong>：仅显示已启用的MOD</li>
-                <li><strong>未启用</strong>：仅显示未启用的MOD</li>
-                <li><strong>自定义分类</strong>：用户创建的分类（面部、人物、武器、服装等）</li>
+                <li data-lang="interface_sidebar_1"><strong>全部</strong>：显示所有MOD</li>
+                <li data-lang="interface_sidebar_2"><strong>已启用</strong>：仅显示已启用的MOD</li>
+                <li data-lang="interface_sidebar_3"><strong>未启用</strong>：仅显示未启用的MOD</li>
+                <li data-lang="interface_sidebar_4"><strong>自定义分类</strong>：用户创建的分类（面部、人物、武器、服装等）</li>
             </ul>
-            <p>右键分类可以：重命名、删除、设置图标</p>
+            <p data-lang="interface_sidebar_tip">右键分类可以：重命名、删除、设置图标</p>
 
-            <h3>3️⃣ 中间MOD列表</h3>
-            <p>显示当前分类下的所有MOD，每个MOD卡片包含：</p>
+            <h3 data-lang="interface_modlist_title">3️⃣ 中间MOD列表</h3>
+            <p data-lang="interface_modlist_desc">显示当前分类下的所有MOD，每个MOD卡片包含：</p>
             <ul>
-                <li><strong>预览图</strong>：MOD的预览图片（可自定义）</li>
-                <li><strong>MOD名称</strong>：文件名或自定义名称</li>
-                <li><strong>启用开关</strong>：快速启用/禁用MOD</li>
-                <li><strong>标签</strong>：MOD所属分类</li>
-                <li><strong>冲突图标</strong>：红色感叹号表示有冲突</li>
+                <li data-lang="interface_modlist_1"><strong>预览图</strong>：MOD的预览图片（可自定义）</li>
+                <li data-lang="interface_modlist_2"><strong>MOD名称</strong>：文件名或自定义名称</li>
+                <li data-lang="interface_modlist_3"><strong>启用开关</strong>：快速启用/禁用MOD</li>
+                <li data-lang="interface_modlist_4"><strong>标签</strong>：MOD所属分类</li>
+                <li data-lang="interface_modlist_5"><strong>冲突图标</strong>：红色感叹号表示有冲突</li>
             </ul>
 
-            <h3>4️⃣ 右侧详情面板</h3>
-            <p>选中MOD后显示详细信息：</p>
+            <h3 data-lang="interface_detail_title">4️⃣ 右侧详情面板</h3>
+            <p data-lang="interface_detail_desc">选中MOD后显示详细信息：</p>
             <ul>
-                <li><strong>自定义名称</strong>：可编辑的显示名称</li>
-                <li><strong>描述</strong>：MOD描述信息</li>
-                <li><strong>文件信息</strong>：文件大小、修改时间</li>
-                <li><strong>分类标签</strong>：可添加多个分类</li>
-                <li><strong>操作按钮</strong>：删除、打开文件夹、复制路径等</li>
+                <li data-lang="interface_detail_1"><strong>自定义名称</strong>：可编辑的显示名称</li>
+                <li data-lang="interface_detail_2"><strong>描述</strong>：MOD描述信息</li>
+                <li data-lang="interface_detail_3"><strong>文件信息</strong>：文件大小、修改时间</li>
+                <li data-lang="interface_detail_4"><strong>分类标签</strong>：可添加多个分类</li>
+                <li data-lang="interface_detail_5"><strong>操作按钮</strong>：删除、打开文件夹、复制路径等</li>
             </ul>
         </section>
 
         <!-- 安装MOD -->
         <section class="content-section" id="add-mod">
-            <h1>🎯 安装MOD</h1>
+            <h1 data-lang="addmod_title">🎯 安装MOD</h1>
 
-            <h2>方法一：自动导入（推荐）</h2>
+            <h2 data-lang="addmod_method1_title">方法一：自动导入（推荐）</h2>
             <ol class="step-list">
                 <li>
-                    <strong>下载MOD文件</strong>
-                    <p>从MOD网站（如 Nexus Mods、GameBanana）下载 <code>.pak</code> 或 <code>.zip</code> 文件。</p>
+                    <strong data-lang="addmod_m1_step1_title">下载MOD文件</strong>
+                    <p data-lang="addmod_m1_step1_desc">从MOD网站（如 Nexus Mods、GameBanana）下载 <code>.pak</code> 或 <code>.zip</code> 文件。</p>
                 </li>
                 <li>
-                    <strong>拖放安装</strong>
-                    <p>将 <code>.pak</code> 文件直接拖放到软件主界面。</p>
-                    <p>软件会自动将文件复制到 <code>~mods</code> 文件夹并刷新列表。</p>
+                    <strong data-lang="addmod_m1_step2_title">拖放安装</strong>
+                    <p data-lang="addmod_m1_step2_desc1">将 <code>.pak</code> 文件直接拖放到软件主界面。</p>
+                    <p data-lang="addmod_m1_step2_desc2">软件会自动将文件复制到 <code>~mods</code> 文件夹并刷新列表。</p>
                     <div class="alert alert-success">
-                        <strong>✅ 提示：</strong>如果是 <code>.zip</code> 或 <code>.rar</code> 压缩包，软件会自动解压并提取 <code>.pak</code> 文件。
+                        <strong data-lang="addmod_m1_step2_tip_title">✅ 提示：</strong><span data-lang="addmod_m1_step2_tip_text">如果是 <code>.zip</code> 或 <code>.rar</code> 压缩包，软件会自动解压并提取 <code>.pak</code> 文件。</span>
                     </div>
                 </li>
                 <li>
-                    <strong>启用MOD</strong>
-                    <p>在MOD列表中找到刚导入的MOD，点击"启用"开关。</p>
-                    <p>启用后MOD文件会被重命名为 <code>_P</code> 结尾（部分游戏需要）。</p>
+                    <strong data-lang="addmod_m1_step3_title">启用MOD</strong>
+                    <p data-lang="addmod_m1_step3_desc1">在MOD列表中找到刚导入的MOD，点击"启用"开关。</p>
+                    <p data-lang="addmod_m1_step3_desc2">启用后MOD文件会被重命名为 <code>_P</code> 结尾（部分游戏需要）。</p>
                 </li>
             </ol>
 
-            <h2>方法二：手动复制</h2>
+            <h2 data-lang="addmod_method2_title">方法二：手动复制</h2>
             <ol class="step-list">
                 <li>
-                    <strong>定位MOD文件夹</strong>
-                    <p>在软件中点击"设置" → "打开MOD文件夹"，或手动导航到：</p>
-                    <pre><code>游戏根目录\游戏名\Content\Paks\~mods</code></pre>
+                    <strong data-lang="addmod_m2_step1_title">定位MOD文件夹</strong>
+                    <p data-lang="addmod_m2_step1_desc">在软件中点击"设置" → "打开MOD文件夹"，或手动导航到：</p>
+                    <pre><code data-lang="addmod_m2_step1_path">游戏根目录\游戏名\Content\Paks\~mods</code></pre>
                 </li>
                 <li>
-                    <strong>复制MOD文件</strong>
-                    <p>将下载的 <code>.pak</code> 文件复制到 <code>~mods</code> 文件夹。</p>
+                    <strong data-lang="addmod_m2_step2_title">复制MOD文件</strong>
+                    <p data-lang="addmod_m2_step2_desc">将下载的 <code>.pak</code> 文件复制到 <code>~mods</code> 文件夹。</p>
                 </li>
                 <li>
-                    <strong>刷新列表</strong>
-                    <p>回到软件，点击顶部"刷新"按钮，新MOD会出现在列表中。</p>
+                    <strong data-lang="addmod_m2_step3_title">刷新列表</strong>
+                    <p data-lang="addmod_m2_step3_desc">回到软件，点击顶部"刷新"按钮，新MOD会出现在列表中。</p>
                 </li>
             </ol>
 
-            <h2>支持的文件格式</h2>
+            <h2 data-lang="addmod_formats_title">支持的文件格式</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>格式</th>
-                        <th>说明</th>
-                        <th>处理方式</th>
+                        <th data-lang="addmod_formats_col1">格式</th>
+                        <th data-lang="addmod_formats_col2">说明</th>
+                        <th data-lang="addmod_formats_col3">处理方式</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td><code>.pak</code></td>
-                        <td>虚幻引擎MOD包</td>
-                        <td>直接复制</td>
+                        <td data-lang="addmod_formats_pak">虚幻引擎MOD包</td>
+                        <td data-lang="addmod_formats_pak_process">直接复制</td>
                     </tr>
                     <tr>
                         <td><code>.zip</code></td>
-                        <td>压缩包</td>
-                        <td>自动解压提取 .pak 文件</td>
+                        <td data-lang="addmod_formats_zip">压缩包</td>
+                        <td data-lang="addmod_formats_zip_process">自动解压提取 .pak 文件</td>
                     </tr>
                     <tr>
                         <td><code>.rar</code></td>
-                        <td>压缩包</td>
-                        <td>自动解压提取 .pak 文件</td>
+                        <td data-lang="addmod_formats_rar">压缩包</td>
+                        <td data-lang="addmod_formats_rar_process">自动解压提取 .pak 文件</td>
                     </tr>
                     <tr>
                         <td><code>.7z</code></td>
-                        <td>压缩包</td>
-                        <td>自动解压提取 .pak 文件</td>
+                        <td data-lang="addmod_formats_7z">压缩包</td>
+                        <td data-lang="addmod_formats_7z_process">自动解压提取 .pak 文件</td>
                     </tr>
                 </tbody>
             </table>
 
             <div class="alert alert-warning">
-                <strong>⚠️ 注意：</strong>部分MOD可能包含多个 <code>.pak</code> 文件，请根据MOD说明选择正确的文件。
+                <strong data-lang="addmod_alert_warn_title">⚠️ 注意：</strong><span data-lang="addmod_alert_warn_text">部分MOD可能包含多个 <code>.pak</code> 文件，请根据MOD说明选择正确的文件。</span>
             </div>
         </section>
 
         <!-- 管理MOD -->
         <section class="content-section" id="manage-mod">
-            <h1>⚙️ 管理MOD</h1>
+            <h1 data-lang="managemod_title">⚙️ 管理MOD</h1>
 
-            <h2>启用/禁用MOD</h2>
-            <p>有两种方式启用或禁用MOD：</p>
+            <h2 data-lang="managemod_toggle_title">启用/禁用MOD</h2>
+            <p data-lang="managemod_toggle_desc">有两种方式启用或禁用MOD：</p>
             <ul>
-                <li><strong>快速开关</strong>：点击MOD卡片上的开关按钮</li>
-                <li><strong>右键菜单</strong>：右键MOD → 启用/禁用</li>
+                <li data-lang="managemod_toggle_1"><strong>快速开关</strong>：点击MOD卡片上的开关按钮</li>
+                <li data-lang="managemod_toggle_2"><strong>右键菜单</strong>：右键MOD → 启用/禁用</li>
             </ul>
             <div class="alert alert-info">
-                <strong>💡 原理：</strong>禁用MOD会在文件名前加 <code>.disabled</code> 后缀，游戏不会加载该文件。启用时移除该后缀。
+                <strong data-lang="managemod_toggle_tip_title">💡 原理：</strong><span data-lang="managemod_toggle_tip_text">禁用MOD会在文件名前加 <code>.disabled</code> 后缀，游戏不会加载该文件。启用时移除该后缀。</span>
             </div>
 
-            <h2>自定义MOD信息</h2>
+            <h2 data-lang="managemod_custom_title">自定义MOD信息</h2>
             <ol class="step-list">
                 <li>
-                    <strong>修改显示名称</strong>
-                    <p>选中MOD → 右侧详情面板 → "自定义名称"文本框 → 输入新名称 → Enter 保存</p>
+                    <strong data-lang="managemod_custom_step1_title">修改显示名称</strong>
+                    <p data-lang="managemod_custom_step1_desc">选中MOD → 右侧详情面板 → "自定义名称"文本框 → 输入新名称 → Enter 保存</p>
                     <div class="alert alert-success">
-                        <strong>✅ 提示：</strong>自定义名称仅影响软件内显示，不会修改实际文件名。
+                        <strong data-lang="managemod_custom_step1_tip_title">✅ 提示：</strong><span data-lang="managemod_custom_step1_tip_text">自定义名称仅影响软件内显示，不会修改实际文件名。</span>
                     </div>
                 </li>
                 <li>
-                    <strong>添加描述</strong>
-                    <p>在"描述"文本框中输入MOD的详细说明，方便日后查找。</p>
+                    <strong data-lang="managemod_custom_step2_title">添加描述</strong>
+                    <p data-lang="managemod_custom_step2_desc">在"描述"文本框中输入MOD的详细说明，方便日后查找。</p>
                 </li>
                 <li>
-                    <strong>更换预览图</strong>
-                    <p>点击预览图 → "选择图片"按钮 → 选择本地图片文件 → 确定</p>
-                    <p>支持格式：<code>.jpg</code>, <code>.png</code>, <code>.gif</code></p>
+                    <strong data-lang="managemod_custom_step3_title">更换预览图</strong>
+                    <p data-lang="managemod_custom_step3_desc1">点击预览图 → "选择图片"按钮 → 选择本地图片文件 → 确定</p>
+                    <p data-lang="managemod_custom_step3_desc2">支持格式：<code>.jpg</code>, <code>.png</code>, <code>.gif</code></p>
                 </li>
                 <li>
-                    <strong>添加标签</strong>
-                    <p>在"分类标签"区域点击"+" → 选择或创建分类 → 确定</p>
-                    <p>一个MOD可以属于多个分类。</p>
+                    <strong data-lang="managemod_custom_step4_title">添加标签</strong>
+                    <p data-lang="managemod_custom_step4_desc1">在"分类标签"区域点击"+" → 选择或创建分类 → 确定</p>
+                    <p data-lang="managemod_custom_step4_desc2">一个MOD可以属于多个分类。</p>
                 </li>
             </ol>
 
-            <h2>删除MOD</h2>
-            <p>有两种删除方式：</p>
+            <h2 data-lang="managemod_delete_title">删除MOD</h2>
+            <p data-lang="managemod_delete_desc">有两种删除方式：</p>
             <ul>
-                <li><strong>软删除（推荐）</strong>：右键MOD → "移至回收站"，可从系统回收站恢复</li>
-                <li><strong>永久删除</strong>：右键MOD → "永久删除"，无法恢复</li>
+                <li data-lang="managemod_delete_1"><strong>软删除（推荐）</strong>：右键MOD → "移至回收站"，可从系统回收站恢复</li>
+                <li data-lang="managemod_delete_2"><strong>永久删除</strong>：右键MOD → "永久删除"，无法恢复</li>
             </ul>
             <div class="alert alert-danger">
-                <strong>⚠️ 警告：</strong>永久删除无法撤销！建议使用软删除或先备份。
+                <strong data-lang="managemod_delete_warn_title">⚠️ 警告：</strong><span data-lang="managemod_delete_warn_text">永久删除无法撤销！建议使用软删除或先备份。</span>
             </div>
 
-            <h2>批量操作</h2>
-            <p>按住 <code>Ctrl</code> 或 <code>Shift</code> 键选择多个MOD，然后可以：</p>
+            <h2 data-lang="managemod_batch_title">批量操作</h2>
+            <p data-lang="managemod_batch_desc">按住 <code>Ctrl</code> 或 <code>Shift</code> 键选择多个MOD，然后可以：</p>
             <ul>
-                <li>批量启用/禁用</li>
-                <li>批量添加到分类</li>
-                <li>批量删除</li>
-                <li>批量导出</li>
+                <li data-lang="managemod_batch_1">批量启用/禁用</li>
+                <li data-lang="managemod_batch_2">批量添加到分类</li>
+                <li data-lang="managemod_batch_3">批量删除</li>
+                <li data-lang="managemod_batch_4">批量导出</li>
             </ul>
         </section>
 
         <!-- 分类管理 -->
         <section class="content-section" id="category">
-            <h1>🗂️ 分类管理 <span class="badge badge-new">NEW</span></h1>
+            <h1 data-lang="category_title">🗂️ 分类管理 <span class="badge badge-new" data-lang="badge_new">NEW</span></h1>
 
-            <h2>创建分类</h2>
+            <h2 data-lang="category_create_title">创建分类</h2>
             <ol class="step-list">
                 <li>
-                    <strong>新建分类</strong>
-                    <p>在左侧分类栏空白处右键 → "新建分类"</p>
-                    <p>或点击分类栏底部的 "+" 按钮</p>
+                    <strong data-lang="category_create_step1_title">新建分类</strong>
+                    <p data-lang="category_create_step1_desc1">在左侧分类栏空白处右键 → "新建分类"</p>
+                    <p data-lang="category_create_step1_desc2">或点击分类栏底部的 "+" 按钮</p>
                 </li>
                 <li>
-                    <strong>命名分类</strong>
-                    <p>输入分类名称（如"我的最爱"、"高画质"等）</p>
+                    <strong data-lang="category_create_step2_title">命名分类</strong>
+                    <p data-lang="category_create_step2_desc">输入分类名称（如"我的最爱"、"高画质"等）</p>
                 </li>
                 <li>
-                    <strong>设置图标（可选）</strong>
-                    <p>右键新分类 → "设置图标" → 选择图标文件</p>
+                    <strong data-lang="category_create_step3_title">设置图标（可选）</strong>
+                    <p data-lang="category_create_step3_desc">右键新分类 → "设置图标" → 选择图标文件</p>
                 </li>
             </ol>
 
-            <h2>重命名分类</h2>
-            <p>右键分类 → "重命名" → 输入新名称 → Enter 确认</p>
+            <h2 data-lang="category_rename_title">重命名分类</h2>
+            <p data-lang="category_rename_desc">右键分类 → "重命名" → 输入新名称 → Enter 确认</p>
             <div class="alert alert-info">
-                <strong>💡 v1.7.37 新特性：</strong>重命名分类只修改显示名称，不会影响MOD的标签数据，更加安全！
+                <strong data-lang="category_rename_tip_title">💡 v1.7.37 新特性：</strong><span data-lang="category_rename_tip_text">重命名分类只修改显示名称，不会影响MOD的标签数据，更加安全！</span>
             </div>
 
-            <h2>删除分类</h2>
-            <p>右键分类 → "删除分类"</p>
-            <p>软件会提示：</p>
+            <h2 data-lang="category_delete_title">删除分类</h2>
+            <p data-lang="category_delete_desc1">右键分类 → "删除分类"</p>
+            <p data-lang="category_delete_desc2">软件会提示：</p>
             <ul>
-                <li>如果分类下有MOD，会自动移动到"未分类"</li>
-                <li>删除后分类会隐藏，不会真的删除</li>
-                <li>如果MOD重新使用该分类，它会自动显示</li>
+                <li data-lang="category_delete_1">如果分类下有MOD，会自动移动到"未分类"</li>
+                <li data-lang="category_delete_2">删除后分类会隐藏，不会真的删除</li>
+                <li data-lang="category_delete_3">如果MOD重新使用该分类，它会自动显示</li>
             </ul>
 
-            <h2>拖拽排序</h2>
-            <p>按住分类名称拖动，可以调整分类的显示顺序。</p>
+            <h2 data-lang="category_sort_title">拖拽排序</h2>
+            <p data-lang="category_sort_desc">按住分类名称拖动，可以调整分类的显示顺序。</p>
             <div class="alert alert-warning">
-                <strong>⚠️ 注意：</strong>"全部"和"未分类"两个默认分类不支持拖拽排序。
+                <strong data-lang="category_sort_warn_title">⚠️ 注意：</strong><span data-lang="category_sort_warn_text">"全部"和"未分类"两个默认分类不支持拖拽排序。</span>
             </div>
 
-            <h2>移动MOD到分类</h2>
-            <p>三种方式：</p>
+            <h2 data-lang="category_move_title">移动MOD到分类</h2>
+            <p data-lang="category_move_desc">三种方式：</p>
             <ul>
-                <li><strong>拖拽</strong>：选中MOD，拖动到左侧分类上</li>
-                <li><strong>右键菜单</strong>：右键MOD → "移动到分类" → 选择目标分类</li>
-                <li><strong>详情面板</strong>：选中MOD → 右侧 → "分类标签" → 添加分类</li>
+                <li data-lang="category_move_1"><strong>拖拽</strong>：选中MOD，拖动到左侧分类上</li>
+                <li data-lang="category_move_2"><strong>右键菜单</strong>：右键MOD → "移动到分类" → 选择目标分类</li>
+                <li data-lang="category_move_3"><strong>详情面板</strong>：选中MOD → 右侧 → "分类标签" → 添加分类</li>
             </ul>
         </section>
 
         <!-- 冲突检测 -->
         <section class="content-section" id="conflict">
-            <h1>⚠️ 冲突检测</h1>
+            <h1 data-lang="conflict_title">⚠️ 冲突检测</h1>
 
-            <h2>什么是MOD冲突？</h2>
-            <p>当多个MOD修改了同一个游戏文件或资源时，会产生冲突，导致：</p>
+            <h2 data-lang="conflict_what_title">什么是MOD冲突？</h2>
+            <p data-lang="conflict_what_desc">当多个MOD修改了同一个游戏文件或资源时，会产生冲突，导致：</p>
             <ul>
-                <li>游戏崩溃或无法启动</li>
-                <li>MOD效果不生效或部分生效</li>
-                <li>画面异常、贴图错误</li>
-                <li>游戏性能下降</li>
+                <li data-lang="conflict_what_1">游戏崩溃或无法启动</li>
+                <li data-lang="conflict_what_2">MOD效果不生效或部分生效</li>
+                <li data-lang="conflict_what_3">画面异常、贴图错误</li>
+                <li data-lang="conflict_what_4">游戏性能下降</li>
             </ul>
 
-            <h2>自动冲突检测</h2>
+            <h2 data-lang="conflict_auto_title">自动冲突检测</h2>
             <ol class="step-list">
                 <li>
-                    <strong>启动检测</strong>
-                    <p>点击顶部工具栏的"冲突检测"按钮</p>
+                    <strong data-lang="conflict_auto_step1_title">启动检测</strong>
+                    <p data-lang="conflict_auto_step1_desc">点击顶部工具栏的"冲突检测"按钮</p>
                 </li>
                 <li>
-                    <strong>等待扫描</strong>
-                    <p>软件会分析所有已启用MOD的文件结构，通常需要10-60秒</p>
+                    <strong data-lang="conflict_auto_step2_title">等待扫描</strong>
+                    <p data-lang="conflict_auto_step2_desc">软件会分析所有已启用MOD的文件结构，通常需要10-60秒</p>
                 </li>
                 <li>
-                    <strong>查看结果</strong>
-                    <p>检测完成后，冲突的MOD会显示红色感叹号图标</p>
-                    <p>点击MOD可在详情面板查看冲突详情</p>
+                    <strong data-lang="conflict_auto_step3_title">查看结果</strong>
+                    <p data-lang="conflict_auto_step3_desc1">检测完成后，冲突的MOD会显示红色感叹号图标</p>
+                    <p data-lang="conflict_auto_step3_desc2">点击MOD可在详情面板查看冲突详情</p>
                 </li>
             </ol>
 
-            <h2>解决冲突</h2>
-            <p>根据冲突类型采取不同措施：</p>
+            <h2 data-lang="conflict_solve_title">解决冲突</h2>
+            <p data-lang="conflict_solve_desc">根据冲突类型采取不同措施：</p>
 
-            <h3>1️⃣ 完全冲突（红色）</h3>
-            <p>两个MOD修改了完全相同的文件，只能保留一个：</p>
+            <h3 data-lang="conflict_type1_title">1️⃣ 完全冲突（红色）</h3>
+            <p data-lang="conflict_type1_desc">两个MOD修改了完全相同的文件，只能保留一个：</p>
             <ul>
-                <li>禁用其中一个MOD</li>
-                <li>或寻找兼容版本</li>
+                <li data-lang="conflict_type1_1">禁用其中一个MOD</li>
+                <li data-lang="conflict_type1_2">或寻找兼容版本</li>
             </ul>
 
-            <h3>2️⃣ 部分冲突（橙色）</h3>
-            <p>MOD有部分重叠，可能可以共存：</p>
+            <h3 data-lang="conflict_type2_title">2️⃣ 部分冲突（橙色）</h3>
+            <p data-lang="conflict_type2_desc">MOD有部分重叠，可能可以共存：</p>
             <ul>
-                <li>先尝试同时启用，进游戏测试</li>
-                <li>如果有问题，调整加载顺序（通过重命名文件）</li>
+                <li data-lang="conflict_type2_1">先尝试同时启用，进游戏测试</li>
+                <li data-lang="conflict_type2_2">如果有问题，调整加载顺序（通过重命名文件）</li>
             </ul>
 
-            <h3>3️⃣ 潜在冲突（黄色）</h3>
-            <p>可能影响相同游戏系统，建议谨慎：</p>
+            <h3 data-lang="conflict_type3_title">3️⃣ 潜在冲突（黄色）</h3>
+            <p data-lang="conflict_type3_desc">可能影响相同游戏系统，建议谨慎：</p>
             <ul>
-                <li>查看MOD说明，确认是否兼容</li>
-                <li>逐个启用，进游戏测试效果</li>
+                <li data-lang="conflict_type3_1">查看MOD说明，确认是否兼容</li>
+                <li data-lang="conflict_type3_2">逐个启用，进游戏测试效果</li>
             </ul>
 
             <div class="alert alert-info">
-                <strong>💡 专业提示：</strong>部分MOD作者会在说明中列出已知冲突列表，优先参考官方说明。
+                <strong data-lang="conflict_tip_title">💡 专业提示：</strong><span data-lang="conflict_tip_text">部分MOD作者会在说明中列出已知冲突列表，优先参考官方说明。</span>
             </div>
         </section>
 
         <!-- 备份还原 -->
         <section class="content-section" id="backup">
-            <h1>📦 备份还原</h1>
+            <h1 data-lang="backup_title">📦 备份还原</h1>
 
-            <h2>为什么要备份？</h2>
+            <h2 data-lang="backup_why_title">为什么要备份？</h2>
             <ul>
-                <li>防止误删重要MOD</li>
-                <li>保存完美的MOD组合配置</li>
-                <li>快速切换不同MOD方案</li>
-                <li>测试新MOD前保存当前状态</li>
+                <li data-lang="backup_why_1">防止误删重要MOD</li>
+                <li data-lang="backup_why_2">保存完美的MOD组合配置</li>
+                <li data-lang="backup_why_3">快速切换不同MOD方案</li>
+                <li data-lang="backup_why_4">测试新MOD前保存当前状态</li>
             </ul>
 
-            <h2>创建备份</h2>
+            <h2 data-lang="backup_create_title">创建备份</h2>
             <ol class="step-list">
                 <li>
-                    <strong>打开备份管理</strong>
-                    <p>点击顶部工具栏"备份管理"按钮</p>
+                    <strong data-lang="backup_create_step1_title">打开备份管理</strong>
+                    <p data-lang="backup_create_step1_desc">点击顶部工具栏"备份管理"按钮</p>
                 </li>
                 <li>
-                    <strong>新建备份</strong>
-                    <p>点击"创建备份"按钮</p>
+                    <strong data-lang="backup_create_step2_title">新建备份</strong>
+                    <p data-lang="backup_create_step2_desc">点击"创建备份"按钮</p>
                 </li>
                 <li>
-                    <strong>设置备份信息</strong>
+                    <strong data-lang="backup_create_step3_title">设置备份信息</strong>
                     <ul>
-                        <li>备份名称：如"完美配置2025-01-05"</li>
-                        <li>备份描述：记录MOD列表或用途</li>
-                        <li>备份范围：全部MOD / 仅已启用MOD</li>
+                        <li data-lang="backup_create_step3_1">备份名称：如"完美配置2025-01-05"</li>
+                        <li data-lang="backup_create_step3_2">备份描述：记录MOD列表或用途</li>
+                        <li data-lang="backup_create_step3_3">备份范围：全部MOD / 仅已启用MOD</li>
                     </ul>
                 </li>
                 <li>
-                    <strong>开始备份</strong>
-                    <p>点击"确定"，等待备份完成（取决于MOD数量和大小）</p>
+                    <strong data-lang="backup_create_step4_title">开始备份</strong>
+                    <p data-lang="backup_create_step4_desc">点击"确定"，等待备份完成（取决于MOD数量和大小）</p>
                 </li>
             </ol>
 
-            <h2>还原备份</h2>
+            <h2 data-lang="backup_restore_title">还原备份</h2>
             <ol class="step-list">
                 <li>
-                    <strong>选择备份</strong>
-                    <p>在备份列表中选择要还原的备份</p>
+                    <strong data-lang="backup_restore_step1_title">选择备份</strong>
+                    <p data-lang="backup_restore_step1_desc">在备份列表中选择要还原的备份</p>
                 </li>
                 <li>
-                    <strong>预览备份内容</strong>
-                    <p>点击"查看详情"可以查看备份中包含的MOD列表</p>
+                    <strong data-lang="backup_restore_step2_title">预览备份内容</strong>
+                    <p data-lang="backup_restore_step2_desc">点击"查看详情"可以查看备份中包含的MOD列表</p>
                 </li>
                 <li>
-                    <strong>还原备份</strong>
-                    <p>点击"还原"按钮</p>
+                    <strong data-lang="backup_restore_step3_title">还原备份</strong>
+                    <p data-lang="backup_restore_step3_desc">点击"还原"按钮</p>
                     <div class="alert alert-warning">
-                        <strong>⚠️ 注意：</strong>还原会覆盖当前MOD配置，建议先创建当前状态的备份！
+                        <strong data-lang="backup_restore_step3_warn_title">⚠️ 注意：</strong><span data-lang="backup_restore_step3_warn_text">还原会覆盖当前MOD配置，建议先创建当前状态的备份！</span>
                     </div>
                 </li>
                 <li>
-                    <strong>等待还原完成</strong>
-                    <p>软件会自动恢复MOD文件和配置</p>
+                    <strong data-lang="backup_restore_step4_title">等待还原完成</strong>
+                    <p data-lang="backup_restore_step4_desc">软件会自动恢复MOD文件和配置</p>
                 </li>
             </ol>
 
-            <h2>备份管理技巧</h2>
+            <h2 data-lang="backup_tips_title">备份管理技巧</h2>
             <ul>
-                <li><strong>定期备份</strong>：每次大改MOD配置前先备份</li>
-                <li><strong>命名规范</strong>：使用日期+用途命名，如"2025-01-05_测试新皮肤"</li>
-                <li><strong>删除旧备份</strong>：定期清理不需要的备份，节省磁盘空间</li>
-                <li><strong>导出备份</strong>：可以将备份文件复制到其他电脑</li>
+                <li data-lang="backup_tips_1"><strong>定期备份</strong>：每次大改MOD配置前先备份</li>
+                <li data-lang="backup_tips_2"><strong>命名规范</strong>：使用日期+用途命名，如"2025-01-05_测试新皮肤"</li>
+                <li data-lang="backup_tips_3"><strong>删除旧备份</strong>：定期清理不需要的备份，节省磁盘空间</li>
+                <li data-lang="backup_tips_4"><strong>导出备份</strong>：可以将备份文件复制到其他电脑</li>
             </ul>
 
-            <h2>备份存储位置</h2>
+            <h2 data-lang="backup_location_title">备份存储位置</h2>
             <pre><code>%AppData%\UEModManager\Backups\</code></pre>
-            <p>可以手动复制该文件夹到其他位置进行额外备份。</p>
+            <p data-lang="backup_location_desc">可以手动复制该文件夹到其他位置进行额外备份。</p>
         </section>
 
         <!-- 云端同步 -->
         <section class="content-section" id="cloud">
-            <h1>☁️ 云端同步</h1>
+            <h1 data-lang="cloud_title">☁️ 云端同步</h1>
 
-            <h2>功能介绍</h2>
-            <p>云端同步功能允许您：</p>
+            <h2 data-lang="cloud_intro_title">功能介绍</h2>
+            <p data-lang="cloud_intro_desc">云端同步功能允许您：</p>
             <ul>
-                <li>在多台电脑间同步MOD配置</li>
-                <li>备份配置到云端，防止本地丢失</li>
-                <li>分享MOD列表给其他用户</li>
+                <li data-lang="cloud_intro_1">在多台电脑间同步MOD配置</li>
+                <li data-lang="cloud_intro_2">备份配置到云端，防止本地丢失</li>
+                <li data-lang="cloud_intro_3">分享MOD列表给其他用户</li>
             </ul>
 
             <div class="alert alert-info">
-                <strong>💡 说明：</strong>云端同步仅同步配置信息（MOD列表、分类、自定义信息），不上传MOD文件本身。
+                <strong data-lang="cloud_intro_info_title">💡 说明：</strong><span data-lang="cloud_intro_info_text">云端同步仅同步配置信息（MOD列表、分类、自定义信息），不上传MOD文件本身。</span>
             </div>
 
-            <h2>注册账户</h2>
+            <h2 data-lang="cloud_register_title">注册账户</h2>
             <ol class="step-list">
                 <li>
-                    <strong>打开登录窗口</strong>
-                    <p>点击右上角"登录"按钮</p>
+                    <strong data-lang="cloud_register_step1_title">打开登录窗口</strong>
+                    <p data-lang="cloud_register_step1_desc">点击右上角"登录"按钮</p>
                 </li>
                 <li>
-                    <strong>注册账户</strong>
-                    <p>点击"注册新账户"</p>
+                    <strong data-lang="cloud_register_step2_title">注册账户</strong>
+                    <p data-lang="cloud_register_step2_desc">点击"注册新账户"</p>
                     <ul>
-                        <li>输入邮箱地址</li>
-                        <li>设置密码（至少8位，包含字母和数字）</li>
-                        <li>输入用户名</li>
+                        <li data-lang="cloud_register_step2_1">输入邮箱地址</li>
+                        <li data-lang="cloud_register_step2_2">设置密码（至少8位，包含字母和数字）</li>
+                        <li data-lang="cloud_register_step2_3">输入用户名</li>
                     </ul>
                 </li>
                 <li>
-                    <strong>验证邮箱</strong>
-                    <p>检查邮箱收件箱，点击验证链接</p>
-                    <p>如未收到邮件，检查垃圾邮件文件夹</p>
+                    <strong data-lang="cloud_register_step3_title">验证邮箱</strong>
+                    <p data-lang="cloud_register_step3_desc1">检查邮箱收件箱，点击验证链接</p>
+                    <p data-lang="cloud_register_step3_desc2">如未收到邮件，检查垃圾邮件文件夹</p>
                 </li>
                 <li>
-                    <strong>登录</strong>
-                    <p>返回软件，输入邮箱和密码登录</p>
+                    <strong data-lang="cloud_register_step4_title">登录</strong>
+                    <p data-lang="cloud_register_step4_desc">返回软件，输入邮箱和密码登录</p>
                 </li>
             </ol>
 
-            <h2>同步配置</h2>
-            <p>登录后，软件会自动同步：</p>
+            <h2 data-lang="cloud_sync_title">同步配置</h2>
+            <p data-lang="cloud_sync_desc">登录后，软件会自动同步：</p>
             <ul>
-                <li>✅ 自动上传：每次修改配置后自动上传到云端</li>
-                <li>✅ 自动下载：启动软件时自动下载最新配置</li>
-                <li>✅ 冲突解决：本地和云端不一致时，会提示选择保留哪个版本</li>
+                <li data-lang="cloud_sync_1">✅ 自动上传：每次修改配置后自动上传到云端</li>
+                <li data-lang="cloud_sync_2">✅ 自动下载：启动软件时自动下载最新配置</li>
+                <li data-lang="cloud_sync_3">✅ 冲突解决：本地和云端不一致时，会提示选择保留哪个版本</li>
             </ul>
 
-            <h2>离线模式</h2>
-            <p>无网络时，软件会自动切换到离线模式：</p>
+            <h2 data-lang="cloud_offline_title">离线模式</h2>
+            <p data-lang="cloud_offline_desc">无网络时，软件会自动切换到离线模式：</p>
             <ul>
-                <li>所有本地功能正常使用</li>
-                <li>配置修改会在联网后自动同步</li>
-                <li>不影响MOD的启用/禁用</li>
+                <li data-lang="cloud_offline_1">所有本地功能正常使用</li>
+                <li data-lang="cloud_offline_2">配置修改会在联网后自动同步</li>
+                <li data-lang="cloud_offline_3">不影响MOD的启用/禁用</li>
             </ul>
         </section>
 
         <!-- 游戏专题：剑星 -->
         <section class="content-section" id="stellar-blade">
-            <h1>🎮 剑星 Stellar Blade 专题</h1>
+            <h1 data-lang="stellar_title">🎮 剑星 Stellar Blade 专题</h1>
 
-            <h2>游戏信息</h2>
+            <h2 data-lang="stellar_info_title">游戏信息</h2>
             <table>
                 <tr>
-                    <td><strong>游戏名称</strong></td>
-                    <td>Stellar Blade / 剑星</td>
+                    <td><strong data-lang="stellar_info_name">游戏名称</strong></td>
+                    <td data-lang="stellar_info_name_value">Stellar Blade / 剑星</td>
                 </tr>
                 <tr>
-                    <td><strong>引擎版本</strong></td>
+                    <td><strong data-lang="stellar_info_engine">引擎版本</strong></td>
                     <td>Unreal Engine 4.27</td>
                 </tr>
                 <tr>
-                    <td><strong>MOD目录</strong></td>
+                    <td><strong data-lang="stellar_info_dir">MOD目录</strong></td>
                     <td><code>StellarBlade\Content\Paks\~mods</code></td>
                 </tr>
                 <tr>
-                    <td><strong>支持版本</strong></td>
-                    <td>标准版 / CNS版（中国特供版）</td>
+                    <td><strong data-lang="stellar_info_version">支持版本</strong></td>
+                    <td data-lang="stellar_info_version_value">标准版 / CNS版（中国特供版）</td>
                 </tr>
             </table>
 
-            <h2>MOD安装要点</h2>
+            <h2 data-lang="stellar_install_title">MOD安装要点</h2>
             <div class="alert alert-warning">
-                <strong>⚠️ 重要：</strong>剑星有两个版本（标准版和CNS版），MOD可能不通用，请确认MOD说明中支持的版本。
+                <strong data-lang="stellar_install_warn_title">⚠️ 重要：</strong><span data-lang="stellar_install_warn_text">剑星有两个版本（标准版和CNS版），MOD可能不通用，请确认MOD说明中支持的版本。</span>
             </div>
 
-            <h3>1️⃣ 文件命名规则</h3>
-            <p>剑星MOD文件必须以 <code>_P</code> 结尾才能被游戏加载：</p>
-            <pre><code>正确：CharacterMod_P.pak
+            <h3 data-lang="stellar_naming_title">1️⃣ 文件命名规则</h3>
+            <p data-lang="stellar_naming_desc">剑星MOD文件必须以 <code>_P</code> 结尾才能被游戏加载：</p>
+            <pre><code data-lang="stellar_naming_example">正确：CharacterMod_P.pak
 错误：CharacterMod.pak</code></pre>
-            <p>软件会自动处理文件命名，启用MOD时自动添加 <code>_P</code> 后缀。</p>
+            <p data-lang="stellar_naming_tip">软件会自动处理文件命名，启用MOD时自动添加 <code>_P</code> 后缀。</p>
 
-            <h3>2️⃣ 常见MOD类型</h3>
+            <h3 data-lang="stellar_types_title">2️⃣ 常见MOD类型</h3>
             <ul>
-                <li><strong>服装MOD</strong>：修改角色服装外观</li>
-                <li><strong>面部MOD</strong>：修改角色脸型、化妆</li>
-                <li><strong>武器MOD</strong>：修改武器模型和特效</li>
-                <li><strong>画质MOD</strong>：提升游戏画质、光影效果</li>
-                <li><strong>UI MOD</strong>：修改游戏界面</li>
+                <li data-lang="stellar_types_1"><strong>服装MOD</strong>：修改角色服装外观</li>
+                <li data-lang="stellar_types_2"><strong>面部MOD</strong>：修改角色脸型、化妆</li>
+                <li data-lang="stellar_types_3"><strong>武器MOD</strong>：修改武器模型和特效</li>
+                <li data-lang="stellar_types_4"><strong>画质MOD</strong>：提升游戏画质、光影效果</li>
+                <li data-lang="stellar_types_5"><strong>UI MOD</strong>：修改游戏界面</li>
             </ul>
 
-            <h3>3️⃣ 冲突规则</h3>
+            <h3 data-lang="stellar_conflicts_title">3️⃣ 冲突规则</h3>
             <ul>
-                <li>同一部位的服装MOD会冲突（如两个上衣MOD）</li>
-                <li>画质MOD之间通常冲突</li>
-                <li>面部MOD可能与部分服装MOD冲突</li>
+                <li data-lang="stellar_conflicts_1">同一部位的服装MOD会冲突（如两个上衣MOD）</li>
+                <li data-lang="stellar_conflicts_2">画质MOD之间通常冲突</li>
+                <li data-lang="stellar_conflicts_3">面部MOD可能与部分服装MOD冲突</li>
             </ul>
 
-            <h2>推荐MOD站点</h2>
+            <h2 data-lang="stellar_sites_title">推荐MOD站点</h2>
             <ul>
                 <li><a href="https://www.nexusmods.com/stellarblade" target="_blank" rel="noopener" style="color: var(--steam-blue);">Nexus Mods - Stellar Blade</a></li>
                 <li><a href="https://gamebanana.com/games/20596" target="_blank" rel="noopener" style="color: var(--steam-blue);">GameBanana - Stellar Blade</a></li>
@@ -1229,208 +1247,208 @@
 
         <!-- 游戏专题：黑神话悟空 -->
         <section class="content-section" id="wukong">
-            <h1>🐒 黑神话：悟空 专题</h1>
+            <h1 data-lang="wukong_title">🐒 黑神话：悟空 专题</h1>
 
-            <h2>游戏信息</h2>
+            <h2 data-lang="wukong_info_title">游戏信息</h2>
             <table>
                 <tr>
-                    <td><strong>游戏名称</strong></td>
-                    <td>Black Myth: Wukong / 黑神话：悟空</td>
+                    <td><strong data-lang="wukong_info_name">游戏名称</strong></td>
+                    <td data-lang="wukong_info_name_value">Black Myth: Wukong / 黑神话：悟空</td>
                 </tr>
                 <tr>
-                    <td><strong>引擎版本</strong></td>
+                    <td><strong data-lang="wukong_info_engine">引擎版本</strong></td>
                     <td>Unreal Engine 5.2</td>
                 </tr>
                 <tr>
-                    <td><strong>MOD目录</strong></td>
+                    <td><strong data-lang="wukong_info_dir">MOD目录</strong></td>
                     <td><code>BlackMyth\Content\Paks\~mods</code></td>
                 </tr>
             </table>
 
-            <h2>MOD安装要点</h2>
+            <h2 data-lang="wukong_install_title">MOD安装要点</h2>
 
-            <h3>1️⃣ UE5 特殊性</h3>
-            <p>黑神话使用 UE5 引擎，MOD安装相对简单：</p>
+            <h3 data-lang="wukong_ue5_title">1️⃣ UE5 特殊性</h3>
+            <p data-lang="wukong_ue5_desc">黑神话使用 UE5 引擎，MOD安装相对简单：</p>
             <ul>
-                <li>无需 <code>_P</code> 后缀</li>
-                <li>直接将 <code>.pak</code> 文件放入 <code>~mods</code> 文件夹</li>
-                <li>游戏会自动加载所有 <code>.pak</code> 文件</li>
+                <li data-lang="wukong_ue5_1">无需 <code>_P</code> 后缀</li>
+                <li data-lang="wukong_ue5_2">直接将 <code>.pak</code> 文件放入 <code>~mods</code> 文件夹</li>
+                <li data-lang="wukong_ue5_3">游戏会自动加载所有 <code>.pak</code> 文件</li>
             </ul>
 
-            <h3>2️⃣ 常见MOD类型</h3>
+            <h3 data-lang="wukong_types_title">2️⃣ 常见MOD类型</h3>
             <ul>
-                <li><strong>皮肤MOD</strong>：修改悟空或装备外观</li>
-                <li><strong>武器MOD</strong>：修改金箍棒等武器模型</li>
-                <li><strong>特效MOD</strong>：增强技能特效</li>
-                <li><strong>难度MOD</strong>：调整游戏难度</li>
-                <li><strong>性能优化</strong>：提升帧率、减少卡顿</li>
+                <li data-lang="wukong_types_1"><strong>皮肤MOD</strong>：修改悟空或装备外观</li>
+                <li data-lang="wukong_types_2"><strong>武器MOD</strong>：修改金箍棒等武器模型</li>
+                <li data-lang="wukong_types_3"><strong>特效MOD</strong>：增强技能特效</li>
+                <li data-lang="wukong_types_4"><strong>难度MOD</strong>：调整游戏难度</li>
+                <li data-lang="wukong_types_5"><strong>性能优化</strong>：提升帧率、减少卡顿</li>
             </ul>
 
-            <h3>3️⃣ 注意事项</h3>
+            <h3 data-lang="wukong_notes_title">3️⃣ 注意事项</h3>
             <div class="alert alert-warning">
-                <strong>⚠️ 重要：</strong>
+                <strong data-lang="wukong_notes_warn_title">⚠️ 重要：</strong>
                 <ul>
-                    <li>部分MOD可能影响游戏平衡性</li>
-                    <li>在线模式下使用MOD可能导致封号风险</li>
-                    <li>建议在单机模式下使用MOD</li>
+                    <li data-lang="wukong_notes_1">部分MOD可能影响游戏平衡性</li>
+                    <li data-lang="wukong_notes_2">在线模式下使用MOD可能导致封号风险</li>
+                    <li data-lang="wukong_notes_3">建议在单机模式下使用MOD</li>
                 </ul>
             </div>
 
-            <h2>推荐MOD站点</h2>
+            <h2 data-lang="wukong_sites_title">推荐MOD站点</h2>
             <ul>
                 <li><a href="https://www.nexusmods.com/blackmythwukong" target="_blank" rel="noopener" style="color: var(--steam-blue);">Nexus Mods - Black Myth Wukong</a></li>
-                <li>国内MOD论坛（自行搜索）</li>
+                <li data-lang="wukong_sites_domestic">国内MOD论坛（自行搜索）</li>
             </ul>
         </section>
 
         <!-- 常见问题 -->
         <section class="content-section" id="troubleshooting">
-            <h1>🔧 常见问题解决</h1>
+            <h1 data-lang="troubleshoot_title">🔧 常见问题解决</h1>
 
-            <h2>问题1：软件无法启动</h2>
-            <h3>症状</h3>
-            <p>双击图标后无反应，或出现错误提示。</p>
-            <h3>解决方案</h3>
+            <h2 data-lang="troubleshoot_q1_title">问题1：软件无法启动</h2>
+            <h3 data-lang="troubleshoot_q1_symptom_title">症状</h3>
+            <p data-lang="troubleshoot_q1_symptom">双击图标后无反应，或出现错误提示。</p>
+            <h3 data-lang="troubleshoot_q1_solution_title">解决方案</h3>
             <ol>
-                <li>确认已安装 .NET 8.0 Runtime（软件会自动提示安装）</li>
-                <li>检查Windows版本是否为 Windows 10 64位或更高</li>
-                <li>尝试以管理员身份运行</li>
-                <li>检查杀毒软件是否拦截（添加到白名单）</li>
-                <li>重新安装软件</li>
+                <li data-lang="troubleshoot_q1_sol1">确认已安装 .NET 8.0 Runtime（软件会自动提示安装）</li>
+                <li data-lang="troubleshoot_q1_sol2">检查Windows版本是否为 Windows 10 64位或更高</li>
+                <li data-lang="troubleshoot_q1_sol3">尝试以管理员身份运行</li>
+                <li data-lang="troubleshoot_q1_sol4">检查杀毒软件是否拦截（添加到白名单）</li>
+                <li data-lang="troubleshoot_q1_sol5">重新安装软件</li>
             </ol>
 
-            <h2>问题2：检测不到游戏</h2>
-            <h3>症状</h3>
-            <p>软件启动后没有显示已安装的游戏。</p>
-            <h3>解决方案</h3>
+            <h2 data-lang="troubleshoot_q2_title">问题2：检测不到游戏</h2>
+            <h3 data-lang="troubleshoot_q2_symptom_title">症状</h3>
+            <p data-lang="troubleshoot_q2_symptom">软件启动后没有显示已安装的游戏。</p>
+            <h3 data-lang="troubleshoot_q2_solution_title">解决方案</h3>
             <ol>
-                <li>确认游戏已正确安装</li>
-                <li>手动添加游戏路径：设置 → 添加游戏 → 选择游戏根目录</li>
-                <li>检查游戏是否为支持的版本（Steam版、Epic版等）</li>
+                <li data-lang="troubleshoot_q2_sol1">确认游戏已正确安装</li>
+                <li data-lang="troubleshoot_q2_sol2">手动添加游戏路径：设置 → 添加游戏 → 选择游戏根目录</li>
+                <li data-lang="troubleshoot_q2_sol3">检查游戏是否为支持的版本（Steam版、Epic版等）</li>
             </ol>
 
-            <h2>问题3：MOD不生效</h2>
-            <h3>症状</h3>
-            <p>启用MOD后，进游戏发现没有效果。</p>
-            <h3>解决方案</h3>
+            <h2 data-lang="troubleshoot_q3_title">问题3：MOD不生效</h2>
+            <h3 data-lang="troubleshoot_q3_symptom_title">症状</h3>
+            <p data-lang="troubleshoot_q3_symptom">启用MOD后，进游戏发现没有效果。</p>
+            <h3 data-lang="troubleshoot_q3_solution_title">解决方案</h3>
             <ol>
-                <li>确认MOD已启用（开关为绿色）</li>
-                <li>检查MOD文件名是否正确（剑星需要 <code>_P</code> 后缀）</li>
-                <li>检查MOD是否与游戏版本匹配</li>
-                <li>运行冲突检测，查看是否有冲突</li>
-                <li>尝试禁用其他MOD，逐个测试</li>
-                <li>查看MOD说明，确认安装方法</li>
+                <li data-lang="troubleshoot_q3_sol1">确认MOD已启用（开关为绿色）</li>
+                <li data-lang="troubleshoot_q3_sol2">检查MOD文件名是否正确（剑星需要 <code>_P</code> 后缀）</li>
+                <li data-lang="troubleshoot_q3_sol3">检查MOD是否与游戏版本匹配</li>
+                <li data-lang="troubleshoot_q3_sol4">运行冲突检测，查看是否有冲突</li>
+                <li data-lang="troubleshoot_q3_sol5">尝试禁用其他MOD，逐个测试</li>
+                <li data-lang="troubleshoot_q3_sol6">查看MOD说明，确认安装方法</li>
             </ol>
 
-            <h2>问题4：游戏崩溃</h2>
-            <h3>症状</h3>
-            <p>安装MOD后游戏无法启动或进入后崩溃。</p>
-            <h3>解决方案</h3>
+            <h2 data-lang="troubleshoot_q4_title">问题4：游戏崩溃</h2>
+            <h3 data-lang="troubleshoot_q4_symptom_title">症状</h3>
+            <p data-lang="troubleshoot_q4_symptom">安装MOD后游戏无法启动或进入后崩溃。</p>
+            <h3 data-lang="troubleshoot_q4_solution_title">解决方案</h3>
             <ol>
-                <li>禁用所有MOD，确认游戏本身可以正常运行</li>
-                <li>逐个启用MOD，找出导致崩溃的MOD</li>
-                <li>检查MOD文件是否损坏（重新下载）</li>
-                <li>使用备份还原功能，恢复到崩溃前的状态</li>
-                <li>查看游戏日志文件，确认错误原因</li>
+                <li data-lang="troubleshoot_q4_sol1">禁用所有MOD，确认游戏本身可以正常运行</li>
+                <li data-lang="troubleshoot_q4_sol2">逐个启用MOD，找出导致崩溃的MOD</li>
+                <li data-lang="troubleshoot_q4_sol3">检查MOD文件是否损坏（重新下载）</li>
+                <li data-lang="troubleshoot_q4_sol4">使用备份还原功能，恢复到崩溃前的状态</li>
+                <li data-lang="troubleshoot_q4_sol5">查看游戏日志文件，确认错误原因</li>
             </ol>
 
-            <h2>问题5：软件运行缓慢</h2>
-            <h3>症状</h3>
-            <p>软件打开慢、切换游戏卡顿。</p>
-            <h3>解决方案</h3>
+            <h2 data-lang="troubleshoot_q5_title">问题5：软件运行缓慢</h2>
+            <h3 data-lang="troubleshoot_q5_symptom_title">症状</h3>
+            <p data-lang="troubleshoot_q5_symptom">软件打开慢、切换游戏卡顿。</p>
+            <h3 data-lang="troubleshoot_q5_solution_title">解决方案</h3>
             <ol>
-                <li>减少MOD数量（超过100个MOD可能影响性能）</li>
-                <li>清理缓存：设置 → 清理缓存</li>
-                <li>关闭不必要的后台程序</li>
-                <li>将MOD文件夹移动到SSD</li>
+                <li data-lang="troubleshoot_q5_sol1">减少MOD数量（超过100个MOD可能影响性能）</li>
+                <li data-lang="troubleshoot_q5_sol2">清理缓存：设置 → 清理缓存</li>
+                <li data-lang="troubleshoot_q5_sol3">关闭不必要的后台程序</li>
+                <li data-lang="troubleshoot_q5_sol4">将MOD文件夹移动到SSD</li>
             </ol>
         </section>
 
         <!-- FAQ -->
         <section class="content-section" id="faq">
-            <h1>❓ 常见问答（FAQ）</h1>
+            <h1 data-lang="faq_title">❓ 常见问答（FAQ）</h1>
 
-            <h3>Q1: 软件收费吗？</h3>
-            <p><strong>A:</strong> 完全免费且开源！所有功能都可免费使用。如果觉得好用，欢迎赞助支持开发。</p>
+            <h3 data-lang="faq_q1">Q1: 软件收费吗？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a1">完全免费且开源！所有功能都可免费使用。如果觉得好用，欢迎赞助支持开发。</span></p>
 
-            <h3>Q2: 软件是否安全？</h3>
-            <p><strong>A:</strong> 完全安全。软件是开源的，代码托管在 GitHub，任何人都可以审查。不会收集任何个人信息（云端同步除外）。</p>
+            <h3 data-lang="faq_q2">Q2: 软件是否安全？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a2">完全安全。软件是开源的，代码托管在 GitHub，任何人都可以审查。不会收集任何个人信息（云端同步除外）。</span></p>
 
-            <h3>Q3: 支持哪些游戏？</h3>
-            <p><strong>A:</strong> 目前支持：</p>
+            <h3 data-lang="faq_q3">Q3: 支持哪些游戏？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a3_intro">目前支持：</span></p>
             <ul>
-                <li>剑星 Stellar Blade（标准版/CNS版）</li>
-                <li>黑神话：悟空</li>
-                <li>明末无双</li>
-                <li>其他虚幻引擎游戏（需手动配置）</li>
+                <li data-lang="faq_a3_1">剑星 Stellar Blade（标准版/CNS版）</li>
+                <li data-lang="faq_a3_2">黑神话：悟空</li>
+                <li data-lang="faq_a3_3">明末无双</li>
+                <li data-lang="faq_a3_4">其他虚幻引擎游戏（需手动配置）</li>
             </ul>
-            <p>我们会持续添加更多游戏支持。</p>
+            <p data-lang="faq_a3_note">我们会持续添加更多游戏支持。</p>
 
-            <h3>Q4: 使用MOD会被封号吗？</h3>
-            <p><strong>A:</strong> 取决于游戏和MOD类型：</p>
+            <h3 data-lang="faq_q4">Q4: 使用MOD会被封号吗？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a4_intro">取决于游戏和MOD类型：</span></p>
             <ul>
-                <li>纯单机游戏：完全安全</li>
-                <li>含在线模式游戏：建议只在离线模式使用MOD</li>
-                <li>竞技游戏：不推荐使用任何MOD</li>
-            </ul>
-
-            <h3>Q5: MOD下载后放在哪里？</h3>
-            <p><strong>A:</strong> 两种方式：</p>
-            <ul>
-                <li>直接拖放到软件界面（推荐）</li>
-                <li>手动复制到 <code>游戏目录\Content\Paks\~mods</code></li>
+                <li data-lang="faq_a4_1">纯单机游戏：完全安全</li>
+                <li data-lang="faq_a4_2">含在线模式游戏：建议只在离线模式使用MOD</li>
+                <li data-lang="faq_a4_3">竞技游戏：不推荐使用任何MOD</li>
             </ul>
 
-            <h3>Q6: 如何卸载软件？</h3>
-            <p><strong>A:</strong> Windows设置 → 应用 → 找到"UE MOD Manager" → 卸载</p>
-            <p>卸载不会删除游戏MOD文件，需手动清理 <code>~mods</code> 文件夹。</p>
-
-            <h3>Q7: 可以分享MOD配置给朋友吗？</h3>
-            <p><strong>A:</strong> 可以！两种方式：</p>
+            <h3 data-lang="faq_q5">Q5: MOD下载后放在哪里？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a5_intro">两种方式：</span></p>
             <ul>
-                <li>导出备份文件，发送给朋友导入</li>
-                <li>使用云端分享功能（需双方都登录）</li>
+                <li data-lang="faq_a5_1">直接拖放到软件界面（推荐）</li>
+                <li data-lang="faq_a5_2">手动复制到 <code>游戏目录\Content\Paks\~mods</code></li>
             </ul>
 
-            <h3>Q8: 软件会自动更新吗？</h3>
-            <p><strong>A:</strong> 会提示有新版本可用，但不会自动下载安装。您可以选择：</p>
+            <h3 data-lang="faq_q6">Q6: 如何卸载软件？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a6_1">Windows设置 → 应用 → 找到"UE MOD Manager" → 卸载</span></p>
+            <p data-lang="faq_a6_2">卸载不会删除游戏MOD文件，需手动清理 <code>~mods</code> 文件夹。</p>
+
+            <h3 data-lang="faq_q7">Q7: 可以分享MOD配置给朋友吗？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a7_intro">可以！两种方式：</span></p>
             <ul>
-                <li>立即下载更新</li>
-                <li>稍后提醒</li>
-                <li>忽略此版本</li>
+                <li data-lang="faq_a7_1">导出备份文件，发送给朋友导入</li>
+                <li data-lang="faq_a7_2">使用云端分享功能（需双方都登录）</li>
+            </ul>
+
+            <h3 data-lang="faq_q8">Q8: 软件会自动更新吗？</h3>
+            <p><strong>A:</strong> <span data-lang="faq_a8_intro">会提示有新版本可用，但不会自动下载安装。您可以选择：</span></p>
+            <ul>
+                <li data-lang="faq_a8_1">立即下载更新</li>
+                <li data-lang="faq_a8_2">稍后提醒</li>
+                <li data-lang="faq_a8_3">忽略此版本</li>
             </ul>
         </section>
 
         <!-- 联系支持 -->
         <section class="content-section" id="support">
-            <h1>💬 获取帮助</h1>
+            <h1 data-lang="support_title">💬 获取帮助</h1>
 
-            <h2>官方渠道</h2>
+            <h2 data-lang="support_channels_title">官方渠道</h2>
             <ul>
-                <li><strong>GitHub Issues</strong>：<a href="https://github.com/velist/UE-Game-ModManager/issues" target="_blank" rel="noopener" style="color: var(--steam-blue);">提交问题或建议</a></li>
-                <li><strong>QQ群</strong>：682707942（快速响应）</li>
-                <li><strong>邮箱</strong>：mr.xzuo@foxmail.com</li>
+                <li data-lang="support_channels_1"><strong>GitHub Issues</strong>：<a href="https://github.com/velist/UE-Game-ModManager/issues" target="_blank" rel="noopener" style="color: var(--steam-blue);">提交问题或建议</a></li>
+                <li data-lang="support_channels_2"><strong>QQ群</strong>：682707942（快速响应）</li>
+                <li data-lang="support_channels_3"><strong>邮箱</strong>：mr.xzuo@foxmail.com</li>
             </ul>
 
-            <h2>提交问题时请提供</h2>
+            <h2 data-lang="support_provide_title">提交问题时请提供</h2>
             <ul>
-                <li>软件版本号（帮助 → 关于）</li>
-                <li>操作系统版本</li>
-                <li>游戏名称和版本</li>
-                <li>问题的详细描述和复现步骤</li>
-                <li>错误截图或日志文件</li>
+                <li data-lang="support_provide_1">软件版本号（帮助 → 关于）</li>
+                <li data-lang="support_provide_2">操作系统版本</li>
+                <li data-lang="support_provide_3">游戏名称和版本</li>
+                <li data-lang="support_provide_4">问题的详细描述和复现步骤</li>
+                <li data-lang="support_provide_5">错误截图或日志文件</li>
             </ul>
 
-            <h2>贡献代码</h2>
-            <p>软件是开源的，欢迎贡献代码：</p>
+            <h2 data-lang="support_contribute_title">贡献代码</h2>
+            <p data-lang="support_contribute_desc">软件是开源的，欢迎贡献代码：</p>
             <ol>
-                <li>Fork 项目：<a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" style="color: var(--steam-blue);">GitHub 仓库</a></li>
-                <li>创建功能分支</li>
-                <li>提交 Pull Request</li>
+                <li data-lang="support_contribute_1">Fork 项目：<a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" style="color: var(--steam-blue);">GitHub 仓库</a></li>
+                <li data-lang="support_contribute_2">创建功能分支</li>
+                <li data-lang="support_contribute_3">提交 Pull Request</li>
             </ol>
 
             <div class="alert alert-success">
-                <strong>✅ 感谢使用！</strong>如果软件帮到您，请在 GitHub 上给我们一个 ⭐ Star，这是对我们最大的支持！
+                <strong data-lang="support_thanks_title">✅ 感谢使用！</strong><span data-lang="support_thanks_text">如果软件帮到您，请在 GitHub 上给我们一个 ⭐ Star，这是对我们最大的支持！</span>
             </div>
         </section>
     </main>
@@ -1439,8 +1457,592 @@
     <button class="back-to-top" id="backToTop" aria-label="返回顶部"></button>
 
     <script>
-        // 侧边栏导航高亮
+        // Translation data
+        const translations = {
+            zh: {
+                // Meta and navigation
+                page_title: '使用说明 - 爱酱虚幻引擎MOD管理器 完整教程',
+                site_title: '爱酱虚幻引擎MOD管理器',
+                nav_home: '首页',
+                nav_docs: '使用说明',
+                nav_download: '下载',
+
+                // Sidebar navigation
+                sidebar_quick_start: '快速开始',
+                sidebar_install: '安装指南',
+                sidebar_first_use: '首次使用',
+                sidebar_interface: '界面介绍',
+                sidebar_basic: '基础功能',
+                sidebar_add_mod: '安装MOD',
+                sidebar_manage_mod: '管理MOD',
+                sidebar_category: '分类管理',
+                sidebar_conflict: '冲突检测',
+                sidebar_advanced: '高级功能',
+                sidebar_backup: '备份还原',
+                sidebar_custom: '自定义配置',
+                sidebar_batch: '批量操作',
+                sidebar_cloud: '云端同步',
+                sidebar_games: '游戏专题',
+                sidebar_stellar: '剑星 Stellar Blade',
+                sidebar_wukong: '黑神话：悟空',
+                sidebar_other: '其他游戏',
+                sidebar_help: '疑难解答',
+                sidebar_troubleshooting: '常见问题',
+                sidebar_faq: 'FAQ'
+            },
+            en: {
+                // Meta and navigation
+                page_title: 'Documentation - UE MOD Manager Complete Guide',
+                site_title: 'UE MOD Manager',
+                nav_home: 'Home',
+                nav_docs: 'Documentation',
+                nav_download: 'Download',
+
+                // Sidebar navigation
+                sidebar_quick_start: 'QUICK START',
+                sidebar_install: 'Installation Guide',
+                sidebar_first_use: 'First Use',
+                sidebar_interface: 'Interface Overview',
+                sidebar_basic: 'BASIC FEATURES',
+                sidebar_add_mod: 'Install MODs',
+                sidebar_manage_mod: 'Manage MODs',
+                sidebar_category: 'Category Management',
+                sidebar_conflict: 'Conflict Detection',
+                sidebar_advanced: 'ADVANCED FEATURES',
+                sidebar_backup: 'Backup & Restore',
+                sidebar_custom: 'Custom Settings',
+                sidebar_batch: 'Batch Operations',
+                sidebar_cloud: 'Cloud Sync',
+                sidebar_games: 'GAME GUIDES',
+                sidebar_stellar: 'Stellar Blade',
+                sidebar_wukong: 'Black Myth: Wukong',
+                sidebar_other: 'Other Games',
+                sidebar_help: 'TROUBLESHOOTING',
+                sidebar_troubleshooting: 'Common Issues',
+                sidebar_faq: 'FAQ',
+
+                // Welcome section
+                welcome_title: '🎮 Documentation',
+                welcome_intro: 'Welcome to <strong>UE MOD Manager</strong>! This documentation will help you quickly master the software, covering everything from basic installation to advanced features.',
+                welcome_alert_title: '💡 Note:',
+                welcome_alert_text: 'This documentation is for v1.7.37 and above. If you are using an older version, please update to the latest version first.',
+                quicknav_install_title: '📥 Installation Guide',
+                quicknav_install_desc: 'Download, install, system requirements',
+                quicknav_addmod_title: '🎯 Install MODs',
+                quicknav_addmod_desc: 'Quick start to MOD installation',
+                quicknav_conflict_title: '⚠️ Conflict Detection',
+                quicknav_conflict_desc: 'Avoid MOD conflicts',
+                quicknav_backup_title: '📦 Backup & Restore',
+                quicknav_backup_desc: 'Protect your MOD configuration',
+
+                // Installation Guide
+                install_title: '📥 Installation Guide',
+                install_sysreq_title: 'System Requirements',
+                table_sysreq_col1: 'Item',
+                table_sysreq_col2: 'Minimum',
+                table_sysreq_col3: 'Recommended',
+                table_sysreq_os: 'Operating System',
+                table_sysreq_bit: '-bit',
+                table_sysreq_runtime: '.NET Runtime',
+                table_sysreq_auto: '(Auto-install)',
+                table_sysreq_disk: 'Disk Space',
+                table_sysreq_cache: '(with cache)',
+                table_sysreq_ram: 'RAM',
+                install_download_title: 'Download',
+                install_step1_title: 'Choose Download Source',
+                install_step1_desc: 'Visit the <a href="index.html#download" style="color: var(--steam-blue);">official download page</a> and choose any of the following sources:',
+                install_step1_baidu: 'Baidu Netdisk (Code: 6679)',
+                install_step1_xunlei: 'Xunlei Netdisk',
+                install_step1_uc: 'UC Netdisk',
+                install_step1_quark: 'Quark Netdisk',
+                install_step1_github: 'GitHub Releases (Recommended for international users)',
+                install_step2_title: 'Download Installer',
+                install_step2_desc: 'Download <code>UEModManager_v1.7.37_Setup.exe</code> installer (approx. 30 MB)',
+                install_step3_title: 'Verify File Integrity',
+                install_step3_desc: 'Ensure the downloaded file size is correct to avoid incomplete downloads that may cause installation failures.',
+                install_steps_title: 'Installation Steps',
+                install_step4_title: 'Run Installer',
+                install_step4_desc: 'Double-click <code>UEModManager_v1.7.37_Setup.exe</code>. If Windows security prompt appears, click "More info" → "Run anyway".',
+                install_alert_warning_title: '⚠️ Warning:',
+                install_alert_warning_text: 'The software is unsigned and may trigger Windows Defender warnings, which is normal. The software is completely open-source and safe.',
+                install_step5_title: 'Choose Installation Path',
+                install_step5_desc1: 'Default installation path: <code>C:\\Program Files\\UEModManager</code>',
+                install_step5_desc2: 'It is recommended to use the default path to avoid permission issues.',
+                install_step6_title: 'Select Components',
+                install_step6_main: '✅ Main Program (Required)',
+                install_step6_desktop: '✅ Desktop Shortcut (Recommended)',
+                install_step6_start: '✅ Start Menu Shortcut (Recommended)',
+                install_step7_title: 'Complete Installation',
+                install_step7_desc1: 'Click "Install" and wait for completion (approx. 10-30 seconds).',
+                install_step7_desc2: 'After installation, select "Run now" to launch the program.',
+                install_alert_success_title: '✅ Installation Successful!',
+                install_alert_success_text: 'First run will automatically install .NET 8.0 Runtime (if not already installed), please be patient.',
+
+                // First Use
+                firstuse_title: '🚀 First Use',
+                firstuse_init_title: 'Initial Configuration',
+                firstuse_step1_title: 'Select Game',
+                firstuse_step1_desc: 'On first launch, the software will automatically scan for installed Unreal Engine games. If not detected, you can manually add:',
+                firstuse_step1_1: 'Click "Settings" button at the top',
+                firstuse_step1_2: 'Click "Add Game"',
+                firstuse_step1_3: 'Browse to game root directory (folder containing <code>.exe</code> file)',
+                firstuse_step1_4: 'Click "OK"',
+                firstuse_step2_title: 'Set MOD Directory',
+                firstuse_step2_desc: 'The software will automatically locate the game\'s <code>~mods</code> folder, usually at:',
+                firstuse_step2_path: 'GameRoot\\GameName\\Content\\Paks\\~mods',
+                firstuse_step2_tip_title: '💡 Tip:',
+                firstuse_step2_tip_text: 'If the game hasn\'t created a <code>~mods</code> folder, the software will create it automatically.',
+                firstuse_step3_title: 'Cloud Login (Optional)',
+                firstuse_step3_desc: 'To use cloud sync features, you can register/login:',
+                firstuse_step3_1: 'Click the "Login" button in the upper right',
+                firstuse_step3_2: 'Register or login with email',
+                firstuse_step3_3: 'After login, MOD configurations can be synced to the cloud',
+                firstuse_step3_warn_title: '⚠️ Note:',
+                firstuse_step3_warn_text: 'All local features work without login. Cloud login is only for cross-device sync.',
+                firstuse_lang_title: 'Interface Language',
+                firstuse_lang_desc: 'The software defaults to Chinese. To switch languages:',
+                firstuse_lang_1: 'Click "Settings" → "Language"',
+                firstuse_lang_2: 'Select "English" or "中文"',
+                firstuse_lang_3: 'Restart the software for changes to take effect',
+
+                // Interface
+                interface_title: '🖥️ Interface Overview',
+                interface_layout_title: 'Main Interface Layout',
+                interface_layout_desc: 'The main interface is divided into four areas:',
+                interface_toolbar_title: '1️⃣ Top Toolbar',
+                interface_toolbar_1: '<strong>Game Selector</strong>: Switch between different games',
+                interface_toolbar_2: '<strong>Refresh Button</strong>: Rescan MOD folder',
+                interface_toolbar_3: '<strong>Conflict Detection</strong>: One-click detect MOD conflicts',
+                interface_toolbar_4: '<strong>Backup Management</strong>: Manage MOD configuration backups',
+                interface_toolbar_5: '<strong>Settings</strong>: Software settings and game configuration',
+                interface_toolbar_6: '<strong>Login/Account</strong>: Cloud account management',
+                interface_sidebar_title: '2️⃣ Left Sidebar',
+                interface_sidebar_1: '<strong>All</strong>: Show all MODs',
+                interface_sidebar_2: '<strong>Enabled</strong>: Show only enabled MODs',
+                interface_sidebar_3: '<strong>Disabled</strong>: Show only disabled MODs',
+                interface_sidebar_4: '<strong>Custom Categories</strong>: User-created categories (face, character, weapon, outfit, etc.)',
+                interface_sidebar_tip: 'Right-click categories to: rename, delete, set icon',
+                interface_modlist_title: '3️⃣ Center MOD List',
+                interface_modlist_desc: 'Shows all MODs in the current category. Each MOD card contains:',
+                interface_modlist_1: '<strong>Preview Image</strong>: MOD preview (customizable)',
+                interface_modlist_2: '<strong>MOD Name</strong>: Filename or custom name',
+                interface_modlist_3: '<strong>Enable Switch</strong>: Quick enable/disable MOD',
+                interface_modlist_4: '<strong>Tags</strong>: MOD categories',
+                interface_modlist_5: '<strong>Conflict Icon</strong>: Red exclamation mark indicates conflicts',
+                interface_detail_title: '4️⃣ Right Details Panel',
+                interface_detail_desc: 'Shows detailed information when a MOD is selected:',
+                interface_detail_1: '<strong>Custom Name</strong>: Editable display name',
+                interface_detail_2: '<strong>Description</strong>: MOD description',
+                interface_detail_3: '<strong>File Info</strong>: File size, modification time',
+                interface_detail_4: '<strong>Category Tags</strong>: Can add multiple categories',
+                interface_detail_5: '<strong>Action Buttons</strong>: Delete, open folder, copy path, etc.',
+
+                // Install MOD
+                addmod_title: '🎯 Install MODs',
+                addmod_method1_title: 'Method 1: Auto Import (Recommended)',
+                addmod_m1_step1_title: 'Download MOD File',
+                addmod_m1_step1_desc: 'Download <code>.pak</code> or <code>.zip</code> files from MOD sites (e.g., Nexus Mods, GameBanana).',
+                addmod_m1_step2_title: 'Drag & Drop Install',
+                addmod_m1_step2_desc1: 'Drag and drop the <code>.pak</code> file directly into the software main interface.',
+                addmod_m1_step2_desc2: 'The software will automatically copy the file to the <code>~mods</code> folder and refresh the list.',
+                addmod_m1_step2_tip_title: '✅ Tip:',
+                addmod_m1_step2_tip_text: 'If it\'s a <code>.zip</code> or <code>.rar</code> archive, the software will automatically extract and retrieve the <code>.pak</code> file.',
+                addmod_m1_step3_title: 'Enable MOD',
+                addmod_m1_step3_desc1: 'Find the newly imported MOD in the list and click the "Enable" switch.',
+                addmod_m1_step3_desc2: 'When enabled, the MOD file will be renamed with <code>_P</code> suffix (required for some games).',
+                addmod_method2_title: 'Method 2: Manual Copy',
+                addmod_m2_step1_title: 'Locate MOD Folder',
+                addmod_m2_step1_desc: 'In the software, click "Settings" → "Open MOD Folder", or manually navigate to:',
+                addmod_m2_step1_path: 'GameRoot\\GameName\\Content\\Paks\\~mods',
+                addmod_m2_step2_title: 'Copy MOD File',
+                addmod_m2_step2_desc: 'Copy the downloaded <code>.pak</code> file to the <code>~mods</code> folder.',
+                addmod_m2_step3_title: 'Refresh List',
+                addmod_m2_step3_desc: 'Return to the software and click the "Refresh" button at the top. The new MOD will appear in the list.',
+                addmod_formats_title: 'Supported File Formats',
+                addmod_formats_col1: 'Format',
+                addmod_formats_col2: 'Description',
+                addmod_formats_col3: 'Processing',
+                addmod_formats_pak: 'Unreal Engine MOD package',
+                addmod_formats_pak_process: 'Direct copy',
+                addmod_formats_zip: 'Archive',
+                addmod_formats_zip_process: 'Auto-extract .pak files',
+                addmod_formats_rar: 'Archive',
+                addmod_formats_rar_process: 'Auto-extract .pak files',
+                addmod_formats_7z: 'Archive',
+                addmod_formats_7z_process: 'Auto-extract .pak files',
+                addmod_alert_warn_title: '⚠️ Note:',
+                addmod_alert_warn_text: 'Some MODs may contain multiple <code>.pak</code> files. Please select the correct file according to the MOD instructions.',
+
+                // Manage MOD
+                managemod_title: '⚙️ Manage MODs',
+                managemod_toggle_title: 'Enable/Disable MODs',
+                managemod_toggle_desc: 'There are two ways to enable or disable MODs:',
+                managemod_toggle_1: '<strong>Quick Switch</strong>: Click the switch button on the MOD card',
+                managemod_toggle_2: '<strong>Right-click Menu</strong>: Right-click MOD → Enable/Disable',
+                managemod_toggle_tip_title: '💡 How it works:',
+                managemod_toggle_tip_text: 'Disabling a MOD adds <code>.disabled</code> prefix to the filename, preventing the game from loading it. Enabling removes this prefix.',
+                managemod_custom_title: 'Customize MOD Information',
+                managemod_custom_step1_title: 'Change Display Name',
+                managemod_custom_step1_desc: 'Select MOD → Right panel → "Custom Name" textbox → Enter new name → Press Enter to save',
+                managemod_custom_step1_tip_title: '✅ Tip:',
+                managemod_custom_step1_tip_text: 'Custom names only affect display in the software and won\'t modify the actual filename.',
+                managemod_custom_step2_title: 'Add Description',
+                managemod_custom_step2_desc: 'Enter detailed MOD description in the "Description" textbox for easier future reference.',
+                managemod_custom_step3_title: 'Change Preview Image',
+                managemod_custom_step3_desc1: 'Click preview image → "Select Image" button → Choose local image file → OK',
+                managemod_custom_step3_desc2: 'Supported formats: <code>.jpg</code>, <code>.png</code>, <code>.gif</code>',
+                managemod_custom_step4_title: 'Add Tags',
+                managemod_custom_step4_desc1: 'In the "Category Tags" area, click "+" → Select or create category → OK',
+                managemod_custom_step4_desc2: 'A MOD can belong to multiple categories.',
+                managemod_delete_title: 'Delete MOD',
+                managemod_delete_desc: 'There are two deletion methods:',
+                managemod_delete_1: '<strong>Soft Delete (Recommended)</strong>: Right-click MOD → "Move to Recycle Bin", can be recovered from system recycle bin',
+                managemod_delete_2: '<strong>Permanent Delete</strong>: Right-click MOD → "Permanently Delete", cannot be recovered',
+                managemod_delete_warn_title: '⚠️ Warning:',
+                managemod_delete_warn_text: 'Permanent deletion cannot be undone! It is recommended to use soft delete or backup first.',
+                managemod_batch_title: 'Batch Operations',
+                managemod_batch_desc: 'Hold <code>Ctrl</code> or <code>Shift</code> key to select multiple MODs, then you can:',
+                managemod_batch_1: 'Batch enable/disable',
+                managemod_batch_2: 'Batch add to category',
+                managemod_batch_3: 'Batch delete',
+                managemod_batch_4: 'Batch export',
+
+                // Category Management
+                category_title: '🗂️ Category Management <span class="badge badge-new">NEW</span>',
+                badge_new: 'NEW',
+                category_create_title: 'Create Category',
+                category_create_step1_title: 'New Category',
+                category_create_step1_desc1: 'Right-click in the left category bar → "New Category"',
+                category_create_step1_desc2: 'Or click the "+" button at the bottom of the category bar',
+                category_create_step2_title: 'Name Category',
+                category_create_step2_desc: 'Enter category name (e.g., "Favorites", "High Quality")',
+                category_create_step3_title: 'Set Icon (Optional)',
+                category_create_step3_desc: 'Right-click new category → "Set Icon" → Select icon file',
+                category_rename_title: 'Rename Category',
+                category_rename_desc: 'Right-click category → "Rename" → Enter new name → Press Enter to confirm',
+                category_rename_tip_title: '💡 v1.7.37 New Feature:',
+                category_rename_tip_text: 'Renaming a category only changes the display name and won\'t affect MOD tag data, making it safer!',
+                category_delete_title: 'Delete Category',
+                category_delete_desc1: 'Right-click category → "Delete Category"',
+                category_delete_desc2: 'The software will prompt:',
+                category_delete_1: 'If the category contains MODs, they will be automatically moved to "Uncategorized"',
+                category_delete_2: 'After deletion, the category will be hidden, not actually deleted',
+                category_delete_3: 'If a MOD uses this category again, it will automatically reappear',
+                category_sort_title: 'Drag to Reorder',
+                category_sort_desc: 'Hold and drag category names to adjust the display order.',
+                category_sort_warn_title: '⚠️ Note:',
+                category_sort_warn_text: 'The two default categories "All" and "Uncategorized" do not support drag-and-drop reordering.',
+                category_move_title: 'Move MOD to Category',
+                category_move_desc: 'Three methods:',
+                category_move_1: '<strong>Drag</strong>: Select MOD and drag it to the left category',
+                category_move_2: '<strong>Right-click Menu</strong>: Right-click MOD → "Move to Category" → Select target category',
+                category_move_3: '<strong>Details Panel</strong>: Select MOD → Right panel → "Category Tags" → Add category',
+
+                // Conflict Detection
+                conflict_title: '⚠️ Conflict Detection',
+                conflict_what_title: 'What are MOD Conflicts?',
+                conflict_what_desc: 'When multiple MODs modify the same game file or resource, conflicts occur, causing:',
+                conflict_what_1: 'Game crash or failure to start',
+                conflict_what_2: 'MOD effects not working or partially working',
+                conflict_what_3: 'Graphics anomalies, texture errors',
+                conflict_what_4: 'Game performance degradation',
+                conflict_auto_title: 'Automatic Conflict Detection',
+                conflict_auto_step1_title: 'Start Detection',
+                conflict_auto_step1_desc: 'Click the "Conflict Detection" button in the top toolbar',
+                conflict_auto_step2_title: 'Wait for Scan',
+                conflict_auto_step2_desc: 'The software will analyze the file structure of all enabled MODs, usually takes 10-60 seconds',
+                conflict_auto_step3_title: 'View Results',
+                conflict_auto_step3_desc1: 'After detection is complete, conflicting MODs will display a red exclamation mark icon',
+                conflict_auto_step3_desc2: 'Click on a MOD to view conflict details in the details panel',
+                conflict_solve_title: 'Resolve Conflicts',
+                conflict_solve_desc: 'Take different measures based on conflict type:',
+                conflict_type1_title: '1️⃣ Complete Conflict (Red)',
+                conflict_type1_desc: 'Two MODs modify the exact same file, only one can be kept:',
+                conflict_type1_1: 'Disable one of the MODs',
+                conflict_type1_2: 'Or find a compatible version',
+                conflict_type2_title: '2️⃣ Partial Conflict (Orange)',
+                conflict_type2_desc: 'MODs have partial overlap and may coexist:',
+                conflict_type2_1: 'Try enabling both and test in-game',
+                conflict_type2_2: 'If there are issues, adjust load order (by renaming files)',
+                conflict_type3_title: '3️⃣ Potential Conflict (Yellow)',
+                conflict_type3_desc: 'May affect the same game systems, use with caution:',
+                conflict_type3_1: 'Check MOD description to confirm compatibility',
+                conflict_type3_2: 'Enable one at a time and test effects in-game',
+                conflict_tip_title: '💡 Pro Tip:',
+                conflict_tip_text: 'Some MOD authors list known conflicts in their descriptions. Prioritize official documentation.',
+
+                // Backup & Restore
+                backup_title: '📦 Backup & Restore',
+                backup_why_title: 'Why Backup?',
+                backup_why_1: 'Prevent accidental deletion of important MODs',
+                backup_why_2: 'Save perfect MOD combination configurations',
+                backup_why_3: 'Quickly switch between different MOD setups',
+                backup_why_4: 'Save current state before testing new MODs',
+                backup_create_title: 'Create Backup',
+                backup_create_step1_title: 'Open Backup Management',
+                backup_create_step1_desc: 'Click "Backup Management" button in the top toolbar',
+                backup_create_step2_title: 'New Backup',
+                backup_create_step2_desc: 'Click "Create Backup" button',
+                backup_create_step3_title: 'Set Backup Info',
+                backup_create_step3_1: 'Backup Name: e.g., "Perfect Config 2025-01-05"',
+                backup_create_step3_2: 'Backup Description: Record MOD list or purpose',
+                backup_create_step3_3: 'Backup Scope: All MODs / Only Enabled MODs',
+                backup_create_step4_title: 'Start Backup',
+                backup_create_step4_desc: 'Click "OK" and wait for backup to complete (depends on number and size of MODs)',
+                backup_restore_title: 'Restore Backup',
+                backup_restore_step1_title: 'Select Backup',
+                backup_restore_step1_desc: 'Choose the backup to restore from the backup list',
+                backup_restore_step2_title: 'Preview Backup Content',
+                backup_restore_step2_desc: 'Click "View Details" to see the MOD list included in the backup',
+                backup_restore_step3_title: 'Restore Backup',
+                backup_restore_step3_desc: 'Click "Restore" button',
+                backup_restore_step3_warn_title: '⚠️ Warning:',
+                backup_restore_step3_warn_text: 'Restoration will overwrite the current MOD configuration. It is recommended to create a backup of the current state first!',
+                backup_restore_step4_title: 'Wait for Restoration',
+                backup_restore_step4_desc: 'The software will automatically restore MOD files and configuration',
+                backup_tips_title: 'Backup Management Tips',
+                backup_tips_1: '<strong>Regular Backups</strong>: Backup before major MOD configuration changes',
+                backup_tips_2: '<strong>Naming Convention</strong>: Use date + purpose for naming, e.g., "2025-01-05_Testing New Skins"',
+                backup_tips_3: '<strong>Delete Old Backups</strong>: Regularly clean up unneeded backups to save disk space',
+                backup_tips_4: '<strong>Export Backups</strong>: Backup files can be copied to other computers',
+                backup_location_title: 'Backup Storage Location',
+                backup_location_desc: 'You can manually copy this folder to other locations for additional backups.',
+
+                // Cloud Sync
+                cloud_title: '☁️ Cloud Sync',
+                cloud_intro_title: 'Features',
+                cloud_intro_desc: 'Cloud sync allows you to:',
+                cloud_intro_1: 'Sync MOD configurations across multiple computers',
+                cloud_intro_2: 'Back up configurations to the cloud to prevent local loss',
+                cloud_intro_3: 'Share MOD lists with other users',
+                cloud_intro_info_title: '💡 Note:',
+                cloud_intro_info_text: 'Cloud sync only syncs configuration information (MOD list, categories, custom info), not MOD files themselves.',
+                cloud_register_title: 'Register Account',
+                cloud_register_step1_title: 'Open Login Window',
+                cloud_register_step1_desc: 'Click the "Login" button in the upper right',
+                cloud_register_step2_title: 'Register Account',
+                cloud_register_step2_desc: 'Click "Register New Account"',
+                cloud_register_step2_1: 'Enter email address',
+                cloud_register_step2_2: 'Set password (at least 8 characters, including letters and numbers)',
+                cloud_register_step2_3: 'Enter username',
+                cloud_register_step3_title: 'Verify Email',
+                cloud_register_step3_desc1: 'Check your email inbox and click the verification link',
+                cloud_register_step3_desc2: 'If you don\'t receive the email, check your spam folder',
+                cloud_register_step4_title: 'Login',
+                cloud_register_step4_desc: 'Return to the software and login with your email and password',
+                cloud_sync_title: 'Sync Configuration',
+                cloud_sync_desc: 'After logging in, the software will automatically sync:',
+                cloud_sync_1: '✅ Auto Upload: Automatically upload to cloud after each configuration change',
+                cloud_sync_2: '✅ Auto Download: Automatically download latest configuration when starting the software',
+                cloud_sync_3: '✅ Conflict Resolution: Prompt to choose which version to keep when local and cloud are inconsistent',
+                cloud_offline_title: 'Offline Mode',
+                cloud_offline_desc: 'When there\'s no network, the software automatically switches to offline mode:',
+                cloud_offline_1: 'All local features work normally',
+                cloud_offline_2: 'Configuration changes will sync automatically when online',
+                cloud_offline_3: 'Does not affect MOD enable/disable',
+
+                // Stellar Blade
+                stellar_title: '🎮 Stellar Blade Guide',
+                stellar_info_title: 'Game Information',
+                stellar_info_name: 'Game Name',
+                stellar_info_name_value: 'Stellar Blade',
+                stellar_info_engine: 'Engine Version',
+                stellar_info_dir: 'MOD Directory',
+                stellar_info_version: 'Supported Versions',
+                stellar_info_version_value: 'Standard / CNS Edition (China Special)',
+                stellar_install_title: 'MOD Installation Tips',
+                stellar_install_warn_title: '⚠️ Important:',
+                stellar_install_warn_text: 'Stellar Blade has two versions (Standard and CNS), MODs may not be cross-compatible. Please confirm the version supported in the MOD description.',
+                stellar_naming_title: '1️⃣ File Naming Rules',
+                stellar_naming_desc: 'Stellar Blade MOD files must end with <code>_P</code> to be loaded by the game:',
+                stellar_naming_example: 'Correct: CharacterMod_P.pak\nWrong: CharacterMod.pak',
+                stellar_naming_tip: 'The software automatically handles file naming, adding <code>_P</code> suffix when enabling MODs.',
+                stellar_types_title: '2️⃣ Common MOD Types',
+                stellar_types_1: '<strong>Outfit MODs</strong>: Modify character costume appearance',
+                stellar_types_2: '<strong>Face MODs</strong>: Modify character face shape, makeup',
+                stellar_types_3: '<strong>Weapon MODs</strong>: Modify weapon models and effects',
+                stellar_types_4: '<strong>Graphics MODs</strong>: Enhance game graphics, lighting effects',
+                stellar_types_5: '<strong>UI MODs</strong>: Modify game interface',
+                stellar_conflicts_title: '3️⃣ Conflict Rules',
+                stellar_conflicts_1: 'Outfit MODs for the same body part will conflict (e.g., two top MODs)',
+                stellar_conflicts_2: 'Graphics MODs usually conflict with each other',
+                stellar_conflicts_3: 'Face MODs may conflict with some outfit MODs',
+                stellar_sites_title: 'Recommended MOD Sites',
+
+                // Black Myth Wukong
+                wukong_title: '🐒 Black Myth: Wukong Guide',
+                wukong_info_title: 'Game Information',
+                wukong_info_name: 'Game Name',
+                wukong_info_name_value: 'Black Myth: Wukong',
+                wukong_info_engine: 'Engine Version',
+                wukong_info_dir: 'MOD Directory',
+                wukong_install_title: 'MOD Installation Tips',
+                wukong_ue5_title: '1️⃣ UE5 Specifics',
+                wukong_ue5_desc: 'Black Myth uses UE5 engine, MOD installation is relatively simple:',
+                wukong_ue5_1: 'No <code>_P</code> suffix needed',
+                wukong_ue5_2: 'Place <code>.pak</code> file directly in <code>~mods</code> folder',
+                wukong_ue5_3: 'Game will automatically load all <code>.pak</code> files',
+                wukong_types_title: '2️⃣ Common MOD Types',
+                wukong_types_1: '<strong>Skin MODs</strong>: Modify Wukong or equipment appearance',
+                wukong_types_2: '<strong>Weapon MODs</strong>: Modify Ruyi Jingu Bang and other weapon models',
+                wukong_types_3: '<strong>Effect MODs</strong>: Enhance skill effects',
+                wukong_types_4: '<strong>Difficulty MODs</strong>: Adjust game difficulty',
+                wukong_types_5: '<strong>Performance Optimization</strong>: Improve framerate, reduce lag',
+                wukong_notes_title: '3️⃣ Notes',
+                wukong_notes_warn_title: '⚠️ Important:',
+                wukong_notes_1: 'Some MODs may affect game balance',
+                wukong_notes_2: 'Using MODs in online mode may risk account ban',
+                wukong_notes_3: 'It is recommended to use MODs in single-player mode',
+                wukong_sites_title: 'Recommended MOD Sites',
+                wukong_sites_domestic: 'Domestic MOD forums (search yourself)',
+
+                // Troubleshooting
+                troubleshoot_title: '🔧 Troubleshooting',
+                troubleshoot_q1_title: 'Issue 1: Software Won\'t Start',
+                troubleshoot_q1_symptom_title: 'Symptom',
+                troubleshoot_q1_symptom: 'No response after double-clicking icon, or error message appears.',
+                troubleshoot_q1_solution_title: 'Solution',
+                troubleshoot_q1_sol1: 'Confirm .NET 8.0 Runtime is installed (software will auto-prompt for installation)',
+                troubleshoot_q1_sol2: 'Check if Windows version is Windows 10 64-bit or higher',
+                troubleshoot_q1_sol3: 'Try running as administrator',
+                troubleshoot_q1_sol4: 'Check if antivirus software is blocking (add to whitelist)',
+                troubleshoot_q1_sol5: 'Reinstall the software',
+                troubleshoot_q2_title: 'Issue 2: Game Not Detected',
+                troubleshoot_q2_symptom_title: 'Symptom',
+                troubleshoot_q2_symptom: 'No installed games shown after software launches.',
+                troubleshoot_q2_solution_title: 'Solution',
+                troubleshoot_q2_sol1: 'Confirm game is correctly installed',
+                troubleshoot_q2_sol2: 'Manually add game path: Settings → Add Game → Select game root directory',
+                troubleshoot_q2_sol3: 'Check if game is a supported version (Steam, Epic, etc.)',
+                troubleshoot_q3_title: 'Issue 3: MOD Not Working',
+                troubleshoot_q3_symptom_title: 'Symptom',
+                troubleshoot_q3_symptom: 'After enabling MOD, no effect is seen in-game.',
+                troubleshoot_q3_solution_title: 'Solution',
+                troubleshoot_q3_sol1: 'Confirm MOD is enabled (switch is green)',
+                troubleshoot_q3_sol2: 'Check if MOD filename is correct (Stellar Blade requires <code>_P</code> suffix)',
+                troubleshoot_q3_sol3: 'Check if MOD matches game version',
+                troubleshoot_q3_sol4: 'Run conflict detection to check for conflicts',
+                troubleshoot_q3_sol5: 'Try disabling other MODs and test one by one',
+                troubleshoot_q3_sol6: 'Check MOD description to confirm installation method',
+                troubleshoot_q4_title: 'Issue 4: Game Crash',
+                troubleshoot_q4_symptom_title: 'Symptom',
+                troubleshoot_q4_symptom: 'Game fails to start or crashes after entering, after installing MODs.',
+                troubleshoot_q4_solution_title: 'Solution',
+                troubleshoot_q4_sol1: 'Disable all MODs and confirm the game itself runs normally',
+                troubleshoot_q4_sol2: 'Enable MODs one by one to identify the one causing crashes',
+                troubleshoot_q4_sol3: 'Check if MOD file is corrupted (re-download)',
+                troubleshoot_q4_sol4: 'Use backup restore feature to recover to state before crash',
+                troubleshoot_q4_sol5: 'Check game log files to confirm error cause',
+                troubleshoot_q5_title: 'Issue 5: Software Running Slow',
+                troubleshoot_q5_symptom_title: 'Symptom',
+                troubleshoot_q5_symptom: 'Software opens slowly, game switching lags.',
+                troubleshoot_q5_solution_title: 'Solution',
+                troubleshoot_q5_sol1: 'Reduce MOD count (over 100 MODs may affect performance)',
+                troubleshoot_q5_sol2: 'Clear cache: Settings → Clear Cache',
+                troubleshoot_q5_sol3: 'Close unnecessary background programs',
+                troubleshoot_q5_sol4: 'Move MOD folder to SSD',
+
+                // FAQ
+                faq_title: '❓ FAQ',
+                faq_q1: 'Q1: Is the software free?',
+                faq_a1: 'Completely free and open-source! All features are free to use. If you find it useful, donations to support development are welcome.',
+                faq_q2: 'Q2: Is the software safe?',
+                faq_a2: 'Completely safe. The software is open-source, code is hosted on GitHub, anyone can review it. No personal information is collected (except for cloud sync).',
+                faq_q3: 'Q3: Which games are supported?',
+                faq_a3_intro: 'Currently supported:',
+                faq_a3_1: 'Stellar Blade (Standard/CNS Edition)',
+                faq_a3_2: 'Black Myth: Wukong',
+                faq_a3_3: 'Bright Memory',
+                faq_a3_4: 'Other Unreal Engine games (manual configuration required)',
+                faq_a3_note: 'We will continue to add more game support.',
+                faq_q4: 'Q4: Will using MODs get me banned?',
+                faq_a4_intro: 'Depends on the game and MOD type:',
+                faq_a4_1: 'Pure single-player games: Completely safe',
+                faq_a4_2: 'Games with online mode: Recommended to use MODs only in offline mode',
+                faq_a4_3: 'Competitive games: Not recommended to use any MODs',
+                faq_q5: 'Q5: Where to put MODs after downloading?',
+                faq_a5_intro: 'Two methods:',
+                faq_a5_1: 'Drag and drop directly into software interface (recommended)',
+                faq_a5_2: 'Manually copy to <code>GameDirectory\\Content\\Paks\\~mods</code>',
+                faq_q6: 'Q6: How to uninstall the software?',
+                faq_a6_1: 'Windows Settings → Apps → Find "UE MOD Manager" → Uninstall',
+                faq_a6_2: 'Uninstallation won\'t delete game MOD files. Manually clean the <code>~mods</code> folder if needed.',
+                faq_q7: 'Q7: Can I share MOD configurations with friends?',
+                faq_a7_intro: 'Yes! Two methods:',
+                faq_a7_1: 'Export backup file and send to friend for import',
+                faq_a7_2: 'Use cloud sharing feature (both parties need to login)',
+                faq_q8: 'Q8: Will the software auto-update?',
+                faq_a8_intro: 'Will prompt when new version is available, but won\'t auto-download/install. You can choose:',
+                faq_a8_1: 'Download update immediately',
+                faq_a8_2: 'Remind later',
+                faq_a8_3: 'Ignore this version',
+
+                // Support
+                support_title: '💬 Get Help',
+                support_channels_title: 'Official Channels',
+                support_channels_1: '<strong>GitHub Issues</strong>: <a href="https://github.com/velist/UE-Game-ModManager/issues" target="_blank" rel="noopener" style="color: var(--steam-blue);">Submit issues or suggestions</a>',
+                support_channels_2: '<strong>QQ Group</strong>: 682707942 (Fast response)',
+                support_channels_3: '<strong>Email</strong>: mr.xzuo@foxmail.com',
+                support_provide_title: 'Please Provide When Submitting Issues',
+                support_provide_1: 'Software version number (Help → About)',
+                support_provide_2: 'Operating system version',
+                support_provide_3: 'Game name and version',
+                support_provide_4: 'Detailed description of the issue and steps to reproduce',
+                support_provide_5: 'Error screenshots or log files',
+                support_contribute_title: 'Contribute Code',
+                support_contribute_desc: 'The software is open-source, contributions are welcome:',
+                support_contribute_1: 'Fork the project: <a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" style="color: var(--steam-blue);">GitHub Repository</a>',
+                support_contribute_2: 'Create feature branch',
+                support_contribute_3: 'Submit Pull Request',
+                support_thanks_title: '✅ Thank You!',
+                support_thanks_text: 'If the software helps you, please give us a ⭐ Star on GitHub. That\'s the best support for us!'
+            }
+        };
+
+        // Language switching logic
+        let currentLang = localStorage.getItem('lang') || 'zh';
+
+        function switchLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('lang', lang);
+
+            // Update HTML lang attribute
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+            // Update all elements with data-lang attribute
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                const key = element.getAttribute('data-lang');
+                if (translations[lang] && translations[lang][key]) {
+                    if (element.tagName === 'TITLE') {
+                        element.textContent = translations[lang][key];
+                    } else {
+                        element.textContent = translations[lang][key];
+                    }
+                }
+            });
+
+            // Update language button text
+            const langBtn = document.getElementById('langSwitch');
+            if (langBtn) {
+                langBtn.textContent = lang === 'zh' ? 'EN' : '中文';
+            }
+        }
+
+        // Initialize language on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Apply saved language preference
+            switchLanguage(currentLang);
+
+            // Language switch button event
+            const langBtn = document.getElementById('langSwitch');
+            if (langBtn) {
+                langBtn.addEventListener('click', () => {
+                    const newLang = currentLang === 'zh' ? 'en' : 'zh';
+                    switchLanguage(newLang);
+                });
+            }
+
+            // Sidebar navigation highlighting
             const sections = document.querySelectorAll('.content-section');
             const navLinks = document.querySelectorAll('.sidebar-nav a');
 
@@ -1464,7 +2066,7 @@
 
             window.addEventListener('scroll', highlightNav);
 
-            // 返回顶部按钮
+            // Back to top button
             const backToTop = document.getElementById('backToTop');
             window.addEventListener('scroll', function() {
                 if (window.scrollY > 300) {
@@ -1481,7 +2083,7 @@
                 });
             });
 
-            // 平滑滚动
+            // Smooth scrolling
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function (e) {
                     e.preventDefault();
