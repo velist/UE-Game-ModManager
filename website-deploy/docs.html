@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="爱酱虚幻引擎MOD管理器详细使用教程 - 从安装到高级功能全面指南，支持剑星、黑神话悟空等UE游戏MOD管理。">
+    <meta name="keywords" content="UE MOD Manager教程,虚幻引擎MOD安装,剑星MOD教程,黑神话悟空MOD,Stellar Blade MOD,MOD管理器使用指南,游戏MOD安装教程">
+    <meta name="author" content="velist">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://modmanger.com/docs.html">
+    <meta property="og:title" content="UE MOD Manager 使用说明 - 完整教程指南">
+    <meta property="og:description" content="详细的虚幻引擎MOD管理器使用教程，包含安装、配置、高级功能等全方位指南。">
+    <meta property="og:image" content="https://modmanger.com/website/wechat_2025-10-03_193549_707.png">
+
+    <title>使用说明 - 爱酱虚幻引擎MOD管理器 完整教程</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --steam-blue: #66c0f4;
+            --steam-dark-blue: #1b2838;
+            --steam-darker: #0e1621;
+            --steam-light-blue: #4c90e2;
+            --steam-text: #c7d5e0;
+            --steam-text-bright: #ffffff;
+            --steam-text-dim: #8b98a5;
+            --steam-border: #2a475e;
+            --steam-hover: #16202d;
+            --steam-button: #66c0f4;
+            --steam-button-hover: #4c90e2;
+            --card-bg: rgba(26, 32, 44, 0.9);
+            --success-green: #5cb85c;
+            --warning-yellow: #f0ad4e;
+            --danger-red: #d9534f;
+        }
+
+        body {
+            font-family: "Motiva Sans", Arial, Helvetica, sans-serif;
+            background: linear-gradient(180deg, var(--steam-darker) 0%, var(--steam-dark-blue) 100%);
+            min-height: 100vh;
+            color: var(--steam-text);
+            line-height: 1.6;
+        }
+
+        /* 导航栏 */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 30px;
+            background: rgba(27, 40, 56, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--steam-border);
+            z-index: 1000;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-decoration: none;
+            text-shadow: 0 0 10px rgba(102, 192, 244, 0.5);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--steam-text);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 12px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--steam-text-bright);
+            background: var(--steam-hover);
+        }
+
+        /* 侧边导航 */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 60px;
+            width: 280px;
+            height: calc(100vh - 60px);
+            background: rgba(27, 40, 56, 0.95);
+            border-right: 1px solid var(--steam-border);
+            overflow-y: auto;
+            padding: 30px 0;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+        }
+
+        .sidebar-nav li {
+            margin-bottom: 5px;
+        }
+
+        .sidebar-nav a {
+            display: block;
+            padding: 12px 30px;
+            color: var(--steam-text);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: var(--steam-hover);
+            color: var(--steam-blue);
+            border-left-color: var(--steam-blue);
+        }
+
+        .sidebar-section {
+            margin-bottom: 20px;
+        }
+
+        .sidebar-section-title {
+            padding: 10px 30px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--steam-text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            margin-left: 280px;
+            padding: 100px 40px 60px;
+            max-width: 1200px;
+        }
+
+        .content-section {
+            margin-bottom: 60px;
+            padding: 30px;
+            background: var(--card-bg);
+            border: 1px solid var(--steam-border);
+            border-radius: 4px;
+        }
+
+        .content-section h1 {
+            font-size: 2.5rem;
+            color: var(--steam-text-bright);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--steam-blue);
+        }
+
+        .content-section h2 {
+            font-size: 2rem;
+            color: var(--steam-blue);
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--steam-border);
+        }
+
+        .content-section h3 {
+            font-size: 1.5rem;
+            color: var(--steam-text-bright);
+            margin: 30px 0 15px 0;
+        }
+
+        .content-section h4 {
+            font-size: 1.2rem;
+            color: var(--steam-text-bright);
+            margin: 20px 0 10px 0;
+        }
+
+        .content-section p {
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+
+        .content-section ul,
+        .content-section ol {
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        .content-section li {
+            margin-bottom: 10px;
+        }
+
+        /* 步骤列表 */
+        .step-list {
+            counter-reset: step-counter;
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .step-list li {
+            counter-increment: step-counter;
+            position: relative;
+            padding-left: 50px;
+            margin-bottom: 25px;
+        }
+
+        .step-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 35px;
+            height: 35px;
+            background: var(--steam-blue);
+            color: var(--steam-darker);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        /* 提示框 */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: rgba(102, 192, 244, 0.1);
+            border-color: var(--steam-blue);
+            color: var(--steam-text-bright);
+        }
+
+        .alert-success {
+            background: rgba(92, 184, 92, 0.1);
+            border-color: var(--success-green);
+            color: var(--steam-text-bright);
+        }
+
+        .alert-warning {
+            background: rgba(240, 173, 78, 0.1);
+            border-color: var(--warning-yellow);
+            color: var(--steam-text-bright);
+        }
+
+        .alert-danger {
+            background: rgba(217, 83, 79, 0.1);
+            border-color: var(--danger-red);
+            color: var(--steam-text-bright);
+        }
+
+        .alert strong {
+            font-weight: 700;
+            margin-right: 5px;
+        }
+
+        /* 代码块 */
+        code {
+            background: var(--steam-darker);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: var(--steam-blue);
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--steam-darker);
+            padding: 20px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border: 1px solid var(--steam-border);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: var(--steam-text);
+        }
+
+        /* 图片 */
+        .content-section img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 2px solid var(--steam-border);
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .content-section img:hover {
+            border-color: var(--steam-blue);
+            transform: scale(1.02);
+        }
+
+        /* 按钮 */
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: var(--steam-button);
+            color: var(--steam-darker);
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: var(--steam-button-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--steam-border);
+            color: var(--steam-text-bright);
+        }
+
+        .btn-secondary:hover {
+            background: var(--steam-hover);
+        }
+
+        /* 表格 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: var(--steam-darker);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid var(--steam-border);
+        }
+
+        th {
+            background: var(--steam-hover);
+            color: var(--steam-blue);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(102, 192, 244, 0.05);
+        }
+
+        /* 特性标签 */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 0 5px;
+        }
+
+        .badge-new {
+            background: var(--success-green);
+            color: white;
+        }
+
+        .badge-pro {
+            background: var(--warning-yellow);
+            color: var(--steam-darker);
+        }
+
+        .badge-required {
+            background: var(--danger-red);
+            color: white;
+        }
+
+        /* 返回顶部 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: var(--steam-button);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            transition: all 0.3s ease;
+        }
+
+        .back-to-top.visible {
+            display: flex;
+        }
+
+        .back-to-top:hover {
+            background: var(--steam-button-hover);
+            transform: translateY(-5px);
+        }
+
+        .back-to-top::before {
+            content: '↑';
+            color: var(--steam-darker);
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 968px) {
+            .sidebar {
+                transform: translateX(-280px);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 80px 20px 40px;
+            }
+
+            .content-section {
+                padding: 20px;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+            }
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--steam-darker);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--steam-border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--steam-blue);
+        }
+
+        /* 游戏图标 */
+        .game-icon {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        /* 快捷导航卡片 */
+        .quick-nav {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .quick-nav-item {
+            background: var(--steam-darker);
+            padding: 20px;
+            border: 1px solid var(--steam-border);
+            border-radius: 4px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .quick-nav-item:hover {
+            border-color: var(--steam-blue);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(102, 192, 244, 0.2);
+        }
+
+        .quick-nav-item h3 {
+            color: var(--steam-blue);
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+        }
+
+        .quick-nav-item p {
+            color: var(--steam-text-dim);
+            margin: 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">爱酱虚幻引擎MOD管理器</a>
+            <ul class="nav-links">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="docs.html" style="color: var(--steam-blue);">使用说明</a></li>
+                <li><a href="index.html#download">下载</a></li>
+                <li><a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 侧边导航 -->
+    <aside class="sidebar">
+        <ul class="sidebar-nav">
+            <li class="sidebar-section">
+                <div class="sidebar-section-title">快速开始</div>
+            </li>
+            <li><a href="#install" class="active">安装指南</a></li>
+            <li><a href="#first-use">首次使用</a></li>
+            <li><a href="#interface">界面介绍</a></li>
+
+            <li class="sidebar-section">
+                <div class="sidebar-section-title">基础功能</div>
+            </li>
+            <li><a href="#add-mod">安装MOD</a></li>
+            <li><a href="#manage-mod">管理MOD</a></li>
+            <li><a href="#category">分类管理</a></li>
+            <li><a href="#conflict">冲突检测</a></li>
+
+            <li class="sidebar-section">
+                <div class="sidebar-section-title">高级功能</div>
+            </li>
+            <li><a href="#backup">备份还原</a></li>
+            <li><a href="#custom">自定义配置</a></li>
+            <li><a href="#batch">批量操作</a></li>
+            <li><a href="#cloud">云端同步</a></li>
+
+            <li class="sidebar-section">
+                <div class="sidebar-section-title">游戏专题</div>
+            </li>
+            <li><a href="#stellar-blade">剑星 Stellar Blade</a></li>
+            <li><a href="#wukong">黑神话：悟空</a></li>
+            <li><a href="#other-games">其他游戏</a></li>
+
+            <li class="sidebar-section">
+                <div class="sidebar-section-title">疑难解答</div>
+            </li>
+            <li><a href="#troubleshooting">常见问题</a></li>
+            <li><a href="#faq">FAQ</a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <!-- 欢迎 -->
+        <section class="content-section" id="welcome">
+            <h1>🎮 使用说明文档</h1>
+            <p>欢迎使用<strong>爱酱虚幻引擎MOD管理器</strong>！本文档将帮助您快速掌握软件的使用方法，从基础安装到高级功能，全面覆盖所有操作要点。</p>
+
+            <div class="alert alert-info">
+                <strong>💡 提示：</strong>本文档适用于 v1.7.37 及以上版本。如果您使用的是旧版本，建议先更新到最新版。
+            </div>
+
+            <div class="quick-nav">
+                <a href="#install" class="quick-nav-item">
+                    <h3>📥 安装指南</h3>
+                    <p>下载、安装、系统要求</p>
+                </a>
+                <a href="#add-mod" class="quick-nav-item">
+                    <h3>🎯 安装MOD</h3>
+                    <p>快速上手MOD安装</p>
+                </a>
+                <a href="#conflict" class="quick-nav-item">
+                    <h3>⚠️ 冲突检测</h3>
+                    <p>避免MOD冲突问题</p>
+                </a>
+                <a href="#backup" class="quick-nav-item">
+                    <h3>📦 备份还原</h3>
+                    <p>保护您的MOD配置</p>
+                </a>
+            </div>
+        </section>
+
+        <!-- 安装指南 -->
+        <section class="content-section" id="install">
+            <h1>📥 安装指南</h1>
+
+            <h2>系统要求</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>项目</th>
+                        <th>最低配置</th>
+                        <th>推荐配置</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>操作系统</td>
+                        <td>Windows 10 64位</td>
+                        <td>Windows 11 64位</td>
+                    </tr>
+                    <tr>
+                        <td>.NET 运行库</td>
+                        <td>.NET 8.0 Runtime</td>
+                        <td>.NET 8.0 Runtime（自动安装）</td>
+                    </tr>
+                    <tr>
+                        <td>磁盘空间</td>
+                        <td>50 MB</td>
+                        <td>100 MB（含缓存）</td>
+                    </tr>
+                    <tr>
+                        <td>内存</td>
+                        <td>2 GB</td>
+                        <td>4 GB</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>下载软件</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>选择下载渠道</strong>
+                    <p>访问<a href="index.html#download" style="color: var(--steam-blue);">官网下载页面</a>，选择以下任意渠道：</p>
+                    <ul>
+                        <li>百度网盘（提取码：6679）</li>
+                        <li>迅雷网盘</li>
+                        <li>UC网盘</li>
+                        <li>夸克网盘</li>
+                        <li>GitHub Releases（国际用户推荐）</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>下载安装包</strong>
+                    <p>下载 <code>UEModManager_v1.7.37_Setup.exe</code> 安装包（约 30 MB）</p>
+                </li>
+                <li>
+                    <strong>验证文件完整性</strong>
+                    <p>确保下载的文件大小正确，避免下载不完整导致安装失败。</p>
+                </li>
+            </ol>
+
+            <h2>安装步骤</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>运行安装程序</strong>
+                    <p>双击 <code>UEModManager_v1.7.37_Setup.exe</code>，如果出现 Windows 安全提示，点击"更多信息" → "仍要运行"。</p>
+                    <div class="alert alert-warning">
+                        <strong>⚠️ 注意：</strong>软件未签名可能会触发 Windows Defender 警告，这是正常现象。软件完全开源且安全。
+                    </div>
+                </li>
+                <li>
+                    <strong>选择安装路径</strong>
+                    <p>默认安装路径：<code>C:\Program Files\UEModManager</code></p>
+                    <p>建议使用默认路径，避免权限问题。</p>
+                </li>
+                <li>
+                    <strong>选择组件</strong>
+                    <ul>
+                        <li>✅ 主程序（必选）</li>
+                        <li>✅ 桌面快捷方式（推荐）</li>
+                        <li>✅ 开始菜单快捷方式（推荐）</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>完成安装</strong>
+                    <p>点击"安装"按钮，等待安装完成（约 10-30 秒）。</p>
+                    <p>安装完成后，选择"立即运行"启动程序。</p>
+                </li>
+            </ol>
+
+            <div class="alert alert-success">
+                <strong>✅ 安装成功！</strong>首次运行会自动安装 .NET 8.0 运行库（如果系统未安装），请耐心等待。
+            </div>
+        </section>
+
+        <!-- 首次使用 -->
+        <section class="content-section" id="first-use">
+            <h1>🚀 首次使用</h1>
+
+            <h2>初始化配置</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>选择游戏</strong>
+                    <p>首次启动时，软件会自动扫描已安装的虚幻引擎游戏。如果未检测到，可以手动添加：</p>
+                    <ul>
+                        <li>点击顶部"设置"按钮</li>
+                        <li>点击"添加游戏"</li>
+                        <li>浏览到游戏根目录（包含 <code>.exe</code> 文件的文件夹）</li>
+                        <li>点击"确定"</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>设置MOD目录</strong>
+                    <p>软件会自动定位游戏的 <code>~mods</code> 文件夹，通常位于：</p>
+                    <pre><code>游戏根目录\游戏名\Content\Paks\~mods</code></pre>
+                    <div class="alert alert-info">
+                        <strong>💡 提示：</strong>如果游戏未创建 <code>~mods</code> 文件夹，软件会自动创建。
+                    </div>
+                </li>
+                <li>
+                    <strong>云端登录（可选）</strong>
+                    <p>如需使用云端同步功能，可以注册/登录账号：</p>
+                    <ul>
+                        <li>点击右上角"登录"按钮</li>
+                        <li>使用邮箱注册或登录</li>
+                        <li>登录后可同步MOD配置到云端</li>
+                    </ul>
+                    <div class="alert alert-warning">
+                        <strong>⚠️ 注意：</strong>不登录也可正常使用所有本地功能，云端登录仅用于跨设备同步。
+                    </div>
+                </li>
+            </ol>
+
+            <h2>界面语言</h2>
+            <p>软件默认为中文界面，如需切换语言：</p>
+            <ul>
+                <li>点击"设置" → "语言"</li>
+                <li>选择"English"或"中文"</li>
+                <li>重启软件生效</li>
+            </ul>
+        </section>
+
+        <!-- 界面介绍 -->
+        <section class="content-section" id="interface">
+            <h1>🖥️ 界面介绍</h1>
+
+            <h2>主界面布局</h2>
+            <p>主界面分为四个区域：</p>
+
+            <h3>1️⃣ 顶部工具栏</h3>
+            <ul>
+                <li><strong>游戏选择器</strong>：切换不同游戏</li>
+                <li><strong>刷新按钮</strong>：重新扫描MOD文件夹</li>
+                <li><strong>冲突检测</strong>：一键检测MOD冲突</li>
+                <li><strong>备份管理</strong>：管理MOD配置备份</li>
+                <li><strong>设置</strong>：软件设置和游戏配置</li>
+                <li><strong>登录/账户</strong>：云端账户管理</li>
+            </ul>
+
+            <h3>2️⃣ 左侧分类栏</h3>
+            <ul>
+                <li><strong>全部</strong>：显示所有MOD</li>
+                <li><strong>已启用</strong>：仅显示已启用的MOD</li>
+                <li><strong>未启用</strong>：仅显示未启用的MOD</li>
+                <li><strong>自定义分类</strong>：用户创建的分类（面部、人物、武器、服装等）</li>
+            </ul>
+            <p>右键分类可以：重命名、删除、设置图标</p>
+
+            <h3>3️⃣ 中间MOD列表</h3>
+            <p>显示当前分类下的所有MOD，每个MOD卡片包含：</p>
+            <ul>
+                <li><strong>预览图</strong>：MOD的预览图片（可自定义）</li>
+                <li><strong>MOD名称</strong>：文件名或自定义名称</li>
+                <li><strong>启用开关</strong>：快速启用/禁用MOD</li>
+                <li><strong>标签</strong>：MOD所属分类</li>
+                <li><strong>冲突图标</strong>：红色感叹号表示有冲突</li>
+            </ul>
+
+            <h3>4️⃣ 右侧详情面板</h3>
+            <p>选中MOD后显示详细信息：</p>
+            <ul>
+                <li><strong>自定义名称</strong>：可编辑的显示名称</li>
+                <li><strong>描述</strong>：MOD描述信息</li>
+                <li><strong>文件信息</strong>：文件大小、修改时间</li>
+                <li><strong>分类标签</strong>：可添加多个分类</li>
+                <li><strong>操作按钮</strong>：删除、打开文件夹、复制路径等</li>
+            </ul>
+        </section>
+
+        <!-- 安装MOD -->
+        <section class="content-section" id="add-mod">
+            <h1>🎯 安装MOD</h1>
+
+            <h2>方法一：自动导入（推荐）</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>下载MOD文件</strong>
+                    <p>从MOD网站（如 Nexus Mods、GameBanana）下载 <code>.pak</code> 或 <code>.zip</code> 文件。</p>
+                </li>
+                <li>
+                    <strong>拖放安装</strong>
+                    <p>将 <code>.pak</code> 文件直接拖放到软件主界面。</p>
+                    <p>软件会自动将文件复制到 <code>~mods</code> 文件夹并刷新列表。</p>
+                    <div class="alert alert-success">
+                        <strong>✅ 提示：</strong>如果是 <code>.zip</code> 或 <code>.rar</code> 压缩包，软件会自动解压并提取 <code>.pak</code> 文件。
+                    </div>
+                </li>
+                <li>
+                    <strong>启用MOD</strong>
+                    <p>在MOD列表中找到刚导入的MOD，点击"启用"开关。</p>
+                    <p>启用后MOD文件会被重命名为 <code>_P</code> 结尾（部分游戏需要）。</p>
+                </li>
+            </ol>
+
+            <h2>方法二：手动复制</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>定位MOD文件夹</strong>
+                    <p>在软件中点击"设置" → "打开MOD文件夹"，或手动导航到：</p>
+                    <pre><code>游戏根目录\游戏名\Content\Paks\~mods</code></pre>
+                </li>
+                <li>
+                    <strong>复制MOD文件</strong>
+                    <p>将下载的 <code>.pak</code> 文件复制到 <code>~mods</code> 文件夹。</p>
+                </li>
+                <li>
+                    <strong>刷新列表</strong>
+                    <p>回到软件，点击顶部"刷新"按钮，新MOD会出现在列表中。</p>
+                </li>
+            </ol>
+
+            <h2>支持的文件格式</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>格式</th>
+                        <th>说明</th>
+                        <th>处理方式</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>.pak</code></td>
+                        <td>虚幻引擎MOD包</td>
+                        <td>直接复制</td>
+                    </tr>
+                    <tr>
+                        <td><code>.zip</code></td>
+                        <td>压缩包</td>
+                        <td>自动解压提取 .pak 文件</td>
+                    </tr>
+                    <tr>
+                        <td><code>.rar</code></td>
+                        <td>压缩包</td>
+                        <td>自动解压提取 .pak 文件</td>
+                    </tr>
+                    <tr>
+                        <td><code>.7z</code></td>
+                        <td>压缩包</td>
+                        <td>自动解压提取 .pak 文件</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert alert-warning">
+                <strong>⚠️ 注意：</strong>部分MOD可能包含多个 <code>.pak</code> 文件，请根据MOD说明选择正确的文件。
+            </div>
+        </section>
+
+        <!-- 管理MOD -->
+        <section class="content-section" id="manage-mod">
+            <h1>⚙️ 管理MOD</h1>
+
+            <h2>启用/禁用MOD</h2>
+            <p>有两种方式启用或禁用MOD：</p>
+            <ul>
+                <li><strong>快速开关</strong>：点击MOD卡片上的开关按钮</li>
+                <li><strong>右键菜单</strong>：右键MOD → 启用/禁用</li>
+            </ul>
+            <div class="alert alert-info">
+                <strong>💡 原理：</strong>禁用MOD会在文件名前加 <code>.disabled</code> 后缀，游戏不会加载该文件。启用时移除该后缀。
+            </div>
+
+            <h2>自定义MOD信息</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>修改显示名称</strong>
+                    <p>选中MOD → 右侧详情面板 → "自定义名称"文本框 → 输入新名称 → Enter 保存</p>
+                    <div class="alert alert-success">
+                        <strong>✅ 提示：</strong>自定义名称仅影响软件内显示，不会修改实际文件名。
+                    </div>
+                </li>
+                <li>
+                    <strong>添加描述</strong>
+                    <p>在"描述"文本框中输入MOD的详细说明，方便日后查找。</p>
+                </li>
+                <li>
+                    <strong>更换预览图</strong>
+                    <p>点击预览图 → "选择图片"按钮 → 选择本地图片文件 → 确定</p>
+                    <p>支持格式：<code>.jpg</code>, <code>.png</code>, <code>.gif</code></p>
+                </li>
+                <li>
+                    <strong>添加标签</strong>
+                    <p>在"分类标签"区域点击"+" → 选择或创建分类 → 确定</p>
+                    <p>一个MOD可以属于多个分类。</p>
+                </li>
+            </ol>
+
+            <h2>删除MOD</h2>
+            <p>有两种删除方式：</p>
+            <ul>
+                <li><strong>软删除（推荐）</strong>：右键MOD → "移至回收站"，可从系统回收站恢复</li>
+                <li><strong>永久删除</strong>：右键MOD → "永久删除"，无法恢复</li>
+            </ul>
+            <div class="alert alert-danger">
+                <strong>⚠️ 警告：</strong>永久删除无法撤销！建议使用软删除或先备份。
+            </div>
+
+            <h2>批量操作</h2>
+            <p>按住 <code>Ctrl</code> 或 <code>Shift</code> 键选择多个MOD，然后可以：</p>
+            <ul>
+                <li>批量启用/禁用</li>
+                <li>批量添加到分类</li>
+                <li>批量删除</li>
+                <li>批量导出</li>
+            </ul>
+        </section>
+
+        <!-- 分类管理 -->
+        <section class="content-section" id="category">
+            <h1>🗂️ 分类管理 <span class="badge badge-new">NEW</span></h1>
+
+            <h2>创建分类</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>新建分类</strong>
+                    <p>在左侧分类栏空白处右键 → "新建分类"</p>
+                    <p>或点击分类栏底部的 "+" 按钮</p>
+                </li>
+                <li>
+                    <strong>命名分类</strong>
+                    <p>输入分类名称（如"我的最爱"、"高画质"等）</p>
+                </li>
+                <li>
+                    <strong>设置图标（可选）</strong>
+                    <p>右键新分类 → "设置图标" → 选择图标文件</p>
+                </li>
+            </ol>
+
+            <h2>重命名分类</h2>
+            <p>右键分类 → "重命名" → 输入新名称 → Enter 确认</p>
+            <div class="alert alert-info">
+                <strong>💡 v1.7.37 新特性：</strong>重命名分类只修改显示名称，不会影响MOD的标签数据，更加安全！
+            </div>
+
+            <h2>删除分类</h2>
+            <p>右键分类 → "删除分类"</p>
+            <p>软件会提示：</p>
+            <ul>
+                <li>如果分类下有MOD，会自动移动到"未分类"</li>
+                <li>删除后分类会隐藏，不会真的删除</li>
+                <li>如果MOD重新使用该分类，它会自动显示</li>
+            </ul>
+
+            <h2>拖拽排序</h2>
+            <p>按住分类名称拖动，可以调整分类的显示顺序。</p>
+            <div class="alert alert-warning">
+                <strong>⚠️ 注意：</strong>"全部"和"未分类"两个默认分类不支持拖拽排序。
+            </div>
+
+            <h2>移动MOD到分类</h2>
+            <p>三种方式：</p>
+            <ul>
+                <li><strong>拖拽</strong>：选中MOD，拖动到左侧分类上</li>
+                <li><strong>右键菜单</strong>：右键MOD → "移动到分类" → 选择目标分类</li>
+                <li><strong>详情面板</strong>：选中MOD → 右侧 → "分类标签" → 添加分类</li>
+            </ul>
+        </section>
+
+        <!-- 冲突检测 -->
+        <section class="content-section" id="conflict">
+            <h1>⚠️ 冲突检测</h1>
+
+            <h2>什么是MOD冲突？</h2>
+            <p>当多个MOD修改了同一个游戏文件或资源时，会产生冲突，导致：</p>
+            <ul>
+                <li>游戏崩溃或无法启动</li>
+                <li>MOD效果不生效或部分生效</li>
+                <li>画面异常、贴图错误</li>
+                <li>游戏性能下降</li>
+            </ul>
+
+            <h2>自动冲突检测</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>启动检测</strong>
+                    <p>点击顶部工具栏的"冲突检测"按钮</p>
+                </li>
+                <li>
+                    <strong>等待扫描</strong>
+                    <p>软件会分析所有已启用MOD的文件结构，通常需要10-60秒</p>
+                </li>
+                <li>
+                    <strong>查看结果</strong>
+                    <p>检测完成后，冲突的MOD会显示红色感叹号图标</p>
+                    <p>点击MOD可在详情面板查看冲突详情</p>
+                </li>
+            </ol>
+
+            <h2>解决冲突</h2>
+            <p>根据冲突类型采取不同措施：</p>
+
+            <h3>1️⃣ 完全冲突（红色）</h3>
+            <p>两个MOD修改了完全相同的文件，只能保留一个：</p>
+            <ul>
+                <li>禁用其中一个MOD</li>
+                <li>或寻找兼容版本</li>
+            </ul>
+
+            <h3>2️⃣ 部分冲突（橙色）</h3>
+            <p>MOD有部分重叠，可能可以共存：</p>
+            <ul>
+                <li>先尝试同时启用，进游戏测试</li>
+                <li>如果有问题，调整加载顺序（通过重命名文件）</li>
+            </ul>
+
+            <h3>3️⃣ 潜在冲突（黄色）</h3>
+            <p>可能影响相同游戏系统，建议谨慎：</p>
+            <ul>
+                <li>查看MOD说明，确认是否兼容</li>
+                <li>逐个启用，进游戏测试效果</li>
+            </ul>
+
+            <div class="alert alert-info">
+                <strong>💡 专业提示：</strong>部分MOD作者会在说明中列出已知冲突列表，优先参考官方说明。
+            </div>
+        </section>
+
+        <!-- 备份还原 -->
+        <section class="content-section" id="backup">
+            <h1>📦 备份还原</h1>
+
+            <h2>为什么要备份？</h2>
+            <ul>
+                <li>防止误删重要MOD</li>
+                <li>保存完美的MOD组合配置</li>
+                <li>快速切换不同MOD方案</li>
+                <li>测试新MOD前保存当前状态</li>
+            </ul>
+
+            <h2>创建备份</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>打开备份管理</strong>
+                    <p>点击顶部工具栏"备份管理"按钮</p>
+                </li>
+                <li>
+                    <strong>新建备份</strong>
+                    <p>点击"创建备份"按钮</p>
+                </li>
+                <li>
+                    <strong>设置备份信息</strong>
+                    <ul>
+                        <li>备份名称：如"完美配置2025-01-05"</li>
+                        <li>备份描述：记录MOD列表或用途</li>
+                        <li>备份范围：全部MOD / 仅已启用MOD</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>开始备份</strong>
+                    <p>点击"确定"，等待备份完成（取决于MOD数量和大小）</p>
+                </li>
+            </ol>
+
+            <h2>还原备份</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>选择备份</strong>
+                    <p>在备份列表中选择要还原的备份</p>
+                </li>
+                <li>
+                    <strong>预览备份内容</strong>
+                    <p>点击"查看详情"可以查看备份中包含的MOD列表</p>
+                </li>
+                <li>
+                    <strong>还原备份</strong>
+                    <p>点击"还原"按钮</p>
+                    <div class="alert alert-warning">
+                        <strong>⚠️ 注意：</strong>还原会覆盖当前MOD配置，建议先创建当前状态的备份！
+                    </div>
+                </li>
+                <li>
+                    <strong>等待还原完成</strong>
+                    <p>软件会自动恢复MOD文件和配置</p>
+                </li>
+            </ol>
+
+            <h2>备份管理技巧</h2>
+            <ul>
+                <li><strong>定期备份</strong>：每次大改MOD配置前先备份</li>
+                <li><strong>命名规范</strong>：使用日期+用途命名，如"2025-01-05_测试新皮肤"</li>
+                <li><strong>删除旧备份</strong>：定期清理不需要的备份，节省磁盘空间</li>
+                <li><strong>导出备份</strong>：可以将备份文件复制到其他电脑</li>
+            </ul>
+
+            <h2>备份存储位置</h2>
+            <pre><code>%AppData%\UEModManager\Backups\</code></pre>
+            <p>可以手动复制该文件夹到其他位置进行额外备份。</p>
+        </section>
+
+        <!-- 云端同步 -->
+        <section class="content-section" id="cloud">
+            <h1>☁️ 云端同步</h1>
+
+            <h2>功能介绍</h2>
+            <p>云端同步功能允许您：</p>
+            <ul>
+                <li>在多台电脑间同步MOD配置</li>
+                <li>备份配置到云端，防止本地丢失</li>
+                <li>分享MOD列表给其他用户</li>
+            </ul>
+
+            <div class="alert alert-info">
+                <strong>💡 说明：</strong>云端同步仅同步配置信息（MOD列表、分类、自定义信息），不上传MOD文件本身。
+            </div>
+
+            <h2>注册账户</h2>
+            <ol class="step-list">
+                <li>
+                    <strong>打开登录窗口</strong>
+                    <p>点击右上角"登录"按钮</p>
+                </li>
+                <li>
+                    <strong>注册账户</strong>
+                    <p>点击"注册新账户"</p>
+                    <ul>
+                        <li>输入邮箱地址</li>
+                        <li>设置密码（至少8位，包含字母和数字）</li>
+                        <li>输入用户名</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>验证邮箱</strong>
+                    <p>检查邮箱收件箱，点击验证链接</p>
+                    <p>如未收到邮件，检查垃圾邮件文件夹</p>
+                </li>
+                <li>
+                    <strong>登录</strong>
+                    <p>返回软件，输入邮箱和密码登录</p>
+                </li>
+            </ol>
+
+            <h2>同步配置</h2>
+            <p>登录后，软件会自动同步：</p>
+            <ul>
+                <li>✅ 自动上传：每次修改配置后自动上传到云端</li>
+                <li>✅ 自动下载：启动软件时自动下载最新配置</li>
+                <li>✅ 冲突解决：本地和云端不一致时，会提示选择保留哪个版本</li>
+            </ul>
+
+            <h2>离线模式</h2>
+            <p>无网络时，软件会自动切换到离线模式：</p>
+            <ul>
+                <li>所有本地功能正常使用</li>
+                <li>配置修改会在联网后自动同步</li>
+                <li>不影响MOD的启用/禁用</li>
+            </ul>
+        </section>
+
+        <!-- 游戏专题：剑星 -->
+        <section class="content-section" id="stellar-blade">
+            <h1>🎮 剑星 Stellar Blade 专题</h1>
+
+            <h2>游戏信息</h2>
+            <table>
+                <tr>
+                    <td><strong>游戏名称</strong></td>
+                    <td>Stellar Blade / 剑星</td>
+                </tr>
+                <tr>
+                    <td><strong>引擎版本</strong></td>
+                    <td>Unreal Engine 4.27</td>
+                </tr>
+                <tr>
+                    <td><strong>MOD目录</strong></td>
+                    <td><code>StellarBlade\Content\Paks\~mods</code></td>
+                </tr>
+                <tr>
+                    <td><strong>支持版本</strong></td>
+                    <td>标准版 / CNS版（中国特供版）</td>
+                </tr>
+            </table>
+
+            <h2>MOD安装要点</h2>
+            <div class="alert alert-warning">
+                <strong>⚠️ 重要：</strong>剑星有两个版本（标准版和CNS版），MOD可能不通用，请确认MOD说明中支持的版本。
+            </div>
+
+            <h3>1️⃣ 文件命名规则</h3>
+            <p>剑星MOD文件必须以 <code>_P</code> 结尾才能被游戏加载：</p>
+            <pre><code>正确：CharacterMod_P.pak
+错误：CharacterMod.pak</code></pre>
+            <p>软件会自动处理文件命名，启用MOD时自动添加 <code>_P</code> 后缀。</p>
+
+            <h3>2️⃣ 常见MOD类型</h3>
+            <ul>
+                <li><strong>服装MOD</strong>：修改角色服装外观</li>
+                <li><strong>面部MOD</strong>：修改角色脸型、化妆</li>
+                <li><strong>武器MOD</strong>：修改武器模型和特效</li>
+                <li><strong>画质MOD</strong>：提升游戏画质、光影效果</li>
+                <li><strong>UI MOD</strong>：修改游戏界面</li>
+            </ul>
+
+            <h3>3️⃣ 冲突规则</h3>
+            <ul>
+                <li>同一部位的服装MOD会冲突（如两个上衣MOD）</li>
+                <li>画质MOD之间通常冲突</li>
+                <li>面部MOD可能与部分服装MOD冲突</li>
+            </ul>
+
+            <h2>推荐MOD站点</h2>
+            <ul>
+                <li><a href="https://www.nexusmods.com/stellarblade" target="_blank" rel="noopener" style="color: var(--steam-blue);">Nexus Mods - Stellar Blade</a></li>
+                <li><a href="https://gamebanana.com/games/20596" target="_blank" rel="noopener" style="color: var(--steam-blue);">GameBanana - Stellar Blade</a></li>
+            </ul>
+        </section>
+
+        <!-- 游戏专题：黑神话悟空 -->
+        <section class="content-section" id="wukong">
+            <h1>🐒 黑神话：悟空 专题</h1>
+
+            <h2>游戏信息</h2>
+            <table>
+                <tr>
+                    <td><strong>游戏名称</strong></td>
+                    <td>Black Myth: Wukong / 黑神话：悟空</td>
+                </tr>
+                <tr>
+                    <td><strong>引擎版本</strong></td>
+                    <td>Unreal Engine 5.2</td>
+                </tr>
+                <tr>
+                    <td><strong>MOD目录</strong></td>
+                    <td><code>BlackMyth\Content\Paks\~mods</code></td>
+                </tr>
+            </table>
+
+            <h2>MOD安装要点</h2>
+
+            <h3>1️⃣ UE5 特殊性</h3>
+            <p>黑神话使用 UE5 引擎，MOD安装相对简单：</p>
+            <ul>
+                <li>无需 <code>_P</code> 后缀</li>
+                <li>直接将 <code>.pak</code> 文件放入 <code>~mods</code> 文件夹</li>
+                <li>游戏会自动加载所有 <code>.pak</code> 文件</li>
+            </ul>
+
+            <h3>2️⃣ 常见MOD类型</h3>
+            <ul>
+                <li><strong>皮肤MOD</strong>：修改悟空或装备外观</li>
+                <li><strong>武器MOD</strong>：修改金箍棒等武器模型</li>
+                <li><strong>特效MOD</strong>：增强技能特效</li>
+                <li><strong>难度MOD</strong>：调整游戏难度</li>
+                <li><strong>性能优化</strong>：提升帧率、减少卡顿</li>
+            </ul>
+
+            <h3>3️⃣ 注意事项</h3>
+            <div class="alert alert-warning">
+                <strong>⚠️ 重要：</strong>
+                <ul>
+                    <li>部分MOD可能影响游戏平衡性</li>
+                    <li>在线模式下使用MOD可能导致封号风险</li>
+                    <li>建议在单机模式下使用MOD</li>
+                </ul>
+            </div>
+
+            <h2>推荐MOD站点</h2>
+            <ul>
+                <li><a href="https://www.nexusmods.com/blackmythwukong" target="_blank" rel="noopener" style="color: var(--steam-blue);">Nexus Mods - Black Myth Wukong</a></li>
+                <li>国内MOD论坛（自行搜索）</li>
+            </ul>
+        </section>
+
+        <!-- 常见问题 -->
+        <section class="content-section" id="troubleshooting">
+            <h1>🔧 常见问题解决</h1>
+
+            <h2>问题1：软件无法启动</h2>
+            <h3>症状</h3>
+            <p>双击图标后无反应，或出现错误提示。</p>
+            <h3>解决方案</h3>
+            <ol>
+                <li>确认已安装 .NET 8.0 Runtime（软件会自动提示安装）</li>
+                <li>检查Windows版本是否为 Windows 10 64位或更高</li>
+                <li>尝试以管理员身份运行</li>
+                <li>检查杀毒软件是否拦截（添加到白名单）</li>
+                <li>重新安装软件</li>
+            </ol>
+
+            <h2>问题2：检测不到游戏</h2>
+            <h3>症状</h3>
+            <p>软件启动后没有显示已安装的游戏。</p>
+            <h3>解决方案</h3>
+            <ol>
+                <li>确认游戏已正确安装</li>
+                <li>手动添加游戏路径：设置 → 添加游戏 → 选择游戏根目录</li>
+                <li>检查游戏是否为支持的版本（Steam版、Epic版等）</li>
+            </ol>
+
+            <h2>问题3：MOD不生效</h2>
+            <h3>症状</h3>
+            <p>启用MOD后，进游戏发现没有效果。</p>
+            <h3>解决方案</h3>
+            <ol>
+                <li>确认MOD已启用（开关为绿色）</li>
+                <li>检查MOD文件名是否正确（剑星需要 <code>_P</code> 后缀）</li>
+                <li>检查MOD是否与游戏版本匹配</li>
+                <li>运行冲突检测，查看是否有冲突</li>
+                <li>尝试禁用其他MOD，逐个测试</li>
+                <li>查看MOD说明，确认安装方法</li>
+            </ol>
+
+            <h2>问题4：游戏崩溃</h2>
+            <h3>症状</h3>
+            <p>安装MOD后游戏无法启动或进入后崩溃。</p>
+            <h3>解决方案</h3>
+            <ol>
+                <li>禁用所有MOD，确认游戏本身可以正常运行</li>
+                <li>逐个启用MOD，找出导致崩溃的MOD</li>
+                <li>检查MOD文件是否损坏（重新下载）</li>
+                <li>使用备份还原功能，恢复到崩溃前的状态</li>
+                <li>查看游戏日志文件，确认错误原因</li>
+            </ol>
+
+            <h2>问题5：软件运行缓慢</h2>
+            <h3>症状</h3>
+            <p>软件打开慢、切换游戏卡顿。</p>
+            <h3>解决方案</h3>
+            <ol>
+                <li>减少MOD数量（超过100个MOD可能影响性能）</li>
+                <li>清理缓存：设置 → 清理缓存</li>
+                <li>关闭不必要的后台程序</li>
+                <li>将MOD文件夹移动到SSD</li>
+            </ol>
+        </section>
+
+        <!-- FAQ -->
+        <section class="content-section" id="faq">
+            <h1>❓ 常见问答（FAQ）</h1>
+
+            <h3>Q1: 软件收费吗？</h3>
+            <p><strong>A:</strong> 完全免费且开源！所有功能都可免费使用。如果觉得好用，欢迎赞助支持开发。</p>
+
+            <h3>Q2: 软件是否安全？</h3>
+            <p><strong>A:</strong> 完全安全。软件是开源的，代码托管在 GitHub，任何人都可以审查。不会收集任何个人信息（云端同步除外）。</p>
+
+            <h3>Q3: 支持哪些游戏？</h3>
+            <p><strong>A:</strong> 目前支持：</p>
+            <ul>
+                <li>剑星 Stellar Blade（标准版/CNS版）</li>
+                <li>黑神话：悟空</li>
+                <li>明末无双</li>
+                <li>其他虚幻引擎游戏（需手动配置）</li>
+            </ul>
+            <p>我们会持续添加更多游戏支持。</p>
+
+            <h3>Q4: 使用MOD会被封号吗？</h3>
+            <p><strong>A:</strong> 取决于游戏和MOD类型：</p>
+            <ul>
+                <li>纯单机游戏：完全安全</li>
+                <li>含在线模式游戏：建议只在离线模式使用MOD</li>
+                <li>竞技游戏：不推荐使用任何MOD</li>
+            </ul>
+
+            <h3>Q5: MOD下载后放在哪里？</h3>
+            <p><strong>A:</strong> 两种方式：</p>
+            <ul>
+                <li>直接拖放到软件界面（推荐）</li>
+                <li>手动复制到 <code>游戏目录\Content\Paks\~mods</code></li>
+            </ul>
+
+            <h3>Q6: 如何卸载软件？</h3>
+            <p><strong>A:</strong> Windows设置 → 应用 → 找到"UE MOD Manager" → 卸载</p>
+            <p>卸载不会删除游戏MOD文件，需手动清理 <code>~mods</code> 文件夹。</p>
+
+            <h3>Q7: 可以分享MOD配置给朋友吗？</h3>
+            <p><strong>A:</strong> 可以！两种方式：</p>
+            <ul>
+                <li>导出备份文件，发送给朋友导入</li>
+                <li>使用云端分享功能（需双方都登录）</li>
+            </ul>
+
+            <h3>Q8: 软件会自动更新吗？</h3>
+            <p><strong>A:</strong> 会提示有新版本可用，但不会自动下载安装。您可以选择：</p>
+            <ul>
+                <li>立即下载更新</li>
+                <li>稍后提醒</li>
+                <li>忽略此版本</li>
+            </ul>
+        </section>
+
+        <!-- 联系支持 -->
+        <section class="content-section" id="support">
+            <h1>💬 获取帮助</h1>
+
+            <h2>官方渠道</h2>
+            <ul>
+                <li><strong>GitHub Issues</strong>：<a href="https://github.com/velist/UE-Game-ModManager/issues" target="_blank" rel="noopener" style="color: var(--steam-blue);">提交问题或建议</a></li>
+                <li><strong>QQ群</strong>：682707942（快速响应）</li>
+                <li><strong>邮箱</strong>：mr.xzuo@foxmail.com</li>
+            </ul>
+
+            <h2>提交问题时请提供</h2>
+            <ul>
+                <li>软件版本号（帮助 → 关于）</li>
+                <li>操作系统版本</li>
+                <li>游戏名称和版本</li>
+                <li>问题的详细描述和复现步骤</li>
+                <li>错误截图或日志文件</li>
+            </ul>
+
+            <h2>贡献代码</h2>
+            <p>软件是开源的，欢迎贡献代码：</p>
+            <ol>
+                <li>Fork 项目：<a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" style="color: var(--steam-blue);">GitHub 仓库</a></li>
+                <li>创建功能分支</li>
+                <li>提交 Pull Request</li>
+            </ol>
+
+            <div class="alert alert-success">
+                <strong>✅ 感谢使用！</strong>如果软件帮到您，请在 GitHub 上给我们一个 ⭐ Star，这是对我们最大的支持！
+            </div>
+        </section>
+    </main>
+
+    <!-- 返回顶部按钮 -->
+    <button class="back-to-top" id="backToTop" aria-label="返回顶部"></button>
+
+    <script>
+        // 侧边栏导航高亮
+        document.addEventListener('DOMContentLoaded', function() {
+            const sections = document.querySelectorAll('.content-section');
+            const navLinks = document.querySelectorAll('.sidebar-nav a');
+
+            function highlightNav() {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (scrollY >= (sectionTop - 100)) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === '#' + current) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', highlightNav);
+
+            // 返回顶部按钮
+            const backToTop = document.getElementById('backToTop');
+            window.addEventListener('scroll', function() {
+                if (window.scrollY > 300) {
+                    backToTop.classList.add('visible');
+                } else {
+                    backToTop.classList.remove('visible');
+                }
+            });
+
+            backToTop.addEventListener('click', function() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            });
+
+            // 平滑滚动
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
