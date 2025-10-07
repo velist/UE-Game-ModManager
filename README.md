@@ -51,8 +51,7 @@ UE Mod Manager 是一款专为虚幻引擎游戏设计的 MOD 管理器，提供
 ### 安装步骤
 
 1. **下载安装包**
-   - 从 [Releases](https://github.com/yourusername/UEModManager/releases) 页面下载最新版本
-   - 文件名：`UEModManager_Setup_v1.7.37.exe`
+   - 从 [下载地址](https://www.modmanger.com/ )页面下载最新版本
 
 2. **运行安装程序**
    - 双击安装包
@@ -139,6 +138,14 @@ UE Mod Manager 是一款专为虚幻引擎游戏设计的 MOD 管理器，提供
 - **pak 签名修复** - 修复被签名检查拦截的 MOD
 - **模组优先级调整** - 调整 MOD 加载顺序
 
+---
+## 开发支持
+如果你觉得我的产品好用，可以请我喝一杯咖啡支持我的开发哦~
+
+<!-- 表格布局：一行两列，列内容居中 -->
+| 微信支付 | 支付宝 |
+| :---: | :---: |
+| <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98.jpg" alt="微信支付" width="50%"> | <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E6%94%AF%E4%BB%98%E5%AE%9D.jpg" alt="支付宝" width="40%"> |
 ---
 
 ## ❓ 常见问题
@@ -245,63 +252,6 @@ UE Mod Manager 是一款专为虚幻引擎游戏设计的 MOD 管理器，提供
 - **技术支持：** [GitHub Issues](https://github.com/yourusername/UEModManager/issues)
 - **电子邮件：** mr.xzuo@foxmail.com
 - **项目主页：** [GitHub](https://github.com/yourusername/UEModManager)
-
----
-
-## 📜 许可证
-
-本项目采用 MIT 许可证。这意味着您可以：
-
-- ✅ 免费使用
-- ✅ 自由修改
-- ✅ 商业使用
-- ✅ 分发副本
-
-详见 [LICENSE](LICENSE) 文件。
-
----
-
-## 🙏 鸣谢
-
-感谢以下开源项目：
-
-- [.NET](https://dotnet.microsoft.com/) - 应用程序框架
-- [WPF](https://github.com/dotnet/wpf) - UI 框架
-- [Entity Framework Core](https://github.com/dotnet/efcore) - ORM 框架
-- [Supabase](https://supabase.com/) - 后端服务
-- [Cloudflare Workers](https://workers.cloudflare.com/) - API 网关
-- [Brevo](https://www.brevo.com/) - 邮件服务
-
-特别感谢所有贡献者和用户的支持！❤️
-
----
-
-## 📊 项目状态
-
-- **最新版本：** v1.7.37
-- **发布日期：** 2025-10-03
-- **开发状态：** 活跃维护中 🟢
-- **已知问题：** 0 个严重问题
-
----
-
-## 🗺️ 路线图
-
-### v1.8.0 (计划中)
-- [ ] 支持更多游戏
-- [ ] MOD 云端下载
-- [ ] MOD 评分与评论
-- [ ] 一键更新 MOD
-
-### v2.0.0 (远期计划)
-- [ ] Linux 支持
-- [ ] Steam Deck 优化
-- [ ] 多语言支持
-- [ ] MOD 创作工具集成
-
----
-
-<div align="center">
 
 **如果这个项目对您有帮助，请给我们一个 ⭐ Star！**
 
