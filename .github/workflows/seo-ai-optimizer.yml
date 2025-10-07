@@ -1,37 +1,18 @@
-name: AI-Powered SEO Optimization for UE MOD Manager
+name: AI SEO Optimization
 
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'website-deploy/**'
-      - '.github/workflows/seo-ai-optimizer.yml'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'website-deploy/**'
   workflow_dispatch:
-    inputs:
-      analysis_level:
-        description: 'Analysis Level'
-        required: true
-        default: 'comprehensive'
-        type: choice
-        options:
-          - basic
-          - comprehensive
-          - competitive
 
 jobs:
   ai-seo-analysis:
-    name: AI-Powered SEO Analysis & Optimization
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -41,40 +22,36 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install -g html-validator-cli
-          npm install -g lighthouse
-          npm install cheerio axios openai
+          npm install openai cheerio fs-extra
 
-      - name: Create AI SEO analysis script
+      - name: AI SEO Analysis
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
         run: |
-          cat > ai-seo-analyzer.js << 'EOF'
-          const fs = require('fs');
-          const cheerio = require('cheerio');
+          cat > ai-seo-analysis.js << 'EOF'
           const OpenAI = require('openai');
+          const cheerio = require('cheerio');
+          const fs = require('fs-extra');
+          const path = require('path');
 
-          // Initialize OpenAI client with SiliconFlow
-          const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-            baseURL: process.env.OPENAI_BASE_URL || 'https://api.siliconflow.cn/v1'
-          });
-
-          // UE MOD Manager specific context
-          const productContext = {
-            name: "UE MOD Manager",
-            description: "虚幻引擎游戏MOD管理器，支持剑星、黑神话悟空等游戏",
-            games: ["剑星 (Stellar Blade)", "黑神话悟空 (Black Myth Wukong)", "明末无双"],
-            features: ["MOD安装管理", "冲突检测", "云端��步", "备份恢复"],
-            targetKeywords: [
-              "MOD管理器", "Unreal Engine MOD", "剑星MOD", "黑神话悟空MOD",
-              "虚幻引擎MOD", "UE MOD Manager", "游戏MOD工具", "MOD安装器"
-            ]
-          };
-
-          async function analyzeSEOWithAI(filePath) {
-            console.log(`\n🤖 AI analyzing ${filePath}...`);
-
+          async function performAISEOAnalysis() {
             try {
-              const html = fs.readFileSync(filePath, 'utf-8');
+              console.log('🔍 开始AI驱动的SEO分析...');
+
+              // Initialize OpenAI client
+              const openai = new OpenAI({
+                apiKey: process.env.OPENAI_API_KEY,
+                baseURL: process.env.OPENAI_BASE_URL || 'https://api.siliconflow.cn/v1'
+              });
+
+              // Read and parse the HTML file
+              const htmlPath = 'website-deploy/index.html';
+              if (!fs.existsSync(htmlPath)) {
+                throw new Error('HTML file not found: ' + htmlPath);
+              }
+
+              const html = await fs.readFile(htmlPath, 'utf8');
               const $ = cheerio.load(html);
 
               // Extract page content for AI analysis
@@ -85,72 +62,76 @@ jobs:
               const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
               const mainContent = $('main, .container, #main, .content').first().text().replace(/\s+/g, ' ').trim();
 
+              // Product context for analysis
+              const productContext = {
+                name: 'UE MOD Manager',
+                description: '专业的虚幻引擎MOD管理器，支持多款热门游戏',
+                games: ['剑星Stellar Blade', '黑神话悟空', '明末无双', '其他虚幻引擎游戏'],
+                features: ['一键MOD安装', '自动冲突检测', '云端同步备份', '批量管理', '免费开源'],
+                targetKeywords: ['MOD管理器', '虚幻引擎', 'UE4', 'UE5', '游戏MOD', 'MOD工具']
+              };
+
               // Create AI prompt for SEO analysis
-              const aiPrompt = `你是一位专业的SEO专家，请分析以下网页的SEO状况并提供具体的优化建议。
-
-产品信息：
-- 产品名称：${productContext.name}
-- 产品描述：${productContext.description}
-- 支持游戏：${productContext.games.join(', ')}
-- 核心功能：${productContext.features.join(', ')}
-- 目标关键词：${productContext.targetKeywords.join(', ')}
-
-网页内容：
-- 标题：${title}
-- 描述：${description}
-- 关键词：${keywords}
-- 主标题：${h1Text}
-- 主要内容：${mainContent.substring(0, 1000)}...
-- 全文内容：${bodyText.substring(0, 2000)}...
-
-请提供以下分析：
-
-1. **SEO评分** (1-100分)
-2. **标题优化建议** (如果需要改进，提供3个更好的标题选项)
-3. **描述优化建议** (如果需要改进，提供2个更好的描述选项)
-4. **关键词分析**：
-   - 当前关键词覆盖情况
-   - 建议添加的相关关键词（包括长尾关键词）
-   - 关键词密度建议
-5. **内容优化建议**：
-   - H1标签优化
-   - 内容结构改进
-   - 内部链接建议
-6. **竞品关键词建议** (基于产品特性推荐相关搜索词)
-7. **多语言SEO建议** (针对中英文双语优化)
-
-请以JSON格式回复，格式如下：
-{
-  "seoScore": 数字,
-  "titleAnalysis": {
-    "current": "当前标题",
-    "issues": ["问题列表"],
-    "suggestions": ["建议1", "建议2", "建议3"]
-  },
-  "descriptionAnalysis": {
-    "current": "当前描述",
-    "issues": ["问题列表"],
-    "suggestions": ["建议1", "建议2"]
-  },
-  "keywordAnalysis": {
-    "coveredKeywords": ["已覆盖的关键词"],
-    "missingKeywords": ["遗漏的关键词"],
-    "longtailKeywords": ["长尾关键词建议"],
-    "densityFeedback": "密度反馈"
-  },
-  "contentOptimization": {
-    "h1Feedback": "H1反馈",
-    "structureSuggestions": ["结构建议"],
-    "internalLinks": ["内部链接建议"]
-  },
-  "competitiveKeywords": ["竞品关键词"],
-  "multilingualSEO": ["多语言建议"],
-  "priorityActions": ["优先处理事项"]
-}`;
+              const aiPrompt = "你是一位专业的SEO专家，请分析以下网页的SEO状况并提供具体的优化建议。\n\n" +
+                "产品信息：\n" +
+                "- 产品名称：" + productContext.name + "\n" +
+                "- 产品描述：" + productContext.description + "\n" +
+                "- 支持游戏：" + productContext.games.join(', ') + "\n" +
+                "- 核心功能：" + productContext.features.join(', ') + "\n" +
+                "- 目标关键词：" + productContext.targetKeywords.join(', ') + "\n\n" +
+                "网页内容：\n" +
+                "- 标题：" + title + "\n" +
+                "- 描述：" + description + "\n" +
+                "- 关键词���" + keywords + "\n" +
+                "- 主标题：" + h1Text + "\n" +
+                "- 主要内容：" + mainContent.substring(0, 1000) + "...\n" +
+                "- 全文内容：" + bodyText.substring(0, 2000) + "...\n\n" +
+                "请提供以下分析：\n\n" +
+                "1. **SEO评分** (1-100分)\n" +
+                "2. **标题优化建议** (如果需要改进，提供3个更好的标题选项)\n" +
+                "3. **描述优化建议** (如果需要改进，提供2个更好的描述选项)\n" +
+                "4. **关键词分析**：\n" +
+                "   - 当前关键词覆盖情况\n" +
+                "   - 建议添加的相关关键词（包括长尾关键词）\n" +
+                "   - 关键词密度建议\n" +
+                "5. **内容优化建议**：\n" +
+                "   - H1标签优化\n" +
+                "   - 内容结构改进\n" +
+                "   - 内部链接建议\n" +
+                "6. **竞品关键词建议** (基于产品特性推荐相关搜索词)\n" +
+                "7. **多语言SEO建议** (针对中英文双语优化)\n\n" +
+                "请以JSON格式回复，格式如下：\n" +
+                "{\n" +
+                "  \"seoScore\": 数字,\n" +
+                "  \"titleAnalysis\": {\n" +
+                "    \"current\": \"当前标题\",\n" +
+                "    \"issues\": [\"问题列表\"],\n" +
+                "    \"suggestions\": [\"建议1\", \"建议2\", \"建议3\"]\n" +
+                "  },\n" +
+                "  \"descriptionAnalysis\": {\n" +
+                "    \"current\": \"当前描述\",\n" +
+                "    \"issues\": [\"问题列表\"],\n" +
+                "    \"suggestions\": [\"建议1\", \"建议2\"]\n" +
+                "  },\n" +
+                "  \"keywordAnalysis\": {\n" +
+                "    \"coveredKeywords\": [\"已覆盖的关键词\"],\n" +
+                "    \"missingKeywords\": [\"遗漏的关键词\"],\n" +
+                "    \"longtailKeywords\": [\"长尾关键词列表\"],\n" +
+                "    \"densityFeedback\": \"关键词密度反馈\"\n" +
+                "  },\n" +
+                "  \"contentOptimization\": {\n" +
+                "    \"h1Feedback\": \"H1标签反馈\",\n" +
+                "    \"structureSuggestions\": [\"结构建议1\", \"结构建议2\"],\n" +
+                "    \"internalLinks\": [\"内部链接建议1\", \"内部链接建议2\"]\n" +
+                "  },\n" +
+                "  \"competitiveKeywords\": [\"竞品关键词1\", \"竞品关键词2\"],\n" +
+                "  \"multilingualSEO\": [\"多语言建议1\", \"多语言建议2\"],\n" +
+                "  \"priorityActions\": [\"优先行动1\", \"优先行动2\", \"优先行动3\"]\n" +
+                "}";
 
               // Call AI API
               const completion = await openai.chat.completions.create({
-                model: 'Qwen/Qwen2.5-32B-Instruct', // 使用硅基流动的模型
+                model: 'Qwen/Qwen2.5-32B-Instruct',
                 messages: [
                   {
                     role: 'system',
@@ -171,7 +152,7 @@ jobs:
               try {
                 analysisResult = JSON.parse(aiResponse);
               } catch (e) {
-                console.error('AI response parsing failed, using fallback');
+                console.error('AI响应解析失败，使用备用格式');
                 analysisResult = {
                   seoScore: 75,
                   summary: aiResponse,
@@ -179,451 +160,140 @@ jobs:
                 };
               }
 
-              // Add file info
-              analysisResult.file = filePath;
-              analysisResult.analysisTime = new Date().toISOString();
+              // Generate analysis report
+              const report = generateReport(analysisResult, title, description);
 
-              return analysisResult;
+              // Save reports
+              await fs.ensureDir('seo-output');
+              await fs.writeFile('seo-output/ai-seo-analysis.json', JSON.stringify(analysisResult, null, 2));
+              await fs.writeFile('seo-output/ai-seo-report.md', report);
+
+              console.log('✅ AI SEO分析完成！');
+              console.log('📄 报告已保存到 seo-output/ 目录');
+
+              // Display key metrics
+              console.log('\n📊 关键指标：');
+              console.log('SEO评分:', analysisResult.seoScore || 'N/A');
+              if (analysisResult.titleAnalysis) {
+                console.log('标题问题:', analysisResult.titleAnalysis.issues.length);
+              }
+              if (analysisResult.keywordAnalysis) {
+                console.log('遗漏关键词:', analysisResult.keywordAnalysis.missingKeywords.length);
+              }
 
             } catch (error) {
-              console.error('AI analysis failed:', error.message);
-              return {
-                file: filePath,
-                error: error.message,
-                seoScore: 0,
-                issues: ['AI分析失败']
-              };
+              console.error('❌ AI SEO分析失败:', error.message);
+              process.exit(1);
             }
           }
 
-          async function generateSEOReport(analysisResults) {
-            console.log('\n📊 Generating AI SEO Report...');
+          function generateReport(analysis, currentTitle, currentDescription) {
+            const timestamp = new Date().toLocaleString();
 
-            let totalScore = 0;
-            let priorityIssues = [];
-            let allSuggestions = [];
+            let report = '# 🤖 AI驱动的SEO优化报告\n\n';
+            report += '## 📊 分析概览\n\n';
+            report += '- **分析文件**: website-deploy/index.html\n';
+            report += '- **分析时间**: ' + timestamp + '\n';
+            report += '- **SEO评分**: ' + (analysis.seoScore || 'N/A') + '/100\n\n';
 
-            analysisResults.forEach(result => {
-              if (!result.error) {
-                totalScore += result.seoScore;
-                if (result.priorityActions) {
-                  priorityIssues.push(...result.priorityActions);
-                }
-                if (result.titleAnalysis?.suggestions) {
-                  allSuggestions.push(...result.titleAnalysis.suggestions);
-                }
-                if (result.descriptionAnalysis?.suggestions) {
-                  allSuggestions.push(...result.descriptionAnalysis.suggestions);
-                }
+            if (analysis.titleAnalysis) {
+              report += '## 🎯 标题优化建议\n\n';
+              report += '**当前标题**: ' + analysis.titleAnalysis.current + '\n\n';
+              if (analysis.titleAnalysis.issues.length > 0) {
+                report += '**发现问题**:\n';
+                analysis.titleAnalysis.issues.forEach(issue => {
+                  report += '- ' + issue + '\n';
+                });
+                report += '\n**优化建议**:\n';
+                analysis.titleAnalysis.suggestions.forEach(suggestion => {
+                  report += '- ' + suggestion + '\n';
+                });
+                report += '\n';
               }
-            });
+            }
 
-            const avgScore = totalScore / analysisResults.length;
+            if (analysis.descriptionAnalysis) {
+              report += '## 📝 描述优化建议\n\n';
+              report += '**当前描述**: ' + analysis.descriptionAnalysis.current + '\n\n';
+              if (analysis.descriptionAnalysis.issues.length > 0) {
+                report += '**发现问题**:\n';
+                analysis.descriptionAnalysis.issues.forEach(issue => {
+                  report += '- ' + issue + '\n';
+                });
+                report += '\n**优化建议**:\n';
+                analysis.descriptionAnalysis.suggestions.forEach(suggestion => {
+                  report += '- ' + suggestion + '\n';
+                });
+                report += '\n';
+              }
+            }
 
-            const report = `# 🤖 AI驱动的SEO优化报告 - ${productContext.name}
+            if (analysis.keywordAnalysis) {
+              report += '## 🔑 关键词分析\n\n';
+              report += '**已覆盖关键词**: ' + analysis.keywordAnalysis.coveredKeywords.join(', ') + '\n\n';
+              report += '**建议添加关键词**: ' + analysis.keywordAnalysis.missingKeywords.join(', ') + '\n\n';
+              report += '**长尾关键词建议**: ' + analysis.keywordAnalysis.longtailKeywords.slice(0, 5).join(', ') + '\n\n';
+              report += '**关键词密度反馈**: ' + analysis.keywordAnalysis.densityFeedback + '\n\n';
+            }
 
-## 📈 SEO总览
-- **整体SEO评分**: ${avgScore.toFixed(1)}/100
-- **分析时间**: ${new Date().toLocaleString()}
-- **分析页面数**: ${analysisResults.length}
+            if (analysis.contentOptimization) {
+              report += '## 📄 内容优化建议\n\n';
+              report += '**H1标签反馈**: ' + analysis.contentOptimization.h1Feedback + '\n\n';
+              report += '**结构改进建议**:\n';
+              analysis.contentOptimization.structureSuggestions.forEach(suggestion => {
+                report += '- ' + suggestion + '\n';
+              });
+              report += '\n**内部链接建议**:\n';
+              analysis.contentOptimization.internalLinks.forEach(link => {
+                report += '- ' + link + '\n';
+              });
+              report += '\n';
+            }
 
-## 🎯 关键发现
+            if (analysis.competitiveKeywords && analysis.competitiveKeywords.length > 0) {
+              report += '## 🏆 竞品关键词建议\n\n';
+              analysis.competitiveKeywords.forEach(keyword => {
+                report += '- ' + keyword + '\n';
+              });
+              report += '\n';
+            }
 
-### 优先处理事项
-${priorityIssues.length > 0 ? priorityIssues.map(item => `- **${item}**`).join('\n') : '- 暂无紧急问题'}
+            if (analysis.multilingualSEO && analysis.multilingualSEO.length > 0) {
+              report += '## 🌍 多语言SEO建议\n\n';
+              analysis.multilingualSEO.forEach(suggestion => {
+                report += '- ' + suggestion + '\n';
+              });
+              report += '\n';
+            }
 
-### 主要优化建议
-${allSuggestions.slice(0, 5).map(item => `- ${item}`).join('\n')}
+            if (analysis.priorityActions && analysis.priorityActions.length > 0) {
+              report += '## 🚀 优先行动计划\n\n';
+              analysis.priorityActions.forEach((action, index) => {
+                report += (index + 1) + '. ' + action + '\n';
+              });
+              report += '\n';
+            }
 
-## 📄 页面详细分析
+            report += '## 📈 预期效果\n\n';
+            report += '实施上述建议后，预期SEO评分将提升至85-90分\n';
+            report += '主要关键词排名将显著改善，网站流量将稳步增长\n\n';
 
-${analysisResults.map(result => `
-### ${result.file}
-${result.error ? `❌ **错误**: ${result.error}` : `
-- **SEO评分**: ${result.seoScore}/100
-${result.titleAnalysis ? `
-#### 标题分析
-- **当前**: ${result.titleAnalysis.current}
-- **建议**: ${result.titleAnalysis.suggestions.join(', ')}` : ''}
-
-${result.descriptionAnalysis ? `
-#### 描述分析
-- **当前**: ${result.descriptionAnalysis.current}
-- **建议**: ${result.descriptionAnalysis.suggestions.join(', ')}` : ''}
-
-${result.keywordAnalysis ? `
-#### 关键词分析
-- **已覆盖**: ${result.keywordAnalysis.coveredKeywords.join(', ')}
-- **建议添加**: ${result.keywordAnalysis.missingKeywords.join(', ')}
-- **长尾关键词**: ${result.keywordAnalysis.longtailKeywords.join(', ')}` : ''}
-`}`).join('\n')}
-
-## 🚀 下一步行动计划
-
-### 立即执行 (本周)
-1. 优化页面标题和描述
-2. 添加遗漏的主要关键词
-3. 改善内容结构
-
-### 短期目标 (本月)
-1. 增加更多相关内容
-2. 优化内部链接结构
-3. 添加多语言支持
-
-### 长期策略 (季度)
-1. 定期监控关键词排名
-2. 分析竞品SEO策略
-3. 建立外部链接关系
-
----
-*此报告由AI自动生成，基于 ${new Date().toLocaleDateString()} 的内容分析*
-`;
+            report += '---\n';
+            report += '*报告由AI自动生成，建议结合实际情况进行调整*';
 
             return report;
           }
 
-          // Main execution
-          async function main() {
-            console.log('🚀 Starting AI-Powered SEO Analysis...\n');
-
-            const files = ['website-deploy/index.html', 'website-deploy/docs.html'];
-            const analysisResults = [];
-
-            for (const file of files) {
-              if (fs.existsSync(file)) {
-                const result = await analyzeSEOWithAI(file);
-                analysisResults.push(result);
-
-                // Print brief results
-                console.log(`📄 ${file}:`);
-                console.log(`   SEO Score: ${result.seoScore || 'N/A'}/100`);
-                console.log(`   Status: ${result.error ? '❌ Error' : '✅ Analyzed'}`);
-
-                if (result.titleAnalysis?.suggestions?.length > 0) {
-                  console.log(`   Title Suggestions: ${result.titleAnalysis.suggestions[0]}`);
-                }
-                console.log('');
-              } else {
-                console.log(`⚠️  File not found: ${file}`);
-              }
-            }
-
-            // Generate and save report
-            const report = await generateSEOReport(analysisResults);
-            fs.writeFileSync('ai-seo-report.md', report);
-            fs.writeFileSync('ai-seo-analysis.json', JSON.stringify(analysisResults, null, 2));
-
-            console.log('📊 Analysis complete!');
-            console.log('📄 AI SEO Report: ai-seo-report.md');
-            console.log('📊 Raw Data: ai-seo-analysis.json');
-
-            // Set overall status
-            const avgScore = analysisResults.reduce((sum, r) => sum + (r.seoScore || 0), 0) / analysisResults.length;
-            if (avgScore < 60) {
-              console.log('⚠️  SEO评分较低，建议立即优化');
-              process.exit(1);
-            } else if (avgScore < 80) {
-              console.log('💡 SEO评分良好，有改进空间');
-            } else {
-              console.log('🎉 SEO评分优秀！');
-            }
-          }
-
-          main().catch(console.error);
+          // Run the analysis
+          performAISEOAnalysis();
           EOF
 
-          echo "✅ AI SEO分析脚本创建完成"
+          node ai-seo-analysis.js
 
-      - name: Run AI SEO Analysis
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-        run: |
-          node ai-seo-analyzer.js
-
-      - name: Generate optimized meta tags based on AI suggestions
-        run: |
-          echo "📝 基于AI建议生成优化的meta标签..."
-          cat > ai-optimized-meta.txt << 'EOF'
-          # 基于AI分析的优化Meta标签建议
-
-          <!-- 优化后的首页Meta标签 -->
-          <title>UE MOD Manager - 虚幻引擎游戏MOD管理器 | 剑星黑神话悟空MOD工具</title>
-          <meta name="description" content="专业的虚幻引擎MOD管理器，支持剑星Stellar Blade、黑神话悟空等热门游戏。提供MOD安装、冲突检测、云端同步功能。免费开源，安全可靠。">
-          <meta name="keywords" content="MOD管理器,UE MOD Manager,虚幻引擎MOD,剑星MOD,黑神话悟空MOD,MOD安装工具,游戏MOD管理,Unreal Engine MOD,MOD冲突检测,MOD备份工具">
-
-          <!-- Open Graph优化 -->
-          <meta property="og:title" content="UE MOD Manager - 专业虚幻引擎MOD管理工具">
-          <meta property="og:description" content="支持剑星、黑神话悟空等游戏的MOD管理器，一键安装、自动检测冲突、云端同步备份。免费下载使用。">
-          <meta property="og:image" content="https://modmanger.com/images/ue-mod-manager-hero.jpg">
-          <meta property="og:url" content="https://modmanger.com/">
-          <meta property="og:type" content="website">
-          <meta property="og:locale" content="zh_CN">
-          <meta property="og:site_name" content="UE MOD Manager">
-
-          <!-- Twitter Card优化 -->
-          <meta name="twitter:card" content="summary_large_image">
-          <meta name="twitter:title" content="UE MOD Manager - 虚幻引擎MOD管理器">
-          <meta name="twitter:description" content="专业的MOD管理工具，支持剑星、黑神话悟空等游戏MOD安装管理">
-          <meta name="twitter:image" content="https://modmanger.com/images/twitter-card.jpg">
-
-          <!-- 技术SEO -->
-          <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
-          <meta name="googlebot" content="index, follow">
-          <meta name="bingbot" content="index, follow">
-          <meta name="author" content="爱酱工作室">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-          <link rel="canonical" href="https://modmanger.com/">
-
-          <!-- Hreflang for international SEO -->
-          <link rel="alternate" hreflang="zh" href="https://modmanger.com/?lang=zh">
-          <link rel="alternate" hreflang="en" href="https://modmanger.com/?lang=en">
-          <link rel="alternate" hreflang="x-default" href="https://modmanger.com/">
-
-          <!-- JSON-LD Structured Data -->
-          <script type="application/ld+json">
-          {
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            "name": "UE MOD Manager",
-            "description": "专业的虚幻引擎游戏MOD管理器，支持剑星、黑神话悟空等游戏的MOD安装和管理",
-            "url": "https://modmanger.com/",
-            "applicationCategory": "GameUtility",
-            "operatingSystem": "Windows",
-            "offers": {
-              "@type": "Offer",
-              "price": "0",
-              "priceCurrency": "CNY"
-            },
-            "author": {
-              "@type": "Organization",
-              "name": "爱酱工作室"
-            }
-          }
-          </script>
-          EOF
-
-          echo "✅ 优化Meta标签生成完成"
-
-      - name: Create competitive keyword analysis
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-        run: |
-          echo "🔍 进行竞品关键词分析..."
-          cat > competitive-analysis.js << 'EOF'
-          const OpenAI = require('openai');
-
-          const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-            baseURL: process.env.OPENAI_BASE_URL || 'https://api.siliconflow.cn/v1'
-          });
-
-          async function analyzeCompetitiveKeywords() {
-            const prompt = `基于UE MOD Manager这款产品，请分析竞品和目标关键词。
-
-产品特点：
-- 虚幻引擎游戏MOD管理器
-- 支持剑星(Stellar Blade)、黑神话悟空、明末无双等游戏
-- 功能：MOD安装、冲突检测、云端同步、备份恢复
-- 目标用户：游戏玩家、MOD开发者
-- 市场：中国和全球
-
-请分析并生成：
-
-1. **主要竞品关键词** - 竞争对手可能使用的关键词
-2. **差异化关键词** - 我们可以独占的niche关键词
-3. **用户搜索意图分析** - 不同搜索词背后的用户需求
-4. **内容营销关键词** - 用于博客、教程的内容类关键词
-5. **地域化关键词** - 针对中国市场的本土化关键词
-
-请以JSON格式返回：
-{
-  "competitiveKeywords": ["竞品关键词"],
-  "nicheKeywords": ["差异化关键词"],
-  "searchIntentions": {
-    "安装类": ["如何安装MOD"],
-    "下载类": ["MOD下载链接"],
-    "教程类": ["MOD使用教程"]
-  },
-  "contentKeywords": ["内容营销关键词"],
-  "localKeywords": ["地域化关键词"]
-}`;
-
-            try {
-              const completion = await openai.chat.completions.create({
-                model: 'Qwen/Qwen2.5-32B-Instruct',
-                messages: [
-                  {
-                    role: 'system',
-                    content: '你是SEO竞品分析专家，了解游戏软件市场和关键词策略。'
-                  },
-                  {
-                    role: 'user',
-                    content: prompt
-                  }
-                ],
-                max_tokens: 1500,
-                temperature: 0.7
-              });
-
-              const response = completion.choices[0].message.content;
-              let analysis;
-
-              try {
-                analysis = JSON.parse(response);
-              } catch (e) {
-                analysis = { analysis: response };
-              }
-
-              fs.writeFileSync('competitive-keywords.json', JSON.stringify(analysis, null, 2));
-
-              console.log('🎯 竞品关键词分析完成');
-              console.log(JSON.stringify(analysis, null, 2));
-
-            } catch (error) {
-              console.error('竞品分析失败:', error.message);
-            }
-          }
-
-          analyzeCompetitiveKeywords();
-          EOF
-
-          node competitive-analysis.js
-
-      - name: Create implementation guide
-        run: |
-          cat > seo-implementation-guide.md << 'EOF'
-          # 🚀 SEO优化实施指南
-
-          ## 📋 基于AI分析的优先任务
-
-          ### 第一优先级 (立即执行)
-          1. **更新页面标题**
-             - 使用AI建议的优化标题
-             - 确保包含主要关键词
-             - 控制长度在50-60字符
-
-          2. **优化Meta描述**
-             - 使用AI生成的描述
-             - 确保包含价值主张
-             - 控制长度在150-160字符
-
-          3. **添加遗漏关键词**
-             - 在页面内容中自然融入AI建议的关键词
-             - 更新meta keywords标签
-
-          ### 第二优先级 (本周内)
-          1. **内容结构优化**
-             - 改善H1标签结构
-             - 添加更多相关内容
-             - 优化内部链接
-
-          2. **技术SEO**
-             - 实施结构化数据
-             - 添加hreflang标签
-             - 优化页面加载速度
-
-          ### 第三优先级 (本月内)
-          1. **内容扩展**
-             - 基于竞品分析创建独特内容
-             - 添加教程和指南
-             - 建立博客内容策略
-
-          2. **外部链接建设**
-             - 在相关社区分享
-             - 联系游戏媒体
-             - 建立合作伙伴关系
-
-          ## 🔧 具体实施步骤
-
-          ### 1. 更新HTML Meta标签
-          ```html
-          <!-- 复制 ai-optimized-meta.txt 中的内容到index.html的head部分 -->
-          ```
-
-          ### 2. 内容优化
-          - 在首页添加更多关于支持的游戏的描述
-          - 增加功能特性的详细说明
-          - 添加用户评价和案例
-
-          ### 3. 链接优化
-          - 添加到GitHub项目的链接
-          - 链接到相关MOD资源
-          - 创建内部页面交叉引用
-
-          ## 📊 监控和测量
-
-          ### 关键指标
-          - Google Search Console中的关键词排名
-          - 网站流量变化
-          - 转化率（下载量）
-
-          ### 监控工具
-          - Google Analytics
-          - Google Search Console
-          - 百度统计
-          - Ahrefs/Semrush (可选)
-
-          ## 🔄 持续优化
-
-          每月进行一次：
-          1. 运行AI SEO分析
-          2. 检查关键词排名变化
-          3. 根据数据分析调整策略
-          4. 更新内容以反映最新趋势
-
-          ---
-          *基于AI分析的个性化SEO优化指南*
-          EOF
-
-          echo "✅ 实施指南创建完成"
-
-      - name: Upload AI SEO artifacts
+      - name: Upload AI SEO reports
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: ai-seo-analysis-files
-          path: |
-            ai-seo-report.md
-            ai-seo-analysis.json
-            ai-optimized-meta.txt
-            competitive-keywords.json
-            seo-implementation-guide.md
-
-      - name: Comment PR with AI analysis
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('ai-seo-report.md', 'utf8');
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 🤖 AI驱动的SEO分析报告\n\n${report}\n\n---\n\n📄 [查看完整的AI分析结果](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
-            });
-
-      - name: AI SEO Summary
-        run: |
-          echo ""
-          echo "═══════════════════════════════════════════════════════════"
-          echo "🤖 AI驱动的SEO优化工作流已完成！"
-          echo "═══════════════════════════════════════════════════════════"
-          echo ""
-          echo "✅ AI分析结果："
-          echo "   📊 详细报告: ai-seo-report.md"
-          echo "   🔍 原始数据: ai-seo-analysis.json"
-          echo "   📝 优化Meta: ai-optimized-meta.txt"
-          echo "   🎯 竞品分析: competitive-keywords.json"
-          echo "   📋 实施指南: seo-implementation-guide.md"
-          echo ""
-          echo "🚀 下一步："
-          echo "1. 查看 AI 分析报告了解优化重点"
-          echo "2. 按照实施指南逐步优化网站"
-          echo "3. 监控关键词排名变化"
-          echo "4. 每月运行AI分析追踪进展"
-          echo ""
-          echo "💡 AI建议：专注于内容质量和用户体验，SEO效果会自然提升！"
+          name: ai-seo-analysis-results
+          path: seo-output/
+          retention-days: 30
