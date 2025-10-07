@@ -391,7 +391,7 @@ jobs:
           git push || true
 
       - name: Upload SEO artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: seo-optimization-files
           path: |
