@@ -103,7 +103,9 @@ v1.7.*.md
 
 # Temporary web files
 website/
-index.html
+!website-deploy/
+!website-deploy/index.html
+!website-deploy/docs.html
 update-QRcode-*/
 
 # Environment variable directories

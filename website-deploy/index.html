@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="爱酱虚幻引擎MOD管理器 - 一站式管理剑星、黑神话悟空等虚幻引擎游戏MOD，支持冲突检测、自动备份、分类管理等功能。">
+    <meta name="keywords" content="虚幻引擎,UE,MOD管理器,剑星,黑神话悟空,Stellar Blade,游戏MOD,MOD管理,UE MOD Manager">
+    <meta name="author" content="velist">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://modmanger.com/">
+    <meta property="og:title" content="爱酱虚幻引擎MOD管理器 - 一站式游戏MOD管理工具">
+    <meta property="og:description" content="支持剑星、黑神话悟空等热门游戏，提供冲突检测、自动备份、分类管理等强大功能。">
+    <meta property="og:image" content="https://modmanger.com/website/wechat_2025-10-03_193549_707.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://modmanger.com/">
+    <meta property="twitter:title" content="爱酱虚幻引擎MOD管理器">
+    <meta property="twitter:description" content="一站式游戏MOD管理工具，让MOD安装变得简单高效">
+    <meta property="twitter:image" content="https://modmanger.com/website/wechat_2025-10-03_193549_707.png">
+
+    <title>爱酱虚幻引擎MOD管理器 - 一站式游戏MOD管理工具</title>
+
+    <!-- 预加载关键资源 -->
+    <link rel="preload" as="image" href="website/wechat_2025-10-03_193549_707.png">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --steam-blue: #66c0f4;
+            --steam-dark-blue: #1b2838;
+            --steam-darker: #0e1621;
+            --steam-light-blue: #4c90e2;
+            --steam-text: #c7d5e0;
+            --steam-text-bright: #ffffff;
+            --steam-text-dim: #8b98a5;
+            --steam-border: #2a475e;
+            --steam-hover: #16202d;
+            --steam-button: #66c0f4;
+            --steam-button-hover: #4c90e2;
+            --card-bg: rgba(26, 32, 44, 0.9);
+            --success-green: #5cb85c;
+            --warning-yellow: #f0ad4e;
+        }
+
+        body {
+            font-family: "Motiva Sans", Arial, Helvetica, sans-serif;
+            background: linear-gradient(180deg, var(--steam-darker) 0%, var(--steam-dark-blue) 100%);
+            min-height: 100vh;
+            color: var(--steam-text);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Steam风格背景纹理 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 35px,
+                    rgba(255,255,255,.01) 35px,
+                    rgba(255,255,255,.01) 70px
+                );
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 导航栏 */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 30px;
+            background: rgba(27, 40, 56, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--steam-border);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        nav.scrolled {
+            padding: 10px 30px;
+            background: rgba(14, 22, 33, 0.98);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-shadow: 0 0 10px rgba(102, 192, 244, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--steam-text);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+            padding: 8px 12px;
+            border-radius: 3px;
+        }
+
+        .nav-links a:hover {
+            color: var(--steam-text-bright);
+            background: var(--steam-hover);
+        }
+
+        /* 语言切换按钮 */
+        .lang-switch {
+            display: flex;
+            align-items: center;
+            background: var(--steam-border);
+            border-radius: 3px;
+            padding: 2px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .lang-switch:hover {
+            background: var(--steam-hover);
+        }
+
+        .lang-option {
+            padding: 6px 10px;
+            border-radius: 2px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--steam-text-dim);
+            transition: all 0.3s ease;
+            z-index: 2;
+            position: relative;
+            text-transform: uppercase;
+        }
+
+        .lang-option.active {
+            color: var(--steam-darker);
+        }
+
+        .lang-indicator {
+            position: absolute;
+            height: calc(100% - 4px);
+            background: var(--steam-blue);
+            border-radius: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        /* 主容器 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 100px 20px 50px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Hero 区域 */
+        .hero {
+            text-align: center;
+            padding: 60px 0;
+            animation: fadeInUp 1s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--steam-text-bright);
+            text-shadow: 0 0 20px rgba(102, 192, 244, 0.3);
+            letter-spacing: 1px;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: var(--steam-text-dim);
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 版本徽章 */
+        .version-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: var(--success-green);
+            color: white;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            animation: steamPulse 2s infinite;
+        }
+
+        /* Steam风格卡片 */
+        .steam-card {
+            background: var(--card-bg);
+            border: 1px solid var(--steam-border);
+            border-radius: 4px;
+            padding: 30px;
+            margin-bottom: 30px;
+            animation: fadeIn 1s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* 功能介绍 */
+        .features {
+            margin: 60px 0;
+        }
+
+        .features h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .feature-item {
+            background: var(--card-bg);
+            border: 1px solid var(--steam-border);
+            border-radius: 4px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--steam-blue);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-item:hover::before {
+            transform: translateX(0);
+        }
+
+        .feature-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(102, 192, 244, 0.2);
+            border-color: var(--steam-blue);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            display: block;
+            filter: drop-shadow(0 2px 4px rgba(102, 192, 244, 0.3));
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feature-desc {
+            color: var(--steam-text-dim);
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        /* 截图展示 */
+        .screenshots {
+            margin: 60px 0;
+        }
+
+        .screenshots h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .screenshot-image {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 2px solid var(--steam-border);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            loading: lazy;
+        }
+
+        .screenshot-image:hover {
+            border-color: var(--steam-blue);
+            transform: scale(1.02);
+            box-shadow: 0 8px 25px rgba(102, 192, 244, 0.2);
+        }
+
+        /* 图片放大模态框 */
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .image-modal.active {
+            display: flex;
+        }
+
+        .image-modal-content {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+            border-radius: 4px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            animation: zoomIn 0.3s ease;
+        }
+
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(27, 40, 56, 0.9);
+            border: 1px solid var(--steam-border);
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 24px;
+            color: var(--steam-text);
+        }
+
+        .image-modal-close:hover {
+            background: var(--steam-button);
+            color: var(--steam-darker);
+        }
+
+        /* 下载区域 */
+        .download-section {
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .steam-btn {
+            background: var(--steam-button);
+            color: var(--steam-darker);
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .steam-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .steam-btn:hover::before {
+            left: 100%;
+        }
+
+        .steam-btn:hover {
+            background: var(--steam-button-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .download-methods {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .download-item {
+            text-align: center;
+            max-width: 180px;
+        }
+
+        .download-qr-image {
+            width: 150px;
+            height: auto;
+            max-height: 200px;
+            margin: 0 auto 10px;
+            border-radius: 8px;
+            border: 2px solid var(--steam-border);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            object-fit: contain;
+            object-position: center;
+            background: white;
+            padding: 5px;
+            loading: lazy;
+        }
+
+        .download-qr-image:hover {
+            border-color: var(--steam-blue);
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(102, 192, 244, 0.3);
+        }
+
+        /* FAQ区域 */
+        .faq-section {
+            margin: 60px 0;
+        }
+
+        .faq-section h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .faq-item {
+            background: var(--card-bg);
+            border: 1px solid var(--steam-border);
+            border-radius: 4px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .faq-item:hover {
+            border-color: var(--steam-blue);
+        }
+
+        .faq-question {
+            padding: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: var(--steam-text-bright);
+            transition: all 0.2s ease;
+        }
+
+        .faq-question:hover {
+            background: var(--steam-hover);
+        }
+
+        .faq-question::after {
+            content: '+';
+            font-size: 24px;
+            transition: transform 0.3s ease;
+        }
+
+        .faq-question.active::after {
+            transform: rotate(45deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            color: var(--steam-text-dim);
+        }
+
+        .faq-answer.active {
+            max-height: 500px;
+        }
+
+        .faq-answer-content {
+            padding: 0 20px 20px 20px;
+            line-height: 1.6;
+        }
+
+        /* 更新日志 */
+        .changelog-section {
+            margin: 60px 0;
+        }
+
+        .changelog-section h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: 700;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .changelog-item {
+            background: var(--card-bg);
+            border: 1px solid var(--steam-border);
+            border-left: 4px solid var(--steam-blue);
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .changelog-version {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--steam-blue);
+            margin-bottom: 5px;
+        }
+
+        .changelog-date {
+            font-size: 0.9rem;
+            color: var(--steam-text-dim);
+            margin-bottom: 15px;
+        }
+
+        .changelog-content {
+            color: var(--steam-text);
+            line-height: 1.6;
+        }
+
+        .changelog-content ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .changelog-content li {
+            padding: 5px 0;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .changelog-content li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--success-green);
+            font-weight: bold;
+        }
+
+        /* 支持区域 */
+        .support-section {
+            margin: 60px 0;
+            text-align: center;
+        }
+
+        .support-section h2 {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: var(--steam-text-bright);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .payment-methods {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .payment-item {
+            text-align: center;
+        }
+
+        .payment-qr-image {
+            width: 200px;
+            height: auto;
+            max-height: 280px;
+            margin: 0 auto 10px;
+            border-radius: 8px;
+            border: 2px solid var(--steam-border);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            object-fit: contain;
+            object-position: center;
+            loading: lazy;
+        }
+
+        .payment-qr-image:hover {
+            border-color: var(--steam-blue);
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(102, 192, 244, 0.3);
+        }
+
+        .community-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 25px;
+            background: var(--steam-hover);
+            border: 1px solid var(--steam-border);
+            border-radius: 3px;
+            color: var(--steam-text);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+        }
+
+        .community-link:hover {
+            background: var(--steam-blue);
+            color: var(--steam-darker);
+            transform: translateY(-2px);
+        }
+
+        /* 返回顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: var(--steam-button);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .back-to-top.visible {
+            display: flex;
+        }
+
+        .back-to-top:hover {
+            background: var(--steam-button-hover);
+            transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        .back-to-top::before {
+            content: '↑';
+            color: var(--steam-darker);
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        /* 页脚 */
+        .footer {
+            background: var(--steam-darker);
+            border-top: 1px solid var(--steam-border);
+            padding: 40px 20px 20px;
+            text-align: center;
+            color: var(--steam-text-dim);
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--steam-text);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--steam-blue);
+        }
+
+        .footer-copyright {
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            nav {
+                padding: 10px 20px;
+            }
+
+            .nav-links {
+                gap: 10px;
+                font-size: 12px;
+            }
+
+            .nav-links a {
+                padding: 6px 8px;
+                font-size: 11px;
+            }
+
+            .logo {
+                font-size: 16px;
+            }
+
+            .lang-switch {
+                padding: 2px;
+            }
+
+            .lang-option {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+
+            .container {
+                padding: 80px 20px 50px;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .screenshot-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 45px;
+                height: 45px;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--steam-darker);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--steam-border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--steam-blue);
+        }
+
+        /* 语言切换动画 */
+        .lang-transition {
+            transition: opacity 0.3s ease;
+        }
+
+        .lang-transition.fade-out {
+            opacity: 0;
+        }
+
+        /* Steam风格加载动画 */
+        @keyframes steamPulse {
+            0% { box-shadow: 0 0 0 0 rgba(102, 192, 244, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(102, 192, 244, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(102, 192, 244, 0); }
+        }
+
+        .steam-glow {
+            animation: steamPulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <div class="logo">爱酱虚幻引擎MOD管理器</div>
+            <ul class="nav-links">
+                <li><a href="#features" data-lang="nav_features">功能</a></li>
+                <li><a href="#screenshots" data-lang="nav_screenshots">截图</a></li>
+                <li><a href="docs.html" data-lang="nav_docs">使用说明</a></li>
+                <li><a href="#download" data-lang="nav_download">下载</a></li>
+                <li><a href="#faq" data-lang="nav_faq">FAQ</a></li>
+                <li><a href="#support" data-lang="nav_support">支持</a></li>
+                <li><a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 6px;">
+                    <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle;">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                    </svg>
+                    <span data-lang="nav_github">GitHub</span>
+                </a></li>
+                <li>
+                    <div class="lang-switch" onclick="toggleLanguage()">
+                        <div class="lang-indicator" id="langIndicator"></div>
+                        <span class="lang-option active" id="langZh">中文</span>
+                        <span class="lang-option" id="langEn">EN</span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- Hero 区域 -->
+        <section class="hero">
+            <h1 data-lang="hero_title">爱酱虚幻引擎MOD管理器</h1>
+            <p data-lang="hero_subtitle">一站式管理您的游戏MOD，让MOD安装变得简单高效</p>
+            <div class="version-badge" data-lang="version_badge">当前版本 v1.7.38</div>
+        </section>
+
+        <!-- 功能介绍 -->
+        <section id="features" class="features">
+            <h2 data-lang="features_title">核心功能亮点</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <span class="feature-icon">🎮</span>
+                    <h3 class="feature-title" data-lang="feature1_title">多游戏覆盖</h3>
+                    <p class="feature-desc" data-lang="feature1_desc">剑星（标准/CNS）、黑神话：悟空、明末无双等热门游戏均可一站式管理，一个工具搞定所有！</p>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">⚠️</span>
+                    <h3 class="feature-title" data-lang="feature2_title">冲突检测</h3>
+                    <p class="feature-desc" data-lang="feature2_desc">一键检测MOD冲突，避免进入游戏穿不到你满意的衣服！提前预警，告别尴尬瞬间。</p>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">📝</span>
+                    <h3 class="feature-title" data-lang="feature3_title">自定义备注</h3>
+                    <p class="feature-desc" data-lang="feature3_desc">支持中文自定义名称、图片备注MOD，避免遗忘，且不会影响MOD实际文件。你的MOD你做主！</p>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">📦</span>
+                    <h3 class="feature-title" data-lang="feature4_title">一键备份与还原</h3>
+                    <p class="feature-desc" data-lang="feature4_desc">随时保存当前组合，快速回滚，保障实验与试玩的自由度。大胆尝试，随时回归！</p>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🗂️</span>
+                    <h3 class="feature-title" data-lang="feature5_title">层级分类与标签</h3>
+                    <p class="feature-desc" data-lang="feature5_desc">支持自定义分类、拖拽调整，快速定位常用或专题 MOD。整理强迫症福音！</p>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">⚙️</span>
+                    <h3 class="feature-title" data-lang="feature6_title">启动优化</h3>
+                    <p class="feature-desc" data-lang="feature6_desc">关键配置与服务延迟加载，保持界面响应；后台同步确保体验与稳定兼顾。秒开不是梦！</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 截图展示 -->
+        <section id="screenshots" class="screenshots">
+            <h2 data-lang="screenshots_title">截图展示</h2>
+            <div class="steam-card">
+                <div class="screenshot-grid">
+                    <img src="website/wechat_2025-10-03_193549_707.png" alt="UE MOD Manager 主界面" class="screenshot-image" loading="lazy">
+                    <img src="website/wechat_2025-10-03_193628_029.png" alt="UE MOD Manager MOD管理" class="screenshot-image" loading="lazy">
+                    <img src="website/wechat_2025-10-03_193641_222.png" alt="UE MOD Manager 冲突检测" class="screenshot-image" loading="lazy">
+                    <img src="website/wechat_2025-10-03_193652_122.png" alt="UE MOD Manager 分类管理" class="screenshot-image" loading="lazy">
+                    <img src="website/wechat_2025-10-03_193700_079.png" alt="UE MOD Manager 备份还原" class="screenshot-image" loading="lazy">
+                    <img src="website/wechat_2025-10-03_193719_797.png" alt="UE MOD Manager 详细信息" class="screenshot-image" loading="lazy">
+                </div>
+            </div>
+        </section>
+
+        <!-- 下载区域 -->
+        <section id="download" class="download-section">
+            <div class="steam-card">
+                <h2 data-lang="download_title">立即下载</h2>
+                <p style="margin: 20px 0; color: var(--steam-text-dim);" data-lang="download_subtitle">选择适合您的下载渠道</p>
+                <div class="download-methods">
+                    <div class="download-item">
+                        <img src="website/百度网盘下载.png" alt="百度网盘下载二维码" class="download-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="netdisk1_label">百度网盘</p>
+                        <p style="color: var(--steam-text-dim); font-size: 12px; margin-top: 5px;">提取码：6679</p>
+                    </div>
+                    <div class="download-item">
+                        <img src="website/迅雷网盘下载.png" alt="迅雷网盘下载二维码" class="download-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="netdisk2_label">迅雷网盘</p>
+                    </div>
+                    <div class="download-item">
+                        <img src="website/UC网盘下载.png" alt="UC网盘下载二维码" class="download-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="netdisk3_label">UC网盘</p>
+                    </div>
+                    <div class="download-item">
+                        <img src="website/夸克网盘下载.png" alt="夸克网盘下载二维码" class="download-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="netdisk4_label">夸克网盘</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ区域 -->
+        <section id="faq" class="faq-section">
+            <h2 data-lang="faq_title">常见问题</h2>
+            <div class="steam-card">
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq1_q">支持哪些游戏？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq1_a">目前支持剑星（标准版/CNS版）、黑神话：悟空、明末无双等虚幻引擎游戏。我们会持续添加更多游戏支持。</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq2_q">MOD安装后游戏无法启动怎么办？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq2_a">可以使用"一键还原"功能恢复到之前的状态。建议使用冲突检测功能在安装前检查MOD兼容性。</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq3_q">如何检测MOD冲突？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq3_a">点击主界面的"冲突检测"按钮，程序会自动扫描所有已安装MOD，检测可能的文件冲突并给出提示。</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq4_q">自定义名称和描述会影响MOD文件吗？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq4_a">不会！所有自定义信息都保存在管理器的配置文件中，不会修改MOD的原始文件。</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq5_q">如何备份当前MOD配置？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq5_a">使用"备份管理"功能可以保存当前所有MOD的安装状态、配置信息，随时可以恢复到任意备份点。</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question" data-lang="faq6_q">软件是否收费？</div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content" data-lang="faq6_a">软件完全免费且开源！如果觉得好用，欢迎赞助支持我们持续开发。</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 更新日志 -->
+        <section id="changelog" class="changelog-section">
+            <h2 data-lang="changelog_title">更新日志</h2>
+            <div class="changelog-item">
+                <div class="changelog-version">v1.7.38</div>
+                <div class="changelog-date">2025-10-07</div>
+                <div class="changelog-content">
+                    <ul>
+                        <li data-lang="changelog_0_1">🔧 修复Brevo SMTP认证失败导致邮件发送失败的问题</li>
+                        <li data-lang="changelog_0_2">⚡ API超时优化：30秒→10秒，快速fallback</li>
+                        <li data-lang="changelog_0_3">✨ 点击头像打开账户设置，统一用户体验</li>
+                        <li data-lang="changelog_0_4">🙏 鸣谢名单新增"枪王"</li>
+                        <li data-lang="changelog_0_5">📝 完善故障排查文档和配置说明</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="changelog-item">
+                <div class="changelog-version">v1.7.37</div>
+                <div class="changelog-date">2025-10-05</div>
+                <div class="changelog-content">
+                    <ul>
+                        <li data-lang="changelog_1_1">重构分类系统：支持自定义分类显示名称</li>
+                        <li data-lang="changelog_1_2">实现软删除机制：删除分类自动移动MOD到"未分类"</li>
+                        <li data-lang="changelog_1_3">修复MOD分类刷新后被重置的问题</li>
+                        <li data-lang="changelog_1_4">修复默认分类无法隐藏的BUG</li>
+                        <li data-lang="changelog_1_5">优化配置持久化策略，确保数据不丢失</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="changelog-item">
+                <div class="changelog-version">v1.7.36</div>
+                <div class="changelog-date">2025-10-02</div>
+                <div class="changelog-content">
+                    <ul>
+                        <li data-lang="changelog_2_1">集成Cloudflare Workers API网关</li>
+                        <li data-lang="changelog_2_2">实现云端认证服务</li>
+                        <li data-lang="changelog_2_3">添加离线模式支持</li>
+                        <li data-lang="changelog_2_4">优化启动速度</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 鸣谢名单 Section -->
+        <section class="py-5 bg-light">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-12 text-center">
+                        <h2 class="display-4 fw-bold">鸣谢名单</h2>
+                        <p class="lead">感谢以下用户对本项目的支持与贡献</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-8 mx-auto text-center">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body p-4">
+                                <h5 class="card-title text-primary mb-3">🎁 捐赠感谢</h5>
+                                <p class="card-text fs-5 mb-0">
+                                    胖虎、YUki、Tarnished<br>
+                                    春告鳥、蘭、虎子<br>
+                                    神秘不保底男<br>
+                                    文铭、阪、林墨<br>
+                                    Daisuke、虎子哥、枪王<br>
+                                    爱酱游戏群全体群友
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 支持区域 -->
+        <section id="support" class="support-section">
+            <div class="steam-card">
+                <h2 data-lang="support_title">支持作者</h2>
+                <p style="color: var(--steam-text-dim); margin-bottom: 30px;" data-lang="support_subtitle">您的支持是我们持续更新的动力</p>
+                <div class="payment-methods">
+                    <div class="payment-item">
+                        <img src="payment/wechat_qr.png?v=1" alt="微信收款码" class="payment-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="payment_wechat_label">微信支付</p>
+                    </div>
+                    <div class="payment-item">
+                        <img src="payment/alipay_qr.png" alt="支付宝收款码" class="payment-qr-image" loading="lazy">
+                        <p style="color: var(--steam-text-dim);" data-lang="payment_alipay_label">支付宝</p>
+                    </div>
+                </div>
+                <a href="https://qm.qq.com/q/CIi6LT94zK" target="_blank" rel="noopener" class="community-link">
+                    <span data-lang="community_text">加入QQ群：682707942</span>
+                </a>
+                <a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" class="community-link" style="margin-left: 20px;">
+                    <span data-lang="github_text">⭐ GitHub开源项目</span>
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="https://github.com/velist/UE-Game-ModManager" target="_blank" rel="noopener" data-lang="footer_github">GitHub</a>
+                <a href="https://github.com/velist/UE-Game-ModManager/issues" target="_blank" rel="noopener" data-lang="footer_issues">问题反馈</a>
+                <a href="https://github.com/velist/UE-Game-ModManager/releases" target="_blank" rel="noopener" data-lang="footer_releases">版本发布</a>
+                <a href="mailto:mr.xzuo@foxmail.com" data-lang="footer_contact">联系我们</a>
+            </div>
+            <div class="footer-copyright">
+                <p>&copy; 2025 爱酱虚幻引擎MOD管理器 | <a href="https://github.com/velist/UE-Game-ModManager/blob/main/LICENSE" target="_blank" rel="noopener" style="color: var(--steam-text-dim);">MIT License</a></p>
+                <p style="margin-top: 10px; font-size: 12px;" data-lang="footer_disclaimer">本项目为开源免费软件，仅供学习交流使用</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 返回顶部按钮 -->
+    <button class="back-to-top" id="backToTop" aria-label="返回顶部"></button>
+
+    <!-- 图片放大模态框 -->
+    <div class="image-modal" id="imageModal">
+        <div class="image-modal-close" onclick="closeImageModal()">✕</div>
+        <img src="" alt="放大图片" class="image-modal-content" id="modalImage">
+    </div>
+
+    <script>
+        // 多语言文本数据
+        const translations = {
+            zh: {
+                nav_features: '功能',
+                nav_screenshots: '截图',
+                nav_docs: '使用说明',
+                nav_download: '下载',
+                nav_faq: 'FAQ',
+                nav_support: '支持',
+                nav_github: 'GitHub',
+                hero_title: '爱酱虚幻引擎MOD管理器',
+                hero_subtitle: '一站式管理您的游戏MOD，让MOD安装变得简单高效',
+                version_badge: '当前版本 v1.7.38',
+                features_title: '核心功能亮点',
+                feature1_title: '多游戏覆盖',
+                feature1_desc: '剑星（标准/CNS）、黑神话：悟空、明末无双等热门游戏均可一站式管理，一个工具搞定所有！',
+                feature2_title: '冲突检测',
+                feature2_desc: '一键检测MOD冲突，避免进入游戏穿不到你满意的衣服！提前预警，告别尴尬瞬间。',
+                feature3_title: '自定义备注',
+                feature3_desc: '支持中文自定义名称、图片备注MOD，避免遗忘，且不会影响MOD实际文件。你的MOD你做主！',
+                feature4_title: '一键备份与还原',
+                feature4_desc: '随时保存当前组合，快速回滚，保障实验与试玩的自由度。大胆尝试，随时回归！',
+                feature5_title: '层级分类与标签',
+                feature5_desc: '支持自定义分类、拖拽调整，快速定位常用或专题 MOD。整理强迫症福音！',
+                feature6_title: '启动优化',
+                feature6_desc: '关键配置与服务延迟加载，保持界面响应；后台同步确保体验与稳定兼顾。秒开不是梦！',
+                screenshots_title: '截图展示',
+                download_title: '立即下载',
+                download_subtitle: '选择适合您的下载渠道',
+                netdisk1_label: '百度网盘',
+                netdisk2_label: '迅雷网盘',
+                netdisk3_label: 'UC网盘',
+                netdisk4_label: '夸克网盘',
+                faq_title: '常见问题',
+                faq1_q: '支持哪些游戏？',
+                faq1_a: '目前支持剑星（标准版/CNS版）、黑神话：悟空、明末无双等虚幻引擎游戏。我们会持续添加更多游戏支持。',
+                faq2_q: 'MOD安装后游戏无法启动怎么办？',
+                faq2_a: '可以使用"一键还原"功能恢复到之前的状态。建议使用冲突检测功能在安装前检查MOD兼容性。',
+                faq3_q: '如何检测MOD冲突？',
+                faq3_a: '点击主界面的"冲突检测"按钮，程序会自动扫描所有已安装MOD，检测可能的文件冲突并给出提示。',
+                faq4_q: '自定义名称和描述会影响MOD文件吗？',
+                faq4_a: '不会！所有自定义信息都保存在管理器的配置文件中，不会修改MOD的原始文件。',
+                faq5_q: '如何备份当前MOD配置？',
+                faq5_a: '使用"备份管理"功能可以保存当前所有MOD的安装状态、配置信息，随时可以恢复到任意备份点。',
+                faq6_q: '软件是否收费？',
+                faq6_a: '软件完全免费且开源！如果觉得好用，欢迎赞助支持我们持续开发。',
+                changelog_title: '更新日志',
+                changelog_1_1: '重构分类系统：支持自定义分类显示名称',
+                changelog_1_2: '实现软删除机制：删除分类自动移动MOD到"未分类"',
+                changelog_1_3: '修复MOD分类刷新后被重置的问题',
+                changelog_1_4: '修复默认分类无法隐藏的BUG',
+                changelog_1_5: '优化配置持久化策略，确保数据不丢失',
+                changelog_2_1: '集成Cloudflare Workers API网关',
+                changelog_2_2: '实现云端认证服务',
+                changelog_2_3: '添加离线模式支持',
+                changelog_2_4: '优化启动速度',
+                support_title: '支持作者',
+                support_subtitle: '您的支持是我们持续更新的动力',
+                payment_wechat_label: '微信支付',
+                payment_alipay_label: '支付宝',
+                community_text: '加入QQ群：682707942',
+                github_text: '⭐ GitHub开源项目',
+                footer_github: 'GitHub',
+                footer_issues: '问题反馈',
+                footer_releases: '版本发布',
+                footer_contact: '联系我们',
+                footer_disclaimer: '本项目为开源免费软件，仅供学习交流使用'
+            },
+            en: {
+                nav_features: 'Features',
+                nav_screenshots: 'Screenshots',
+                nav_docs: 'Docs',
+                nav_download: 'Download',
+                nav_faq: 'FAQ',
+                nav_support: 'Support',
+                nav_github: 'GitHub',
+                hero_title: 'Aijiang UE MOD Manager',
+                hero_subtitle: 'One-stop management for your game MODs, making installation simple and efficient',
+                version_badge: 'Current Version v1.7.37',
+                features_title: 'Core Features',
+                feature1_title: 'Multi-Game Support',
+                feature1_desc: 'Stellar Blade (Standard/CNS), Black Myth: Wukong, and more - manage all your games with one tool!',
+                feature2_title: 'Conflict Detection',
+                feature2_desc: 'One-click MOD conflict detection prevents you from missing your favorite outfits in-game!',
+                feature3_title: 'Custom Notes',
+                feature3_desc: 'Support Chinese custom names and image notes for MODs without affecting actual files.',
+                feature4_title: 'One-Click Backup & Restore',
+                feature4_desc: 'Save current setups anytime, quick rollback ensures freedom for experimentation.',
+                feature5_title: 'Hierarchical Categories',
+                feature5_desc: 'Custom categories, drag-and-drop organization, quickly locate themed MODs.',
+                feature6_title: 'Startup Optimization',
+                feature6_desc: 'Delayed loading of key configs maintains UI responsiveness and stability.',
+                screenshots_title: 'Screenshots',
+                download_title: 'Download Now',
+                download_subtitle: 'Choose your preferred download channel',
+                netdisk1_label: 'Baidu Cloud',
+                netdisk2_label: 'Xunlei Cloud',
+                netdisk3_label: 'UC Cloud',
+                netdisk4_label: 'Quark Cloud',
+                faq_title: 'Frequently Asked Questions',
+                faq1_q: 'Which games are supported?',
+                faq1_a: 'Currently supports Stellar Blade (Standard/CNS), Black Myth: Wukong, and other Unreal Engine games. More games coming soon!',
+                faq2_q: 'Game won\'t start after MOD installation?',
+                faq2_a: 'Use the "One-Click Restore" feature to revert to previous state. We recommend using conflict detection before installation.',
+                faq3_q: 'How to detect MOD conflicts?',
+                faq3_a: 'Click the "Conflict Detection" button on the main interface. The program will automatically scan all installed MODs for potential file conflicts.',
+                faq4_q: 'Will custom names affect MOD files?',
+                faq4_a: 'No! All custom information is saved in the manager\'s configuration file without modifying original MOD files.',
+                faq5_q: 'How to backup current MOD configuration?',
+                faq5_a: 'Use "Backup Management" to save installation status and configuration, restore to any backup point anytime.',
+                faq6_q: 'Is the software free?',
+                faq6_a: 'Completely free and open source! If you find it useful, feel free to support our continued development.',
+                changelog_title: 'Changelog',
+                changelog_1_1: 'Refactored category system: support custom category display names',
+                changelog_1_2: 'Implemented soft delete: auto-move MODs to "Uncategorized" when deleting categories',
+                changelog_1_3: 'Fixed MOD categories being reset after refresh',
+                changelog_1_4: 'Fixed BUG where default categories couldn\'t be hidden',
+                changelog_1_5: 'Optimized configuration persistence strategy to prevent data loss',
+                changelog_2_1: 'Integrated Cloudflare Workers API gateway',
+                changelog_2_2: 'Implemented cloud authentication service',
+                changelog_2_3: 'Added offline mode support',
+                changelog_2_4: 'Optimized startup speed',
+                support_title: 'Support the Author',
+                support_subtitle: 'Your support drives our continuous updates',
+                payment_wechat_label: 'WeChat Pay',
+                payment_alipay_label: 'Alipay',
+                community_text: 'Join QQ Group: 682707942',
+                github_text: '⭐ Open Source on GitHub',
+                footer_github: 'GitHub',
+                footer_issues: 'Report Issues',
+                footer_releases: 'Releases',
+                footer_contact: 'Contact Us',
+                footer_disclaimer: 'This project is free and open source, for educational purposes only'
+            }
+        };
+
+        let currentLang = 'zh';
+
+        // 初始化语言指示器位置
+        function initLangIndicator() {
+            const indicator = document.getElementById('langIndicator');
+            const activeOption = document.querySelector('.lang-option.active');
+            if (activeOption) {
+                indicator.style.width = activeOption.offsetWidth + 'px';
+                indicator.style.height = activeOption.offsetHeight + 'px';
+                indicator.style.left = activeOption.offsetLeft + 'px';
+                indicator.style.top = activeOption.offsetTop + 'px';
+            }
+        }
+
+        // 切换语言
+        function toggleLanguage() {
+            const container = document.querySelector('.container');
+            container.classList.add('fade-out');
+
+            setTimeout(() => {
+                if (currentLang === 'zh') {
+                    currentLang = 'en';
+                    document.getElementById('langZh').classList.remove('active');
+                    document.getElementById('langEn').classList.add('active');
+                    document.documentElement.lang = 'en-US';
+                } else {
+                    currentLang = 'zh';
+                    document.getElementById('langEn').classList.remove('active');
+                    document.getElementById('langZh').classList.add('active');
+                    document.documentElement.lang = 'zh-CN';
+                }
+
+                updateLanguage();
+                updateLangIndicator();
+
+                setTimeout(() => {
+                    container.classList.remove('fade-out');
+                }, 50);
+            }, 300);
+        }
+
+        // 更新语言指示器位置
+        function updateLangIndicator() {
+            const indicator = document.getElementById('langIndicator');
+            const activeOption = document.querySelector('.lang-option.active');
+            if (activeOption) {
+                indicator.style.width = activeOption.offsetWidth + 'px';
+                indicator.style.height = activeOption.offsetHeight + 'px';
+                indicator.style.left = activeOption.offsetLeft + 'px';
+                indicator.style.top = activeOption.offsetTop + 'px';
+            }
+        }
+
+        // 更新页面语言
+        function updateLanguage() {
+            const elements = document.querySelectorAll('[data-lang]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-lang');
+                if (translations[currentLang][key]) {
+                    element.textContent = translations[currentLang][key];
+                }
+            });
+        }
+
+        // 导航栏滚动效果
+        window.addEventListener('scroll', function() {
+            const navbar = document.getElementById('navbar');
+            const backToTop = document.getElementById('backToTop');
+
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+
+            // 返回顶部按钮显示/隐藏
+            if (window.scrollY > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        });
+
+        // 返回顶部
+        document.getElementById('backToTop').addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // FAQ手风琴效果
+        document.querySelectorAll('.faq-question').forEach(question => {
+            question.addEventListener('click', function() {
+                const answer = this.nextElementSibling;
+                const isActive = this.classList.contains('active');
+
+                // 关闭所有其他FAQ
+                document.querySelectorAll('.faq-question').forEach(q => {
+                    q.classList.remove('active');
+                    q.nextElementSibling.classList.remove('active');
+                });
+
+                // 切换当前FAQ
+                if (!isActive) {
+                    this.classList.add('active');
+                    answer.classList.add('active');
+                }
+            });
+        });
+
+        // 功能卡片动画
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'fadeInUp 0.6s ease forwards';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.feature-item, .changelog-item').forEach(item => {
+            observer.observe(item);
+        });
+
+        // 图片点击放大功能
+        function openImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modal.classList.add('active');
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('active');
+        }
+
+        // 点击模态框背景关闭
+        document.getElementById('imageModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeImageModal();
+            }
+        });
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeImageModal();
+            }
+        });
+
+        // 为所有截图添加点击事件
+        document.querySelectorAll('.screenshot-image, .download-qr-image, .payment-qr-image').forEach(img => {
+            img.addEventListener('click', function() {
+                openImageModal(this.src);
+            });
+        });
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            initLangIndicator();
+        });
+
+        // 窗口大小改变时更新指示器
+        window.addEventListener('resize', function() {
+            updateLangIndicator();
+        });
+
+        // Steam风格鼠标悬停效果
+        document.querySelectorAll('.steam-btn, .community-link').forEach(btn => {
+            btn.addEventListener('mouseenter', function() {
+                this.classList.add('steam-glow');
+            });
+            btn.addEventListener('mouseleave', function() {
+                this.classList.remove('steam-glow');
+            });
+        });
+    </script>
+</body>
+</html>
