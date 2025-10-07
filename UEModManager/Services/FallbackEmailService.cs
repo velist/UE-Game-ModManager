@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,7 +8,7 @@ namespace UEModManager.Services
 {
     /// <summary>
     /// 智能故障切换邮件服务
-    /// 主通道：MailerSend (3000封/月)
+    /// 主通道：Brevo API（MailerSend已移除）
     /// 备用通道：Brevo (300封/天)
     /// </summary>
     public class FallbackEmailService : IEmailSender
@@ -46,10 +46,18 @@ namespace UEModManager.Services
             {
                 // 检查服务健康状态
                 var health = await GetServiceHealthAsync(sender);
-                if (health.Status == HealthStatusType.Unhealthy)
+                                if (health.Status == HealthStatusType.Unhealthy)
                 {
-                    _logger.LogWarning($"[FallbackEmail] 跳过不健康的服务: {sender.ServiceName}");
-                    continue;
+                    // 健康检查仅作参考：若处于冷却期内则跳过，否则仍尝试一次
+                    if (health.UnhealthyUntil.HasValue && DateTime.UtcNow < health.UnhealthyUntil.Value)
+                    {
+                        _logger.LogWarning($"[FallbackEmail] 跳过不健康的服务(冷却中): {sender.ServiceName}");
+                        continue;
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"[FallbackEmail] 健康检查未通过，但仍尝试一次: {sender.ServiceName}");
+                    }
                 }
 
                 // 尝试发送
@@ -227,3 +235,4 @@ namespace UEModManager.Services
         Unhealthy
     }
 }
+

@@ -55,7 +55,7 @@
                                 </Grid.ColumnDefinitions>
                                 
                                 <!-- 分类名称 -->
-                                <TextBlock Name="CategoryName" Grid.Column="0" Text="{Binding DisplayText}" Foreground="#F1F5F9"
+                                <TextBlock Name="CategoryName" Grid.Column="0" Text="{Binding Name}" Foreground="#F1F5F9" 
                                            FontSize="14" FontWeight="Normal" VerticalAlignment="Center"/>
                                 
                                 <!-- 数字徽章 -->
@@ -66,9 +66,7 @@
                                 <!-- 拖拽手柄 -->
                                 <Border x:Name="DragHandle" Grid.Column="2" MinWidth="24" Padding="2"
                                         Background="Transparent" Cursor="SizeAll"
-                                        PreviewMouseLeftButtonDown="DragHandle_PreviewMouseLeftButtonDown"
-                                        MouseEnter="CategoryDragHandle_MouseEnter"
-                                        MouseLeave="CategoryDragHandle_MouseLeave">
+                                        PreviewMouseLeftButtonDown="DragHandle_PreviewMouseLeftButtonDown">
                                     <TextBlock Text="⋮⋮" FontSize="16" FontWeight="Bold"
                                                Foreground="White"
                                                VerticalAlignment="Center" HorizontalAlignment="Center"/>
@@ -77,15 +75,9 @@
                                             <Setter Property="Visibility" Value="Visible"/>
                                             <Setter Property="Background" Value="Transparent"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Name}" Value="全部">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Name}" Value="已启用">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Name}" Value="已禁用">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
+                                                
+                                                
+                                                
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="#10B981"/>
                                                 </Trigger>
@@ -111,11 +103,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsHidden}" Value="True">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
         
         <!-- 圆角渐变按钮样式 - 增强对比度 -->
@@ -973,8 +960,8 @@
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource DarkScrollViewer}">
                     <StackPanel Margin="15,0,15,20">
                         <!-- 分类列表 -->
-                        <ListBox x:Name="CategoryList"
-                                 Background="Transparent" BorderThickness="0"
+                        <ListBox x:Name="CategoryList" 
+                                 Background="Transparent" BorderThickness="0" 
                                  ItemContainerStyle="{StaticResource CategoryItemStyle}"
                                  SelectionMode="Extended"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -982,25 +969,27 @@
                                  ScrollViewer.CanContentScroll="False"
                                  ScrollViewer.PanningMode="VerticalOnly"
                                  SelectionChanged="CategoryList_SelectionChanged"
-                                 PreviewMouseWheel="CategoryList_PreviewMouseWheel"
-                                  MouseMove="CategoryList_MouseMove"
-                                  MouseUp="CategoryList_MouseUp"
-                                  AllowDrop="True"
-                                  DragEnter="CategoryList_DragEnter"
-                                  DragOver="CategoryList_DragOver"
-                                  Drop="CategoryList_Drop"
-                                  ContextMenuOpening="CategoryList_ContextMenuOpening">
+                                 PreviewMouseWheel="CategoryList_PreviewMouseWheel" 
+                                 MouseMove="CategoryList_MouseMove"
+                                 MouseUp="CategoryList_MouseUp"
+                                 AllowDrop="True"
+                                 DragEnter="CategoryList_DragEnter"
+                                 DragOver="CategoryList_DragOver"
+                                 Drop="CategoryList_Drop">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="Red" Padding="10">
+                                        <TextBlock Text="TEST" FontSize="30" Foreground="White"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
                             <ListBox.ContextMenu>
                                 <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="CategoryContextMenu_Opened">
                                     <MenuItem Header="重命名" Click="RenameCategoryMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                        <MenuItem.Icon>
                                             <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
-                                        </MenuItem.Icon>
                                     </MenuItem>
                                     <MenuItem Header="删除" Click="DeleteCategoryMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                        <MenuItem.Icon>
                                             <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
-                                        </MenuItem.Icon>
                                     </MenuItem>
                                 </ContextMenu>
                             </ListBox.ContextMenu>
@@ -1186,38 +1175,26 @@
                                         <Border.ContextMenu>
                                             <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="ModContextMenu_Opened">
                                                 <MenuItem x:Name="EnableModMenuItem" Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="✅" FontSize="12" Foreground="#10B981"/>
-                                                    </MenuItem.Icon>
                                                 </MenuItem>
                                                 <MenuItem x:Name="DisableModMenuItem" Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="⏸️" FontSize="12" Foreground="#DC2626"/>
-                                                    </MenuItem.Icon>
                                                 </MenuItem>
                                                 <Separator Style="{StaticResource DarkSeparator}"/>
                                                 <MenuItem Header="移动到分类" x:Name="MoveToCategoryMenuItem" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="📁" FontSize="12" Foreground="#FBBF24"/>
-                                                    </MenuItem.Icon>
                                                     <!-- 动态子菜单将在代码中生成 -->
                                                 </MenuItem>
                                                 <Separator Style="{StaticResource DarkSeparator}"/>
                                                 <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
-                                                    </MenuItem.Icon>
                                                 </MenuItem>
                                                 <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="🖼️" FontSize="12" Foreground="#6B7280"/>
-                                                    </MenuItem.Icon>
                                                 </MenuItem>
                                                 <Separator Style="{StaticResource DarkSeparator}"/>
                                                 <MenuItem Header="删除MOD" Click="DeleteModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                                    <MenuItem.Icon>
                                                         <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
-                                                    </MenuItem.Icon>
                                                 </MenuItem>
                                             </ContextMenu>
                                         </Border.ContextMenu>
@@ -1390,38 +1367,26 @@
                     <ListView.ContextMenu>
                         <ContextMenu Style="{StaticResource DarkContextMenu}" Opened="ModContextMenu_Opened">
                             <MenuItem x:Name="EnableModMenuItem" Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="✅" FontSize="12" Foreground="#10B981"/>
-                                </MenuItem.Icon>
                             </MenuItem>
                             <MenuItem x:Name="DisableModMenuItem" Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="⏸️" FontSize="12" Foreground="#DC2626"/>
-                                </MenuItem.Icon>
                             </MenuItem>
                             <Separator Style="{StaticResource DarkSeparator}"/>
                             <MenuItem Header="移动到分类" x:Name="MoveToCategoryMenuItem" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="📁" FontSize="12" Foreground="#FBBF24"/>
-                                </MenuItem.Icon>
                                 <!-- 动态子菜单将在代码中生成 -->
                             </MenuItem>
                             <Separator Style="{StaticResource DarkSeparator}"/>
                             <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="✏️" FontSize="12" Foreground="#6B7280"/>
-                                </MenuItem.Icon>
                             </MenuItem>
                             <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="🖼️" FontSize="12" Foreground="#6B7280"/>
-                                </MenuItem.Icon>
                             </MenuItem>
                             <Separator Style="{StaticResource DarkSeparator}"/>
                             <MenuItem Header="删除MOD" Click="DeleteModMenuItem_Click" Style="{StaticResource DarkMenuItem}">
-                                <MenuItem.Icon>
                                     <TextBlock Text="🗑️" FontSize="12" Foreground="#DC2626"/>
-                                </MenuItem.Icon>
                             </MenuItem>
                         </ContextMenu>
                     </ListView.ContextMenu>
