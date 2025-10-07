@@ -1,0 +1,54 @@
+name: AI SEO Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-ai-seo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install OpenAI
+        run: npm install openai
+
+      - name: Test AI API
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+        run: |
+          cat > test-ai.js << 'EOF'
+          const OpenAI = require('openai');
+          const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+            baseURL: process.env.OPENAI_BASE_URL || 'https://api.siliconflow.cn/v1'
+          });
+
+          async function testAI() {
+            try {
+              const completion = await openai.chat.completions.create({
+                model: 'Qwen/Qwen2.5-32B-Instruct',
+                messages: [
+                  { role: 'user', content: '测试AI API连接，请回复"API连接成功"' }
+                ],
+                max_tokens: 100
+              });
+
+              console.log('✅ AI Response:', completion.choices[0].message.content);
+            } catch (error) {
+              console.error('❌ AI API Error:', error.message);
+              process.exit(1);
+            }
+          }
+
+          testAI();
+          EOF
+
+          node test-ai.js
