@@ -122,7 +122,7 @@ namespace UEModManager.Data
         {
             // 预设应用程序配置
             modelBuilder.Entity<AppConfiguration>().HasData(
-                new AppConfiguration { Id = 1, Key = "AppVersion", Value = "1.7.37", Description = "应用程序版本" },
+                new AppConfiguration { Id = 1, Key = "AppVersion", Value = "1.7.38", Description = "应用程序版本" },
                 new AppConfiguration { Id = 2, Key = "DatabaseVersion", Value = "1.0.0", Description = "数据库结构版本" },
                 new AppConfiguration { Id = 3, Key = "FirstRun", Value = "true", Description = "是否首次运行" },
                 new AppConfiguration { Id = 4, Key = "CloudSyncEnabled", Value = "false", Description = "云同步是否启用" },

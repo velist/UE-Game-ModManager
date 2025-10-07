@@ -6,9 +6,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>x64</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <AssemblyVersion>1.7.37.0</AssemblyVersion>
-    <FileVersion>1.7.37.0</FileVersion>
-    <ApplicationIcon>..\图标.ico</ApplicationIcon>
+    <AssemblyVersion>1.7.38.0</AssemblyVersion>
+    <FileVersion>1.7.38.0</FileVersion>
+    <ApplicationIcon>图标.ico</ApplicationIcon>
     <!-- 避免 wpftmp 项目重复特性，引入手写 AssemblyInfo 保证版本匹配 -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>

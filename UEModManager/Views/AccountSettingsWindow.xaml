@@ -1,0 +1,49 @@
+﻿<Window x:Class="UEModManager.Views.AccountSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="账户设置" Height="435" Width="420"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B1426"
+        Style="{StaticResource DarkFlatWindow}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 头像预览与更换 -->
+        <StackPanel Orientation="Horizontal" Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,8">
+            <Border Width="56" Height="56" CornerRadius="28" Background="#1A2433" Margin="0,0,12,0">
+                <Image x:Name="AvatarPreview" Stretch="UniformToFill"/>
+            </Border>
+            <Button Content="更换头像" Width="100" Height="32" Background="#334155" Foreground="#E5E7EB" Click="ChangeAvatar_Click"/>
+        </StackPanel>
+
+        <!-- 用户名 -->
+        <TextBlock Grid.Row="1" Text="用户名：" Foreground="#F1F5F9" FontSize="14"/>
+        <TextBox x:Name="UsernameTextBox" Grid.Row="1" Margin="68,0,0,0" Height="28"
+                 Background="#1A2433" Foreground="White" BorderBrush="#2A3441"/>
+
+        <!-- 显示名称（本地） -->
+        <TextBlock Grid.Row="2" Text="显示名称：" Foreground="#F1F5F9" FontSize="14"/>
+        <TextBox x:Name="DisplayNameTextBox" Grid.Row="2" Margin="68,0,0,0" Height="28"
+                 Background="#1A2433" Foreground="White" BorderBrush="#2A3441"/>
+
+        <!-- 个性签名 -->
+        <TextBlock Grid.Row="3" Text="个性签名：" Foreground="#F1F5F9" FontSize="14"/>
+        <TextBox x:Name="SignatureTextBox" Grid.Row="3" Margin="68,0,0,0" Height="28"
+                 Background="#1A2433" Foreground="White" BorderBrush="#2A3441"/>
+
+        <!-- 操作按钮 -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="取消" Width="88" Height="32" Margin="0,0,10,0"
+                    Background="#1F2937" Foreground="#E5E7EB" Click="Cancel_Click"/>
+            <Button Content="保存" Width="88" Height="32"
+                    Background="#22C55E" Foreground="Black" FontWeight="Bold" Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

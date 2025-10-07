@@ -34,7 +34,7 @@ namespace UEModManager.Services
             _httpClient = new HttpClient
             {
                 BaseAddress = new Uri("https://api.brevo.com/v3/"),
-                Timeout = TimeSpan.FromSeconds(30)
+                Timeout = TimeSpan.FromSeconds(10)  // 🔧 减少超时：30秒 → 10秒，快速fallback
             };
             _httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
             _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
