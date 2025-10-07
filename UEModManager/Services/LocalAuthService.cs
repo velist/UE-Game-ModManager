@@ -1211,6 +1211,59 @@ namespace UEModManager.Services
             }
         }
 
+        /// 获取当前用户的个性签名（存储在 AppConfiguration，键=UserSignature.{UserId}）
+        public async Task<string?> GetUserSignatureAsync()
+        {
+            try
+            {
+                if (_currentUser == null) return null;
+                var key = $"UserSignature.{_currentUser.Id}";
+                var cfg = await _dbContext.Configurations.FirstOrDefaultAsync(c => c.Key == key);
+                return cfg?.Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "读取用户签名失败");
+                return null;
+            }
+        }
+
+        /// 设置当前用户的个性签名（仅本地，不上云）
+        public async Task<bool> SetUserSignatureAsync(string? signature)
+        {
+            try
+            {
+                if (_currentUser == null) return false;
+                var key = $"UserSignature.{_currentUser.Id}";
+                var cfg = await _dbContext.Configurations.FirstOrDefaultAsync(c => c.Key == key);
+                if (cfg == null)
+                {
+                    cfg = new UEModManager.Models.AppConfiguration
+                    {
+                        Key = key,
+                        Value = signature ?? string.Empty,
+                        Description = "本地用户个性签名",
+                        CreatedAt = DateTime.Now,
+                        UpdatedAt = DateTime.Now
+                    };
+                    _dbContext.Configurations.Add(cfg);
+                }
+                else
+                {
+                    cfg.Value = signature ?? string.Empty;
+                    cfg.UpdatedAt = DateTime.Now;
+                    _dbContext.Configurations.Update(cfg);
+                }
+                await _dbContext.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "保存用户签名失败");
+                return false;
+            }
+        }
+
         #endregion
     }
 

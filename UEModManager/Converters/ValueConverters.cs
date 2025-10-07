@@ -37,7 +37,16 @@ namespace UEModManager.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return Visibility.Visible; // Default to visible
+            // value是分类名称（Binding Name）
+            var categoryName = value as string;
+
+            // ✅ 系统分类（全部、已启用、已禁用）显示占位符，其他情况隐藏
+            if (categoryName == "全部" || categoryName == "已启用" || categoryName == "已禁用")
+            {
+                return Visibility.Visible;  // 显示占位符（此时DragHandle已隐藏）
+            }
+
+            return Visibility.Collapsed;  // 隐藏占位符（让DragHandle可交互）
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

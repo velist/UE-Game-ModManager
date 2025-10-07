@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -96,10 +96,6 @@ namespace UEModManager
         }
         private GameType currentGameType = GameType.Other;
         private ObservableCollection<Category> categories = new ObservableCollection<Category>();
-        private Dictionary<string, CategoryDisplayConfig> categoryDisplayConfigCache = new Dictionary<string, CategoryDisplayConfig>(StringComparer.OrdinalIgnoreCase);
-        private static readonly string[] DefaultCategoryOrder = new[] { "面部", "人物", "武器", "服装", "发型", "修改", "其他", "未分类" };
-        private static readonly HashSet<string> DefaultCategoryNames = new HashSet<string>(DefaultCategoryOrder, StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> SystemCategoryNames = new HashSet<string>(new[] { "全部", "已启用", "已禁用" }, StringComparer.OrdinalIgnoreCase);
         private Mod? _lastSelectedMod; // 用于Shift多选
         private Point _startPoint;
         private string currentGamePath = "";
@@ -1327,23 +1323,18 @@ namespace UEModManager
                             Console.WriteLine($"[DEBUG] MOD {modName} 的备份目录不存在");
                         }
                         
-                        // 尝试创建备份（仅当备份缺失时），避免每次扫描都大量复制
-                        var modBackupDir = IOPath.Combine(currentBackupPath, modName);
-                        bool hasBackupFiles = Directory.Exists(modBackupDir) &&
-                            Directory.EnumerateFiles(modBackupDir, "*", SearchOption.AllDirectories)
-                                     .Any(f => !IOPath.GetFileName(f).StartsWith("preview", StringComparison.OrdinalIgnoreCase));
-
-                        bool backupSuccess = hasBackupFiles ? true : BackupModFilesForScan(modName, modFiles.First(), modFiles);
-
+                        // 尝试创建备份（如果没有，创建备份）- 但备份失败不应该阻止MOD被识别
+                        bool backupSuccess = true; // 跳过扫描阶段的自动备份以避免卡顿
+                        
                         if (backupSuccess)
                         {
                             mod.BackupStatus = "正常";
-                            Console.WriteLine($"[BACKUP] MOD {modName} 备份就绪（{(hasBackupFiles ? "已存在" : "新建")}）");
+                            Console.WriteLine($"[DEBUG] MOD {modName} 备份成功");
                         }
                         else
                         {
                             mod.BackupStatus = "备份失败";
-                            Console.WriteLine($"[BACKUP] MOD {modName} 备份失败（将在启用时提示）");
+                            Console.WriteLine($"[WARNING] MOD {modName} 备份失败，但仍然添加到列表");
                         }
                         
                         // 无论备份是否成功，都应该将MOD添加到列表中
@@ -1408,12 +1399,8 @@ namespace UEModManager
                                 Console.WriteLine($"[DEBUG] 为直接MOD {modName} 找到预览图: {previewImage}");
                             }
                             
-                            // 尝试备份（仅当备份缺失时）
-                            var modBackupDir2 = IOPath.Combine(currentBackupPath, modName);
-                            bool hasBackupFiles2 = Directory.Exists(modBackupDir2) &&
-                                Directory.EnumerateFiles(modBackupDir2, "*", SearchOption.AllDirectories)
-                                         .Any(f => !IOPath.GetFileName(f).StartsWith("preview", StringComparison.OrdinalIgnoreCase));
-                            bool backupSuccess = hasBackupFiles2 ? true : BackupModFilesForScan(modName, modFiles.First(), modFiles);
+                            // 尝试备份
+                            bool backupSuccess = true; // 跳过扫描阶段的自动备份以避免卡顿
                             mod.BackupStatus = backupSuccess ? "正常" : "备份失败";
                             
                             LoadModPreviewImage(mod);
@@ -1890,36 +1877,17 @@ namespace UEModManager
         {
             // 确保所有原生分类都在列表中显示，即使没有对应的MOD
             var categories = this.categories;
-            // 默认分类列表（排除"已启用"、"已禁用"这两个系统状态分类）
-            var defaultTypes = new[] { "面部", "人物", "武器", "服装", "修改", "其他", "未分类" };
-
+            var defaultTypes = new[] { "面部", "人物", "武器", "服装", "修改", "其他" };
+            
             foreach (var type in defaultTypes)
             {
-                var existing = categories.FirstOrDefault(c => c.Name == type);
-
-                if (existing != null)
+                if (!categories.Any(c => c.Name == type))
                 {
-                    // ✅ 如果默认分类存在但被隐藏，自动恢复它
-                    if (existing.IsHidden && !existing.IsCustom)
-                    {
-                        existing.IsHidden = false;
-                        Console.WriteLine($"[分类恢复] 自动恢复被隐藏的默认分类: {type}");
-                    }
-                }
-                else
-                {
-                    // 如果分类不存在，创建它
                     var count = allMods.Count(m => m.Type == type);
-                    // ✅ 始终添加默认分类，即使Count=0，并标记为非自定义分类
-                    categories.Add(new Category
+                    if (count > 0) // 只添加有MOD的分类
                     {
-                        Name = type,
-                        Count = count,
-                        IsCustom = false,  // 标记为默认分类
-                        IsHidden = false,  // 确保不被隐藏
-                        SortOrder = categories.Count  // 设置初始排序顺序
-                    });
-                    Console.WriteLine($"[分类初始化] 添加默认分类: {type} (Count={count}, IsCustom=false, SortOrder={categories.Count - 1})");
+                        categories.Add(new Category { Name = type, Count = count });
+                    }
                 }
             }
         }
@@ -4134,10 +4102,10 @@ namespace UEModManager
         private void CategoryArea_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             Console.WriteLine($"[DEBUG] CategoryArea_PreviewMouseDown triggered. Source: {e.OriginalSource.GetType().Name}");
-
+            
             // 关闭可能打开的标签菜单
             CloseCurrentTypeSelectionPopup();
-
+            
             // 新增：如果点击的是按钮或其子元素，不清除选中
             if (e.OriginalSource is DependencyObject depObj)
             {
@@ -4580,7 +4548,7 @@ namespace UEModManager
         {
             try
             {
-                var message = $"🎉 虚幻引擎MOD管理器 v1.7.38\n\n" +
+                var message = $"🎉 虚幻引擎MOD管理器 v1.7.37\n\n" +
                             $"✅ 当前已加载 {allMods.Count} 个MOD\n" +
                             $"📊 已启用MOD: {allMods.Count(m => m.Status == "已启用")} 个\n" +
                             $"⏸️ 已禁用MOD: {allMods.Count(m => m.Status == "已禁用")} 个\n\n" +
@@ -5678,7 +5646,7 @@ namespace UEModManager
                 // 标题
                 var titleText = new TextBlock
                 {
-                    Text = "爱酱剑星MOD管理器 v1.7.38",
+                    Text = "爱酱剑星MOD管理器 v1.7.37",
                     FontSize = 20,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(Color.FromRgb(0, 212, 170)),
@@ -5810,7 +5778,7 @@ namespace UEModManager
                 // 感谢名单
                 var thanksText = new TextBlock
                 {
-                    Text = "捐赠感谢:\n胖虎、YUki、Tarnished\n春告鳥、蘭、虎子\n神秘不保底男\n文铭、阪、林墨\nDaisuke、虎子哥、枪王\n爱酱游戏群全体群友",
+                    Text = "捐赠感谢:\n胖虎、YUki、Tarnished\n春告鳥、蘭、虎子\n神秘不保底男\n文铭、阪、林墨\nDaisuke、虎子哥\n爱酱游戏群全体群友",
                     FontSize = 12,
                     Foreground = new SolidColorBrush(Colors.LightGray),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -5933,7 +5901,7 @@ namespace UEModManager
         }
 
         // 检查更新功能
-        private async void CheckForUpdatesLegacy()
+        private async void CheckForUpdates()
         {
             try
             {
@@ -5954,7 +5922,7 @@ namespace UEModManager
                     var downloadUrl = root.GetProperty("html_url").GetString();
                     var releaseNotes = root.GetProperty("body").GetString();
                     
-                    var currentVersion = "v1.7.38"; // 当前版本号
+                    var currentVersion = "v1.7.37"; // 当前版本号
                     
                     if (latestVersion != currentVersion)
                     {
@@ -5992,28 +5960,9 @@ namespace UEModManager
             {
                 ShowUpdateFailedDialog();
             }
-        catch (Exception ex)
-        {
-            ShowUpdateFailedDialog();
-        }
-    }
-
-        private void CheckForUpdates()
-        {
-            const string updateUrl = "https://www.modmanger.com/";
-
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = updateUrl,
-                    UseShellExecute = true
-                });
-            }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] 打开更新页面失败: {ex.Message}");
-                ShowCustomMessageBox("无法打开更新页面，请稍后重试。", "检查更新", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowUpdateFailedDialog();
             }
         }
 
@@ -6784,14 +6733,6 @@ namespace UEModManager
         {
             try
             {
-                // ✅ 检查游戏是否已选择并配置
-                if (string.IsNullOrWhiteSpace(currentGamePath) || string.IsNullOrWhiteSpace(currentModPath) || !Directory.Exists(currentModPath))
-                {
-                    ShowCustomMessageBox("请先在左上角选择游戏并完成路径配置，再导入MOD。", "需要选择游戏", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    try { GameList.IsDropDownOpen = true; } catch {}
-                    return;
-                }
-
                 var openFileDialog = new OpenFileDialog
                 {
                     Filter = "压缩文件 (*.zip;*.rar;*.7z)|*.zip;*.rar;*.7z|所有文件 (*.*)|*.*",
@@ -6817,16 +6758,8 @@ namespace UEModManager
         {
             try
             {
-                // ✅ 检查游戏是否已选择并配置
-                if (string.IsNullOrWhiteSpace(currentGamePath) || string.IsNullOrWhiteSpace(currentModPath) || !Directory.Exists(currentModPath))
-                {
-                    ShowCustomMessageBox("请先选择游戏并完成路径配置。", "需要选择游戏", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    try { GameList.IsDropDownOpen = true; } catch {}
-                    return;
-                }
-
                 Console.WriteLine($"开始导入MOD文件: {filePath}");
-
+                
                 if (!File.Exists(filePath))
                 {
                     ShowCustomMessageBox("文件不存在", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -8092,13 +8025,15 @@ namespace UEModManager
             {
                 var selectedCategoryName = (CategoryList.SelectedItem as Category)?.Name;
 
-                var displayConfig = LoadCategoryDisplayConfig();
-                categoryDisplayConfigCache = displayConfig;
-
                 // 新建分类后，优先显示所有自定义分类（包括没有MOD的）
-                var categoryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                
+                var newCategories = new List<Category>
+                {
+                    new Category { Name = "全部", Count = allMods.Count }
+                };
+
                 // 统计每个分类下的MOD数量 - 同时统计Categories和Type
+                var categoryCounts = new Dictionary<string, int>();
+                
                 foreach (var mod in allMods)
                 {
                     // 统计基于Type的分类
@@ -8115,7 +8050,7 @@ namespace UEModManager
                     {
                         foreach (var category in mod.Categories)
                         {
-                            if (!string.IsNullOrEmpty(category) && !string.Equals(category, mod.Type, StringComparison.OrdinalIgnoreCase))
+                            if (!string.IsNullOrEmpty(category) && category != mod.Type) // 避免重复计数
                             {
                                 if (categoryCounts.ContainsKey(category))
                                     categoryCounts[category]++;
@@ -8126,109 +8061,53 @@ namespace UEModManager
                     }
                 }
 
-                // 使用字典去重分类并聚合信息
-                var categoryMap = new Dictionary<string, Category>(StringComparer.OrdinalIgnoreCase)
+                // 首先添加基于MOD实际Categories的原生分类（武器、人物、面部、修改等）
+                foreach (var kvp in categoryCounts.OrderBy(kvp => kvp.Key))
                 {
-                    ["全部"] = new Category
+                    if (kvp.Key != "全部")
                     {
-                        Name = "全部",
-                        Count = allMods.Count,
-                        IsCustom = false,
-                        SortOrder = GetDefaultSortOrder("全部")
+                        newCategories.Add(new Category { Name = kvp.Key, Count = kvp.Value });
                     }
-                };
-
-                foreach (var kvp in categoryCounts.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
-                {
-                    if (string.Equals(kvp.Key, "全部", StringComparison.OrdinalIgnoreCase)) continue;
-
-                    var isDefault = DefaultCategoryNames.Contains(kvp.Key);
-                    categoryMap[kvp.Key] = new Category
-                    {
-                        Name = kvp.Key,
-                        Count = kvp.Value,
-                        IsCustom = !isDefault,
-                        SortOrder = isDefault ? GetDefaultSortOrder(kvp.Key) : 0
-                    };
                 }
 
-                // 加入CategoryService中的自定义分类（包括没有MOD的）
+                // 然后加入CategoryService中的自定义分类（包括没有MOD的）
                 if (_categoryService != null && _categoryService.Categories != null)
                 {
                     foreach (var catItem in _categoryService.Categories)
                     {
-                        if (catItem.Name == "全部" || catItem.Name == "已启用" || catItem.Name == "已禁用") continue;
-
-                        if (!categoryMap.ContainsKey(catItem.Name))
+                        
+                        
+                        // 如果这个分类还没有被添加，则添加它
+                        if (!newCategories.Any(c => c.Name == catItem.Name))
                         {
-                            var isDefault = DefaultCategoryNames.Contains(catItem.Name);
-                            var count = categoryCounts.ContainsKey(catItem.Name) ? categoryCounts[catItem.Name] : 0;
-                            categoryMap[catItem.Name] = new Category
-                            {
-                                Name = catItem.Name,
-                                Count = count,
-                                IsCustom = !isDefault,
-                                SortOrder = isDefault ? GetDefaultSortOrder(catItem.Name) : 0
-                            };
+                            int count = categoryCounts.ContainsKey(catItem.Name) ? categoryCounts[catItem.Name] : 0;
+                            newCategories.Add(new Category { Name = catItem.Name, Count = count });
                         }
                     }
                 }
 
-                var newCategories = categoryMap.Values.ToList();
-
-                // 确保默认分类存在
-                EnsureDefaultCategories(newCategories, categoryCounts, displayConfig);
-
-                // 应用显示配置与排序逻辑
-                int customSortSeed = DefaultCategoryOrder.Length + 10;
-                int customIndex = 0;
-                for (int i = 0; i < newCategories.Count; i++)
-                {
-                    var cat = newCategories[i];
-                    if (string.Equals(cat.Name, "全部", StringComparison.OrdinalIgnoreCase))
-                    {
-                        cat.SortOrder = GetDefaultSortOrder(cat.Name);
-                        cat.IsCustom = false;
-                    }
-                    else if (DefaultCategoryNames.Contains(cat.Name))
-                    {
-                        if (cat.SortOrder == 0)
-                        {
-                            cat.SortOrder = GetDefaultSortOrder(cat.Name);
-                        }
-                        cat.IsCustom = false;
-                    }
-                    else
-                    {
-                        if (cat.SortOrder == 0)
-                        {
-                            cat.SortOrder = customSortSeed + customIndex++;
-                        }
-                        cat.IsCustom = true;
-                    }
-
-                    ApplyCategoryDisplayConfig(cat, displayConfig);
-                }
-
-                var visibleCategories = newCategories
-                    .Where(cat => !cat.IsHidden)
-                    .OrderBy(cat => string.Equals(cat.Name, "全部", StringComparison.OrdinalIgnoreCase) ? -1 : cat.SortOrder)
-                    .ThenBy(cat => cat.Name, StringComparer.OrdinalIgnoreCase)
+                // 去重（防止同名分类重复）
+                newCategories = newCategories
+                    .GroupBy(c => c.Name)
+                    .Select(g => g.First())
                     .ToList();
 
                 // Update the ObservableCollection on the UI thread
                 Dispatcher.Invoke(() =>
                 {
                     categories.Clear();
-                    foreach (var cat in visibleCategories)
+                    foreach (var cat in newCategories)
                     {
                         categories.Add(cat);
                     }
+                    
+                    // 初始化默认分类，确保原生分类显示
+                    InitializeDefaultCategories();
 
                     // Restore selection
                     if (selectedCategoryName != null)
                     {
-                        var newSelection = categories.FirstOrDefault(c => string.Equals(c.Name, selectedCategoryName, StringComparison.OrdinalIgnoreCase));
+                        var newSelection = categories.FirstOrDefault(c => c.Name == selectedCategoryName);
                         CategoryList.SelectedItem = newSelection ?? categories.FirstOrDefault();
                     }
                     else if (categories.Any())
@@ -8237,7 +8116,7 @@ namespace UEModManager
                     }
                 });
                 
-                Console.WriteLine($"[DEBUG] 分类显示刷新完成，共 {visibleCategories.Count} 个分类");
+                Console.WriteLine($"[DEBUG] 分类显示刷新完成，共 {newCategories.Count} 个分类");
             }
             catch (Exception ex)
             {
@@ -8322,8 +8201,8 @@ namespace UEModManager
                     return;
                 }
 
+                var defaultCategories = new[] { "全部", "已启用", "已禁用" };
                 List<CategoryItem> categoriesToDelete = new List<CategoryItem>();
-                List<string> defaultCategoriesToHide = new List<string>();
                 
                 // 检查是否所有选中项都是有效的可删除分类
                 foreach (var item in selectedItems)
@@ -8340,177 +8219,48 @@ namespace UEModManager
                     {
                         categoryName = c.Name;
                     }
-
-                    if (string.IsNullOrEmpty(categoryName) || SystemCategoryNames.Contains(categoryName))
+                    
+                    if (string.IsNullOrEmpty(categoryName) || defaultCategories.Contains(categoryName))
                     {
                         // 跳过无效的项或系统分类
                         continue;
                     }
-
+                    
                     if (categoryItem == null && _categoryService != null)
                     {
                         categoryItem = _categoryService.Categories.FirstOrDefault(x => 
                             x.Name == categoryName && x.Name != "已启用" && x.Name != "已禁用");
                     }
-
+                    
                     if (categoryItem != null)
                     {
-                        if (DefaultCategoryNames.Contains(categoryItem.Name) && !SystemCategoryNames.Contains(categoryItem.Name))
-                        {
-                            defaultCategoriesToHide.Add(categoryItem.Name);
-                            continue;
-                        }
-
-                        if (SystemCategoryNames.Contains(categoryItem.Name))
-                        {
-                            continue;
-                        }
-
                         categoriesToDelete.Add(categoryItem);
                     }
-                    else if (item is Category category)
-                    {
-                        if (!category.IsCustom && !SystemCategoryNames.Contains(category.Name))
-                        {
-                            defaultCategoriesToHide.Add(category.Name);
-                        }
-                    }
                 }
-
-                // 捕获显式选择的默认分类（当SelectedItem直接为Category时）
-                foreach (var item in selectedItems)
-                {
-                    if (item is Category category && !category.IsCustom && !SystemCategoryNames.Contains(category.Name) && !defaultCategoriesToHide.Contains(category.Name))
-                    {
-                        defaultCategoriesToHide.Add(category.Name);
-                    }
-                }
-
-                if (categoriesToDelete.Count == 0 && defaultCategoriesToHide.Count == 0)
+                
+                if (categoriesToDelete.Count == 0)
                 {
                     ShowCustomMessageBox("没有选择有效的自定义分类，系统分类不能删除", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-
+                
                 // 显示确认对话框
-                var confirmSegments = new List<string>();
-                if (categoriesToDelete.Count > 0)
-                {
-                    confirmSegments.Add(categoriesToDelete.Count == 1
-                        ? $"确定要删除分类 '{categoriesToDelete[0].Name}' 吗？\n此操作将同时删除所有子分类。"
-                        : $"确定要删除这 {categoriesToDelete.Count} 个分类吗？\n此操作将同时删除所有子分类。");
-                }
-
-                if (defaultCategoriesToHide.Count > 0)
-                {
-                    var defaultList = string.Join("、", defaultCategoriesToHide.Distinct(StringComparer.OrdinalIgnoreCase));
-                    confirmSegments.Add(defaultCategoriesToHide.Count == 1
-                        ? $"默认分类 '{defaultList}' 将被隐藏，实际分类名称和MOD标签保持不变。"
-                        : $"默认分类 {defaultList} 将被隐藏，实际分类名称和MOD标签保持不变。");
-                }
-
-                string confirmMessage = string.Join("\n\n", confirmSegments) + "\n\n确认继续吗？";
-
+                string confirmMessage = categoriesToDelete.Count == 1 
+                    ? $"确定要删除分类 '{categoriesToDelete[0].Name}' 吗？\n\n此操作将同时删除所有子分类。"
+                    : $"确定要删除这 {categoriesToDelete.Count} 个分类吗？\n\n此操作将同时删除所有子分类。";
+                    
                 var result = ShowCustomMessageBox(confirmMessage, "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (result == MessageBoxResult.Yes)
+                if (result == MessageBoxResult.Yes && _categoryService != null)
                 {
-                    bool configUpdated = false;
-
-                    if (defaultCategoriesToHide.Count > 0)
-                    {
-                        foreach (var defaultName in defaultCategoriesToHide.Distinct(StringComparer.OrdinalIgnoreCase))
-                        {
-                            // ✅ 新增：软删除前，将该分类下的MOD移动到未分类
-                            var modsInCategory = allMods.Where(m =>
-                                string.Equals(m.Type, defaultName, StringComparison.OrdinalIgnoreCase))
-                                .ToList();
-
-                            if (modsInCategory.Any())
-                            {
-                                Console.WriteLine($"[分类删除] 软删除分类 '{defaultName}' 下有 {modsInCategory.Count} 个MOD，即将移动到 '未分类'");
-                                foreach (var mod in modsInCategory)
-                                {
-                                    mod.Type = "未分类";
-                                    Console.WriteLine($"[分类删除] MOD '{mod.Name}' 从 '{defaultName}' 移动到 '未分类'");
-                                }
-
-                                // 保存MOD数据
-                                if (_modService != null)
-                                {
-                                    await _modService.ForceWriteToDiskAsync();
-                                    Console.WriteLine($"[分类删除] 已保存 {modsInCategory.Count} 个MOD的变更");
-                                }
-                            }
-
-                            MarkDefaultCategoryHidden(defaultName);
-
-                            var uiCategory = categories.FirstOrDefault(c => string.Equals(c.Name, defaultName, StringComparison.OrdinalIgnoreCase));
-                            if (uiCategory != null)
-                            {
-                                uiCategory.IsHidden = true;
-                            }
-
-                            Console.WriteLine($"[DEBUG] 默认分类 '{defaultName}' 标记为隐藏");
-                            configUpdated = true;
-                        }
-                    }
-
-                    if (configUpdated)
-                    {
-                        // ✅ 清空已隐藏分类的 DisplayName，避免 RefreshCategoryDisplay 时还原
-                        foreach (var defaultName in defaultCategoriesToHide.Distinct(StringComparer.OrdinalIgnoreCase))
-                        {
-                            var uiCategory = categories.FirstOrDefault(c =>
-                                string.Equals(c.Name, defaultName, StringComparison.OrdinalIgnoreCase));
-                            if (uiCategory != null)
-                            {
-                                uiCategory.DisplayName = null; // 清空自定义名称
-                                Console.WriteLine($"[软删除] 清空分类 '{defaultName}' 的 DisplayName");
-                            }
-                        }
-
-                        SaveCategoryDisplayConfig();
-                        Console.WriteLine("[软删除] 配置已保存，DisplayName 已清空");
-                    }
-
                     // 批量删除所有选中的分类
-                    if (_categoryService != null && categoriesToDelete.Any())
+                    foreach (var categoryItem in categoriesToDelete)
                     {
-                        foreach (var categoryItem in categoriesToDelete)
-                        {
-                            // 删除前将该分类下的MOD移动到未分类
-                            var modsInCategory = allMods.Where(m =>
-                                string.Equals(m.Type, categoryItem.Name, StringComparison.OrdinalIgnoreCase))
-                                .ToList();
-
-                            if (modsInCategory.Any())
-                            {
-                                Console.WriteLine($"[分类删除] 分类 '{categoryItem.Name}' 下有 {modsInCategory.Count} 个MOD，即将移动到 '未分类'");
-                                foreach (var mod in modsInCategory)
-                                {
-                                    mod.Type = "未分类";
-                                    Console.WriteLine($"[分类删除] MOD '{mod.Name}' 从 '{categoryItem.Name}' 移动到 '未分类'");
-                                }
-
-                                // 保存MOD数据
-                                if (_modService != null)
-                                {
-                                    await _modService.ForceWriteToDiskAsync();
-                                    Console.WriteLine($"[分类删除] 已保存 {modsInCategory.Count} 个MOD的变更");
-                                }
-                            }
-
-                            await _categoryService.RemoveCategoryAsync(categoryItem);
-                            Console.WriteLine($"[DEBUG] 成功删除分类: {categoryItem.Name}");
-                        }
+                        await _categoryService.RemoveCategoryAsync(categoryItem);
+                        Console.WriteLine($"[DEBUG] 成功删除分类: {categoryItem.Name}");
                     }
-                    else if (categoriesToDelete.Any())
-                    {
-                        Console.WriteLine("[WARNING] CategoryService 不可用，无法删除自定义分类");
-                    }
-
+                    
                     RefreshCategoryDisplay();
-                    Console.WriteLine($"[DEBUG] 成功处理分类删除: 移除 {categoriesToDelete.Count} 个自定义分类，隐藏 {defaultCategoriesToHide.Count} 个默认分类");
+                    Console.WriteLine($"[DEBUG] 成功删除 {categoriesToDelete.Count} 个分类");
                 }
             }
             catch (Exception ex)
@@ -9220,8 +8970,8 @@ namespace UEModManager
                         Console.WriteLine($"[DEBUG] 当前选中的MOD总数: {selectedCount}");
                         
                         // 获取当前显示的分类列表
-                        var availableCategories = new List<Category>();
-
+                        var availableCategories = new List<string>();
+                        
                         // 从当前CategoryList获取所有可用分类
                         if (CategoryList.ItemsSource != null)
                         {
@@ -9229,48 +8979,45 @@ namespace UEModManager
                             {
                                 if (item is Category category)
                                 {
-                                    if (category.IsHidden) continue;
                                     // 排除系统默认分类
                                     if (!new[] { "全部", "已启用", "已禁用" }.Contains(category.Name))
                                     {
-                                        availableCategories.Add(category);
+                                        availableCategories.Add(category.Name);
+                                    }
+                                }
+                                else if (item is UEModManager.Core.Models.CategoryItem categoryItem)
+                                {
+                                    // 排除系统默认分类
+                                    if (!new[] { "全部", "已启用", "已禁用" }.Contains(categoryItem.Name))
+                                    {
+                                        availableCategories.Add(categoryItem.Name);
                                     }
                                 }
                             }
                         }
-
-                        // 如果没有从CategoryList获取到分类，使用categories集合
-                        if (!availableCategories.Any() && categories != null && categories.Any())
+                        
+                        // 如果没有从CategoryList获取到分类，尝试从CategoryService获取
+                        if (!availableCategories.Any() && _categoryService != null && _categoryService.Categories.Any())
                         {
-                            availableCategories = categories
-                                .Where(c => !c.IsHidden && !new[] { "全部", "已启用", "已禁用" }.Contains(c.Name))
+                            availableCategories = _categoryService.Categories
+                                .Where(c => !new[] { "全部", "已启用", "已禁用" }.Contains(c.Name))
+                                .Select(c => c.Name)
                                 .ToList();
                         }
-
+                        
                         Console.WriteLine($"[DEBUG] 找到 {availableCategories.Count} 个可用分类");
-
+                        
                         if (availableCategories.Any())
                         {
-                            foreach (var cat in availableCategories)
+                            foreach (var categoryName in availableCategories)
                             {
-                                // 生成显示文本：如果有DisplayName，显示为"Name（DisplayName）"，否则只显示Name
-                                string menuHeader;
-                                if (!string.IsNullOrWhiteSpace(cat.DisplayName))
-                                {
-                                    menuHeader = $"{cat.Name}（{cat.DisplayName}）";
-                                }
-                                else
-                                {
-                                    menuHeader = cat.Name;
-                                }
-
                                 var categoryMenuItem = new MenuItem
                                 {
-                                    Header = menuHeader,
+                                    Header = categoryName,
                                     Style = (Style)FindResource("DarkMenuItem"),
                                     Tag = rightClickedMod // 保留右键点击的MOD信息（用于后备处理）
                                 };
-
+                                
                                 // 添加图标
                                 var icon = new TextBlock
                                 {
@@ -9279,13 +9026,12 @@ namespace UEModManager
                                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9CA3AF"))
                                 };
                                 categoryMenuItem.Icon = icon;
-
-                                // 添加点击事件（使用实际Name）
-                                var categoryName = cat.Name; // 捕获实际分类名
+                                
+                                // 添加点击事件
                                 categoryMenuItem.Click += (s, args) => MoveToCategorySubMenuItem_Click(s, args, categoryName);
-
+                                
                                 moveToCategoryMenuItem.Items.Add(categoryMenuItem);
-                                Console.WriteLine($"[DEBUG] 添加分类菜单项: {menuHeader} (实际名称: {cat.Name})");
+                                Console.WriteLine($"[DEBUG] 添加分类菜单项: {categoryName}");
                             }
                             
                             // 强制刷新菜单UI
@@ -9828,82 +9574,28 @@ namespace UEModManager
             }
         }
 
-        private void CategoryList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
-        {
-            try
-            {
-                if (e.OriginalSource is DependencyObject source)
-                {
-                    var listBoxItem = FindParent<ListBoxItem>(source);
-                    if (listBoxItem != null && !listBoxItem.IsSelected)
-                    {
-                        listBoxItem.IsSelected = true;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[WARNING] 设置分类右键选中项失败: {ex.Message}");
-            }
-        }
-
         // 重命名分类按钮点击事件
         private async void RenameCategoryButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (CategoryList.SelectedItem == null)
-                {
-                    ShowCustomMessageBox("请先选择要重命名的分类", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                if (CategoryList.SelectedItem is Category categoryModel)
-                {
-                    if (!categoryModel.IsCustom)
-                    {
-                        if (SystemCategoryNames.Contains(categoryModel.Name))
-                        {
-                            ShowCustomMessageBox("默认分类不能重命名", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                            return;
-                        }
-
-                        if (TryRenameDefaultCategory(categoryModel.Name, out var updatedDisplayName))
-                        {
-                            categoryModel.DisplayName = updatedDisplayName;
-                            categoryModel.IsHidden = false;
-                            return;
-                        }
-                    }
-
-                    string newName = ShowInputDialog("请输入新的分类名称:", "重命名分类", categoryModel.DisplayText);
-                    if (!string.IsNullOrWhiteSpace(newName) && !string.Equals(newName, categoryModel.Name, StringComparison.Ordinal))
-                    {
-                        categoryModel.Name = newName.Trim();
-                        RefreshCategoryDisplay();
-                    }
-                    return;
-                }
-
+                // 优先使用CategoryService的分类
                 if (_categoryService != null && CategoryList.SelectedItem is CategoryItem selectedCategoryItem)
                 {
-                    if (!SystemCategoryNames.Contains(selectedCategoryItem.Name) && TryRenameDefaultCategory(selectedCategoryItem.Name, out _))
-                    {
-                        return;
-                    }
-
-                    if (SystemCategoryNames.Contains(selectedCategoryItem.Name))
+                    // 检查是否是默认分类
+                    var defaultCategories = new[] { "全部", "已启用", "已禁用" };
+                    if (defaultCategories.Contains(selectedCategoryItem.Name))
                     {
                         ShowCustomMessageBox("默认分类不能重命名", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
-
                     string newName = ShowInputDialog("请输入新的分类名称:", "重命名分类", selectedCategoryItem.Name);
-                    if (!string.IsNullOrWhiteSpace(newName) && !string.Equals(newName, selectedCategoryItem.Name, StringComparison.Ordinal))
+                    if (!string.IsNullOrEmpty(newName) && newName != selectedCategoryItem.Name)
                     {
-                        bool success = await _categoryService.RenameCategoryAsync(selectedCategoryItem, newName.Trim());
+                        bool success = await _categoryService.RenameCategoryAsync(selectedCategoryItem, newName);
                         if (success)
                         {
+                            // 刷新分类显示
                             RefreshCategoryDisplay();
                             Console.WriteLine($"[DEBUG] 成功重命名分类: {selectedCategoryItem.Name} -> {newName}");
                         }
@@ -9912,10 +9604,21 @@ namespace UEModManager
                             ShowCustomMessageBox("重命名失败，分类名称可能已存在", "重命名分类", MessageBoxButton.OK, MessageBoxImage.Warning);
                         }
                     }
-                    return;
                 }
-
-                ShowCustomMessageBox("暂无法识别选中的分类类型", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                else if (CategoryList.SelectedItem is Category selectedCategory)
+                {
+                    // 回退到旧方式
+                    string newName = ShowInputDialog("请输入新的分类名称:", "重命名分类", selectedCategory.Name);
+                    if (!string.IsNullOrEmpty(newName) && newName != selectedCategory.Name)
+                    {
+                        selectedCategory.Name = newName;
+                        RefreshCategoryDisplay();
+                    }
+                }
+                else
+                {
+                    ShowCustomMessageBox("请先选择要重命名的分类", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (Exception ex)
             {
@@ -9978,12 +9681,11 @@ namespace UEModManager
                     var categoryName = GetCategoryName(listBoxItem.DataContext);
                     
                     // 只有非默认分类才显示悬停效果
-                    if (categoryName != "全部" && categoryName != "已启用" && categoryName != "已禁用")
-                    {
+                    { 
                         // 改变图标颜色为高亮状态并显示四个方向箭头光标
                         textBlock.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#00D4AA"));
                         border.Cursor = Cursors.SizeAll;
-                    }
+                     }
                 }
             }
         }
@@ -10402,86 +10104,47 @@ namespace UEModManager
 
         private void DragHandle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            Console.WriteLine("[拖拽] ========== DragHandle_PreviewMouseLeftButtonDown 触发 ==========");
-
             var border = sender as Border;
-            if (border == null)
-            {
-                Console.WriteLine("[拖拽] sender 不是 Border 类型，拖拽终止");
-                return;
-            }
-            Console.WriteLine("[拖拽] ✓ sender 是 Border 类型");
-
+            if (border == null) return;
             var listBoxItem = FindParent<ListBoxItem>(border);
-            if (listBoxItem == null)
-            {
-                Console.WriteLine("[拖拽] 未找到父级 ListBoxItem，拖拽终止");
-                return;
-            }
-            Console.WriteLine("[拖拽] ✓ 找到父级 ListBoxItem");
-
+            if (listBoxItem == null) return;
             var category = listBoxItem.DataContext as Category;
-            if (category == null)
-            {
-                Console.WriteLine("[拖拽] DataContext 不是 Category 类型，拖拽终止");
-                return;
-            }
-            Console.WriteLine($"[拖拽] ✓ Category: Name={category.Name}, DisplayName={category.DisplayName}, IsCustom={category.IsCustom}");
 
-            if (IsDefaultCategory(category))
-            {
-                Console.WriteLine($"[拖拽] {category.Name} 是系统默认分类，禁止拖拽");
-                return;
-            }
-            Console.WriteLine($"[拖拽] ✓ {category.Name} 不是系统默认分类，允许拖拽");
+            if (category == null || IsDefaultCategory(category)) return;
 
             // 1. 为被拖拽的项创建一张位图快照
-            Console.WriteLine($"[拖拽] 创建位图快照: 宽度={listBoxItem.ActualWidth}, 高度={listBoxItem.ActualHeight}");
             var bmp = new RenderTargetBitmap((int)listBoxItem.ActualWidth, (int)listBoxItem.ActualHeight, 96, 96, PixelFormats.Pbgra32);
             bmp.Render(listBoxItem);
-            bmp.Freeze();
+            bmp.Freeze(); 
 
             // 2. 获取Adorner层
             var adornerLayer = AdornerLayer.GetAdornerLayer(CategoryList);
-            if (adornerLayer == null)
-            {
-                Console.WriteLine("[拖拽] 无法获取 AdornerLayer，拖拽终止");
-                return;
-            }
-            Console.WriteLine("[拖拽] ✓ 成功获取 AdornerLayer");
+            if (adornerLayer == null) return;
 
             // 3. 创建并添加使用位图快照的Adorner
             _dragAdorner = new DragAdorner(CategoryList, bmp, listBoxItem.RenderSize);
             adornerLayer.Add(_dragAdorner);
-            Console.WriteLine("[拖拽] ✓ 成功创建并添加 DragAdorner");
-
+            
             // 4. 更新Adorner的初始位置，使其跟随鼠标
             _dragStartPointOnItem = e.GetPosition(listBoxItem);
             Point initialPosition = e.GetPosition(CategoryList);
             _dragAdorner.UpdatePosition(new Point(initialPosition.X - _dragStartPointOnItem.X, initialPosition.Y - _dragStartPointOnItem.Y));
-            Console.WriteLine($"[拖拽] ✓ 更新 Adorner 位置: X={initialPosition.X - _dragStartPointOnItem.X}, Y={initialPosition.Y - _dragStartPointOnItem.Y}");
 
             // 5. 现在可以安全地隐藏原始项
             listBoxItem.Visibility = Visibility.Hidden;
-            Console.WriteLine("[拖拽] ✓ 隐藏原始 ListBoxItem");
-
-            Console.WriteLine($"[拖拽] 开始执行 DoDragDrop: Category={category.Name}");
+            
             DragDrop.DoDragDrop(listBoxItem, category, DragDropEffects.Move);
-            Console.WriteLine("[拖拽] DoDragDrop 完成");
 
             // ----- 拖拽结束后执行清理 -----
-
+            
             if (_dragAdorner != null)
             {
                 adornerLayer.Remove(_dragAdorner);
                 _dragAdorner = null;
-                Console.WriteLine("[拖拽] ✓ 移除 DragAdorner");
             }
 
             listBoxItem.Visibility = Visibility.Visible;
-            Console.WriteLine("[拖拽] ✓ 恢复 ListBoxItem 可见性");
-            Console.WriteLine("[拖拽] ========== DragHandle_PreviewMouseLeftButtonDown 结束 ==========");
-
+            
             e.Handled = true;
         }
 
@@ -10496,9 +10159,7 @@ namespace UEModManager
 
             var target = GetCategoryItemAtPosition(e.GetPosition(CategoryList)) as Category;
             var dragged = e.Data.GetData(typeof(Category)) as Category;
-
-            Console.WriteLine($"[拖拽] DragOver: dragged={dragged?.Name ?? "null"}, target={target?.Name ?? "null"}");
-
+            
             // 默认不允许放置
             e.Effects = DragDropEffects.None;
 
@@ -10506,18 +10167,6 @@ namespace UEModManager
             {
                 // 仅当目标有效时，才允许移动
                 e.Effects = DragDropEffects.Move;
-                Console.WriteLine($"[拖拽] DragOver: 允许放置到 {target.Name}");
-            }
-            else
-            {
-                if (target == null)
-                    Console.WriteLine("[拖拽] DragOver: 目标为 null，不允许放置");
-                else if (dragged == null)
-                    Console.WriteLine("[拖拽] DragOver: 拖拽项为 null，不允许放置");
-                else if (target == dragged)
-                    Console.WriteLine("[拖拽] DragOver: 目标和拖拽项相同，不允许放置");
-                else if (IsDefaultCategory(target))
-                    Console.WriteLine($"[拖拽] DragOver: {target.Name} 是系统默认分类，不允许放置");
             }
 
             e.Handled = true;
@@ -10525,74 +10174,15 @@ namespace UEModManager
 
         private void CategoryList_Drop(object sender, DragEventArgs e)
         {
-            Console.WriteLine("[拖拽] ========== CategoryList_Drop 触发 ==========");
-
-            if (!e.Data.GetDataPresent(typeof(Category)))
-            {
-                Console.WriteLine("[拖拽] Drop: 数据不包含 Category 类型，终止");
-                return;
-            }
-            Console.WriteLine("[拖拽] Drop: ✓ 数据包含 Category 类型");
-
+            if (!e.Data.GetDataPresent(typeof(Category))) return;
             var dragged = e.Data.GetData(typeof(Category)) as Category;
             var target = GetCategoryItemAtPosition(e.GetPosition(CategoryList)) as Category;
-
-            Console.WriteLine($"[拖拽] Drop: dragged={dragged?.Name ?? "null"}, target={target?.Name ?? "null"}");
-
-            if (dragged == null || target == null || dragged == target)
-            {
-                if (dragged == null)
-                    Console.WriteLine("[拖拽] Drop: 拖拽项为 null，终止");
-                if (target == null)
-                    Console.WriteLine("[拖拽] Drop: 目标为 null，终止");
-                if (dragged == target)
-                    Console.WriteLine("[拖拽] Drop: 拖拽项和目标相同，终止");
-                return;
-            }
-
-            if (IsDefaultCategory(target))
-            {
-                Console.WriteLine($"[拖拽] Drop: {target.Name} 是系统默认分类，终止");
-                return;
-            }
-
+            if (dragged == null || target == null || dragged == target) return;
+            if (IsDefaultCategory(target)) return;
             int oldIndex = categories.IndexOf(dragged);
             int newIndex = categories.IndexOf(target);
-            Console.WriteLine($"[拖拽] Drop: oldIndex={oldIndex}, newIndex={newIndex}");
-
-            if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex)
-            {
-                if (oldIndex < 0)
-                    Console.WriteLine($"[拖拽] Drop: 拖拽项 {dragged.Name} 不在 categories 集合中，终止");
-                if (newIndex < 0)
-                    Console.WriteLine($"[拖拽] Drop: 目标 {target.Name} 不在 categories 集合中，终止");
-                if (oldIndex == newIndex)
-                    Console.WriteLine("[拖拽] Drop: oldIndex 和 newIndex 相同，终止");
-                return;
-            }
-
-            // 移动分类
-            Console.WriteLine($"[拖拽] Drop: 开始移动分类 {dragged.Name} 从位置 {oldIndex} 到 {newIndex}");
+            if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex) return;
             categories.Move(oldIndex, newIndex);
-            Console.WriteLine("[拖拽] Drop: ✓ 完成 ObservableCollection.Move");
-
-            // 更新所有分类的SortOrder
-            for (int i = 0; i < categories.Count; i++)
-            {
-                categories[i].SortOrder = i;
-            }
-            Console.WriteLine($"[拖拽] Drop: ✓ 更新了 {categories.Count} 个分类的 SortOrder");
-
-            // 持久化保存排序配置
-            Console.WriteLine("[拖拽] Drop: 开始保存配置...");
-            SaveCategoryDisplayConfig();
-            Console.WriteLine($"[拖拽] Drop: ✅ 分类 '{dragged.Name}' 从位置 {oldIndex} 移动到 {newIndex}，并已保存排序配置");
-
-            // ✅ 不要调用 RefreshCategoryDisplay()，避免重建列表导致排序失效
-            // ObservableCollection.Move 已经触发了 UI 更新，SortOrder 的 setter 也触发了 INotifyPropertyChanged
-            // 如果调用 RefreshCategoryDisplay，会重建整个列表并重新排序，抵消手动移动的效果
-
-            Console.WriteLine("[拖拽] ========== CategoryList_Drop 结束 ==========");
         }
 
         private object? GetCategoryItemAtPosition(Point position)
@@ -10608,398 +10198,6 @@ namespace UEModManager
         private bool IsDefaultCategory(Category category)
         {
             return category.Name == "全部" || category.Name == "已启用" || category.Name == "已禁用";
-        }
-
-        /// <summary>
-        /// 获取分类显示配置文件路径
-        /// </summary>
-        private string GetCategoryDisplayConfigPath()
-        {
-            if (string.IsNullOrWhiteSpace(currentGameName))
-            {
-                Console.WriteLine("[错误] GetCategoryDisplayConfigPath: currentGameName 为空，无法生成配置文件路径");
-                throw new InvalidOperationException("游戏名称未设置，无法保存分类配置");
-            }
-
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var modManagerPath = IOPath.Combine(appDataPath, "UEModManager");
-            Directory.CreateDirectory(modManagerPath);
-
-            var configFileName = $"{currentGameName}_category_display.json";
-            return IOPath.Combine(modManagerPath, configFileName);
-        }
-
-        private Dictionary<string, CategoryDisplayConfig> LoadCategoryDisplayConfig()
-        {
-            var result = new Dictionary<string, CategoryDisplayConfig>(StringComparer.OrdinalIgnoreCase);
-
-            if (string.IsNullOrWhiteSpace(currentGameName))
-            {
-                return result;
-            }
-
-            try
-            {
-                var configPath = GetCategoryDisplayConfigPath();
-                if (!File.Exists(configPath))
-                {
-                    return result;
-                }
-
-                var json = File.ReadAllText(configPath, System.Text.Encoding.UTF8);
-                var config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, CategoryDisplayConfig>>(json);
-                if (config != null)
-                {
-                    foreach (var kvp in config)
-                    {
-                        if (kvp.Value == null) continue;
-
-                        var value = kvp.Value;
-
-                        if (DefaultCategoryNames.Contains(kvp.Key))
-                        {
-                            value.IsCustom = false;
-                            if (value.SortOrder <= 0)
-                            {
-                                value.SortOrder = GetDefaultSortOrder(kvp.Key);
-                            }
-                        }
-                        else if (SystemCategoryNames.Contains(kvp.Key))
-                        {
-                            value.IsCustom = false;
-                        }
-                        else if (!value.IsCustom)
-                        {
-                            // 防止旧版本写入的错误数据导致默认分类被视为自定义
-                            value.IsCustom = true;
-                        }
-
-                        result[kvp.Key] = value;
-                    }
-                }
-                Console.WriteLine($"[加载分类配置] 加载到 {result.Count} 条显示配置");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[WARNING] 加载分类显示配置失败: {ex.Message}");
-            }
-
-            return result;
-        }
-
-        private void EnsureCategoryDisplayConfigLoaded()
-        {
-            if (categoryDisplayConfigCache == null)
-            {
-                categoryDisplayConfigCache = new Dictionary<string, CategoryDisplayConfig>(StringComparer.OrdinalIgnoreCase);
-            }
-            else if (!categoryDisplayConfigCache.Any())
-            {
-                categoryDisplayConfigCache = LoadCategoryDisplayConfig();
-            }
-        }
-
-        private CategoryDisplayConfig GetOrCreateDisplayConfig(string categoryName)
-        {
-            EnsureCategoryDisplayConfigLoaded();
-
-            if (!categoryDisplayConfigCache.TryGetValue(categoryName, out var config) || config == null)
-            {
-                config = new CategoryDisplayConfig
-                {
-                    DisplayName = null,
-                    IsHidden = false,
-                    IsCustom = !DefaultCategoryNames.Contains(categoryName),
-                    SortOrder = GetDefaultSortOrder(categoryName)
-                };
-            }
-
-            return config;
-        }
-
-        private void ApplyCategoryDisplayConfig(Category category, Dictionary<string, CategoryDisplayConfig> config)
-        {
-            if (category == null)
-            {
-                return;
-            }
-
-            if (config.TryGetValue(category.Name, out var displayConfig) && displayConfig != null)
-            {
-                category.DisplayName = string.IsNullOrWhiteSpace(displayConfig.DisplayName) ? null : displayConfig.DisplayName;
-                category.IsHidden = displayConfig.IsHidden;
-
-                if (DefaultCategoryNames.Contains(category.Name))
-                {
-                    category.IsCustom = false;
-                    category.SortOrder = displayConfig.SortOrder > 0 ? displayConfig.SortOrder : GetDefaultSortOrder(category.Name);
-                }
-                else
-                {
-                    category.IsCustom = displayConfig.IsCustom;
-                    if (displayConfig.SortOrder > 0)
-                    {
-                        category.SortOrder = displayConfig.SortOrder;
-                    }
-                }
-            }
-            else
-            {
-                // 没有配置时恢复默认值
-                if (DefaultCategoryNames.Contains(category.Name))
-                {
-                    category.IsCustom = false;
-                    category.SortOrder = GetDefaultSortOrder(category.Name);
-                }
-                category.DisplayName = null;
-                category.IsHidden = false;
-            }
-        }
-
-        private int GetDefaultSortOrder(string categoryName)
-        {
-            if (string.Equals(categoryName, "全部", StringComparison.OrdinalIgnoreCase))
-            {
-                return 0;
-            }
-
-            for (int i = 0; i < DefaultCategoryOrder.Length; i++)
-            {
-                if (string.Equals(DefaultCategoryOrder[i], categoryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    // 预留0给“全部”
-                    return i + 1;
-                }
-            }
-
-            return DefaultCategoryOrder.Length + 10;
-        }
-
-        private void EnsureDefaultCategories(List<Category> categoryList, Dictionary<string, int> categoryCounts, Dictionary<string, CategoryDisplayConfig> displayConfig)
-        {
-            foreach (var defaultName in DefaultCategoryOrder)
-            {
-                var existing = categoryList.FirstOrDefault(c => string.Equals(c.Name, defaultName, StringComparison.OrdinalIgnoreCase));
-                var count = categoryCounts.TryGetValue(defaultName, out var defaultCount)
-                    ? defaultCount
-                    : allMods.Count(m => string.Equals(m.Type, defaultName, StringComparison.OrdinalIgnoreCase));
-
-                if (existing != null)
-                {
-                    existing.Count = count;
-                    existing.IsCustom = false;
-                    existing.SortOrder = GetDefaultSortOrder(existing.Name);
-                    ApplyCategoryDisplayConfig(existing, displayConfig);
-                    if (DefaultCategoryNames.Contains(existing.Name) && existing.SortOrder <= 0)
-                    {
-                        existing.SortOrder = GetDefaultSortOrder(existing.Name);
-                    }
-                }
-                else
-                {
-                    var category = new Category
-                    {
-                        Name = defaultName,
-                        Count = count,
-                        IsCustom = false,
-                        SortOrder = GetDefaultSortOrder(defaultName)
-                    };
-                    ApplyCategoryDisplayConfig(category, displayConfig);
-                    if (category.SortOrder <= 0)
-                    {
-                        category.SortOrder = GetDefaultSortOrder(defaultName);
-                    }
-                    categoryList.Add(category);
-                }
-            }
-        }
-
-        private bool TryRenameDefaultCategory(string categoryName, out string? updatedDisplayName)
-        {
-            updatedDisplayName = null;
-            if (string.IsNullOrWhiteSpace(categoryName))
-            {
-                return false;
-            }
-
-            if (SystemCategoryNames.Contains(categoryName))
-            {
-                return false;
-            }
-
-            EnsureCategoryDisplayConfigLoaded();
-
-            var existingConfig = categoryDisplayConfigCache.TryGetValue(categoryName, out var config) ? config : null;
-            var currentDisplay = existingConfig != null && !string.IsNullOrWhiteSpace(existingConfig.DisplayName)
-                ? existingConfig.DisplayName!
-                : categoryName;
-
-            var newDisplayName = ShowInputDialog("请输入新的分类显示名称:", "重命名默认分类", currentDisplay);
-            if (newDisplayName == null)
-            {
-                updatedDisplayName = existingConfig?.DisplayName;
-                Console.WriteLine($"[DEBUG] 默认分类 '{categoryName}' 重命名被取消");
-                return true;
-            }
-
-            newDisplayName = newDisplayName.Trim();
-            var updatedConfig = existingConfig ?? GetOrCreateDisplayConfig(categoryName);
-            updatedConfig.IsCustom = false;
-            updatedConfig.IsHidden = false;
-            if (updatedConfig.SortOrder == 0)
-            {
-                updatedConfig.SortOrder = GetDefaultSortOrder(categoryName);
-            }
-
-            if (string.IsNullOrWhiteSpace(newDisplayName) || string.Equals(newDisplayName, categoryName, StringComparison.OrdinalIgnoreCase))
-            {
-                updatedConfig.DisplayName = null;
-            }
-            else
-            {
-                updatedConfig.DisplayName = newDisplayName;
-            }
-
-            categoryDisplayConfigCache[categoryName] = updatedConfig;
-            updatedDisplayName = updatedConfig.DisplayName;
-
-            // ✅ 关键修复：直接更新categories集合中的Category对象
-            var category = categories.FirstOrDefault(c => string.Equals(c.Name, categoryName, StringComparison.OrdinalIgnoreCase));
-            if (category != null)
-            {
-                category.DisplayName = updatedDisplayName;
-                category.IsHidden = updatedConfig.IsHidden;
-                category.SortOrder = updatedConfig.SortOrder;
-                Console.WriteLine($"[重命名] 已更新Category对象: {categoryName}, DisplayName={updatedDisplayName}");
-            }
-            else
-            {
-                Console.WriteLine($"[警告] 未在categories集合中找到分类: {categoryName}");
-            }
-
-            Console.WriteLine($"[DEBUG] 默认分类 '{categoryName}' 设置显示名称 -> '{updatedDisplayName ?? categoryName}'");
-            SaveCategoryDisplayConfig();
-
-            // ❌ 移除RefreshCategoryDisplay()调用，避免重建对象导致修改丢失
-            // RefreshCategoryDisplay();
-
-            return true;
-        }
-
-        private void MarkDefaultCategoryHidden(string categoryName)
-        {
-            if (SystemCategoryNames.Contains(categoryName))
-            {
-                return;
-            }
-
-            EnsureCategoryDisplayConfigLoaded();
-
-            var config = GetOrCreateDisplayConfig(categoryName);
-            config.IsHidden = true;
-            config.IsCustom = false;
-            if (config.SortOrder == 0)
-            {
-                config.SortOrder = GetDefaultSortOrder(categoryName);
-            }
-
-            categoryDisplayConfigCache[categoryName] = config;
-            Console.WriteLine($"[DEBUG] 默认分类 '{categoryName}' 已写入隐藏标记");
-        }
-
-        /// <summary>
-        /// 保存分类显示配置（含排序顺序）
-        /// </summary>
-        private void SaveCategoryDisplayConfig()
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(currentGameName))
-                {
-                    Console.WriteLine("[保存分类配置] currentGameName 为空，跳过保存");
-                    return;
-                }
-
-                if (categories == null || categories.Count == 0)
-                {
-                    Console.WriteLine("[保存分类配置] categories 为空，跳过保存");
-                    return;
-                }
-
-                // 先加载现有配置，然后合并更新，避免丢失已隐藏分类的配置
-                EnsureCategoryDisplayConfigLoaded();
-                var config = new Dictionary<string, CategoryDisplayConfig>(categoryDisplayConfigCache, StringComparer.OrdinalIgnoreCase);
-
-                // 步骤1：加载现有配置文件
-                var configPath = GetCategoryDisplayConfigPath();
-                if (File.Exists(configPath))
-                {
-                    try
-                    {
-                        var existingJson = File.ReadAllText(configPath, System.Text.Encoding.UTF8);
-                        var existingConfig = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, CategoryDisplayConfig>>(existingJson);
-                        if (existingConfig != null)
-                        {
-                            config = new Dictionary<string, CategoryDisplayConfig>(existingConfig, StringComparer.OrdinalIgnoreCase);
-                            Console.WriteLine($"[保存分类配置] 加载现有配置: {config.Count} 个分类");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[警告] 加载现有配置失败，将使用新配置: {ex.Message}");
-                    }
-                }
-
-                // 步骤2：更新/添加当前可见分类的配置
-                foreach (var cat in categories)
-                {
-                    // 只保存有自定义配置的分类或自定义分类
-                    var hasDisplayName = !string.IsNullOrWhiteSpace(cat.DisplayName);
-                    var isHidden = cat.IsHidden;
-                    var isCustom = cat.IsCustom;
-                    var sortChanged = cat.SortOrder != GetDefaultSortOrder(cat.Name);
-
-                    if (hasDisplayName || isHidden || isCustom || sortChanged)
-                    {
-                        var isDefault = DefaultCategoryNames.Contains(cat.Name);
-                        config[cat.Name] = new CategoryDisplayConfig
-                        {
-                            DisplayName = cat.DisplayName,
-                            IsHidden = cat.IsHidden,
-                            IsCustom = isDefault ? false : cat.IsCustom,
-                            SortOrder = isDefault ? GetDefaultSortOrder(cat.Name) : cat.SortOrder
-                        };
-                        Console.WriteLine($"[保存分类配置] 更新分类 '{cat.Name}': DisplayName={cat.DisplayName}, IsHidden={cat.IsHidden}, IsCustom={cat.IsCustom}, SortOrder={cat.SortOrder}");
-                    }
-                    else
-                    {
-                        // 如果没有自定义配置且不是自定义分类，从配置中移除（使用默认值）
-                        if (config.ContainsKey(cat.Name))
-                        {
-                            config.Remove(cat.Name);
-                            Console.WriteLine($"[保存分类配置] 移除分类 '{cat.Name}' 的配置（使用默认）");
-                        }
-                    }
-                }
-
-                // 步骤3：保存合并后的配置
-                var options = new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                };
-                var json = System.Text.Json.JsonSerializer.Serialize(config, options);
-                File.WriteAllText(configPath, json, System.Text.Encoding.UTF8);
-
-                Console.WriteLine($"[保存分类配置] 分类显示配置已保存到: {configPath}");
-                Console.WriteLine($"[保存分类配置] 共保存 {config.Count} 个分类配置（含已隐藏分类）");
-
-                categoryDisplayConfigCache = new Dictionary<string, CategoryDisplayConfig>(config, StringComparer.OrdinalIgnoreCase);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[错误] 保存分类显示配置失败: {ex.Message}");
-            }
         }
 
         // 添加批量操作标志
@@ -11098,7 +10296,6 @@ namespace UEModManager
                 {
                     _name = value;
                     OnPropertyChanged(nameof(Name));
-                    OnPropertyChanged(nameof(DisplayText));
                 }
             }
         }
@@ -11117,79 +10314,11 @@ namespace UEModManager
             }
         }
 
-        private string? _displayName;
-        public string? DisplayName
-        {
-            get => _displayName;
-            set
-            {
-                if (_displayName != value)
-                {
-                    _displayName = value;
-                    OnPropertyChanged(nameof(DisplayName));
-                    OnPropertyChanged(nameof(DisplayText));
-                }
-            }
-        }
-
-        private bool _isHidden;
-        public bool IsHidden
-        {
-            get => _isHidden;
-            set
-            {
-                if (_isHidden != value)
-                {
-                    _isHidden = value;
-                    OnPropertyChanged(nameof(IsHidden));
-                }
-            }
-        }
-
-        private bool _isCustom;
-        public bool IsCustom
-        {
-            get => _isCustom;
-            set
-            {
-                if (_isCustom != value)
-                {
-                    _isCustom = value;
-                    OnPropertyChanged(nameof(IsCustom));
-                }
-            }
-        }
-
-        private int _sortOrder;
-        public int SortOrder
-        {
-            get => _sortOrder;
-            set
-            {
-                if (_sortOrder != value)
-                {
-                    _sortOrder = value;
-                    OnPropertyChanged(nameof(SortOrder));
-                }
-            }
-        }
-
-        // 计算属性：优先显示DisplayName，否则显示Name
-        public string DisplayText => DisplayName ?? Name;
-
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-    }
-
-    public class CategoryDisplayConfig
-    {
-        public string? DisplayName { get; set; }
-        public bool IsHidden { get; set; }
-        public bool IsCustom { get; set; }
-        public int SortOrder { get; set; }
     }
 
     public class Mod : INotifyPropertyChanged
@@ -11446,10 +10575,8 @@ namespace UEModManager
                     var user = _localAuthService.CurrentUser;
                     var displayName = user?.DisplayName ?? user?.Username ?? user?.Email ?? "云端用户";
                     UserNameText.Text = displayName;
-
-                    // 显示个性签名（如果有）
-                    _ = LoadAndDisplaySignatureAsync();
-
+                    UserStatusText.Text = "云端在线";
+                    
                     // 更新头像显示
                     if (!string.IsNullOrEmpty(user?.Avatar) && File.Exists(user.Avatar))
                     {
@@ -11504,43 +10631,6 @@ namespace UEModManager
             }
         }
 
-        /// <summary>
-        /// 加载并显示个性签名
-        /// </summary>
-        private async Task LoadAndDisplaySignatureAsync()
-        {
-            try
-            {
-                var signature = await _localAuthService.GetUserSignatureAsync();
-
-                // 在UI线程上更新
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    if (!string.IsNullOrWhiteSpace(signature))
-                    {
-                        UserStatusText.Text = signature;
-                        UserStatusText.Visibility = Visibility.Visible;
-                    }
-                    else
-                    {
-                        // ✅ 修复：没有个性签名时隐藏状态文本（不显示"云端在线"）
-                        UserStatusText.Text = string.Empty;
-                        UserStatusText.Visibility = Visibility.Collapsed;
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                _authLogger?.LogError(ex, "加载个性签名失败");
-                // ✅ 修复：签名加载失败时也隐藏
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    UserStatusText.Text = string.Empty;
-                    UserStatusText.Visibility = Visibility.Collapsed;
-                });
-            }
-        }
-
         private void UserMenuButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -11558,6 +10648,10 @@ namespace UEModManager
                     var profileItem = new MenuItem { Header = "个人资料" };
                     profileItem.Click += (s, args) => ShowUserProfile();
                     contextMenu.Items.Add(profileItem);
+                    
+                    var avatarItem = new MenuItem { Header = "更换头像" };
+                    avatarItem.Click += (s, args) => UserAvatar_Click(null, null);
+                    contextMenu.Items.Add(avatarItem);
 
                     var settingsItem = new MenuItem { Header = "账户设置" };
                     settingsItem.Click += (s, args) => ShowAccountSettings();
@@ -11701,39 +10795,86 @@ namespace UEModManager
 
         private void ShowAccountSettings()
         {
-            try
-            {
-                if (_localAuthService?.IsLoggedIn != true)
-                {
-                    MessageBox.Show("请先登录后再管理账户信息", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                var settingsWindow = new Views.AccountSettingsWindow
-                {
-                    Owner = this
-                };
-
-                if (settingsWindow.ShowDialog() == true)
-                {
-                    UpdateUserStatusDisplay();
-                    Console.WriteLine("[DEBUG] 账户设置已保存并刷新显示");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "打开账户设置窗口失败");
-                MessageBox.Show($"打开账户设置失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            MessageBox.Show("账户设置功能正在开发中...", "功能开发中", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         
         /// <summary>
         /// 用户头像点击事件 - 更换头像
         /// </summary>
-        private void UserAvatar_Click(object sender, MouseButtonEventArgs e)
+        private async void UserAvatar_Click(object sender, MouseButtonEventArgs e)
         {
-            // ✅ 点击头像打开账户设置窗口（统一入口）
-            ShowAccountSettings();
+            try
+            {
+                if (_localAuthService?.IsLoggedIn != true)
+                {
+                    MessageBox.Show("请先登录后再更换头像", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                
+                // 打开文件选择对话框
+                var openFileDialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "选择头像图片",
+                    Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif|所有文件|*.*",
+                    CheckFileExists = true,
+                    CheckPathExists = true
+                };
+                
+                if (openFileDialog.ShowDialog() == true)
+                {
+                    var selectedFile = openFileDialog.FileName;
+                    
+                    // 检查文件大小（限制5MB）
+                    var fileInfo = new FileInfo(selectedFile);
+                    if (fileInfo.Length > 5 * 1024 * 1024)
+                    {
+                        MessageBox.Show("图片文件过大，请选择小于5MB的图片", "文件过大", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                    
+                    // 创建头像目录
+                    var avatarDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UEModManager", "Avatars");
+                    if (!Directory.Exists(avatarDir))
+                    {
+                        Directory.CreateDirectory(avatarDir);
+                    }
+                    
+                    // 生成新的头像文件名
+                    var extension = Path.GetExtension(selectedFile);
+                    var newFileName = $"{_localAuthService.CurrentUser.Id}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
+                    var newAvatarPath = Path.Combine(avatarDir, newFileName);
+                    
+                    // 复制文件
+                    File.Copy(selectedFile, newAvatarPath, true);
+                    
+                    // 更新用户头像路径
+                    if (_localAuthService.CurrentUser != null)
+                    {
+                        // 删除旧头像文件（如果存在）
+                        if (!string.IsNullOrEmpty(_localAuthService.CurrentUser.Avatar) && 
+                            File.Exists(_localAuthService.CurrentUser.Avatar) &&
+                            _localAuthService.CurrentUser.Avatar.Contains(avatarDir))
+                        {
+                            try { File.Delete(_localAuthService.CurrentUser.Avatar); } catch { }
+                        }
+                        
+                        _localAuthService.CurrentUser.Avatar = newAvatarPath;
+                        
+                        // TODO: 保存到数据库
+                        // await _localAuthService.UpdateUserAvatarAsync(newAvatarPath);
+                        
+                        // 更新显示
+                        UpdateUserStatusDisplay();
+                        
+                        MessageBox.Show("头像更换成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "更换头像失败");
+                MessageBox.Show($"更换头像失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
             // 分类列表右键菜单多语言处理
         private void CategoryContextMenu_Opened(object sender, RoutedEventArgs e)
@@ -11784,6 +10925,5 @@ namespace UEModManager
 
 
 }
-
 
 
