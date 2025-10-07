@@ -35,7 +35,7 @@ namespace UEModManager.Services
 
             // 配置HTTP客户端
             _httpClient.BaseAddress = new Uri(_config.ApiBaseUrl);
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/1.7.37");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/1.7.38");
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace UEModManager.Services
                     email = email,
                     password = password,
                     device_info = GetDeviceInfo(),
-                    app_version = "1.7.37"
+                    app_version = "1.7.38"
                 };
 
                 var json = JsonSerializer.Serialize(loginRequest);
@@ -175,7 +175,7 @@ namespace UEModManager.Services
                     password = password,
                     username = username ?? email.Split('@')[0],
                     device_info = GetDeviceInfo(),
-                    app_version = "1.7.37"
+                    app_version = "1.7.38"
                 };
 
                 var json = JsonSerializer.Serialize(registerRequest);

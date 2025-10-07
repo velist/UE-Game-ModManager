@@ -59,6 +59,18 @@ namespace UEModManager
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             Console.WriteLine("[App] 应用程序关闭模式设置为 OnExplicitShutdown");
 
+            // 🔒 临时禁用加密保护（v1.7.38调试）
+            // try
+            // {
+            //     UEModManager.Security.SecretFileProtector.EnsureEncryptedFromPlain("brevo.env");
+            //     UEModManager.Security.SecretFileProtector.EnsureEncryptedFromPlain("mailersend.env");
+            //     Console.WriteLine("[App] 敏感配置文件加密保护已启用");
+            // }
+            // catch (Exception secEx)
+            // {
+            //     Console.WriteLine($"[App] 警告：配置文件加密失败: {secEx.Message}");
+            // }
+
             try
             {
                 Console.WriteLine("[App] 开始构建依赖注入容器");
@@ -399,23 +411,10 @@ namespace UEModManager
         }
 
         /// <summary>
-        /// 注册邮件发送服务（MailerSend主 + Brevo备）
+        /// 注册邮件发送服务（仅Brevo API + SMTP）
         /// </summary>
         private static void RegisterEmailServices(IServiceCollection services)
         {
-            // 加载MailerSend配置
-            var mailerSendConfig = LoadMailerSendConfig();
-            services.AddSingleton<MailerSendEmailService>(provider =>
-            {
-                var logger = provider.GetRequiredService<ILogger<MailerSendEmailService>>();
-                return new MailerSendEmailService(
-                    logger,
-                    mailerSendConfig.ApiToken,
-                    mailerSendConfig.FromEmail,
-                    mailerSendConfig.FromName
-                );
-            });
-
             // 加载Brevo配置
             var brevoConfig = LoadBrevoConfig();
 
@@ -451,8 +450,7 @@ namespace UEModManager
                 var senders = new List<IEmailSender>
                 {
                     provider.GetRequiredService<BrevoApiEmailService>(),  // API 优先（样式最佳）
-                    provider.GetRequiredService<BrevoEmailService>(),     // SMTP 备用
-                    provider.GetRequiredService<MailerSendEmailService>() // MailerSend 备用
+                    provider.GetRequiredService<BrevoEmailService>()      // SMTP 备用
                 };
                 return new FallbackEmailService(logger, senders);
             });
@@ -464,72 +462,71 @@ namespace UEModManager
         }
 
         /// <summary>
-        /// 加载MailerSend配置
-        /// </summary>
-        private static (string ApiToken, string FromEmail, string FromName) LoadMailerSendConfig()
-        {
-            try
-            {
-                var configPath = FindConfigFile("mailersend.env");
-                if (configPath != null)
-                {
-                    var lines = File.ReadAllLines(configPath);
-                    var config = ParseEnvFile(lines);
-
-                    var apiToken = config.GetValueOrDefault("MAILERSEND_API_TOKEN", "");
-                    var fromEmail = config.GetValueOrDefault("MAILERSEND_FROM_EMAIL", "noreply@uemodmanager.com");
-                    var fromName = config.GetValueOrDefault("MAILERSEND_FROM_NAME", "爱酱工作室");
-
-                    if (!string.IsNullOrWhiteSpace(apiToken))
-                    {
-                        Console.WriteLine($"[App] MailerSend配置加载成功: {configPath}");
-                        return (apiToken, fromEmail, fromName);
-                    }
-                }
-
-                Console.WriteLine("[App] 警告：未找到mailersend.env或配置不完整，使用占位符");
-                return ("placeholder_token", "noreply@uemodmanager.com", "爱酱工作室");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[App] 读取mailersend.env失败：{ex.Message}");
-                return ("placeholder_token", "noreply@uemodmanager.com", "爱酱工作室");
-            }
-        }
-
-        /// <summary>
-        /// 加载Brevo配置
+        /// 加载Brevo配置（v1.7.37工作版本）
         /// </summary>
         private static (string ApiKey, string SmtpLogin, string SmtpKey, string FromEmail, string FromName) LoadBrevoConfig()
         {
             try
             {
-                var configPath = FindConfigFile("brevo.env");
-                if (configPath != null)
-                {
-                    var lines = File.ReadAllLines(configPath);
-                    var config = ParseEnvFile(lines);
+                // 优先：将明文迁移为加密文件（一次性）
+                UEModManager.Security.SecretFileProtector.EnsureEncryptedFromPlain("brevo.env");
 
+                // 加密文件优先
+                if (UEModManager.Security.SecretFileProtector.TryLoadDecryptedText("brevo.env", out var decrypted))
+                {
+                    var config = ParseEnvFile(decrypted.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None));
                     var apiKey = config.GetValueOrDefault("BREVO_API_KEY", "");
                     var smtpLogin = config.GetValueOrDefault("BREVO_SMTP_LOGIN", "");
                     var smtpKey = config.GetValueOrDefault("BREVO_SMTP_KEY", "");
-                    var fromEmail = config.GetValueOrDefault("BREVO_FROM_EMAIL", "noreply@uemodmanager.com");
+                    var fromEmail = config.GetValueOrDefault("BREVO_FROM_EMAIL", "noreply@modmanger.com");
                     var fromName = config.GetValueOrDefault("BREVO_FROM_NAME", "爱酱工作室");
+
+                    // 🔧 智能修正：当SMTP_LOGIN为"apikey"或为空时，使用FROM_EMAIL作为登录名
+                    if (string.IsNullOrWhiteSpace(smtpLogin) || smtpLogin.Equals("apikey", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 使用Brevo分配的专用SMTP账户
+                        smtpLogin = "984a39001@smtp-brevo.com"; // Brevo专用SMTP登录账户
+                        Console.WriteLine($"[App] ⚠️ SMTP_LOGIN为占位符，使用Brevo专用SMTP账户: {smtpLogin}");
+                    }
 
                     if (!string.IsNullOrWhiteSpace(apiKey) || (!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey)))
                     {
-                        Console.WriteLine($"[App] Brevo配置加载成功: {configPath}");
+                        Console.WriteLine("[App] Brevo配置加载成功(加密): API=" + (string.IsNullOrWhiteSpace(apiKey)? "无" : "有") + ", SMTP=" + ((!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey))? "有" : "无"));
                         return (apiKey, smtpLogin, smtpKey, fromEmail, fromName);
                     }
                 }
 
-                Console.WriteLine("[App] 警告：未找到brevo.env或配置不完整，使用占位符");
-                return ("placeholder_api_key", "placeholder_login", "placeholder_key", "noreply@uemodmanager.com", "爱酱工作室");
+                // 兼容：若仍未命中，最后尝试明文文件（不建议长期存在）
+                var plainCandidate = UEModManager.Security.SecretFileProtector.FindPlaintextCandidate("brevo.env");
+                if (plainCandidate != null && File.Exists(plainCandidate))
+                {
+                    var lines = File.ReadAllLines(plainCandidate);
+                    var config = ParseEnvFile(lines);
+                    var apiKey = config.GetValueOrDefault("BREVO_API_KEY", "");
+                    var smtpLogin = config.GetValueOrDefault("BREVO_SMTP_LOGIN", "");
+                    var smtpKey = config.GetValueOrDefault("BREVO_SMTP_KEY", "");
+                    var fromEmail = config.GetValueOrDefault("BREVO_FROM_EMAIL", "noreply@modmanger.com");
+                    var fromName = config.GetValueOrDefault("BREVO_FROM_NAME", "爱酱工作室");
+
+                    // 🔧 智能修正：当SMTP_LOGIN为"apikey"或为空时，使用FROM_EMAIL作为登录名
+                    if (string.IsNullOrWhiteSpace(smtpLogin) || smtpLogin.Equals("apikey", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 使用Brevo分配的专用SMTP账户
+                        smtpLogin = "984a39001@smtp-brevo.com"; // Brevo专用SMTP登录账户
+                        Console.WriteLine($"[App] ⚠️ SMTP_LOGIN为占位符，使用Brevo专用SMTP账户: {smtpLogin}");
+                    }
+
+                    Console.WriteLine($"[App] 警告：使用明文 Brevo 配置（建议首启后已被加密迁移）: {plainCandidate} | API=" + (string.IsNullOrWhiteSpace(apiKey)? "无" : "有") + ", SMTP=" + ((!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey))? "有" : "无"));
+                    return (apiKey, smtpLogin, smtpKey, fromEmail, fromName);
+                }
+
+                Console.WriteLine("[App] 警告：未找到 brevo 配置，使用占位符");
+                return ("", "", "", "noreply@modmanger.com", "爱酱工作室");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[App] 读取brevo.env失败：{ex.Message}");
-                return ("placeholder_api_key", "placeholder_login", "placeholder_key", "noreply@uemodmanager.com", "爱酱工作室");
+                Console.WriteLine($"[App] 读取 Brevo 配置失败：{ex.Message}");
+                return ("", "", "", "noreply@modmanger.com", "爱酱工作室");
             }
         }
 
@@ -557,16 +554,30 @@ namespace UEModManager
         private static Dictionary<string, string> ParseEnvFile(string[] lines)
         {
             var result = new Dictionary<string, string>();
+            bool isFirstLine = true;
+
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
+
+                // 🔒 自动删除UTF-8 BOM（如果存在）- 特别处理第一行
+                if (isFirstLine && trimmed.Length > 0 && trimmed[0] == '\uFEFF')
+                {
+                    trimmed = trimmed.Substring(1);
+                    Console.WriteLine("[App] 检测到BOM并移除");
+                }
+                isFirstLine = false;
+
                 if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
                     continue;
 
                 var parts = trimmed.Split('=', 2);
                 if (parts.Length == 2)
                 {
-                    result[parts[0].Trim()] = parts[1].Trim();
+                    var key = parts[0].Trim();
+                    var value = parts[1].Trim();
+                    result[key] = value;
+                    Console.WriteLine($"[App] ParseEnv: {key}={value.Substring(0, Math.Min(10, value.Length))}...");
                 }
             }
             return result;
