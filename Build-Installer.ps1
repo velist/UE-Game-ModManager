@@ -1,4 +1,4 @@
-﻿Write-Host "=== 虚幻引擎MOD管理器 v1.7.37 安装程序构建 ===" -ForegroundColor Green
+﻿Write-Host "=== 虚幻引擎MOD管理器 v1.7.38 安装程序构建 ===" -ForegroundColor Green
 
 # 检查Inno Setup
 $innoPath = "D:\安装\ISCC.exe"
@@ -25,7 +25,7 @@ if (!(Test-Path $exePath)) {
 Write-Host "✅ 找到主程序文件" -ForegroundColor Green
 
 # 检查安装脚本
-$issPath = "installer_simple.iss"
+$issPath = "installer_clean.iss"
 if (!(Test-Path $issPath)) {
     Write-Host "❌ 错误：找不到安装脚本文件: $issPath" -ForegroundColor Red
     exit 1
@@ -39,12 +39,26 @@ if (!(Test-Path "installer_output")) {
     Write-Host "✅ 创建输出目录" -ForegroundColor Green
 }
 
+# 清理并复制最新编译的Release文件
+$stagingDir = "installer_output\UEModManager_v1.7.38"
+if (Test-Path $stagingDir) {
+    Remove-Item -Path "$stagingDir\*" -Recurse -Force | Out-Null
+    Write-Host "🧹 清理旧的打包文件" -ForegroundColor Yellow
+} else {
+    New-Item -ItemType Directory -Path $stagingDir | Out-Null
+    Write-Host "✅ 创建打包目录" -ForegroundColor Green
+}
+
+Write-Host "📋 复制Release编译文件..." -ForegroundColor Yellow
+Copy-Item -Path "UEModManager\bin\Release\net8.0-windows\*" -Destination $stagingDir -Recurse -Force | Out-Null
+Write-Host "✅ 文件复制完成" -ForegroundColor Green
+
 # 构建安装程序
 Write-Host "🔨 开始构建安装程序..." -ForegroundColor Yellow
 $process = Start-Process -FilePath $innoPath -ArgumentList $issPath -Wait -PassThru -NoNewWindow
 
 if ($process.ExitCode -eq 0) {
-    $installer = "installer_output\UEModManager_v1.7.37_Clean.exe"
+    $installer = "installer_output\UEModManager_v1.7.38_Setup_Clean.exe"
     if (Test-Path $installer) {
         $size = [math]::Round((Get-Item $installer).Length / 1MB, 2)
         Write-Host "🎉 构建成功！" -ForegroundColor Green
