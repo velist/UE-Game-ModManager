@@ -1045,11 +1045,12 @@
                 <div class="changelog-date">2025-10-07</div>
                 <div class="changelog-content">
                     <ul>
-                        <li data-lang="changelog_0_1">🔧 修复Brevo SMTP认证失败导致邮件发送失败的问题</li>
-                        <li data-lang="changelog_0_2">⚡ API超时优化：30秒→10秒，快速fallback</li>
-                        <li data-lang="changelog_0_3">✨ 点击头像打开账户设置，统一用户体验</li>
-                        <li data-lang="changelog_0_4">🙏 鸣谢名单新增"枪王"</li>
-                        <li data-lang="changelog_0_5">📝 完善故障排查文档和配置说明</li>
+                        <li data-lang="changelog_0_1">🔧 修复邮箱登录功能，解决Brevo SMTP认证失败问题</li>
+                        <li data-lang="changelog_0_2">🎮 优化操作手感，提升MOD管理体验</li>
+                        <li data-lang="changelog_0_3">🖱️ 修复拖拽功能，确保MOD排序更流畅</li>
+                        <li data-lang="changelog_0_4">⚙️ 修复CNS模式兼容性问题</li>
+                        <li data-lang="changelog_0_5">⚡ API超时优化：30秒→10秒，快速响应</li>
+                        <li data-lang="changelog_0_6">✨ 点击头像打开账户设置，统一用户体验</li>
                     </ul>
                 </div>
             </div>
@@ -1081,29 +1082,21 @@
         </section>
 
         <!-- 鸣谢名单 Section -->
-        <section class="py-5 bg-light">
+        <section id="thanks" class="thanks-section" style="padding: 60px 0;">
             <div class="container">
-                <div class="row">
-                    <div class="col-md-12 text-center">
-                        <h2 class="display-4 fw-bold">鸣谢名单</h2>
-                        <p class="lead">感谢以下用户对本项目的支持与贡献</p>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-8 mx-auto text-center">
-                        <div class="card border-0 shadow-sm">
-                            <div class="card-body p-4">
-                                <h5 class="card-title text-primary mb-3">🎁 捐赠感谢</h5>
-                                <p class="card-text fs-5 mb-0">
-                                    胖虎、YUki、Tarnished<br>
-                                    春告鳥、蘭、虎子<br>
-                                    神秘不保底男<br>
-                                    文铭、阪、林墨<br>
-                                    Daisuke、虎子哥、枪王<br>
-                                    爱酱游戏群全体群友
-                                </p>
-                            </div>
-                        </div>
+                <div class="steam-card">
+                    <h2 style="font-size: 2rem; text-align: center; margin-bottom: 15px; font-weight: 700; color: var(--steam-text-bright); text-transform: uppercase; letter-spacing: 1px;">鸣谢名单</h2>
+                    <p style="text-align: center; color: var(--steam-text-dim); margin-bottom: 30px; font-size: 1rem;">感谢以下用户对本项目的支持与贡献</p>
+                    <div style="text-align: center; padding: 20px; background: rgba(102, 192, 244, 0.05); border-radius: 4px; border: 1px solid rgba(102, 192, 244, 0.2);">
+                        <h5 style="color: var(--steam-blue); margin-bottom: 20px; font-size: 1.3rem; font-weight: 600;">🎁 捐赠感谢</h5>
+                        <p style="color: var(--steam-text); font-size: 1.1rem; line-height: 2; margin: 0;">
+                            胖虎、YUki、Tarnished<br>
+                            春告鳥、蘭、虎子<br>
+                            神秘不保底男<br>
+                            文铭、阪、林墨<br>
+                            Daisuke、虎子哥、枪王<br>
+                            爱酱游戏群全体群友
+                        </p>
                     </div>
                 </div>
             </div>
@@ -1207,6 +1200,12 @@
                 faq6_q: '软件是否收费？',
                 faq6_a: '软件完全免费且开源！如果觉得好用，欢迎赞助支持我们持续开发。',
                 changelog_title: '更新日志',
+                changelog_0_1: '🔧 修复邮箱登录功能，解决Brevo SMTP认证失败问题',
+                changelog_0_2: '🎮 优化操作手感，提升MOD管理体验',
+                changelog_0_3: '🖱️ 修复拖拽功能，确保MOD排序更流畅',
+                changelog_0_4: '⚙️ 修复CNS模式兼容性问题',
+                changelog_0_5: '⚡ API超时优化：30秒→10秒，快速响应',
+                changelog_0_6: '✨ 点击头像打开账户设置，统一用户体验',
                 changelog_1_1: '重构分类系统：支持自定义分类显示名称',
                 changelog_1_2: '实现软删除机制：删除分类自动移动MOD到"未分类"',
                 changelog_1_3: '修复MOD分类刷新后被重置的问题',
@@ -1238,7 +1237,7 @@
                 nav_github: 'GitHub',
                 hero_title: 'Aijiang UE MOD Manager',
                 hero_subtitle: 'One-stop management for your game MODs, making installation simple and efficient',
-                version_badge: 'Current Version v1.7.37',
+                version_badge: 'Current Version v1.7.38',
                 features_title: 'Core Features',
                 feature1_title: 'Multi-Game Support',
                 feature1_desc: 'Stellar Blade (Standard/CNS), Black Myth: Wukong, and more - manage all your games with one tool!',
@@ -1273,6 +1272,12 @@
                 faq6_q: 'Is the software free?',
                 faq6_a: 'Completely free and open source! If you find it useful, feel free to support our continued development.',
                 changelog_title: 'Changelog',
+                changelog_0_1: '🔧 Fixed email login functionality, resolved Brevo SMTP authentication failure',
+                changelog_0_2: '🎮 Optimized user experience for better MOD management',
+                changelog_0_3: '🖱️ Fixed drag-and-drop feature for smoother MOD sorting',
+                changelog_0_4: '⚙️ Fixed CNS mode compatibility issues',
+                changelog_0_5: '⚡ API timeout optimization: 30s→10s for faster response',
+                changelog_0_6: '✨ Click avatar to open account settings for unified experience',
                 changelog_1_1: 'Refactored category system: support custom category display names',
                 changelog_1_2: 'Implemented soft delete: auto-move MODs to "Uncategorized" when deleting categories',
                 changelog_1_3: 'Fixed MOD categories being reset after refresh',
