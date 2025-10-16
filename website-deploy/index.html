@@ -783,25 +783,81 @@
         /* 响应式设计 */
         @media (max-width: 768px) {
             nav {
-                padding: 10px 20px;
+                padding: 10px 15px;
+            }
+
+            .nav-container {
+                flex-wrap: wrap;
             }
 
             .nav-links {
-                gap: 10px;
-                font-size: 12px;
+                display: none;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: rgba(14, 22, 33, 0.98);
+                flex-direction: column;
+                padding: 20px;
+                gap: 15px;
+                border-top: 1px solid var(--steam-border);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+                z-index: 999;
+            }
+
+            .nav-links.mobile-active {
+                display: flex;
             }
 
             .nav-links a {
-                padding: 6px 8px;
-                font-size: 11px;
+                padding: 12px 16px;
+                font-size: 14px;
+                text-align: left;
+                width: 100%;
+                border-radius: 4px;
+            }
+
+            /* 汉堡菜单按钮 */
+            .mobile-menu-toggle {
+                display: block;
+                width: 30px;
+                height: 30px;
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                position: relative;
+                z-index: 1001;
+            }
+
+            .mobile-menu-toggle span {
+                display: block;
+                width: 100%;
+                height: 3px;
+                background: var(--steam-text-bright);
+                margin: 5px 0;
+                transition: all 0.3s ease;
+                border-radius: 2px;
+            }
+
+            .mobile-menu-toggle.active span:nth-child(1) {
+                transform: rotate(45deg) translate(6px, 6px);
+            }
+
+            .mobile-menu-toggle.active span:nth-child(2) {
+                opacity: 0;
+            }
+
+            .mobile-menu-toggle.active span:nth-child(3) {
+                transform: rotate(-45deg) translate(7px, -7px);
             }
 
             .logo {
-                font-size: 16px;
+                font-size: 18px;
             }
 
             .lang-switch {
                 padding: 2px;
+                order: 1;
             }
 
             .lang-option {
@@ -810,19 +866,106 @@
             }
 
             .container {
-                padding: 80px 20px 50px;
+                padding: 80px 15px 50px;
+            }
+
+            .hero {
+                padding: 40px 0;
             }
 
             .hero h1 {
-                font-size: 2rem;
+                font-size: clamp(1.8rem, 6vw, 2.5rem);
+                margin-bottom: 15px;
+            }
+
+            .hero p {
+                font-size: 1rem;
+                padding: 0 10px;
+            }
+
+            .version-badge {
+                font-size: 12px;
+                padding: 5px 10px;
+            }
+
+            .features h2,
+            .screenshots h2,
+            .faq-section h2,
+            .changelog-section h2 {
+                font-size: 1.5rem;
+                margin-bottom: 25px;
             }
 
             .feature-grid {
                 grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .feature-item {
+                padding: 20px;
+            }
+
+            .feature-icon {
+                font-size: 2rem;
+            }
+
+            .feature-title {
+                font-size: 1rem;
             }
 
             .screenshot-grid {
                 grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .download-methods,
+            .payment-methods {
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+
+            .download-item,
+            .payment-item {
+                max-width: 100%;
+            }
+
+            .download-qr-image {
+                width: 200px;
+                max-height: 240px;
+            }
+
+            .payment-qr-image {
+                width: 220px;
+                max-height: 260px;
+            }
+
+            .community-link {
+                margin: 10px 0 !important;
+                display: block;
+                text-align: center;
+            }
+
+            .changelog-item {
+                padding: 15px;
+            }
+
+            .changelog-version {
+                font-size: 1.1rem;
+            }
+
+            .changelog-content {
+                font-size: 13px;
+            }
+
+            .faq-question {
+                padding: 15px;
+                font-size: 14px;
+            }
+
+            .faq-answer-content {
+                padding: 0 15px 15px 15px;
+                font-size: 13px;
             }
 
             .footer-links {
@@ -835,6 +978,100 @@
                 right: 20px;
                 width: 45px;
                 height: 45px;
+            }
+
+            .back-to-top::before {
+                font-size: 20px;
+            }
+
+            /* 优化鸣谢名单移动端显示 */
+            #thanks .steam-card h2 {
+                font-size: 1.5rem !important;
+            }
+
+            #thanks .steam-card h5 {
+                font-size: 1.1rem !important;
+            }
+
+            #thanks .steam-card p {
+                font-size: 1rem !important;
+                line-height: 1.8 !important;
+            }
+
+            .steam-card {
+                padding: 20px;
+            }
+
+            /* 优化表单和按钮的触摸体验 */
+            .steam-btn,
+            .community-link,
+            .faq-question {
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+
+        /* 小屏手机优化 (≤480px) */
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 16px;
+            }
+
+            .hero h1 {
+                font-size: clamp(1.5rem, 7vw, 2rem);
+            }
+
+            .hero p {
+                font-size: 0.95rem;
+            }
+
+            .features h2,
+            .screenshots h2,
+            .faq-section h2,
+            .changelog-section h2 {
+                font-size: 1.3rem;
+            }
+
+            .feature-title {
+                font-size: 0.95rem;
+            }
+
+            .feature-desc {
+                font-size: 13px;
+            }
+
+            .download-qr-image,
+            .payment-qr-image {
+                width: 180px;
+            }
+
+            .steam-card {
+                padding: 15px;
+            }
+
+            #thanks .steam-card h2 {
+                font-size: 1.3rem !important;
+            }
+
+            #thanks .steam-card h5 {
+                font-size: 1rem !important;
+            }
+
+            #thanks .steam-card p {
+                font-size: 0.95rem !important;
+            }
+        }
+
+        /* 隐藏桌面端不需要的元素 */
+        .mobile-menu-toggle {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: block;
             }
         }
 
@@ -882,7 +1119,12 @@
     <nav id="navbar">
         <div class="nav-container">
             <div class="logo">爱酱虚幻引擎MOD管理器</div>
-            <ul class="nav-links">
+            <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="菜单">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-links" id="navLinks">
                 <li><a href="#features" data-lang="nav_features">功能</a></li>
                 <li><a href="#screenshots" data-lang="nav_screenshots">截图</a></li>
                 <li><a href="docs.html" data-lang="nav_docs">使用说明</a></li>
@@ -1475,6 +1717,23 @@
         document.querySelectorAll('.screenshot-image, .download-qr-image, .payment-qr-image').forEach(img => {
             img.addEventListener('click', function() {
                 openImageModal(this.src);
+            });
+        });
+
+        // 移动端菜单切换
+        document.getElementById('mobileMenuToggle').addEventListener('click', function() {
+            this.classList.toggle('active');
+            document.getElementById('navLinks').classList.toggle('mobile-active');
+        });
+
+        // 点击菜单项后关闭移动端菜单
+        document.querySelectorAll('.nav-links a').forEach(link => {
+            link.addEventListener('click', function() {
+                const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+                const navLinks = document.getElementById('navLinks');
+
+                mobileMenuToggle.classList.remove('active');
+                navLinks.classList.remove('mobile-active');
             });
         });
 
