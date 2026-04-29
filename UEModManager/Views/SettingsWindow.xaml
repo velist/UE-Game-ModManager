@@ -1,0 +1,625 @@
+<Window x:Class="UEModManager.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="系统设置" Height="480" Width="720"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Style="{StaticResource CyberModalWindow}">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
+    </Window.CommandBindings>
+
+    <Grid>
+        <!-- 弹窗背景层 -->
+        <Image x:Name="DialogBgImage" Stretch="UniformToFill" Visibility="Collapsed"/>
+        <Border x:Name="DialogBgOverlay" Visibility="Collapsed" Background="#80030303"/>
+
+        <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="192"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ── 左侧导航栏 ── -->
+        <Border Grid.Column="0" Background="#CC030303"
+                BorderBrush="#99272727" BorderThickness="0,0,1,0">
+            <StackPanel Margin="16">
+                <TextBlock Text="系统设置" FontSize="11" FontWeight="Bold"                           Foreground="{StaticResource Text600Brush}" Margin="12,8,0,12"/>
+
+                <RadioButton x:Name="TabGeneral" GroupName="SettingsTabs" IsChecked="True"
+                             Style="{StaticResource CyberNavItem}" Content="常规参数"
+                             Tag="&#xE713;" Click="TabButton_Click"/>
+                <RadioButton x:Name="TabPaths" GroupName="SettingsTabs"
+                             Style="{StaticResource CyberNavItem}" Content="游戏路径"
+                             Tag="&#xE838;" Click="TabButton_Click"/>
+                <RadioButton x:Name="TabAppearance" GroupName="SettingsTabs"
+                             Style="{StaticResource CyberNavItem}" Content="外观设置"
+                             Tag="&#xE790;" Click="TabButton_Click"/>
+                <RadioButton x:Name="TabDeploy" GroupName="SettingsTabs"
+                             Style="{StaticResource CyberNavItem}" Content="部署与仓库"
+                             Tag="&#xE835;" Click="TabButton_Click"/>
+
+                <!-- 弹性间距 -->
+                <Border Height="160"/>
+
+                <RadioButton x:Name="TabAbout" GroupName="SettingsTabs"
+                             Style="{StaticResource CyberNavItem}" Content="关于软件"
+                             Tag="&#xE946;" Click="TabButton_Click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── 右侧内容区 ── -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 常规参数面板 -->
+            <ScrollViewer x:Name="GeneralPanel" Grid.Row="0"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                <TextBlock Text="常规参数" FontSize="18" FontWeight="Bold"
+                           Foreground="{StaticResource Text100Brush}" Margin="0,0,0,28"/>
+
+                <!-- 自动更新 -->
+                <Grid Margin="0,0,0,28">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="自动更新" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                        <TextBlock Text="启动时自动检查并安装更新" FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <CheckBox x:Name="AutoUpdateToggle" Grid.Column="1"
+                              Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"/>
+                </Grid>
+                <Border Height="1" Background="#99272727"/>
+
+                <!-- 语言选择 -->
+                <Grid Margin="0,28,0,28">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="显示语言" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                        <TextBlock Text="界面显示语言设置" FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <ComboBox x:Name="LanguageComboBox" Grid.Column="1" Width="140"
+                              Style="{StaticResource CyberComboBox}" VerticalAlignment="Center"
+                              SelectionChanged="LanguageComboBox_SelectionChanged">
+                        <ComboBoxItem Content="简体中文"/>
+                        <ComboBoxItem Content="English"/>
+                    </ComboBox>
+                </Grid>
+                <Border Height="1" Background="#99272727"/>
+
+                <!-- 关闭行为 -->
+                <Grid Margin="0,28,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="CloseActionLabel" Text="关闭行为" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                        <TextBlock x:Name="CloseActionDesc" Text="点击关闭按钮时的行为" FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <ComboBox x:Name="CloseActionComboBox" Grid.Column="1" Width="160"
+                              Style="{StaticResource CyberComboBox}" VerticalAlignment="Center">
+                        <ComboBoxItem Content="每次询问"/>
+                        <ComboBoxItem Content="直接退出"/>
+                        <ComboBoxItem Content="最小化到任务栏"/>
+                    </ComboBox>
+                </Grid>
+
+                <Border Height="1" Background="#99272727" Margin="0,28,0,0"/>
+
+                <!-- 插件系统 -->
+                <Grid Margin="0,28,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="PluginSystemLabel" Text="启用插件系统" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                        <TextBlock x:Name="PluginSystemDesc" Text="允许导入任意格式文件到指定目录（如 .ini 配置文件）" FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <CheckBox x:Name="PluginSystemToggle" Grid.Column="1"
+                              Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+            </ScrollViewer>
+
+            <!-- 游戏路径面板 -->
+            <ScrollViewer x:Name="PathsPanel" Grid.Row="0" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                <TextBlock Text="游戏路径" FontSize="18" FontWeight="Bold"
+                           Foreground="{StaticResource Text100Brush}" Margin="0,0,0,8"/>
+                <TextBlock x:Name="CurrentGameHint" Text="当前游戏：未选择"
+                           FontSize="12" Foreground="{StaticResource Text500Brush}" Margin="0,0,0,24"/>
+
+                <!-- 游戏图标（非必填） -->
+                <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                        Padding="16" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" x:Name="SettingsGameIconBorder" Width="64" Height="64"
+                                CornerRadius="12" Background="{StaticResource BgBaseBrush}"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                                ClipToBounds="True" Cursor="Hand"
+                                MouseLeftButtonDown="SettingsGameIcon_Click">
+                            <Grid>
+                                <Image x:Name="SettingsGameIconPreview" Stretch="UniformToFill"
+                                       Visibility="Collapsed"/>
+                                <StackPanel x:Name="SettingsGameIconPlaceholder"
+                                            VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="🖼" FontSize="20" HorizontalAlignment="Center"
+                                               Foreground="{StaticResource Text700Brush}" Opacity="0.5"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                            <TextBlock Text="游戏图标" Foreground="{StaticResource Text200Brush}"
+                                       FontSize="13" FontWeight="Medium"/>
+                            <TextBlock Text="支持 PNG/JPG（非必选）" Foreground="{StaticResource Text500Brush}"
+                                       FontSize="11" Margin="0,4,0,8"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="选择图片" Style="{StaticResource CyberSecondaryButton}"
+                                        Height="28" Padding="12,0" FontSize="12"
+                                        Click="SettingsGameIcon_BrowseClick"/>
+                                <Button x:Name="SettingsClearIconBtn" Content="清除"
+                                        Style="{StaticResource CyberSecondaryButton}"
+                                        Height="28" Padding="12,0" FontSize="12" Margin="8,0,0,0"
+                                        Foreground="{StaticResource Text500Brush}"
+                                        Visibility="Collapsed"
+                                        Click="SettingsGameIcon_ClearClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="游戏安装路径" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="GamePathTextBox" Grid.Column="0"
+                             Style="{StaticResource CyberTextBox}"/>
+                    <Button Grid.Column="1" Content="浏览" Style="{StaticResource CyberSecondaryButton}"
+                            Width="72" Margin="8,0,0,0" Height="40"
+                            Click="BrowseGamePath_Click"/>
+                </Grid>
+
+                <TextBlock Text="MOD 文件夹路径" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ModPathTextBox" Grid.Column="0"
+                             Style="{StaticResource CyberTextBox}"/>
+                    <Button Grid.Column="1" Content="浏览" Style="{StaticResource CyberSecondaryButton}"
+                            Width="72" Margin="8,0,0,0" Height="40"
+                            Click="BrowseModPath_Click"/>
+                </Grid>
+
+                <TextBlock Text="备份文件夹路径" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="BackupPathTextBox" Grid.Column="0"
+                             Style="{StaticResource CyberTextBox}"/>
+                    <Button Grid.Column="1" Content="浏览" Style="{StaticResource CyberSecondaryButton}"
+                            Width="72" Margin="8,0,0,0" Height="40"
+                            Click="BrowseBackupPath_Click"/>
+                </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 外观设置面板 -->
+            <ScrollViewer x:Name="AppearancePanel" Grid.Row="0" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                    <TextBlock x:Name="AppearanceTitle" Text="外观设置" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,24"/>
+
+                    <!-- 背景模式 -->
+                    <TextBlock x:Name="BgModeLabel" Text="背景模式" FontSize="13" FontWeight="Medium"
+                               Foreground="{StaticResource Text400Brush}" Margin="0,0,0,12"/>
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 默认渐变 -->
+                        <Border x:Name="BgModeGradient" Grid.Column="0" CornerRadius="12"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderThickness="2" Padding="8" Cursor="Hand"
+                                MouseLeftButtonDown="BgModeGradient_Click">
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="{StaticResource PrimaryColor}"/>
+                            </Border.BorderBrush>
+                            <StackPanel>
+                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8" ClipToBounds="True">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#030303" Offset="0"/>
+                                            <GradientStop Color="#0f172a" Offset="0.5"/>
+                                            <GradientStop Color="#030303" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock x:Name="BgModeGradientText" Text="默认渐变" FontSize="11"
+                                           Foreground="{StaticResource Text300Brush}" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 自定义图片 -->
+                        <Border x:Name="BgModeImage" Grid.Column="2" CornerRadius="12"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
+                                Padding="8" Cursor="Hand"
+                                MouseLeftButtonDown="BgModeImage_Click">
+                            <StackPanel>
+                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8"
+                                        Background="{StaticResource BgBaseBrush}">
+                                    <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                               Foreground="{StaticResource Text600Brush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="BgModeImageText" Text="自定义图片" FontSize="11"
+                                           Foreground="{StaticResource Text300Brush}" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 纯色背景 -->
+                        <Border x:Name="BgModeSolid" Grid.Column="4" CornerRadius="12"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
+                                Padding="8" Cursor="Hand"
+                                MouseLeftButtonDown="BgModeSolid_Click">
+                            <StackPanel>
+                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8"
+                                        Background="#0a0a0f"/>
+                                <TextBlock x:Name="BgModeSolidText" Text="纯色背景" FontSize="11"
+                                           Foreground="{StaticResource Text300Brush}" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 图片选择（仅 Image 模式可见） -->
+                    <Grid x:Name="ImagePickerPanel" Margin="0,0,0,20" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="BgImagePathBox" Grid.Column="0" IsReadOnly="True"
+                                 Style="{StaticResource CyberTextBox}" Height="36" FontSize="12"/>
+                        <Button x:Name="BrowseBgImageBtn" Grid.Column="1" Content="选择图片"
+                                Style="{StaticResource CyberSecondaryButton}"
+                                Width="80" Height="36" Margin="8,0,0,0" FontSize="12"
+                                Click="BrowseBgImage_Click"/>
+                    </Grid>
+
+                    <Border Height="1" Background="#99272727" Margin="0,0,0,20"/>
+
+                    <!-- 背景透明度 -->
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="BgOpacityLabel" Text="背景透明度" FontSize="14"
+                                       Foreground="{StaticResource Text200Brush}"/>
+                            <Slider x:Name="BgOpacitySlider" Minimum="0" Maximum="100" Value="70"
+                                    Style="{StaticResource CyberSlider}" Margin="0,8,0,0"
+                                    ValueChanged="BgOpacitySlider_ValueChanged"/>
+                        </StackPanel>
+                        <TextBlock x:Name="BgOpacityValue" Grid.Column="1" Text="70%"
+                                   FontSize="14" Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Bottom" Margin="12,0,0,8" MinWidth="40"
+                                   TextAlignment="Right"/>
+                    </Grid>
+
+                    <!-- 背景模糊度 -->
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="BgBlurLabel" Text="背景模糊度" FontSize="14"
+                                       Foreground="{StaticResource Text200Brush}"/>
+                            <Slider x:Name="BgBlurSlider" Minimum="0" Maximum="100" Value="0"
+                                    Style="{StaticResource CyberSlider}" Margin="0,8,0,0"
+                                    ValueChanged="BgBlurSlider_ValueChanged"/>
+                        </StackPanel>
+                        <TextBlock x:Name="BgBlurValue" Grid.Column="1" Text="0%"
+                                   FontSize="14" Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Bottom" Margin="12,0,0,8" MinWidth="40"
+                                   TextAlignment="Right"/>
+                    </Grid>
+
+                    <Border Height="1" Background="#99272727" Margin="0,0,0,20"/>
+
+                    <!-- 应用到弹窗 -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="ApplyToDialogsLabel" Text="应用到弹窗" FontSize="14"
+                                       Foreground="{StaticResource Text200Brush}"/>
+                            <TextBlock x:Name="ApplyToDialogsDesc" Text="弹窗也显示背景效果" FontSize="12"
+                                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="ApplyToDialogsToggle" Grid.Column="1"
+                                  Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"
+                                  IsChecked="True"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 关于面板 -->
+            <ScrollViewer x:Name="AboutPanel" Grid.Row="0" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                    <TextBlock x:Name="AboutTitle" Text="关于软件" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,28"/>
+
+                    <!-- 捐赠支持 -->
+                    <StackPanel HorizontalAlignment="Center">
+                        <Border Width="160" Height="160" CornerRadius="12"
+                                Background="#FFFFFFFF" ClipToBounds="True"
+                                HorizontalAlignment="Center">
+                            <Image Source="/捐赠.png" Stretch="Uniform" Margin="4"/>
+                        </Border>
+                        <TextBlock x:Name="DonationText" Text="如果你觉得有帮助，可以请我喝一杯咖啡！" FontSize="12"
+                                   Foreground="{StaticResource Text400Brush}"
+                                   HorizontalAlignment="Center" Margin="0,12,0,0"
+                                   TextWrapping="Wrap" TextAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- 分隔线 -->
+                    <Border Height="1" Background="#99272727" Margin="0,24,0,24"/>
+
+                    <!-- 鸣谢名单 -->
+                    <TextBlock x:Name="CreditsTitle" Text="鸣谢名单" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text200Brush}" Margin="0,0,0,12"/>
+                    <Border CornerRadius="10" Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                            Padding="16,12">
+                        <StackPanel>
+                            <TextBlock Text="胖虎、YUki、Tarnished" FontSize="13"
+                                       Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="春告鳥、蘭、虎子" FontSize="13"
+                                       Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="神秘不保底男" FontSize="13"
+                                       Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="文铭、阪、林墨" FontSize="13"
+                                       Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="Daisuke、虎子哥、枪王" FontSize="13"
+                                       Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="爱酱游戏群全体群友" FontSize="13"
+                                       Foreground="{StaticResource PrimaryBrush}" TextAlignment="Center"
+                                       FontWeight="Medium"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 分隔线 -->
+                    <Border Height="1" Background="#99272727" Margin="0,24,0,24"/>
+
+                    <!-- 软件信息 -->
+                    <TextBlock Text="爱酱MOD管理器" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text200Brush}"/>
+                    <TextBlock x:Name="VersionText" Text="版本 2.0.0" FontSize="13"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,4,0,16"/>
+                    <TextBlock x:Name="AboutDesc1" Text="专为虚幻引擎游戏设计的 MOD 管理器" FontSize="13"
+                               Foreground="{StaticResource Text400Brush}" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="AboutDesc2" Text="支持剑星、黑神话悟空等多款游戏" FontSize="13"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,8,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 部署与仓库面板 -->
+            <ScrollViewer x:Name="DeployPanel" Grid.Row="0" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                    <TextBlock Text="MOD 安装方式" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,4"/>
+                    <TextBlock Text="选择启用 MOD 时，文件如何写入游戏目录" FontSize="12"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,0,0,20"/>
+
+                    <!-- 后端选择 -->
+                    <Grid Margin="0,0,0,28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 文件复制 -->
+                        <Border x:Name="BackendCopy" Grid.Column="0" CornerRadius="10" Padding="16,14"
+                                Cursor="Hand" MouseLeftButtonDown="BackendCopy_Click"
+                                BorderThickness="2">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="BackendCopyRadio" GroupName="Backend" IsChecked="True"
+                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="文件复制" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                    <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2" Margin="8,0,0,0">
+                                        <TextBlock Text="推荐" FontSize="10" Foreground="{StaticResource PrimaryBrush}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="复制文件到游戏目录，兼容性最好，磁盘占用较大"
+                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 硬链接 -->
+                        <Border x:Name="BackendHardLink" Grid.Column="2" CornerRadius="10" Padding="16,14"
+                                Cursor="Hand" MouseLeftButtonDown="BackendHardLink_Click"
+                                BorderThickness="2">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="BackendHardLinkRadio" GroupName="Backend"
+                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="节省空间模式" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="不额外复制文件，仅限 MOD 和游戏在同一磁盘"
+                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 符号链接 -->
+                        <Border x:Name="BackendSymlink" Grid.Column="4" CornerRadius="10" Padding="16,14"
+                                Cursor="Hand" MouseLeftButtonDown="BackendSymlink_Click"
+                                BorderThickness="2">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <RadioButton x:Name="BackendSymlinkRadio" GroupName="Backend"
+                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="高级链接模式" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="可跨磁盘使用，但需要管理员权限或开发者模式"
+                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Height="1" Background="#99272727" Margin="0,0,0,28"/>
+
+                    <!-- 包仓库路径 -->
+                    <TextBlock Text="MOD 文件保存位置" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,4"/>
+                    <TextBlock Text="已导入的 MOD 会保存在这里，不会直接混进游戏目录" FontSize="12"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,0,0,12"/>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="RepoPathTextBox" Grid.Column="0"
+                                 Style="{StaticResource CyberTextBox}" IsReadOnly="True"/>
+                        <Button Grid.Column="1" Content="浏览" Style="{StaticResource CyberSecondaryButton}"
+                                Width="72" Margin="8,0,0,0" Height="40"
+                                Click="BrowseRepoPath_Click"/>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,28">
+                        <TextBlock x:Name="RepoSizeText" Text="已用空间: 计算中..." FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,0,16,0"/>
+                        <TextBlock x:Name="RepoCountText" Text="" FontSize="12"
+                                   Foreground="{StaticResource Text500Brush}" Margin="0,0,16,0"/>
+                        <TextBlock Text="管理仓库" FontSize="12" Foreground="{StaticResource PrimaryBrush}"
+                                   Cursor="Hand" TextDecorations="Underline"
+                                   MouseLeftButtonDown="ManageRepo_Click"/>
+                    </StackPanel>
+
+                    <Border Height="1" Background="#99272727" Margin="0,0,0,28"/>
+
+                    <!-- 部署选项 -->
+                    <TextBlock Text="部署选项" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,20"/>
+
+                    <!-- 部署前确认 -->
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="部署前确认" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                            <TextBlock Text="每次应用 MOD 前先显示确认窗口" FontSize="12"
+                                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="DeployConfirmToggle" Grid.Column="1"
+                                  Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"
+                                  IsChecked="True"/>
+                    </Grid>
+
+                    <Border Height="1" Background="#99272727"/>
+
+                    <!-- 启动前自动部署 -->
+                    <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="启动前自动部署" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                            <TextBlock Text="启动游戏时如有变更自动执行部署" FontSize="12"
+                                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <CheckBox x:Name="AutoDeployToggle" Grid.Column="1"
+                                  Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"
+                                  IsChecked="True"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ── 底部保存栏 ── -->
+            <Border Grid.Row="1" BorderBrush="#99272727" BorderThickness="0,1,0,0"
+                    Background="#80030303">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,14">
+                    <Button Content="保存设置" Style="{StaticResource CyberPrimaryButton}"
+                            Width="120" Height="36" Click="Save_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        </Grid>
+    </Grid>
+</Window>

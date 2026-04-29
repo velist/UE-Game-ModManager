@@ -1,0 +1,42 @@
+<Window x:Class="UEModManager.Views.CyberInputDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="输入"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource CyberModalWindow}"
+        ResizeMode="NoResize">
+
+    <StackPanel Margin="24">
+        <!-- 标题 -->
+        <TextBlock x:Name="PromptText" Text="请输入内容:"
+                   Foreground="{StaticResource Text200Brush}"
+                   FontSize="14" FontWeight="Medium" Margin="0,0,0,16"/>
+
+        <!-- 输入框 -->
+        <Border CornerRadius="8" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                Padding="12,10">
+            <TextBox x:Name="InputBox" Background="Transparent" BorderThickness="0"
+                     Foreground="{StaticResource Text100Brush}" FontSize="14"
+                     CaretBrush="{StaticResource PrimaryBrush}"
+                     KeyDown="InputBox_KeyDown"/>
+        </Border>
+
+        <!-- 按钮区域 -->
+        <Grid Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1" Content="取消" Width="80" Height="36"
+                    Style="{StaticResource CyberSecondaryButton}"
+                    Click="CancelButton_Click" Margin="0,0,8,0"/>
+            <Button Grid.Column="2" Content="确定" Width="80" Height="36"
+                    Style="{StaticResource CyberPrimaryButton}"
+                    Click="OkButton_Click" IsDefault="True"/>
+        </Grid>
+    </StackPanel>
+</Window>

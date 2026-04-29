@@ -1,0 +1,285 @@
+<Window x:Class="UEModManager.Views.ProfileManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="方案管理" Height="650" Width="900"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource CyberDarkWindow}">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow"/>
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow"/>
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow"/>
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- 左栏：方案列表 -->
+            <ColumnDefinition Width="320"/>
+            <!-- 分割线 -->
+            <ColumnDefinition Width="1"/>
+            <!-- 右栏：方案详情 -->
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════════════════════════════════════════
+             左栏：方案列表
+             ═══════════════════════════════════════════ -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 标题行 -->
+            <Border Grid.Row="0" Padding="20,16,20,12" BorderBrush="#27272a" BorderThickness="0,0,0,1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="方案列表" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Text100Brush}"/>
+                        <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="ProfileCountText" Text="3 个方案" FontSize="11"
+                                       Foreground="{StaticResource PrimaryBrush}"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 方案卡片列表 -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,8,12,8">
+                <StackPanel x:Name="ProfileCardList" Margin="0,4,0,4"/>
+            </ScrollViewer>
+
+            <!-- 底部新建按钮 -->
+            <Border Grid.Row="2" Padding="12,8,12,12" BorderBrush="#27272a" BorderThickness="0,1,0,0">
+                <Button x:Name="NewProfileButton" Click="NewProfile_Click"
+                        Height="40" Cursor="Hand"
+                        Background="Transparent" BorderBrush="#3f3f46" BorderThickness="1"
+                        HorizontalContentAlignment="Center">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8" Padding="0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="+" FontSize="16" Foreground="{StaticResource Text400Brush}"
+                                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="新建方案" FontSize="13" Foreground="{StaticResource Text400Brush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="#0d06b6d4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Border>
+        </Grid>
+
+        <!-- 分割线 -->
+        <Border Grid.Column="1" Background="#27272a"/>
+
+        <!-- ═══════════════════════════════════════════
+             右栏：选中方案详情
+             ═══════════════════════════════════════════ -->
+        <Grid Grid.Column="2" x:Name="DetailPanel">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 方案名称 + 操作按钮 -->
+            <Border Grid.Row="0" Padding="24,16,24,12" BorderBrush="#27272a" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="DetailProfileName" Text="默认 MOD 方案"
+                                   FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Text100Brush}"/>
+                        <Border x:Name="ActiveBadge" Background="#1a22c55e" CornerRadius="4"
+                                Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="活跃" FontSize="11" Foreground="#22c55e"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 操作按钮组 -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="EditButton" Click="RenameProfile_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="0,0,6,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource Text400Brush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="编辑" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="CloneButton" Click="CloneProfile_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="0,0,6,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource Text400Brush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="复制" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="DeleteButton" Click="DeleteProfile_Click"
+                                Style="{StaticResource CyberCompactButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="#ef4444" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="删除" FontSize="12" Foreground="#ef4444"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ExportLockButton" Click="ExportLock_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="6,0,0,0"
+                                ToolTip="导出方案为 lock 文件，便于分享给其他人">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource Text400Brush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="导出 .lock" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ImportLockButton" Click="ImportLock_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="6,0,0,0"
+                                ToolTip="从 lock 文件创建新方案">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource Text400Brush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="导入 .lock" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ExportBundleButton" Click="ExportBundle_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="6,0,0,0"
+                                ToolTip="导出整合包：含包文件，对方导入即可使用，无需单独导 MOD">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource PrimaryBrush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="导出整合包" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ImportBundleButton" Click="ImportBundle_Click"
+                                Style="{StaticResource CyberCompactButton}" Margin="6,0,0,0"
+                                ToolTip="导入整合包：解压包文件并创建新方案">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7B7;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="{StaticResource PrimaryBrush}" Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="导入整合包" FontSize="12" Foreground="{StaticResource Text300Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 统计指标条 -->
+            <Border Grid.Row="1" Padding="24,12">
+                <StackPanel Orientation="Horizontal">
+                    <!-- MOD 数量 -->
+                    <Border Background="#0d06b6d4" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="StatModCount" Text="12" FontSize="16" FontWeight="Bold"
+                                       Foreground="#06b6d4" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="MOD文件" FontSize="11" Foreground="{StaticResource Text400Brush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <!-- 插件数量 -->
+                    <Border Background="#0da855f7" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="StatPluginCount" Text="2" FontSize="16" FontWeight="Bold"
+                                       Foreground="#a855f7" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="插件" FontSize="11" Foreground="{StaticResource Text400Brush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <!-- 启动配置 -->
+                    <Border Background="#0df59e0b" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="StatConfigCount" Text="1" FontSize="16" FontWeight="Bold"
+                                       Foreground="#f59e0b" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="配置项" FontSize="11" Foreground="{StaticResource Text400Brush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- 表头：已启用 MOD 清单 -->
+            <Border Grid.Row="2" Padding="24,8,24,0">
+                <TextBlock Text="已启用 MOD 清单" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource Text200Brush}" Margin="0,0,0,8"/>
+            </Border>
+
+            <!-- MOD 列表表格 -->
+            <Border Grid.Row="3" Padding="24,0,24,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 表头 -->
+                    <Border Grid.Row="0" Background="#0a0a0c" CornerRadius="6,6,0,0" Padding="12,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="50"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="优先级" FontSize="11"
+                                       Foreground="{StaticResource Text500Brush}"/>
+                            <TextBlock Grid.Column="1" Text="名称" FontSize="11"
+                                       Foreground="{StaticResource Text500Brush}"/>
+                            <TextBlock Grid.Column="2" Text="类型" FontSize="11"
+                                       Foreground="{StaticResource Text500Brush}"/>
+                            <TextBlock Grid.Column="3" Text="大小" FontSize="11"
+                                       Foreground="{StaticResource Text500Brush}" TextAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Text="" FontSize="11"
+                                       Foreground="{StaticResource Text500Brush}" TextAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- 表内容 -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ModListPanel"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- 空状态（无选中方案时显示） -->
+        <Grid Grid.Column="2" x:Name="EmptyState" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="选择一个方案查看详情" FontSize="14"
+                           Foreground="{StaticResource Text500Brush}" TextAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

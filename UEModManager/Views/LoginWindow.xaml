@@ -1,0 +1,126 @@
+<Window x:Class="UEModManager.Views.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="验证码登录 - 爱酱MOD管理器" Height="560" Width="480"
+        WindowStartupLocation="CenterScreen"
+        Background="#030303"
+        ResizeMode="NoResize"
+        Style="{StaticResource CyberBorderlessWindow}"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
+    </Window.CommandBindings>
+
+    <Grid>
+        <!-- 背景遮罩层 -->
+        <Border Background="#CC000000"/>
+
+        <!-- 主内容卡片 -->
+        <Border Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                CornerRadius="{StaticResource RadiusLg}" Width="384"
+                VerticalAlignment="Center" HorizontalAlignment="Center"
+                Margin="0,0,0,20">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.5" Color="Black"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/> <!-- 头部(图标+标题) -->
+                    <RowDefinition Height="Auto"/> <!-- 表单区 -->
+                </Grid.RowDefinitions>
+
+                <!-- ── 头部区域 ── -->
+                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="32">
+                    <!-- 图标 -->
+                    <Border Width="48" Height="48" CornerRadius="12"
+                            Background="#1a06b6d4" HorizontalAlignment="Center"
+                            Margin="0,0,0,8">
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#06b6d4" Opacity="0.2"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
+                        <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <!-- 标题 -->
+                    <TextBlock x:Name="TitleText" Text="验证码登录" FontSize="20" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" HorizontalAlignment="Center"/>
+                    <!-- 副标题 -->
+                    <TextBlock x:Name="SmartAuthHint" Text="新用户首次登录将自动注册账号"
+                               FontSize="12" Foreground="{StaticResource Text500Brush}"
+                               HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <!-- ── 表单区域 ── -->
+                <StackPanel Grid.Row="1" Margin="32,0,32,32">
+                    <!-- 语言切换 -->
+                    <Button x:Name="LanguageToggleButton" Content="EN"
+                            Style="{StaticResource CyberCompactButton}"
+                            HorizontalAlignment="Right" Margin="0,0,0,16"
+                            Click="LanguageToggleButton_Click"/>
+
+                    <!-- 邮箱输入组 -->
+                    <TextBlock x:Name="EmailLabel" Text="邮箱地址"
+                               Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="EmailTextBox"
+                             Style="{StaticResource CyberTextBox}"
+                             TextChanged="EmailTextBox_TextChanged"/>
+
+                    <!-- 发送验证码按钮 -->
+                    <Button x:Name="SendOtpButton" Content="发 送 验 证 码"
+                            Style="{StaticResource CyberPrimaryButton}"
+                            Margin="0,16,0,0"
+                            Click="SendOtpButton_Click"/>
+
+                    <!-- 验证码输入 (初始隐藏) -->
+                    <StackPanel x:Name="OtpInputPanel" Visibility="Collapsed" Margin="0,16,0,0">
+                        <TextBlock Text="验证码（6位数字）"
+                                   Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="OtpTextBox"
+                                 Style="{StaticResource CyberTextBox}"
+                                 MaxLength="6"
+                                 TextChanged="OtpTextBox_TextChanged"/>
+                        <TextBlock x:Name="OtpHintText"
+                                   Text="验证码已发送到您的邮箱，10分钟内有效"
+                                   FontSize="11" Foreground="{StaticResource StatusGreenBrush}"
+                                   Margin="2,6,0,0"/>
+                    </StackPanel>
+
+                    <!-- 验证登录按钮 (初始隐藏) -->
+                    <Button x:Name="VerifyLoginButton" Content="验 证 登 录"
+                            Style="{StaticResource CyberPrimaryButton}"
+                            Margin="0,16,0,0" Visibility="Collapsed"
+                            Click="VerifyLoginButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 关闭按钮 (右上角) -->
+        <Button Style="{StaticResource CyberGhostButton}"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,16,16,0" Width="28" Height="28" Padding="0"
+                Command="{x:Static SystemCommands.CloseWindowCommand}">
+            <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                       Foreground="{StaticResource Text500Brush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Button>
+
+        <!-- 加载遮罩 -->
+        <Grid x:Name="LoadingOverlay" Background="#E6030303" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar Width="120" Height="4" IsIndeterminate="True"
+                             Style="{StaticResource CyberProgressBar}" Margin="0,0,0,12"/>
+                <TextBlock x:Name="LoadingText" Text="正在处理..."
+                           Foreground="{StaticResource Text300Brush}" FontSize="13"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

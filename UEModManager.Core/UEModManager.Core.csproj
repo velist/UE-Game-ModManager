@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyVersion>1.7.37.0</AssemblyVersion>
+    <FileVersion>1.7.37.0</FileVersion>
+    <Nullable>annotations</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Core 仅依赖 Newtonsoft.Json（JsonConfigParser 使用 JToken/JObject）。
+         其他基础设施依赖（Sqlite/BCrypt/Http/Logging.Abstractions/SharpCompress 等）
+         属于主项目 Infrastructure 层职责，不应渗入 Domain 内核。-->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

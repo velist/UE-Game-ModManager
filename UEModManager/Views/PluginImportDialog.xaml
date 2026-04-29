@@ -1,0 +1,161 @@
+<Window x:Class="UEModManager.Views.PluginImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="插件导入"
+        Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource CyberModalWindow}"
+        ResizeMode="NoResize">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
+    </Window.CommandBindings>
+
+    <Grid ClipToBounds="True">
+        <Canvas>
+            <Image x:Name="DialogBgImage" Stretch="UniformToFill" Visibility="Collapsed"
+                   Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                   Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"/>
+            <Border x:Name="DialogBgOverlay" Visibility="Collapsed" Background="#80030303"
+                    Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                    Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"/>
+        </Canvas>
+
+        <StackPanel Margin="24">
+            <!-- 选择文件区域 -->
+            <TextBlock x:Name="SelectFileLabel" Text="选择文件" FontSize="13" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text200Brush}"/>
+            <TextBlock x:Name="SelectFileDesc" Text="支持任意格式文件，也可以选择整个文件夹导入" FontSize="12"
+                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Border CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
+                        BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
+                        Cursor="Hand" Margin="0,0,10,0" MouseLeftButtonDown="SelectFiles_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6 M12 18v-6 M9 15h6"
+                                      Stroke="{StaticResource Text300Brush}" StrokeThickness="2"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock x:Name="SelectFileBtnText" Text="选择文件" FontSize="12" FontWeight="Medium"
+                                   Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <Border CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
+                        BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
+                        Cursor="Hand" MouseLeftButtonDown="SelectFolder_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M12 10v6 M9 13h6 M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                      Stroke="{StaticResource Text300Brush}" StrokeThickness="2"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock x:Name="SelectFolderBtnText" Text="选择文件夹" FontSize="12" FontWeight="Medium"
+                                   Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 文件列表预览 -->
+            <Border x:Name="FileListPanel" CornerRadius="8" Background="{StaticResource BgBaseBrush}" Padding="12"
+                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                    Margin="0,0,0,20" Visibility="Collapsed" MaxHeight="120">
+                <StackPanel>
+                    <ItemsControl x:Name="FileListItems">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
+                                                  Stroke="{StaticResource PrimaryBrush}" StrokeThickness="2" Fill="Transparent"
+                                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text300Brush}" FontSize="12"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding SizeText}" Foreground="{StaticResource Text600Brush}" FontSize="11"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="FileCountText" FontSize="11" FontWeight="Medium"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 目标路径 -->
+            <TextBlock x:Name="TargetPathLabel" Text="目标路径" FontSize="13" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text200Brush}"/>
+            <TextBlock x:Name="TargetPathDesc" Text="文件将被复制到此路径（相对于游戏根目录）" FontSize="12"
+                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,8"/>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" CornerRadius="8" Background="{StaticResource BgBaseBrush}"
+                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                        Padding="12,0" Height="36" Margin="0,0,8,0">
+                    <TextBox x:Name="TargetPathBox" Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource Text300Brush}" FontSize="12"
+                             CaretBrush="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                </Border>
+
+                <Border Grid.Column="1" CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}"
+                        BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
+                        Padding="14,8" Cursor="Hand" MouseLeftButtonDown="BrowseTarget_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h4a2 2 0 0 1 2 2v1 M5 19h14a2 2 0 0 0 2-2l1-5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2l1 5"
+                                      Stroke="{StaticResource Text300Brush}" StrokeThickness="2" Fill="Transparent"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock x:Name="BrowseBtnText" Text="浏览" FontSize="12" FontWeight="Medium"
+                                   Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 完整路径预览 -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <Viewbox Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,6,0">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="M12 16v-4 M12 8h.01 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"
+                              Stroke="{StaticResource Text600Brush}" StrokeThickness="2" Fill="Transparent"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock x:Name="FullPathPreview" FontSize="11" Foreground="{StaticResource Text600Brush}"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <!-- 底部按钮 -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="1" Content="取消" Width="90" Height="36"
+                        Style="{StaticResource CyberSecondaryButton}"
+                        Click="CancelBtn_Click" Margin="0,0,12,0"/>
+                <Button x:Name="ImportBtn" Grid.Column="2" Content="导入插件" Width="100" Height="36"
+                        Style="{StaticResource CyberPrimaryButton}"
+                        Click="ImportBtn_Click" IsEnabled="False"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,794 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+
+    <!-- ════════════════════════════════════════════════════════════
+         Cyber Dark Theme - UEModManager
+         基于 Pencil 原型设计系统
+         色彩方案: 纯黑底 + 青色(Cyan)强调
+         ════════════════════════════════════════════════════════════ -->
+
+    <!-- ── 颜色资源 ── -->
+    <Color x:Key="BgBaseColor">#07070a</Color>
+    <Color x:Key="SurfaceColor">#141417</Color>
+    <Color x:Key="SurfaceHoverColor">#202026</Color>
+    <Color x:Key="TitlebarColor">#101014</Color>
+
+    <Color x:Key="PrimaryColor">#06b6d4</Color>
+    <Color x:Key="PrimaryHoverColor">#0891b2</Color>
+    <Color x:Key="PrimaryLightColor">#22d3ee</Color>
+    <Color x:Key="PrimaryGlowColor">#06b6d440</Color>
+
+    <Color x:Key="BorderColor">#34343a</Color>
+    <Color x:Key="BorderLightColor">#52525b</Color>
+    <Color x:Key="OverlayColor">#CC000000</Color>
+
+    <Color x:Key="Text100Color">#fafafa</Color>
+    <Color x:Key="Text200Color">#eeeeef</Color>
+    <Color x:Key="Text300Color">#dedee3</Color>
+    <Color x:Key="Text400Color">#c7c8d0</Color>
+    <Color x:Key="Text500Color">#bfc0c9</Color>
+    <Color x:Key="Text600Color">#a7a8b3</Color>
+    <Color x:Key="Text700Color">#8a8c98</Color>
+
+    <Color x:Key="StatusGreenColor">#22c55e</Color>
+    <Color x:Key="StatusOrangeColor">#f97316</Color>
+    <Color x:Key="StatusRedColor">#ef4444</Color>
+    <Color x:Key="CloseHoverColor">#dc2626</Color>
+    <Color x:Key="ClosePressedColor">#b91c1c</Color>
+
+    <!-- ── v2.0 类型色标 ── -->
+    <Color x:Key="PluginPurpleColor">#a855f7</Color>
+    <Color x:Key="ConfigAmberColor">#f59e0b</Color>
+    <Color x:Key="ModCyanBgColor">#06b6d420</Color>
+    <Color x:Key="PluginPurpleBgColor">#a855f720</Color>
+    <Color x:Key="ConfigAmberBgColor">#f59e0b20</Color>
+    <Color x:Key="WinnerGreenBgColor">#22c55e18</Color>
+    <Color x:Key="LoserRedBgColor">#ef444418</Color>
+
+    <!-- ── 画刷资源 ── -->
+    <SolidColorBrush x:Key="BgBaseBrush" Color="{StaticResource BgBaseColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHoverColor}"/>
+    <SolidColorBrush x:Key="TitlebarBrush" Color="{StaticResource TitlebarColor}"/>
+
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
+    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}"/>
+    <SolidColorBrush x:Key="PrimaryLightBrush" Color="{StaticResource PrimaryLightColor}"/>
+    <SolidColorBrush x:Key="PrimaryGlowBrush" Color="{StaticResource PrimaryGlowColor}"/>
+
+    <SolidColorBrush x:Key="CyberBorderBrush" Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}"/>
+
+    <SolidColorBrush x:Key="Text100Brush" Color="{StaticResource Text100Color}"/>
+    <SolidColorBrush x:Key="Text200Brush" Color="{StaticResource Text200Color}"/>
+    <SolidColorBrush x:Key="Text300Brush" Color="{StaticResource Text300Color}"/>
+    <SolidColorBrush x:Key="Text400Brush" Color="{StaticResource Text400Color}"/>
+    <SolidColorBrush x:Key="Text500Brush" Color="{StaticResource Text500Color}"/>
+    <SolidColorBrush x:Key="Text600Brush" Color="{StaticResource Text600Color}"/>
+    <SolidColorBrush x:Key="Text700Brush" Color="{StaticResource Text700Color}"/>
+
+    <SolidColorBrush x:Key="StatusGreenBrush" Color="{StaticResource StatusGreenColor}"/>
+    <SolidColorBrush x:Key="StatusOrangeBrush" Color="{StaticResource StatusOrangeColor}"/>
+    <SolidColorBrush x:Key="StatusRedBrush" Color="{StaticResource StatusRedColor}"/>
+    <SolidColorBrush x:Key="CloseHoverBrush" Color="{StaticResource CloseHoverColor}"/>
+    <SolidColorBrush x:Key="ClosePressedBrush" Color="{StaticResource ClosePressedColor}"/>
+
+    <!-- v2.0 类型色标画刷 -->
+    <SolidColorBrush x:Key="PluginPurpleBrush" Color="{StaticResource PluginPurpleColor}"/>
+    <SolidColorBrush x:Key="ConfigAmberBrush" Color="{StaticResource ConfigAmberColor}"/>
+    <SolidColorBrush x:Key="ModCyanBgBrush" Color="{StaticResource ModCyanBgColor}"/>
+    <SolidColorBrush x:Key="PluginPurpleBgBrush" Color="{StaticResource PluginPurpleBgColor}"/>
+    <SolidColorBrush x:Key="ConfigAmberBgBrush" Color="{StaticResource ConfigAmberBgColor}"/>
+    <SolidColorBrush x:Key="WinnerGreenBgBrush" Color="{StaticResource WinnerGreenBgColor}"/>
+    <SolidColorBrush x:Key="LoserRedBgBrush" Color="{StaticResource LoserRedBgColor}"/>
+
+    <!-- v2.0 UX优化: 渐变按钮画刷 -->
+    <LinearGradientBrush x:Key="ImportButtonGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#06b6d4" Offset="0"/>
+        <GradientStop Color="#0891b2" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="LaunchButtonGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#10b981" Offset="0"/>
+        <GradientStop Color="#059669" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- v2.0 管理中心 Tab 样式 -->
+    <Style x:Key="ManagementTabStyle" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Padding" Value="0,8,0,10"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── 全局文字渲染 ── -->
+    <Style TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+
+    <!-- ── 圆角 ── -->
+    <CornerRadius x:Key="RadiusSm">8</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">12</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">16</CornerRadius>
+    <CornerRadius x:Key="RadiusXl">20</CornerRadius>
+
+    <!-- ════════════════════════════════════════════════════════════
+         窗口控制按钮样式 (最小化/最大化/关闭)
+         必须在 CyberDarkWindow 之前定义 (WPF StaticResource 前向声明要求)
+         ════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="CyberWindowControlButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="CyberCloseButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource CloseHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource ClosePressedBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ════════════════════════════════════════════════════════════
+         CyberDarkWindow - 主窗口样式 (带最小化/最大化/关闭)
+         ════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="CyberDarkWindow" TargetType="{x:Type Window}">
+        <Setter Property="WindowStyle" Value="None"/>
+        <Setter Property="AllowsTransparency" Value="False"/>
+        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="ResizeMode" Value="CanResizeWithGrip"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        <Setter Property="shell:WindowChrome.WindowChrome">
+            <Setter.Value>
+                <shell:WindowChrome CaptionHeight="36"
+                                    ResizeBorderThickness="6"
+                                    GlassFrameThickness="0"
+                                    CornerRadius="0"
+                                    UseAeroCaptionButtons="False"/>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Window}">
+                    <Border BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Background="{TemplateBinding Background}"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="36"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 标题栏 -->
+                            <Border Grid.Row="0" Background="{StaticResource TitlebarBrush}"
+                                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Logo + 标题 -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE74C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                   Foreground="{StaticResource PrimaryBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{TemplateBinding Title}" Foreground="{StaticResource Text200Brush}"
+                                                   FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- 窗口控制按钮 -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="MinimizeButton" Style="{StaticResource CyberWindowControlButton}"
+                                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                                Command="{x:Static SystemCommands.MinimizeWindowCommand}">
+                                            <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                                       Foreground="{StaticResource Text400Brush}"/>
+                                        </Button>
+                                        <Button x:Name="MaximizeButton" Style="{StaticResource CyberWindowControlButton}"
+                                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                                Command="{x:Static SystemCommands.MaximizeWindowCommand}">
+                                            <TextBlock x:Name="MaximizeIcon" Text="&#xE922;" FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="10" Foreground="{StaticResource Text400Brush}"/>
+                                        </Button>
+                                        <Button x:Name="CloseButton" Style="{StaticResource CyberCloseButton}"
+                                                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                                Command="{x:Static SystemCommands.CloseWindowCommand}">
+                                            <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                                       Foreground="{StaticResource Text400Brush}"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 内容区 -->
+                            <ContentPresenter Grid.Row="1"/>
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="WindowState" Value="Maximized">
+                            <Setter TargetName="MaximizeIcon" Property="Text" Value="&#xE923;"/>
+                            <Setter TargetName="MaximizeButton" Property="Command"
+                                    Value="{x:Static SystemCommands.RestoreWindowCommand}"/>
+                        </Trigger>
+                        <Trigger Property="ResizeMode" Value="NoResize">
+                            <Setter TargetName="MinimizeButton" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="MaximizeButton" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="ResizeMode" Value="CanMinimize">
+                            <Setter TargetName="MaximizeButton" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ════════════════════════════════════════════════════════════
+         CyberModalWindow - 弹窗/对话框样式 (仅关闭按钮, 不可调整大小)
+         ════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="CyberModalWindow" TargetType="{x:Type Window}">
+        <Setter Property="WindowStyle" Value="None"/>
+        <Setter Property="AllowsTransparency" Value="False"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="ResizeMode" Value="NoResize"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        <Setter Property="shell:WindowChrome.WindowChrome">
+            <Setter.Value>
+                <shell:WindowChrome CaptionHeight="36"
+                                    ResizeBorderThickness="0"
+                                    GlassFrameThickness="0"
+                                    CornerRadius="0"
+                                    UseAeroCaptionButtons="False"/>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Window}">
+                    <Border BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Background="{TemplateBinding Background}"
+                            UseLayoutRounding="True" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="36"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 标题栏 -->
+                            <Border Grid.Row="0" Background="{StaticResource TitlebarBrush}"
+                                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{TemplateBinding Title}"
+                                               Foreground="{StaticResource Text400Brush}"
+                                               FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"/>
+
+                                    <Button Grid.Column="1" Style="{StaticResource CyberCloseButton}"
+                                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                                            Command="{x:Static SystemCommands.CloseWindowCommand}">
+                                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                                   Foreground="{StaticResource Text400Brush}"/>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <ContentPresenter Grid.Row="1"/>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ════════════════════════════════════════════════════════════
+         CyberBorderlessWindow - 无标题栏弹窗 (登录/注册等)
+         ════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="CyberBorderlessWindow" TargetType="{x:Type Window}">
+        <Setter Property="WindowStyle" Value="None"/>
+        <Setter Property="AllowsTransparency" Value="False"/>
+        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="ResizeMode" Value="NoResize"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        <Setter Property="shell:WindowChrome.WindowChrome">
+            <Setter.Value>
+                <shell:WindowChrome CaptionHeight="0"
+                                    ResizeBorderThickness="0"
+                                    GlassFrameThickness="0"
+                                    CornerRadius="0"
+                                    UseAeroCaptionButtons="False"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ════════════════════════════════════════════════════════════
+         通用控件样式
+         ════════════════════════════════════════════════════════════ -->
+
+    <!-- ── 输入框 TextBox ── -->
+    <Style x:Key="CyberTextBox" TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
+                                      VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 密码框 PasswordBox ── -->
+    <Style x:Key="CyberPasswordBox" TargetType="{x:Type PasswordBox}">
+        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type PasswordBox}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
+                                      VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 主按钮 (青色填充) ── -->
+    <Style x:Key="CyberPrimaryButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#0e7490"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 次要按钮 (透明底, 青色边框) ── -->
+    <Style x:Key="CyberSecondaryButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text100Brush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 幽灵按钮 (纯文字, 无边框) ── -->
+    <Style x:Key="CyberGhostButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusSm}" Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 紧凑工具按钮 (语言切换等) ── -->
+    <Style x:Key="CyberCompactButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="MinWidth" Value="42"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusSm}" Padding="8,2"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 危险按钮 (红色) ── -->
+    <Style x:Key="CyberDangerButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="{StaticResource StatusRedBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#dc2626"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#b91c1c"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── CheckBox ── -->
+    <Style x:Key="CyberCheckBox" TargetType="{x:Type CheckBox}">
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type CheckBox}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="checkBorder" Width="18" Height="18" CornerRadius="4"
+                                Background="{StaticResource BgBaseBrush}"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                                Margin="0,0,8,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="checkMark" Text="&#xE73E;" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="12" Foreground="{StaticResource BgBaseBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="checkBorder" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="checkBorder" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Toggle Switch (基于 CheckBox) ── -->
+    <Style x:Key="CyberToggleSwitch" TargetType="{x:Type CheckBox}">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type CheckBox}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="track" Width="40" Height="22" CornerRadius="11"
+                                Background="{StaticResource BorderLightBrush}" Margin="0,0,8,0">
+                            <Border x:Name="thumb" Width="16" Height="16" CornerRadius="8"
+                                    Background="White" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                    VerticalAlignment="Center"/>
+                        </Border>
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="track" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="thumb" Property="Margin" Value="0,0,3,0"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── ComboBox ── -->
+    <Style x:Key="CyberComboBox" TargetType="{x:Type ComboBox}">
+        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Padding" Value="14,0"/>
+    </Style>
+
+    <!-- ── ProgressBar ── -->
+    <Style x:Key="CyberProgressBar" TargetType="{x:Type ProgressBar}">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Height" Value="4"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <!-- ── 标签文字 ── -->
+    <Style x:Key="CyberLabel" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{StaticResource Text400Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+    </Style>
+
+    <!-- ── 导航项 (RadioButton, 用于设置窗口侧边栏) ── -->
+    <Style x:Key="CyberNavItem" TargetType="{x:Type RadioButton}">
+        <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type RadioButton}">
+                    <Border x:Name="border" Background="Transparent" CornerRadius="{StaticResource RadiusSm}"
+                            Padding="12,10" SnapsToDevicePixels="True">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="icon" Text="{TemplateBinding Tag}" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="14" Foreground="{TemplateBinding Foreground}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#80272727"/>
+                            <Setter TargetName="border" Property="BorderThickness" Value="1"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 链接文字 ── -->
+    <Style x:Key="CyberLinkButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <TextBlock x:Name="linkText" Text="{TemplateBinding Content}"
+                               Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="linkText" Property="TextDecorations" Value="Underline"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryLightBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

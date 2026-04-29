@@ -1,0 +1,39 @@
+<Window x:Class="UEModManager.Views.CyberMessageBox"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="提示"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource CyberModalWindow}"
+        ResizeMode="NoResize">
+
+    <Grid ClipToBounds="True">
+        <!-- 弹窗背景层：Canvas 不参与布局计算，壁纸不会撑大弹窗 -->
+        <Canvas>
+            <Image x:Name="DialogBgImage" Stretch="UniformToFill" Visibility="Collapsed"
+                   Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                   Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"/>
+            <Border x:Name="DialogBgOverlay" Visibility="Collapsed" Background="#80030303"
+                    Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                    Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"/>
+        </Canvas>
+
+        <StackPanel Margin="24">
+        <!-- 图标 + 消息 -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <TextBlock x:Name="IconText" Text="ℹ" FontSize="24"
+                       Foreground="{StaticResource PrimaryBrush}"
+                       VerticalAlignment="Top" Margin="0,0,16,0"/>
+            <TextBlock x:Name="MessageText" Text="" TextWrapping="Wrap"
+                       Foreground="{StaticResource Text200Brush}"
+                       FontSize="14" MaxWidth="320" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- 按钮区域 -->
+        <StackPanel x:Name="ButtonPanel" Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <!-- 按钮在代码中动态添加 -->
+        </StackPanel>
+    </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,95 @@
+# ─── .NET / Visual Studio 构建产物 ───
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+*.cache
+*.dbmdl
+*.lock.json
+project.lock.json
+project.assets.json
+*.nuget.cache
+.vs/
+.vscode/
+**/bin/
+**/obj/
+
+# ─── Build & 诊断日志（接手时积累的大量构建日志，全部排除） ───
+*.log
+build_diag.log
+baseline*.log
+after_*.log
+final_*.log
+snapshot.log
+console*.log
+console_*.log
+
+# ─── 安装包 / 发布产物 ───
+installer_output/
+*.exe
+!**/Installer/*.exe         # 允许特定 installer 入口（如有）
+*.msi
+*.zip                        # 整合包测试产物（开发期不入仓）
+!docs/**/*.zip               # 但允许 docs 中的示例 zip（如有）
+*.7z
+*.rar
+
+# ─── Playwright / MCP 测试产物 ───
+.playwright-mcp/
+.playwright/
+
+# ─── Pencil 临时设计文件 ───
+untitled.pen
+*.pen.tmp
+
+# ─── 个人 / 敏感文件 ───
+resume-projects-company-personal.md
+**/secrets.json
+**/appsettings.*.local.json
+.env
+.env.*
+!.env.example
+
+# ─── 旧版本恢复目录（接手时遗留，开发期不入仓；如需归档请单独决策） ───
+recovered_20250320/
+recovered_*/
+
+# ─── 内部规划目录（中文目录名，开发笔记，开发期不入仓） ───
+优化向/
+
+# ─── Claude IDE 状态（可能含 session 缓存，不入仓） ───
+.claude/
+
+# ─── 数据库 / 用户数据（不入仓） ───
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+%APPDATA%/UEModManager/
+
+# ─── Resharper / Rider ───
+_ReSharper*/
+*.[Rr]e[Ss]harper
+.idea/
+
+# ─── OS ───
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ─── Dashboard 临时产物 ───
+dashboard-data.js
+dashboard.html
+dashboard-preview.png
+
+# ─── 其他 ───
+*.swp
+*.swo
+*~

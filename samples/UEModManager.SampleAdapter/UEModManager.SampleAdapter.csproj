@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>annotations</Nullable>
+    <IsPackable>false</IsPackable>
+    <Description>
+      UEModManager 自定义 Host Adapter 最小示例。
+      引用 UEModManager.Core 即可独立编译，不依赖主项目（无 WPF）。
+      第三方贡献者可以这个项目为起点添加新游戏支持。
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\UEModManager.Core\UEModManager.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,138 @@
+<Window x:Class="UEModManager.Views.MigrationWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="数据迁移向导" Height="520" Width="480"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource CyberModalWindow}">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 标题行 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 主内容 -->
+            <RowDefinition Height="*"/>
+            <!-- 底部按钮 -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ 标题行 ═══ -->
+        <Border Grid.Row="0" Padding="24,20,24,8">
+            <Grid>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xEDA2;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                               Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="数据迁移向导" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock x:Name="StepIndicator" Text="步骤 1/3"
+                           FontSize="12" Foreground="{StaticResource PrimaryBrush}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ═══ 主内容区 ═══ -->
+        <Grid Grid.Row="1" Margin="24,12,24,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 升级图标 -->
+            <Border Grid.Row="0" Width="56" Height="56" CornerRadius="28"
+                    Background="#0d06b6d4" HorizontalAlignment="Center" Margin="0,0,0,16">
+                <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <!-- 标题 -->
+            <TextBlock Grid.Row="1" Text="升级到 v2.0" FontSize="20" FontWeight="Bold"
+                       Foreground="{StaticResource Text100Brush}"
+                       HorizontalAlignment="Center" Margin="0,0,0,8"/>
+
+            <!-- 描述 -->
+            <TextBlock Grid.Row="2" TextWrapping="Wrap" TextAlignment="Center"
+                       Text="检测到 v1.8.0 数据，将自动迁移到新架构"
+                       FontSize="13" Foreground="{StaticResource Text400Brush}"
+                       HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+            <!-- 进度条 -->
+            <Grid Grid.Row="3" Margin="0,0,0,20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" x:Name="ProgressPercent" Text="0%"
+                           FontSize="13" Foreground="{StaticResource PrimaryBrush}"
+                           HorizontalAlignment="Right" Margin="0,0,0,6"/>
+                <ProgressBar Grid.Row="1" x:Name="MigrationProgress"
+                             Height="6" Style="{StaticResource CyberProgressBar}"
+                             Minimum="0" Maximum="100" Value="0"/>
+            </Grid>
+
+            <!-- 迁移任务列表 -->
+            <Border Grid.Row="4" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusSm}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Padding="14,8" BorderBrush="{StaticResource CyberBorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="迁移任务" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Text300Brush}"/>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="TaskListPanel" Margin="0,4,0,4"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- 提示 -->
+            <Border Grid.Row="5" Margin="0,12,0,0" Background="#0d06b6d4"
+                    CornerRadius="{StaticResource RadiusSm}" Padding="12,8">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ⓘ" FontSize="12" Foreground="{StaticResource PrimaryBrush}"
+                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="迁移过程中请勿关闭程序。原始数据将保留备份。"
+                               FontSize="12" Foreground="{StaticResource Text400Brush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═══ 底部按钮 ═══ -->
+        <Border Grid.Row="2" Padding="24,16,24,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="1" x:Name="SkipButton" Content="跳过迁移"
+                        Click="SkipButton_Click"
+                        Style="{StaticResource CyberSecondaryButton}"
+                        Width="90" Height="36" Margin="0,0,10,0"/>
+                <Button Grid.Column="2" x:Name="StartButton" Click="StartButton_Click"
+                        Style="{StaticResource CyberPrimaryButton}"
+                        Height="38" Padding="16,0" Cursor="Hand">
+                    <TextBlock Text="开始迁移" FontSize="13"/>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
