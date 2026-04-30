@@ -50,7 +50,25 @@ namespace UEModManager.Models
         InProgress,
         Committed,
         RolledBack,
-        Failed
+        Failed,
+
+        /// <summary>
+        /// 回滚执行了，但中途至少一个操作失败 → 文件状态可能不一致。
+        /// 由 CrashRecoveryScanner 强制再次扫描，等待用户决策。
+        /// </summary>
+        PartiallyRolledBack,
+
+        /// <summary>
+        /// 事务执行完毕，但写入 transaction.json 失败（磁盘满 / 权限）。
+        /// 内存状态已是 Committed，但持久化可能丢失，需要用户确认。
+        /// </summary>
+        LogPersistenceFailed,
+
+        /// <summary>
+        /// 用户曾在崩溃恢复对话框中"忽略此事务"。
+        /// 由 CrashRecoveryScanner 跳过；可通过管理操作重置。
+        /// </summary>
+        Dismissed
     }
 
     /// <summary>

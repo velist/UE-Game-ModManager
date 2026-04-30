@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
+using UEModManager.Services.Repository;
 
 namespace UEModManager.Services
 {
@@ -185,20 +186,69 @@ namespace UEModManager.Services
         // ─── 删除 ───
 
         /// <summary>
-        /// 从仓库中删除包（索引 + 仓库文件）。
+        /// 计算给定 packageKey 在所有 Profile 中的引用情况，并产生删除决策。
+        /// 不做任何 IO；调用方根据返回的 Plan 决定是否调用 <see cref="DeletePackageAsync"/>。
         /// </summary>
-        public async Task<bool> DeletePackageAsync(string packageKey)
+        public PackageDeletionPlan PlanDeletion(
+            string packageKey,
+            IEnumerable<InstanceProfile> allProfiles)
+        {
+            var report = PackageReferenceCounter.Count(packageKey, allProfiles);
+            return PackageDeletionPlanner.Plan(report);
+        }
+
+        /// <summary>
+        /// 从仓库中删除包（索引 + 仓库文件）。
+        ///
+        /// ⚠ 必须先调用 <see cref="PlanDeletion"/> 检查引用情况！
+        /// 默认拒绝删除仍被任何 Profile 引用的包；通过 <paramref name="force"/> 可强制覆盖，
+        /// 但调用方需确保已先回滚相关 Profile 的部署文件。
+        /// </summary>
+        /// <param name="packageKey">要删除的包标识。</param>
+        /// <param name="allProfiles">所有 Profile（用于引用计数）。传 null 表示跳过检查（仅供测试）。</param>
+        /// <param name="force">true = 即使被引用也强制删除（必须先自行回滚部署）。</param>
+        /// <returns>(成功否, 决策详情)。Decision=ActivelyDeployed 且 force=false 时返回 (false, plan)。</returns>
+        public async Task<(bool Success, PackageDeletionPlan? Plan)> DeletePackageAsync(
+            string packageKey,
+            IEnumerable<InstanceProfile>? allProfiles,
+            bool force = false)
         {
             var package = GetByKey(packageKey);
-            if (package == null) return false;
+            if (package == null) return (false, null);
+
+            PackageDeletionPlan? plan = null;
+            if (allProfiles != null)
+            {
+                plan = PlanDeletion(packageKey, allProfiles);
+                if (plan.RequiresUserConfirmation && !force)
+                {
+                    _logger.LogWarning(
+                        "[PackageRepo] 拒绝删除 {Key}: {Decision} — {Explanation}",
+                        packageKey, plan.Decision, plan.Explanation);
+                    return (false, plan);
+                }
+            }
 
             _packages.Remove(package);
             _objectStore.DeletePackage(packageKey);
             await SaveIndexAsync();
 
             PackagesChanged?.Invoke();
-            _logger.LogInformation("包已删除: {Key}", packageKey);
-            return true;
+            _logger.LogInformation(
+                "[PackageRepo] 包已删除: {Key} (force={Force}, decision={Decision})",
+                packageKey, force, plan?.Decision.ToString() ?? "Unchecked");
+            return (true, plan);
+        }
+
+        /// <summary>
+        /// [向后兼容] 旧签名 — 直接删除，不做引用检查。
+        /// 新代码应改用带引用检查的重载。
+        /// </summary>
+        [Obsolete("此重载会跳过引用计数检查，可能导致游戏目录残留孤儿文件。请使用带 allProfiles 参数的重载。")]
+        public async Task<bool> DeletePackageAsync(string packageKey)
+        {
+            var (success, _) = await DeletePackageAsync(packageKey, allProfiles: null, force: true);
+            return success;
         }
 
         // ─── 仓库统计 ───

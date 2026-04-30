@@ -50,6 +50,27 @@ namespace UEModManager.Models
         /// <summary>已完成操作数。</summary>
         public int CompletedOperations { get; set; }
 
+        /// <summary>
+        /// 回滚执行期间失败的操作详情（仅 PartiallyRolledBack 时有值）。
+        /// 每条记录"哪个目标路径回滚失败、失败原因"，供恢复 UI 展示。
+        /// </summary>
+        public List<RollbackFailure> RollbackFailures { get; set; } = [];
+
+        /// <summary>
+        /// 用户曾忽略此事务的时间（Dismissed 状态下设置）。
+        /// 用于审计和"重置已忽略事务"管理操作。
+        /// </summary>
+        public DateTime? DismissedAt { get; set; }
+
+        /// <summary>用户忽略此事务时给出的原因（可空）。</summary>
+        public string? DismissedReason { get; set; }
+
+        /// <summary>
+        /// 事务日志格式版本。当前 = 2（v2.0-rc 引入 PartiallyRolledBack/Dismissed/LogPersistenceFailed）。
+        /// 反序列化时若缺失则视为 1（向前兼容）。
+        /// </summary>
+        public int SchemaVersion { get; set; } = 2;
+
         // ─── 计算属性 ───
 
         /// <summary>进度百分比。</summary>
@@ -60,6 +81,16 @@ namespace UEModManager.Models
 
         /// <summary>是否可回滚。</summary>
         [JsonIgnore]
-        public bool CanRollback => Status is DeploymentStatus.Committed or DeploymentStatus.Failed;
+        public bool CanRollback => Status is DeploymentStatus.Committed
+                                          or DeploymentStatus.Failed
+                                          or DeploymentStatus.PartiallyRolledBack;
     }
+
+    /// <summary>
+    /// 单个回滚操作的失败记录。
+    /// 用于 PartiallyRolledBack 状态下向用户展示"哪些文件没回滚干净"。
+    /// </summary>
+    public sealed record RollbackFailure(
+        string TargetPath,
+        string Reason);
 }

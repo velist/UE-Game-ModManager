@@ -24,9 +24,12 @@ public class CrashRecoveryScannerTests
     [Theory]
     [InlineData(DeploymentStatus.Committed, RecoveryAction.NoAction)]
     [InlineData(DeploymentStatus.RolledBack, RecoveryAction.NoAction)]
+    [InlineData(DeploymentStatus.Dismissed, RecoveryAction.NoAction)]
     [InlineData(DeploymentStatus.InProgress, RecoveryAction.RollbackRecommended)]
     [InlineData(DeploymentStatus.Failed, RecoveryAction.MarkFailedRecommended)]
     [InlineData(DeploymentStatus.Pending, RecoveryAction.MarkFailedRecommended)]
+    [InlineData(DeploymentStatus.PartiallyRolledBack, RecoveryAction.ManualReviewRequired)]
+    [InlineData(DeploymentStatus.LogPersistenceFailed, RecoveryAction.VerifyAndResubmit)]
     public void ClassifyStatus_MapsToExpectedAction(DeploymentStatus status, RecoveryAction expected)
     {
         var (action, _) = CrashRecoveryScanner.ClassifyStatus(Tx(status));
@@ -131,5 +134,75 @@ public class CrashRecoveryScannerTests
         Assert.Equal(RecoveryAction.RollbackRecommended, c.Action);
         Assert.Equal(DeploymentStatus.InProgress, c.Status);
         Assert.NotEmpty(c.Reason);
+    }
+
+    // ─── 新状态：PartiallyRolledBack / LogPersistenceFailed / Dismissed ───
+
+    [Fact]
+    public void Scan_PartiallyRolledBack_ReturnsManualReview()
+    {
+        var tx = Tx(DeploymentStatus.PartiallyRolledBack);
+        tx.RollbackFailures.Add(new RollbackFailure("/g/Mods/x.pak", "文件被占用"));
+        tx.RollbackFailures.Add(new RollbackFailure("/g/Mods/y.pak", "权限拒绝"));
+
+        var c = Assert.Single(CrashRecoveryScanner.Scan(new[] { tx }));
+
+        Assert.Equal(RecoveryAction.ManualReviewRequired, c.Action);
+        Assert.Contains("2 个", c.Reason);
+        Assert.Contains("人工核查", c.Reason);
+    }
+
+    [Fact]
+    public void Scan_LogPersistenceFailed_ReturnsVerifyAndResubmit()
+    {
+        var tx = Tx(DeploymentStatus.LogPersistenceFailed);
+
+        var c = Assert.Single(CrashRecoveryScanner.Scan(new[] { tx }));
+
+        Assert.Equal(RecoveryAction.VerifyAndResubmit, c.Action);
+        Assert.Contains("日志写入失败", c.Reason);
+    }
+
+    [Fact]
+    public void Scan_Dismissed_FilteredOut()
+    {
+        var transactions = new[]
+        {
+            Tx(DeploymentStatus.Dismissed),
+            Tx(DeploymentStatus.Dismissed),
+        };
+
+        var candidates = CrashRecoveryScanner.Scan(transactions);
+
+        Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void Scan_MixedNewStatuses_OnlyDismissedFilteredOut()
+    {
+        var transactions = new[]
+        {
+            Tx(DeploymentStatus.Dismissed),                // 跳过
+            Tx(DeploymentStatus.PartiallyRolledBack),      // 保留
+            Tx(DeploymentStatus.LogPersistenceFailed),     // 保留
+        };
+
+        var candidates = CrashRecoveryScanner.Scan(transactions);
+
+        Assert.Equal(2, candidates.Count);
+        Assert.DoesNotContain(candidates, c => c.Status == DeploymentStatus.Dismissed);
+    }
+
+    [Fact]
+    public void ClassifyStatus_PartiallyRolledBack_NoFailures_StillReportsManualReview()
+    {
+        // 边界条件：状态是 PartiallyRolledBack 但 RollbackFailures 列表是空（数据不一致）
+        // 仍应返回 ManualReviewRequired，避免被误判为安全
+        var tx = Tx(DeploymentStatus.PartiallyRolledBack);
+
+        var (action, reason) = CrashRecoveryScanner.ClassifyStatus(tx);
+
+        Assert.Equal(RecoveryAction.ManualReviewRequired, action);
+        Assert.Contains("0 个", reason);
     }
 }

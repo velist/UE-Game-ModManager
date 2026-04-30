@@ -72,8 +72,10 @@
     <CornerRadius x:Key="RadiusLg">16</CornerRadius>
     <CornerRadius x:Key="RadiusXl">20</CornerRadius>
 
-    <!-- ── 字体 ── -->
-    <FontFamily x:Key="InterFont">pack://application:,,,/Fonts/#Inter</FontFamily>
+    <!-- ── 字体 ──
+         拉丁字符走嵌入 Inter；中文字符按 fallback 顺序匹配思源黑体 / Noto Sans CJK / 微软雅黑。
+         WPF 在缺字形时会逐项回退。 -->
+    <FontFamily x:Key="InterFont">pack://application:,,,/Fonts/#Inter, Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI</FontFamily>
 
     <!-- ════════════════════════════════════════════════════════════
          窗口控制按钮样式 (最小化/最大化/关闭)

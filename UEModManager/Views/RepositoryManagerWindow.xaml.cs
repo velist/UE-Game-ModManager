@@ -213,9 +213,10 @@ namespace UEModManager.Views
 
             if (result == MessageBoxResult.Yes)
             {
+                var allProfiles = _profileService.GetProfiles();
                 foreach (var pkg in orphans)
                 {
-                    await _packageRepo.DeletePackageAsync(pkg.PackageKey);
+                    await _packageRepo.DeletePackageAsync(pkg.PackageKey, allProfiles, force: false);
                 }
                 RefreshUI();
             }

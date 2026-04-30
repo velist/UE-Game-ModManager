@@ -1158,21 +1158,23 @@ Resolved View
 
 ---
 
-## 10.1 当前落地快照（2026-04-29）
+## 10.1 当前落地快照（2026-04-30，v2.0-rc1 已打）
 
-当前实现已经超过原计划中的"Phase 11 工程硬化"最低要求，进入持续 Core 纯化阶段：
+当前实现已经超过原计划中的"Phase 11 工程硬化"最低要求，进入持续 Core 纯化阶段。**v2.0-rc1 标签已于 2026-04-30 打出（commit 30e4a32）**：
 
-- **解决方案结构**：主项目 `UEModManager/` 负责 WPF / IO / Service 编排；`UEModManager.Core/` 负责 Domain 模型、纯函数、算法、决策；`UEModManager.Core.Tests/` 提供 xUnit 回归网；`samples/UEModManager.SampleAdapter/` 验证第三方 Adapter 接口。
+- **解决方案结构**：主项目 `UEModManager/` 负责 WPF / IO / Service 编排；`UEModManager.Core/` 负责 Domain 模型、纯函数、算法、决策；`UEModManager.Core.Tests/` 提供 xUnit 回归网；`samples/UEModManager.SampleAdapter/` 验证第三方 Adapter 接口；`samples/UEModManager.SampleBackend/` 验证第三方 Deployment Backend 接口。
 - **Core 约束**：TFM=`net8.0`，单依赖 Newtonsoft.Json，防止 WPF / System.Windows 依赖回灌。
 - **验证状态（2026-04-30）**：`dotnet build UEModManager.sln --configuration Debug` → 0 warnings / 0 errors（**5 个项目**：主项目 + Core + Tests + SampleAdapter + SampleBackend）；`dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj` → **552 passed / 0 failed**。
 - **17 轮 Core 拆分 + 第十八轮 SDK 完整化已完成**：Config / Conflict / Recovery / Lock / Health / Logging / Diagnostics / ResolvedViews / DeploymentPlanning / Deployment / Launch / Detection / Profile / Migration / Import / Backends 等关键规则均已有 Core 承载。
 - **最近第十八轮（2026-04-30）**：`IDeploymentBackend` 接口从主项目下沉到 Core（`Services/Backends/`），新建 `samples/UEModManager.SampleBackend/`（`SampleMirrorBackend` 镜像复制 + 来源记号 demo），加入解决方案。docs/README.md / architecture/overview.md / writing-deployment-backend.md 全部同步基线到 2026-04-30。
+- **v2.0-rc1 标签（2026-04-30）**：commit `30e4a32`，annotated tag 含 313 文件（仅源码 + 文档），ux-copy-audit 与 main 分支同指此 commit；`.gitignore` 已就位阻断 bin/obj / 构建日志 / `.playwright-mcp/` / `recovered_20250320/` / `resume-projects-company-personal.md` / `untitled.pen` / `.claude/` 等。**未 push 到远程**——需用户提供 GitHub URL。
 
 **下一步建议（按 ROI）：**
-1. `DataMigrationService` 5 步进度状态机纯化。
-2. `PackageImportService` 压缩包分组 / 嵌套解压判定纯化。
-3. Phase 13 文档与模板继续扩充。
-4. Phase 10 VFS 独立 R&D spike。
+1. ~~仓库 git 初始化 + 打 v2.0-rc1 标签~~（✅ 2026-04-30 commit 30e4a32）
+2. **远程仓库 push**（需用户提供 GitHub URL，建议 `github.com/velist/UE-Game-ModManager`）
+3. **Windows 实机手动验收主流程**（启动 / 导入 / 部署 / 冲突 / 一键启动），通过后升 v2.0 正式标签
+4. 主项目继续审视可拆纯函数（边际收益已显著下降）
+5. Phase 10 VFS 仍建议作为单独 R&D spike
 
 ---
 

@@ -114,6 +114,9 @@ namespace UEModManager.Services
             LastTransaction = transaction;
             ProgressChanged?.Invoke(transaction);
 
+            // S6: 立即持久化一次（Pending 状态），保证崩溃在备份/执行阶段也能被 CrashRecoveryScanner 识别
+            await SaveTransactionLogAsync(transaction);
+
             _logger.LogInformation(
                 "开始执行部署: {Id} ({Count} 个操作, 后端={Backend})",
                 transaction.Id, plan.TotalCount, backendType);
@@ -183,6 +186,8 @@ namespace UEModManager.Services
 
         /// <summary>
         /// 回滚事务：从备份恢复受影响的文件。
+        /// 中途单步失败不再吞异常 — 累计到 RollbackFailures，最终 Status 标记为 PartiallyRolledBack
+        /// 让 CrashRecoveryScanner 强制人工核查，避免"伪回滚成功"。
         /// </summary>
         public async Task RollbackAsync(DeploymentTransaction transaction)
         {
@@ -194,13 +199,14 @@ namespace UEModManager.Services
             }
 
             _logger.LogInformation("开始回滚事务: {Id}", transaction.Id);
+            transaction.RollbackFailures.Clear();
 
             // 按执行顺序的逆序回滚
             foreach (var op in transaction.ExecutedOperations.AsEnumerable().Reverse())
             {
                 try
                 {
-                    var action = RollbackActionPlanner.PlanRollback(op);
+                    var action = RollbackActionPlanner.PlanRollback(op, File.Exists);
                     switch (action.Type)
                     {
                         case RollbackActionType.DeleteAdded:
@@ -219,24 +225,61 @@ namespace UEModManager.Services
                                     Directory.CreateDirectory(targetDir);
                                 File.Copy(action.BackupPath, action.TargetPath, overwrite: true);
                             }
+                            else
+                            {
+                                // Planner 已通过 File.Exists 校验，这里仍未命中说明并发删除/竞态
+                                transaction.RollbackFailures.Add(new RollbackFailure(
+                                    action.TargetPath,
+                                    $"备份文件在回滚前消失: {action.BackupPath}"));
+                                _logger.LogError("备份文件消失: {Backup} → 目标 {Target}",
+                                    action.BackupPath, action.TargetPath);
+                            }
+                            break;
+
+                        case RollbackActionType.BackupMissing:
+                            transaction.RollbackFailures.Add(new RollbackFailure(
+                                action.TargetPath,
+                                $"备份文件不存在或已被删除: {action.BackupPath}"));
+                            _logger.LogError("回滚失败 — 备份缺失: {Target} (备份记录: {Backup})",
+                                action.TargetPath, action.BackupPath);
+                            break;
+
+                        case RollbackActionType.NoBackupRecorded:
+                            // Remove/Replace 操作的备份从未生成（备份阶段被跳过 / 原文件不存在）
+                            // 不算失败，但仍记录供审计
+                            _logger.LogWarning("回滚跳过 — 操作未备份: {Target} (Type={Type})",
+                                op.TargetPath, op.Type);
                             break;
 
                         case RollbackActionType.None:
-                            // 无需回滚
                             break;
                     }
                 }
                 catch (Exception ex)
                 {
+                    transaction.RollbackFailures.Add(new RollbackFailure(
+                        op.TargetPath,
+                        $"{ex.GetType().Name}: {ex.Message}"));
                     _logger.LogError(ex, "回滚操作失败: {Target}", op.TargetPath);
                 }
             }
 
-            transaction.Status = DeploymentStatus.RolledBack;
+            transaction.Status = transaction.RollbackFailures.Count > 0
+                ? DeploymentStatus.PartiallyRolledBack
+                : DeploymentStatus.RolledBack;
             transaction.CompletedAt = DateTime.Now;
             await SaveTransactionLogAsync(transaction);
 
-            _logger.LogInformation("事务已回滚: {Id}", transaction.Id);
+            if (transaction.Status == DeploymentStatus.PartiallyRolledBack)
+            {
+                _logger.LogError(
+                    "事务部分回滚 — {Count} 个操作未恢复，需人工核查: {Id}",
+                    transaction.RollbackFailures.Count, transaction.Id);
+            }
+            else
+            {
+                _logger.LogInformation("事务已回滚: {Id}", transaction.Id);
+            }
         }
 
         /// <summary>
@@ -339,19 +382,29 @@ namespace UEModManager.Services
 
         private async Task SaveTransactionLogAsync(DeploymentTransaction transaction)
         {
+            if (string.IsNullOrEmpty(transaction.BackupDirectory))
+                return;
+
             try
             {
+                if (!Directory.Exists(transaction.BackupDirectory))
+                    Directory.CreateDirectory(transaction.BackupDirectory);
+
                 var logPath = Path.Combine(transaction.BackupDirectory, "transaction.json");
-                if (!string.IsNullOrEmpty(transaction.BackupDirectory) &&
-                    Directory.Exists(transaction.BackupDirectory))
-                {
-                    var json = JsonSerializer.Serialize(transaction, JsonOptions);
-                    await File.WriteAllTextAsync(logPath, json);
-                }
+                var json = JsonSerializer.Serialize(transaction, JsonOptions);
+                await File.WriteAllTextAsync(logPath, json);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "保存事务日志失败");
+                // W5: 不静默 — 把内存状态降级为 LogPersistenceFailed 让 CrashRecoveryScanner 拾取。
+                // 仅在状态原本是"成功类"时降级；如果已经是 Failed/PartiallyRolledBack 不覆盖。
+                if (transaction.Status is DeploymentStatus.Committed or DeploymentStatus.RolledBack)
+                {
+                    transaction.Status = DeploymentStatus.LogPersistenceFailed;
+                    transaction.ErrorMessage = $"事务日志写入失败: {ex.Message}";
+                }
+                _logger.LogError(ex, "保存事务日志失败 — 事务 {Id} 状态降级为 LogPersistenceFailed",
+                    transaction.Id);
             }
         }
 

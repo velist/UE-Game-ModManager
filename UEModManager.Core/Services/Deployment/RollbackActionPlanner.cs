@@ -13,6 +13,18 @@ namespace UEModManager.Services.Deployment
 
         /// <summary>从备份恢复目标文件。</summary>
         RestoreFromBackup,
+
+        /// <summary>
+        /// Remove/Replace 操作但 BackupPath 为空 — 备份从未生成（Add 操作或备份阶段被跳过）。
+        /// 区别于 BackupMissing：这是"从未有过"，不是"丢了"。
+        /// </summary>
+        NoBackupRecorded,
+
+        /// <summary>
+        /// 备份路径有记录但文件已不存在（被人手动删 / 磁盘错误）。
+        /// 此状态必须冒泡为 PartiallyRolledBack，不允许静默成功。
+        /// </summary>
+        BackupMissing,
     }
 
     /// <summary>回滚单个操作的动作描述。</summary>
@@ -26,14 +38,27 @@ namespace UEModManager.Services.Deployment
     ///
     /// 给定一个已执行的 DeploymentOperation，决定回滚时该做什么：
     /// - Add  → 删除新增目标
-    /// - Remove / Replace → 从备份恢复目标
-    /// - 其他（None 或缺失备份）→ 不动作
+    /// - Remove / Replace + 备份路径有效 → 从备份恢复目标
+    /// - Remove / Replace + 备份路径为空 → NoBackupRecorded（从未备份）
+    /// - Remove / Replace + 备份路径已记录但文件丢失 → BackupMissing（必须冒泡）
     ///
     /// 主项目 DeploymentService.RollbackAsync 拿到 RollbackAction 后执行 IO（File.Delete / File.Copy）。
     /// </summary>
     public static class RollbackActionPlanner
     {
+        /// <summary>
+        /// 不做 IO 的纯静态版本，仅基于 BackupPath 字符串判断。
+        /// 调用方若需检测"备份文件确实存在"应使用 <see cref="PlanRollback(DeploymentOperation, System.Func{string, bool})"/>。
+        /// </summary>
         public static RollbackAction PlanRollback(DeploymentOperation operation)
+            => PlanRollback(operation, backupExists: null);
+
+        /// <summary>
+        /// 带"备份是否存在"判定的版本。允许 Planner 检测 BackupMissing 而仍保持纯函数（依赖注入）。
+        /// </summary>
+        public static RollbackAction PlanRollback(
+            DeploymentOperation operation,
+            System.Func<string, bool>? backupExists)
         {
             if (operation == null) throw new System.ArgumentNullException(nameof(operation));
 
@@ -44,12 +69,15 @@ namespace UEModManager.Services.Deployment
 
                 DeploymentOperationType.Remove or DeploymentOperationType.Replace
                     when !string.IsNullOrEmpty(operation.BackupPath) =>
-                    new RollbackAction(RollbackActionType.RestoreFromBackup,
-                        operation.TargetPath, operation.BackupPath),
+                    backupExists is null || backupExists(operation.BackupPath!)
+                        ? new RollbackAction(RollbackActionType.RestoreFromBackup,
+                            operation.TargetPath, operation.BackupPath)
+                        : new RollbackAction(RollbackActionType.BackupMissing,
+                            operation.TargetPath, operation.BackupPath),
 
-                // Remove/Replace 但没有备份路径 → 无法恢复，跳过
+                // Remove/Replace 但没有备份路径 → 从未备份（区别于"备份丢了"）
                 DeploymentOperationType.Remove or DeploymentOperationType.Replace =>
-                    new RollbackAction(RollbackActionType.None, operation.TargetPath, BackupPath: null),
+                    new RollbackAction(RollbackActionType.NoBackupRecorded, operation.TargetPath, BackupPath: null),
 
                 _ => new RollbackAction(RollbackActionType.None, operation.TargetPath, BackupPath: null),
             };

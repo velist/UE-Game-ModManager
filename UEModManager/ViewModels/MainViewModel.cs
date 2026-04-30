@@ -462,8 +462,8 @@ namespace UEModManager.ViewModels
                 var transaction = await _deploymentService.ExecuteAsync(plan);
                 if (transaction.Status == DeploymentStatus.Committed)
                 {
-                    // 更新 Profile 中的启用状态
-                    await _profileService.SetPackageEnabledAsync(packageKey, enable);
+                    // 更新 Profile 中的启用状态（仅元数据 — 部署事务已成功）
+                    await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);
                     _logger.LogInformation("部署成功: {Key} → {State}", packageKey, enable ? "启用" : "禁用");
                     return true;
                 }

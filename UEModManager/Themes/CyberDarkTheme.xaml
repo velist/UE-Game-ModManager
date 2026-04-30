@@ -125,7 +125,7 @@
 
     <!-- ── 全局文字渲染 ── -->
     <Style TargetType="{x:Type TextBlock}">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -405,7 +405,7 @@
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -446,7 +446,7 @@
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -483,7 +483,7 @@
         <Setter Property="Height" Value="44"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -516,7 +516,7 @@
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -550,7 +550,7 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Template">
@@ -581,7 +581,7 @@
         <Setter Property="MinWidth" Value="42"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -611,7 +611,7 @@
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -641,7 +641,7 @@
         <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -709,7 +709,7 @@
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Padding" Value="14,0"/>
     </Style>
 
@@ -726,7 +726,7 @@
         <Setter Property="Foreground" Value="{StaticResource Text400Brush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
     </Style>
 
     <!-- ── 导航项 (RadioButton, 用于设置窗口侧边栏) ── -->
@@ -734,7 +734,7 @@
         <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Margin" Value="0,2"/>
         <Setter Property="Template">
@@ -772,7 +772,7 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, Inter"/>
+        <Setter Property="FontFamily" Value="Source Han Sans CN, Source Han Sans SC, Noto Sans CJK SC, Microsoft YaHei UI, Segoe UI, Inter"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="Template">

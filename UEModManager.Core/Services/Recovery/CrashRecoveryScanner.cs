@@ -14,6 +14,15 @@ namespace UEModManager.Services.Recovery
         RollbackRecommended,
         /// <summary>建议标记失败 — 事务已失败但仍占用备份目录，应清理。</summary>
         MarkFailedRecommended,
+        /// <summary>
+        /// 需要用户手动核查 — 回滚执行了但中途至少一个操作失败，
+        /// 文件状态不一致；不能假设安全。
+        /// </summary>
+        ManualReviewRequired,
+        /// <summary>
+        /// 事务日志持久化失败 — 内存状态可能与磁盘不一致；建议用户验证部署结果后重新触发。
+        /// </summary>
+        VerifyAndResubmit,
     }
 
     /// <summary>崩溃恢复候选项。</summary>
@@ -33,9 +42,12 @@ namespace UEModManager.Services.Recovery
     /// 状态语义：
     /// - <see cref="DeploymentStatus.Committed"/> — 已提交，无需处理
     /// - <see cref="DeploymentStatus.RolledBack"/> — 已回滚，无需处理
+    /// - <see cref="DeploymentStatus.Dismissed"/> — 用户已忽略，无需处理（避免循环提示）
     /// - <see cref="DeploymentStatus.InProgress"/> — 执行中崩溃 → 强烈建议回滚
     /// - <see cref="DeploymentStatus.Failed"/> — 已失败但未清理 → 建议标记+清理
     /// - <see cref="DeploymentStatus.Pending"/> — 创建后未启动 → 建议标记+清理
+    /// - <see cref="DeploymentStatus.PartiallyRolledBack"/> — 回滚中途失败 → 必须人工核查
+    /// - <see cref="DeploymentStatus.LogPersistenceFailed"/> — 日志写盘失败 → 建议验证后重提
     /// </summary>
     public static class CrashRecoveryScanner
     {
@@ -80,9 +92,20 @@ namespace UEModManager.Services.Recovery
                 DeploymentStatus.RolledBack
                     => (RecoveryAction.NoAction, "事务已回滚"),
 
+                DeploymentStatus.Dismissed
+                    => (RecoveryAction.NoAction, "用户已忽略此事务"),
+
                 DeploymentStatus.InProgress
                     => (RecoveryAction.RollbackRecommended,
                         $"上次执行中崩溃 ({tx.CompletedOperations}/{tx.TotalOperations} 操作完成)，文件状态可能不一致"),
+
+                DeploymentStatus.PartiallyRolledBack
+                    => (RecoveryAction.ManualReviewRequired,
+                        $"回滚中途失败（{tx.RollbackFailures.Count} 个操作未恢复），文件状态不一致，请人工核查"),
+
+                DeploymentStatus.LogPersistenceFailed
+                    => (RecoveryAction.VerifyAndResubmit,
+                        "事务日志写入失败，部署结果可能未持久化，建议核对游戏目录后重新触发部署"),
 
                 DeploymentStatus.Failed
                     => (RecoveryAction.MarkFailedRecommended,

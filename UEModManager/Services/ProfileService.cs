@@ -246,9 +246,18 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 更新包的启用状态。
+        /// 仅更新 Profile 内的 IsEnabled 标志位，不触发任何部署/回滚。
+        ///
+        /// ⚠ 危险 API ⚠ — 直接调用会导致元数据与游戏目录文件不一致。
+        /// 正常入口请走 <see cref="ViewModels.MainViewModel.DeployToggleAsync"/>，
+        /// 它会先生成部署计划、执行事务，仅在事务成功后才调用本方法同步元数据。
+        ///
+        /// 仅在以下场景允许直接调用：
+        /// 1. ViewModel 在事务 Committed 后回写元数据（当前唯一合法用法）
+        /// 2. 数据迁移/恢复脚本（明确知道游戏目录已对齐）
+        /// 3. 单元测试
         /// </summary>
-        public async Task SetPackageEnabledAsync(string packageKey, bool enabled)
+        public async Task SetPackageEnabledFlagAsync(string packageKey, bool enabled)
         {
             if (CurrentProfile == null) return;
 
@@ -262,6 +271,14 @@ namespace UEModManager.Services
                 await SaveProfilesAsync();
             }
         }
+
+        /// <summary>
+        /// [已废弃] 旧名 — 转发到 <see cref="SetPackageEnabledFlagAsync"/>。
+        /// 保留供二进制兼容；新代码请用新名。
+        /// </summary>
+        [Obsolete("方法已重命名为 SetPackageEnabledFlagAsync 以明确仅元数据不部署的语义。请改用 DeployToggleAsync 或 SetPackageEnabledFlagAsync。")]
+        public Task SetPackageEnabledAsync(string packageKey, bool enabled)
+            => SetPackageEnabledFlagAsync(packageKey, enabled);
 
         // ─── 数据迁移 ───
 

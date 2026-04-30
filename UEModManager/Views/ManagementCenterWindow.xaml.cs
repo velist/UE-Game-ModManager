@@ -527,12 +527,24 @@ namespace UEModManager.Views
                 }
 
                 int merged = 0;
+                var allProfiles = _profileService.GetProfiles();
                 foreach (var group in dupGroups)
                 {
                     foreach (var dup in group.Skip(1))
                     {
-                        await _packageRepo.DeletePackageAsync(dup.PackageKey);
-                        merged++;
+                        var (success, plan) = await _packageRepo.DeletePackageAsync(
+                            dup.PackageKey, allProfiles, force: false);
+                        if (success)
+                        {
+                            merged++;
+                        }
+                        else if (plan != null)
+                        {
+                            // 重复包仍在某 Profile 中启用 — 跳过，提示用户
+                            MessageBox.Show(
+                                $"跳过 {dup.PackageKey}: {plan.Explanation}",
+                                "跳过删除", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
                     }
                 }
 
@@ -563,8 +575,10 @@ namespace UEModManager.Views
                 int count = 0;
                 foreach (var pkg in orphans)
                 {
-                    if (await _packageRepo.DeletePackageAsync(pkg.PackageKey))
-                        count++;
+                    // 孤儿包 = 不在任何 Profile.Packages 中 → 引用计数必为 0 → 安全删除
+                    var (success, _) = await _packageRepo.DeletePackageAsync(
+                        pkg.PackageKey, profiles, force: false);
+                    if (success) count++;
                 }
 
                 MessageBox.Show($"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);

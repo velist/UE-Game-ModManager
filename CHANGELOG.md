@@ -4,6 +4,50 @@
 
 ---
 
+## [v2.0-rc2] - 2026-04-30（数据隔离 + 三态机 + 事务回滚 全面审查 / 修复批 A）
+
+本次发布做了一次彻底的代码库审查（数据隔离、启用/禁用/卸载状态机、事务/回滚/崩溃恢复），按"严重 / 重要 / 建议"三档识别 14 项风险，本批次完成 7 项严重 + 重要修复（修复批 A）。
+
+### 🛡 事务安全网（S5 / S6 / S7 / W5 / W6）
+
+| 修复点 | 之前的问题 | 修复方式 |
+|--------|----------|---------|
+| **S5** RollbackAsync 假成功 | 单步失败 catch 吞异常，最终仍标 `RolledBack`，CrashRecoveryScanner 永远扫不到 | 加 `DeploymentStatus.PartiallyRolledBack` + `RollbackFailure` 列表；中途失败累积失败记录，状态不再静默成功 |
+| **S6** 事务消失 | 写盘前崩溃 → transaction.json 不存在 → 孤儿备份永远清不掉 | `ExecuteAsync` 创建事务后立即 `SaveTransactionLogAsync` 一次（`InProgress` 状态可见），写盘前崩溃也能被恢复扫描器拾取 |
+| **S7** 备份缺失静默 | `RollbackActionPlanner` 在 BackupPath 文件不存在时返回 `None`，回滚"成功"实际未恢复 | 加 `BackupMissing` / `NoBackupRecorded` 两个动作类型，加重载 `PlanRollback(op, backupExists)` 让纯函数可注入 IO；遇到 `BackupMissing` 必冒泡为 `PartiallyRolledBack` |
+| **W5** 日志写盘失败静默 | `SaveTransactionLogAsync` catch 吞异常 + 状态已是 Committed → 程序以为成功 | 写盘失败时降级为 `LogPersistenceFailed`，扫描器分类为 `VerifyAndResubmit` |
+| **W6** 取消恢复死循环 | 用户取消恢复对话框 → 事务保持 InProgress → 下次启动又扫到 → 循环弹窗 | 加 `Dismissed` 状态 + `DismissedAt` / `DismissedReason`；`CrashRecoveryService.DismissTransactionAsync` / `ResetDismissedAsync` 管理 API |
+
+### 🛡 状态机收紧（S3 / S4）
+
+- **S3** 元数据/物理状态分离：`ProfileService.SetPackageEnabledAsync` 重命名为 `SetPackageEnabledFlagAsync`，文档明确"仅元数据，不部署"。旧名标 `[Obsolete]`，唯一调用点 `MainViewModel.DeployToggleAsync` 已切换。
+- **S4** 删包污染：新增 Core 纯函数 `PackageReferenceCounter` + `PackageDeletionPlanner`。`PackageRepository.DeletePackageAsync` 新签名 `(packageKey, allProfiles, force)` 默认拒绝删除被启用包；`ManagementCenterWindow` / `RepositoryManagerWindow` 三处调用点全部切换。
+
+### 📊 当前基线
+
+```
+dotnet build UEModManager.sln --configuration Debug    # 0 errors / 0 warnings（5 项目协同）
+dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed（~29 ms）
+```
+
+测试增量：552 → **598**（+46）。新增覆盖：`PackageReferenceCounterTests`、`PackageDeletionPlannerTests`、`DeploymentTransactionTests`，`RollbackActionPlannerTests` / `CrashRecoveryScannerTests` 扩展新状态。
+
+### 🎨 字体优化
+
+- 主题字体栈改为思源黑体优先：`CyberStyles.xaml:76` 把 `InterFont` 资源升级为多字体回退链 `Inter → Source Han Sans CN → Source Han Sans SC → Noto Sans CJK SC → Microsoft YaHei UI`，拉丁字符仍由嵌入 Inter 渲染，中文字符按系统字体回退。
+- 修复了之前 App.xaml 外层 `<Style TargetType="TextBlock">` 覆盖 CyberDarkTheme 主题字体设置导致中文渲染落到系统默认 fallback（"处"等字显示异常）的问题。
+
+### 📋 已识别但未在本批次修复（留给修复批 B / C）
+
+- **S1** SQLite 单库多游戏共享，无 GameId 外键 — 需要数据库分库
+- **S2** ObjectStore 全局共享，包文件不按游戏隔离 — 需要按游戏分层
+- **W7** Profile 切换不触发部署 — 需要 SwitchProfileAsync 主动调度部署计划
+- **S8 / W4 / N1-N4** 事务粒度、备份链、依赖图、幽灵文件检测 — v2.1 候选
+
+详细分析见 [`memory/project_v2_upgrade_progress.md`](memory/project_v2_upgrade_progress.md) 中的全面审查报告。
+
+---
+
 ## [v2.0-rc 候选] - 2026-04-30（Core 17 轮拆分 + Phase 13 SDK 完整化）
 
 ### 🏗 第十八轮（2026-04-30）：SDK 完整化
