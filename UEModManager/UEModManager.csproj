@@ -44,10 +44,13 @@
     <Resource Include="mnlogo.ico" />
     <!-- 同时将 ico 输出为独立文件，供安装程序快捷方式引用 -->
     <None Include="mnlogo.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Resource Include="Fonts\Inter-Regular.ttf" />
-    <Resource Include="Fonts\Inter-Medium.ttf" />
-    <Resource Include="Fonts\Inter-SemiBold.ttf" />
-    <Resource Include="Fonts\Inter-Bold.ttf" />
+    <!-- 思源黑体 SC（Adobe SIL OFL 1.1）— 三档字重静态嵌入，覆盖所有中文场景。
+         拉丁字符仍走系统字体回退（Segoe UI / 系统默认）。 -->
+    <Resource Include="Fonts\SourceHanSansSC-Regular.otf" />
+    <Resource Include="Fonts\SourceHanSansSC-Medium.otf" />
+    <Resource Include="Fonts\SourceHanSansSC-Bold.otf" />
+    <!-- OFL 许可文本随安装包分发，满足字体协议合规要求 -->
+    <None Include="Fonts\SourceHanSans-OFL.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="捐赠.png" />
