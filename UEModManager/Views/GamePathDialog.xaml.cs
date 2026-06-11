@@ -131,7 +131,7 @@ namespace UEModManager.Views
             LoadExistingGameIcon(gameName);
 
             // 自动搜索路径
-            _ = System.Threading.Tasks.Task.Run(AutoSearchPaths);
+            _ = AutoSearchPaths();
         }
 
         private void LoadExistingGameIcon(string gameName)
@@ -218,152 +218,249 @@ namespace UEModManager.Views
             }
             catch { }
         }
+        private sealed class AutoSearchResult
+        {
+            public string GamePath { get; init; } = string.Empty;
+            public string ModPath { get; init; } = string.Empty;
+            public string BackupPath { get; init; } = string.Empty;
+            public string ExecutableName { get; init; } = string.Empty;
+            public string StatusText { get; init; } = string.Empty;
+        }
 
         private async System.Threading.Tasks.Task AutoSearchPaths()
         {
-            await System.Threading.Tasks.Task.Delay(500); // 模拟搜索延迟
-            
-            await Dispatcher.InvokeAsync(() =>
+            var gameName = GameName;
+            var engineType = GetConfiguredEngineType();
+
+            try
             {
-                try
+                var result = await System.Threading.Tasks.Task.Run(() => BuildAutoSearchResult(gameName, engineType));
+                await Dispatcher.InvokeAsync(() => ApplyAutoSearchResult(result));
+            }
+            catch (Exception ex)
+            {
+                await Dispatcher.InvokeAsync(() =>
                 {
-                    // 自动搜索游戏路径
-                    var gameSearchPaths = GetGameSearchPaths(GameName);
-                    string foundGamePath = "";
-                    string foundExePath = "";
-                    
-                    // 查找实际的exe文件位置
-                    foreach (var searchPath in gameSearchPaths)
-                    {
-                        if (Directory.Exists(searchPath))
-                        {
-                            var exeFiles = Directory.GetFiles(searchPath, "*.exe", SearchOption.AllDirectories);
-                            if (exeFiles.Length > 0)
-                            {
-                                // 找到主要的游戏exe文件（排除一些辅助工具）
-                                var mainExe = FindMainGameExecutable(exeFiles, GameName);
-                                if (!string.IsNullOrEmpty(mainExe))
-                                {
-                                    foundExePath = mainExe;
-                                    foundGamePath = Path.GetDirectoryName(mainExe);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    if (!string.IsNullOrEmpty(foundGamePath) && !string.IsNullOrEmpty(foundExePath))
-                    {
-                        GamePath = foundGamePath;
-                        GamePathTextBox.Text = foundGamePath;
-                        
-                        // 设置执行程序名称
-                        ExecutableName = Path.GetFileName(foundExePath);
-                        
-                        // 从exe路径智能推导MOD路径
-                        var deducedModPath = DeduceModPathFromExe(foundExePath, GameName);
-                        if (!string.IsNullOrEmpty(deducedModPath))
-                        {
-                            ModPath = deducedModPath;
-                            ModPathTextBox.Text = deducedModPath;
-                        }
-                        
-                        SearchStatusText.Text = $"✅ 找到游戏: {Path.GetFileName(foundExePath)}";
-                    }
-                    else
-                    {
-                        // 如果没找到exe，仍尝试根目录
-                        var fallbackGamePath = gameSearchPaths.FirstOrDefault(Directory.Exists);
-                        if (!string.IsNullOrEmpty(fallbackGamePath))
-                        {
-                            GamePath = fallbackGamePath;
-                            GamePathTextBox.Text = fallbackGamePath;
-                            
-                            // 使用原有的MOD路径推导
-                            var modSearchPaths = GetModSearchPaths(fallbackGamePath);
-                            var foundModPath = modSearchPaths.FirstOrDefault(Directory.Exists);
-                            
-                            if (!string.IsNullOrEmpty(foundModPath))
-                            {
-                                ModPath = foundModPath;
-                                ModPathTextBox.Text = foundModPath;
-                            }
-                            else
-                            {
-                                // 尝试在fallbackGamePath中找到exe文件来推导MOD路径
-                                var exeInFallback = FindGameExecutableInPath(fallbackGamePath);
-                                if (!string.IsNullOrEmpty(exeInFallback))
-                                {
-                                    var defaultModPath = DeduceModPathFromExe(exeInFallback, GameName);
-                                    if (!string.IsNullOrEmpty(defaultModPath))
-                                    {
-                                        try
-                                        {
-                                            Directory.CreateDirectory(defaultModPath);
-                                            ModPath = defaultModPath;
-                                            ModPathTextBox.Text = defaultModPath;
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Console.WriteLine($"[WARNING] 创建MOD目录失败: {ex.Message}");
-                                            ModPath = defaultModPath; // 即使创建失败也使用正确路径
-                                            ModPathTextBox.Text = defaultModPath;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // 推导失败，使用常见的MOD路径结构
-                                        SetCommonModPaths(fallbackGamePath);
-                                    }
-                                }
-                                else
-                                {
-                                    // 找不到exe，使用常见的MOD路径结构
-                                    SetCommonModPaths(fallbackGamePath);
-                                }
-                            }
-                            
-                            SearchStatusText.Text = "⚠️ 找到游戏目录，但未定位到exe文件";
-                        }
-                        else
-                        {
-                            SearchStatusText.Text = "❌ 未找到游戏，请手动选择";
-                        }
-                    }
-                    
-                    // 设置备份路径：使用程序安装目录下的Backups子目录
-                    var currentDir = AppDomain.CurrentDomain.BaseDirectory;
-                    var backupDir = Path.Combine(currentDir, "Backups", $"{GameName}_备份");
-                    try
-                    {
-                        Directory.CreateDirectory(backupDir);
-                        BackupPath = backupDir;
-                        BackupPathTextBox.Text = backupDir;
-                    }
-                    catch
-                    {
-                        // 如果创建失败，尝试使用Backups根目录
-                        var fallbackDir = Path.Combine(currentDir, "Backups");
-                        try
-                        {
-                            Directory.CreateDirectory(fallbackDir);
-                            BackupPath = fallbackDir;
-                            BackupPathTextBox.Text = fallbackDir;
-                        }
-                        catch
-                        {
-                            // 最后的备选方案：使用程序目录
-                            BackupPath = currentDir;
-                            BackupPathTextBox.Text = currentDir;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    SearchStatusText.Text = $"搜索失败: {ex.Message}";
-                }
-            });
+                    SearchStatusText.Text = $"\u641c\u7d22\u5931\u8d25: {ex.Message}";
+                });
+            }
         }
+
+        private EngineType GetConfiguredEngineType()
+        {
+            try
+            {
+                var gameConfig = (App.Current as App)?.ServiceProvider?.GetService<GameConfigService>();
+                return gameConfig?.GetEngineType(GameName) ?? EngineType.UnrealEngine;
+            }
+            catch
+            {
+                return EngineType.UnrealEngine;
+            }
+        }
+
+        private AutoSearchResult BuildAutoSearchResult(string gameName, EngineType engineType)
+        {
+            var gameSearchPaths = GetGameSearchPaths(gameName);
+            var foundGamePath = string.Empty;
+            var foundExePath = string.Empty;
+            var modPath = string.Empty;
+
+            foreach (var searchPath in gameSearchPaths)
+            {
+                if (!Directory.Exists(searchPath))
+                {
+                    continue;
+                }
+
+                var exeFiles = EnumerateExecutableFiles(searchPath);
+                if (exeFiles.Length == 0)
+                {
+                    continue;
+                }
+
+                var mainExe = FindMainGameExecutable(exeFiles, gameName);
+                if (!string.IsNullOrEmpty(mainExe))
+                {
+                    foundExePath = mainExe;
+                    foundGamePath = Path.GetDirectoryName(mainExe) ?? string.Empty;
+                    break;
+                }
+            }
+
+            string statusText;
+            if (!string.IsNullOrEmpty(foundGamePath) && !string.IsNullOrEmpty(foundExePath))
+            {
+                modPath = DeduceModPathFromExe(foundExePath, gameName);
+                statusText = $"\u2713 \u627e\u5230\u6e38\u620f: {Path.GetFileName(foundExePath)}";
+            }
+            else
+            {
+                var fallbackGamePath = gameSearchPaths.FirstOrDefault(Directory.Exists) ?? string.Empty;
+                if (!string.IsNullOrEmpty(fallbackGamePath))
+                {
+                    foundGamePath = fallbackGamePath;
+                    var modSearchPaths = GetModSearchPaths(fallbackGamePath);
+                    modPath = modSearchPaths.FirstOrDefault(Directory.Exists) ?? string.Empty;
+
+                    if (string.IsNullOrEmpty(modPath))
+                    {
+                        var exeInFallback = FindGameExecutableInPath(fallbackGamePath);
+                        if (!string.IsNullOrEmpty(exeInFallback))
+                        {
+                            modPath = DeduceModPathFromExe(exeInFallback, gameName);
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(modPath))
+                    {
+                        modPath = ResolveCommonModPath(fallbackGamePath, engineType);
+                    }
+
+                    EnsureDirectoryIfPossible(modPath);
+                    statusText = "\u26a0 \u627e\u5230\u6e38\u620f\u76ee\u5f55\uff0c\u4f46\u672a\u5b9a\u4f4d\u5230exe\u6587\u4ef6";
+                }
+                else
+                {
+                    statusText = "\u2717 \u672a\u627e\u5230\u6e38\u620f\uff0c\u8bf7\u624b\u52a8\u9009\u62e9";
+                }
+            }
+
+            var backupPath = ResolveBackupPath(gameName);
+            return new AutoSearchResult
+            {
+                GamePath = foundGamePath,
+                ModPath = modPath,
+                BackupPath = backupPath,
+                ExecutableName = string.IsNullOrEmpty(foundExePath) ? string.Empty : Path.GetFileName(foundExePath),
+                StatusText = statusText
+            };
+        }
+
+        private void ApplyAutoSearchResult(AutoSearchResult result)
+        {
+            if (!string.IsNullOrEmpty(result.GamePath))
+            {
+                GamePath = result.GamePath;
+                GamePathTextBox.Text = result.GamePath;
+            }
+
+            if (!string.IsNullOrEmpty(result.ExecutableName))
+            {
+                ExecutableName = result.ExecutableName;
+            }
+
+            if (!string.IsNullOrEmpty(result.ModPath))
+            {
+                ModPath = result.ModPath;
+                ModPathTextBox.Text = result.ModPath;
+            }
+
+            if (!string.IsNullOrEmpty(result.BackupPath))
+            {
+                BackupPath = result.BackupPath;
+                BackupPathTextBox.Text = result.BackupPath;
+            }
+
+            SearchStatusText.Text = result.StatusText;
+        }
+
+        private string ResolveBackupPath(string gameName)
+        {
+            var currentDir = AppDomain.CurrentDomain.BaseDirectory;
+            var backupDir = Path.Combine(currentDir, "Backups", $"{gameName}_\u5907\u4efd");
+
+            if (EnsureDirectoryIfPossible(backupDir))
+            {
+                return backupDir;
+            }
+
+            var fallbackDir = Path.Combine(currentDir, "Backups");
+            if (EnsureDirectoryIfPossible(fallbackDir))
+            {
+                return fallbackDir;
+            }
+
+            return currentDir;
+        }
+
+        private string ResolveCommonModPath(string gameBasePath, EngineType engineType)
+        {
+            var commonModPaths = engineType == EngineType.UnrealEngine
+                ? new List<string>
+                {
+                    Path.Combine(gameBasePath, "Content", "Paks", "~mods"),
+                    Path.Combine(gameBasePath, "Content", "Paks", "Mods"),
+                    Path.Combine(gameBasePath, "Content", "Paks", "mods"),
+                    Path.Combine(gameBasePath, "OakGame", "Content", "Paks", "~mods"),
+                    Path.Combine(gameBasePath, "OakGame", "Content", "Paks", "Mods"),
+                    Path.Combine(gameBasePath, "OakGame", "Content", "Paks", "mods"),
+                    Path.Combine(gameBasePath, "Content", "Paks")
+                }
+                : EngineProfile.Get(engineType).DefaultModPathPatterns
+                    .Select(p => Path.Combine(gameBasePath, p.Replace('/', Path.DirectorySeparatorChar)))
+                    .ToList();
+
+            var existingModPath = commonModPaths.FirstOrDefault(Directory.Exists);
+            if (!string.IsNullOrEmpty(existingModPath))
+            {
+                return existingModPath;
+            }
+
+            if (engineType == EngineType.UnrealEngine)
+            {
+                var oakGameDir = Path.Combine(gameBasePath, "OakGame");
+                return Directory.Exists(oakGameDir)
+                    ? Path.Combine(oakGameDir, "Content", "Paks", "~mods")
+                    : Path.Combine(gameBasePath, "Content", "Paks", "~mods");
+            }
+
+            return commonModPaths.FirstOrDefault() ?? Path.Combine(gameBasePath, "Mods");
+        }
+
+        private bool EnsureDirectoryIfPossible(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(path);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARNING] Create directory failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        private string[] EnumerateExecutableFiles(string rootPath)
+        {
+            if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
+            {
+                return Array.Empty<string>();
+            }
+
+            try
+            {
+                var options = new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    ReturnSpecialDirectories = false
+                };
+                return Directory.EnumerateFiles(rootPath, "*.exe", options).ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARNING] Enumerate executables failed: {ex.Message}");
+                return Array.Empty<string>();
+            }
+        }
+
 
         /// <summary>
         /// 找到主要的游戏可执行文件
@@ -929,7 +1026,7 @@ namespace UEModManager.Views
         {
             try
             {
-                var exeFiles = Directory.GetFiles(gamePath, "*.exe", SearchOption.AllDirectories);
+                var exeFiles = EnumerateExecutableFiles(gamePath);
                 return exeFiles.Length > 0;
             }
             catch
@@ -1305,7 +1402,7 @@ namespace UEModManager.Views
                 if (!Directory.Exists(gamePath))
                     return "";
 
-                var exeFiles = Directory.GetFiles(gamePath, "*.exe", SearchOption.AllDirectories);
+                var exeFiles = EnumerateExecutableFiles(gamePath);
 
                 // 优先查找CrashReportClient.exe（无主之地4）
                 var crashReportClient = exeFiles.FirstOrDefault(exe =>
