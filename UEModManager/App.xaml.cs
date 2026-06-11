@@ -315,7 +315,26 @@ namespace UEModManager
                 Console.WriteLine("[Auth] Resolve LocalDbContext");
                 var localDbContext = ServiceProvider.GetRequiredService<LocalDbContext>();
                 Console.WriteLine("[Auth] EnsureDatabaseCreatedAsync");
-                await localDbContext.EnsureDatabaseCreatedAsync();
+                var databaseReady = await localDbContext.EnsureDatabaseCreatedAsync();
+                if (!databaseReady)
+                {
+                    var choice = MessageBox.Show(
+                        "本地数据库初始化失败。可以以离线只读方式继续，但账号登录、会话恢复和本地资料保存可能不可用。\n\n是否继续？",
+                        "数据库初始化失败",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (choice == MessageBoxResult.Yes)
+                    {
+                        Console.WriteLine("[Auth] Database init failed, continue in offline read-only mode");
+                        ShowMainWindow();
+                    }
+                    else
+                    {
+                        Console.WriteLine("[Auth] Database init failed, user chose exit");
+                        Shutdown();
+                    }
+                    return;
+                }
 
                 // 初始化默认管理员账户
                 Console.WriteLine("[Auth] Resolve LocalAuthService");
