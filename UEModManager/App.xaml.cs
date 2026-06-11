@@ -599,10 +599,21 @@ namespace UEModManager
                     var key = parts[0].Trim();
                     var value = parts[1].Trim();
                     result[key] = value;
-                    Console.WriteLine($"[App] ParseEnv: {key}={value.Substring(0, Math.Min(10, value.Length))}...");
+                    var preview = IsSensitiveEnvKey(key)
+                        ? "<redacted>"
+                        : $"{value.Substring(0, Math.Min(10, value.Length))}...";
+                    Console.WriteLine($"[App] ParseEnv: {key}={preview}");
                 }
             }
             return result;
+        }
+
+        private static bool IsSensitiveEnvKey(string key)
+        {
+            return key.Contains("KEY", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("TOKEN", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("SECRET", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("PASSWORD", StringComparison.OrdinalIgnoreCase);
         }
 
 } 
