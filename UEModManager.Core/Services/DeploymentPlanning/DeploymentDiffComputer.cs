@@ -62,12 +62,17 @@ namespace UEModManager.Services.DeploymentPlanning
                 {
                     consumed.Add(path);
 
-                    if (!string.IsNullOrEmpty(want.FileHash)
+                    if (want.FileSize > 0 && want.FileSize != actualFile.FileSize)
+                    {
+                        operations.Add(MakeOp(DeploymentOperationType.Replace, want));
+                    }
+                    else if (!string.IsNullOrEmpty(want.FileHash)
+                        && !string.IsNullOrEmpty(actualFile.Hash)
                         && want.FileHash != actualFile.Hash)
                     {
                         operations.Add(MakeOp(DeploymentOperationType.Replace, want));
                     }
-                    // 哈希相同或无法比较 → 跳过
+                    // 大小相同（或未知）且哈希缺失或相同 → 跳过
                 }
                 else
                 {
