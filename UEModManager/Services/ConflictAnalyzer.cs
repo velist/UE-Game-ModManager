@@ -17,7 +17,6 @@ namespace UEModManager.Services
     ///
     /// 冲突检测分两层：
     /// 1. 文件路径冲突（轻量）— 多个包部署到同一目标路径
-    /// 2. UE 资产冲突（重量）— CUE4Parse pak 内容检测（委托给 ModConflictService）
     /// </summary>
     public class ConflictAnalyzer
     {

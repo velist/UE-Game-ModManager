@@ -84,20 +84,6 @@ namespace UEModManager
                 // 启动主机
                 await _host.StartAsync();
 
-#if DEBUG
-                // 在调试模式下运行本地存储测试
-                try
-                {
-                    var logger = ServiceProvider.GetRequiredService<ILogger<App>>();
-                    logger.LogInformation("开始运行本地存储系统测试...");
-                    await UEModManager.Tests.LocalStorageTest.RunAllTestsAsync(ServiceProvider);
-                }
-                catch (Exception testEx)
-                {
-                    var logger = ServiceProvider.GetRequiredService<ILogger<App>>();
-                    logger.LogError(testEx, "本地存储测试失败，但不影响应用程序启动");
-                }
-#endif
 
                 // 显示认证窗口
                 ShowAuthenticationWindow();
