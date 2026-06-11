@@ -129,9 +129,9 @@ namespace UEModManager.Services
                 // 阶段 2: 逐个执行操作
                 foreach (var operation in plan.Operations)
                 {
+                    transaction.ExecutedOperations.Add(operation);
                     await ExecuteOperationAsync(operation, backend, backupDir);
                     operation.IsExecuted = true;
-                    transaction.ExecutedOperations.Add(operation);
                     transaction.CompletedOperations++;
                     ProgressChanged?.Invoke(transaction);
                 }
