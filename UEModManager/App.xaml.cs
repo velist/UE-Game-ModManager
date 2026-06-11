@@ -191,8 +191,6 @@ namespace UEModManager
                     // 注册本地缓存服务
                     services.AddScoped<LocalCacheService>();
 
-                    // 注册离线模式服务
-                    services.AddScoped<OfflineModeService>();
 
                     // 注册邮件发送服务（Brevo API + SMTP 双通道）
                     RegisterEmailServices(services);
