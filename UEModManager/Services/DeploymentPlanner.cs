@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.DeploymentPlanning;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services
 {
@@ -207,15 +208,16 @@ namespace UEModManager.Services
             // 扫描非 MOD 目标目录
             foreach (var entry in profile.Packages.Where(p => p.Kind != PackageKind.Mod))
             {
-                var targetRootPath = entry.TargetRootPath;
+                var package = _packageRepository.GetByKey(entry.PackageKey);
+                var targetRootPath = entry.TargetRootPath ?? package?.TargetRootPath;
                 if (string.IsNullOrEmpty(targetRootPath) || string.IsNullOrEmpty(gamePath))
                     continue;
 
-                var packageDir = Path.Combine(gamePath, targetRootPath, entry.PackageKey);
+                targetRootPath = PathSanitizer.SanitizeRelative(targetRootPath);
+                var packageKey = PathSanitizer.SanitizeRelative(entry.PackageKey);
+                var packageDir = Path.Combine(gamePath, targetRootPath, packageKey);
                 if (!Directory.Exists(packageDir))
                     continue;
-
-                var package = _packageRepository.GetByKey(entry.PackageKey);
 
                 foreach (var file in Directory.GetFiles(packageDir, "*.*", SearchOption.AllDirectories))
                 {
