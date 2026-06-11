@@ -21,6 +21,7 @@ using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Views;
+using UEModManager.Infrastructure;
 
 using IOPath = System.IO.Path;
 
@@ -585,8 +586,10 @@ namespace UEModManager
             }
         }
 
-        private async void ShowGamePathDialog(string gameName)
+        private void ShowGamePathDialog(string gameName)
         {
+            SafeEvent.Run(this, async () =>
+            {
             var dialog = new GamePathDialog(gameName) { Owner = this };
             if (dialog.ShowDialog() == true)
             {
@@ -624,6 +627,7 @@ namespace UEModManager
                 }
                 finally { IsEnabled = true; Cursor = Cursors.Arrow; }
             }
+            }, _logger, "Configure game path");
         }
 
         // ═════════════════════════════════════════
@@ -865,16 +869,16 @@ namespace UEModManager
 
         // ── MOD 导入 (v2.0: ImportDialog → ImportConfirmDialog) ──
 
-        private async void ImportMod_Click(object sender, MouseButtonEventArgs e)
+        private void ImportMod_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await OpenImportWizardAsync();
+            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import MOD");
         }
 
-        private async void ImportPlugin_Click(object sender, MouseButtonEventArgs e)
+        private void ImportPlugin_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await OpenImportWizardAsync();
+            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import plugin");
         }
 
         /// <summary>v2.0 统一导入流程：ImportDialog → ImportConfirmDialog → 刷新。</summary>
@@ -945,15 +949,14 @@ namespace UEModManager
         private void MainWindow_DragEnter(object sender, DragEventArgs e) => e.Effects = DragDropEffects.Copy;
         private void MainWindow_DragOver(object sender, DragEventArgs e) => e.Effects = DragDropEffects.Copy;
 
-        private async void MainWindow_Drop(object sender, DragEventArgs e)
+        private void MainWindow_Drop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 if (files?.Length > 0)
                 {
-                    // v2.0: 拖拽文件直接进入确认流程
-                    await OpenImportWizardAsync(files);
+                    SafeEvent.Run(this, () => OpenImportWizardAsync(files), _logger, "Drag import MOD");
                 }
             }
         }
@@ -1094,38 +1097,47 @@ namespace UEModManager
             _vm.ModList.SelectAll();
         }
 
-        private async void BatchEnable_Click(object sender, MouseButtonEventArgs e)
+        private void BatchEnable_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await _vm.ModList.EnableSelectedAsync();
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.ModList.EnableSelectedAsync();
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch enable MOD");
         }
 
-        private async void BatchDisable_Click(object sender, MouseButtonEventArgs e)
+        private void BatchDisable_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await _vm.ModList.DisableSelectedAsync();
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.ModList.DisableSelectedAsync();
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch disable MOD");
         }
 
-        private async void BatchDelete_Click(object sender, MouseButtonEventArgs e)
+        private void BatchDelete_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            var count = _vm.ModList.SelectedCount;
-            if (count <= 0) return;
+            SafeEvent.Run(this, async () =>
+            {
+                var count = _vm.ModList.SelectedCount;
+                if (count <= 0) return;
 
-            var r = CyberMessageBox.Show(this, $"确认卸载选中的 {count} 个 MOD？\n此操作会从当前方案、包仓库和已部署文件中移除这些 MOD。", "批量卸载", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (r != MessageBoxResult.Yes) return;
+                var r = CyberMessageBox.Show(this, $"\u786e\u8ba4\u5378\u8f7d\u9009\u4e2d\u7684 {count} \u4e2a MOD\uff1f\n\u6b64\u64cd\u4f5c\u4f1a\u4ece\u5f53\u524d\u65b9\u6848\u3001\u5305\u4ed3\u5e93\u548c\u5df2\u90e8\u7f72\u6587\u4ef6\u4e2d\u79fb\u9664\u8fd9\u4e9b MOD\u3002", "\u6279\u91cf\u5378\u8f7d", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
 
-            await _vm.ModList.DeleteSelectedAsync();
-            _vm.ModList.SelectedMod = null;
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+                await _vm.ModList.DeleteSelectedAsync();
+                _vm.ModList.SelectedMod = null;
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch delete MOD");
         }
 
         private void SortButton_Click(object sender, MouseButtonEventArgs e)

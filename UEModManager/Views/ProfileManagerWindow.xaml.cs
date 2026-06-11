@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.ViewModels;
@@ -15,15 +17,17 @@ namespace UEModManager.Views
         private readonly ProfileViewModel _vm;
         private readonly ProfileService _profileService;
         private readonly ProfileLockService? _lockService;
+        private readonly ILogger<ProfileManagerWindow> _logger;
 
         public ProfileManagerWindow(
             ProfileService profileService,
-            Microsoft.Extensions.Logging.ILogger<ProfileManagerWindow> logger,
+            ILogger<ProfileManagerWindow> logger,
             ProfileLockService? lockService = null)
         {
             InitializeComponent();
             _profileService = profileService;
             _lockService = lockService;
+            _logger = logger;
             _vm = new ProfileViewModel(profileService, logger);
             _vm.PropertyChanged += Vm_PropertyChanged;
         }
@@ -48,16 +52,22 @@ namespace UEModManager.Views
 
         private void NewProfile_Click(object sender, RoutedEventArgs e)
         {
-            _ = _vm.CreateProfileCommand.ExecuteAsync(null);
-            RenderProfileCards();
-            ShowSelectedProfile();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.CreateProfileCommand.ExecuteAsync(null);
+                RenderProfileCards();
+                ShowSelectedProfile();
+            }, _logger, "Create profile");
         }
 
-        private async void CloneProfile_Click(object sender, RoutedEventArgs e)
+        private void CloneProfile_Click(object sender, RoutedEventArgs e)
         {
-            await _vm.CloneProfileCommand.ExecuteAsync(null);
-            RenderProfileCards();
-            ShowSelectedProfile();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.CloneProfileCommand.ExecuteAsync(null);
+                RenderProfileCards();
+                ShowSelectedProfile();
+            }, _logger, "Clone profile");
         }
 
         private async void DeleteProfile_Click(object sender, RoutedEventArgs e)

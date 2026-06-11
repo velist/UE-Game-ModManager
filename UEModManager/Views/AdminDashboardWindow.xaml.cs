@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Microsoft.Extensions.Logging;
 
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 
 using UEModManager.Models;
@@ -99,12 +100,20 @@ namespace UEModManager.Views
 
 
 
-        private async void StatusUpdateTimer_Tick(object sender, EventArgs e)
-
+        private void StatusUpdateTimer_Tick(object sender, EventArgs e)
         {
-
-            await UpdateSystemStatusAsync();
-
+            _statusUpdateTimer.Stop();
+            SafeEvent.Run(this, async () =>
+            {
+                try
+                {
+                    await UpdateSystemStatusAsync();
+                }
+                finally
+                {
+                    _statusUpdateTimer.Start();
+                }
+            }, _logger, "Update admin dashboard status");
         }
 
 
