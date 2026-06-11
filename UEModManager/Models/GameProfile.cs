@@ -39,7 +39,7 @@ namespace UEModManager.Models
         Other,
         StellarBlade,
         StellarBladeCNS,
-        Enshrouded,
+        Expedition33,
         BlackMythWukong,
         WuchangFallenFeathers,
         Borderlands4,

@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.SampleAdapter"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.SampleBackend", "samples\UEModManager.SampleBackend\UEModManager.SampleBackend.csproj", "{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.Tests", "UEModManager.Tests\UEModManager.Tests.csproj", "{E8734B5F-5525-4B73-9F82-19C472F7EE4C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,18 @@ Global
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Release|x64.Build.0 = Release|Any CPU
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Release|x86.ActiveCfg = Release|Any CPU
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Release|x86.Build.0 = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|x64.Build.0 = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Debug|x86.Build.0 = Debug|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|x64.ActiveCfg = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|x64.Build.0 = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|x86.ActiveCfg = Release|Any CPU
+		{E8734B5F-5525-4B73-9F82-19C472F7EE4C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

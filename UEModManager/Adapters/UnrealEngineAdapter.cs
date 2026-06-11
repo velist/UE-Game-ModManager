@@ -48,7 +48,7 @@ namespace UEModManager.Adapters
             ["剑星（CNS模式）"] = ["Stellar Blade", "StellarBlade", "剑星"],
             ["黑神话·悟空"] = ["Black Myth Wukong", "BlackMythWukong", "Black Myth- Wukong", "Wukong", "黑神话", "悟空"],
             ["明末·渊虚之羽"] = ["Wuchang Fallen Feathers", "WuchangFallenFeathers", "Wuchang", "明末", "渊虚之羽"],
-            ["光与影：33号远征队"] = ["Enshrouded", "光与影", "33号远征队"],
+            ["光与影：33号远征队"] = ["Clair Obscur Expedition 33", "Expedition 33", "Expedition33", "Sandfall", "光与影", "33号远征队"],
             ["艾尔登法环"] = ["Elden Ring", "EldenRing", "艾尔登法环"],
             ["无主之地4"] = ["Borderlands 4", "Borderlands4", "BorderLands 4", "BorderLands4", "无主之地4"],
         };
@@ -58,7 +58,7 @@ namespace UEModManager.Adapters
             ["剑星"] = ["Stellar Blade", "StellarBlade", "Stellarblade"],
             ["黑神话·悟空"] = ["Black Myth Wukong", "BlackMythWukong", "Black Myth- Wukong", "b1-win64-shipping"],
             ["明末·渊虚之羽"] = ["Wuchang Fallen Feathers", "WuchangFallenFeathers", "Wuchang", "Project_Plague"],
-            ["光与影：33号远征队"] = ["Enshrouded"],
+            ["光与影：33号远征队"] = ["Expedition33Steam-Win64-Shipping", "Expedition33", "Sandfall-Win64-Shipping", "Sandfall"],
             ["艾尔登法环"] = ["Elden Ring", "EldenRing"],
             ["无主之地4"] = ["Borderlands 4", "Borderlands4"],
         };
