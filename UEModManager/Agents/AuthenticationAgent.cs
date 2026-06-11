@@ -16,21 +16,18 @@ namespace UEModManager.Agents
     {
         private readonly LocalAuthService _localAuthService;
         private readonly UnifiedAuthService _unifiedAuthService;
-        private readonly PostgreSQLAuthService? _postgreSqlAuthService;
         private readonly IServiceProvider _serviceProvider;
 
         public AuthenticationAgent(
             ILogger<AuthenticationAgent> logger,
             LocalAuthService localAuthService,
             UnifiedAuthService unifiedAuthService,
-            IServiceProvider serviceProvider,
-            PostgreSQLAuthService? postgreSqlAuthService = null) 
+            IServiceProvider serviceProvider)
             : base(logger)
         {
             _localAuthService = localAuthService ?? throw new ArgumentNullException(nameof(localAuthService));
             _unifiedAuthService = unifiedAuthService ?? throw new ArgumentNullException(nameof(unifiedAuthService));
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-            _postgreSqlAuthService = postgreSqlAuthService;
         }
 
         public override string Name => "AuthenticationAgent";
@@ -70,32 +67,6 @@ namespace UEModManager.Agents
                 switch (validationType)
                 {
                     case "login":
-                        // 优先使用 Supabase 进行云端登录
-                        var authServiceLogin = _serviceProvider.GetService<AuthenticationService>();
-                        if (authServiceLogin != null)
-                        {
-                            var supaLogin = await authServiceLogin.SignInAsync(email, password);
-                            if (supaLogin.IsSuccess)
-                            {
-                                // 同步本地登录状态（若无本地用户会自动创建）
-                                try
-                                {
-                                    string? displayName = null;
-                                    try { displayName = authServiceLogin.GetUserDisplayName(); } catch { }
-                                    await _localAuthService.ForceSetAuthStateAsync(email, displayName);
-                                }
-                                catch { /* 忽略本地同步异常，不影响云端成功 */ }
-
-                                results["loginResult"] = supaLogin;
-                                results["source"] = "Supabase";
-                                results["isSuccess"] = true;
-                                results["user"] = _localAuthService.CurrentUser;
-                                results["permissions"] = await GetUserPermissionsAsync(_localAuthService.CurrentUser);
-                                break;
-                            }
-                        }
-
-                        // 回退到本地登录
                         var loginResult = await _localAuthService.LoginAsync(email, password);
                         results["loginResult"] = loginResult;
                         results["source"] = "Local";
@@ -108,34 +79,10 @@ namespace UEModManager.Agents
                         break;
 
                     case "register":
-                        // 先尝试云端Supabase注册
-                        var authService = _serviceProvider.GetService<AuthenticationService>();
-                        if (authService != null)
-                        {
-                            var supabaseResult = await authService.SignUpAsync(email, password);
-                            if (supabaseResult.IsSuccess)
-                            {
-                                // Supabase注册成功，同时在本地创建用户记录
-                                var localResult = await _localAuthService.RegisterAsync(email, password);
-                                results["registerResult"] = localResult;
-                                results["isSuccess"] = true;
-                                results["message"] = supabaseResult.Message;
-                                _logger.LogInformation($"用户云端注册成功: {email}");
-                            }
-                            else
-                            {
-                                results["isSuccess"] = false;
-                                results["message"] = supabaseResult.Message;
-                                _logger.LogWarning($"云端注册失败: {supabaseResult.Message}");
-                            }
-                        }
-                        else
-                        {
-                            // 如果没有云端服务，仅本地注册
-                            var registerResult = await _localAuthService.RegisterAsync(email, password);
-                            results["registerResult"] = registerResult;
-                            results["isSuccess"] = registerResult.IsSuccess;
-                        }
+                        var registerResult = await _localAuthService.RegisterAsync(email, password);
+                        results["registerResult"] = registerResult;
+                        results["source"] = "Local";
+                        results["isSuccess"] = registerResult.IsSuccess;
                         break;
 
                     case "validate_session":
@@ -223,13 +170,6 @@ namespace UEModManager.Agents
                 {
                     await _unifiedAuthService.InitializeAsync();
                     results["unifiedAuth"] = "统一认证服务已初始化";
-                }
-
-                // 初始化PostgreSQL认证服务
-                if ((setupType == "full" || setupType == "postgresql") && _postgreSqlAuthService != null)
-                {
-                    var initResult = await _postgreSqlAuthService.InitializeDatabaseAsync();
-                    results["postgresqlAuth"] = initResult ? "PostgreSQL认证服务已初始化" : "PostgreSQL认证服务初始化失败";
                 }
 
                 // 设置安全策略

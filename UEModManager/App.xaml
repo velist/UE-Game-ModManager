@@ -11,6 +11,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
             <converters:InverseNullToVisibilityConverter x:Key="InverseNullToVisibilityConverter"/>
             <converters:ImagePathToSourceConverter x:Key="ImagePathToSourceConverter"/>

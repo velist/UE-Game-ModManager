@@ -235,13 +235,11 @@ namespace UEModManager.Services
                     Environment.CurrentDirectory);
                 _controlAgent.RegisterAgent(projectOptimizerAgent);
 
-                // 注册认证代理 (PostgreSQLAuthService 可选)
                 var authenticationAgent = new AuthenticationAgent(
                     _serviceProvider.GetRequiredService<ILogger<AuthenticationAgent>>(),
                     _serviceProvider.GetRequiredService<LocalAuthService>(),
                     _serviceProvider.GetRequiredService<UnifiedAuthService>(),
-                    _serviceProvider,
-                    _serviceProvider.GetService<PostgreSQLAuthService>());
+                    _serviceProvider);
                 _controlAgent.RegisterAgent(authenticationAgent);
 
                 // 注册测试代理

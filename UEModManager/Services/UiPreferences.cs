@@ -26,6 +26,7 @@ namespace UEModManager.Services
             public int DeployBackendType { get; set; } = 0;
             public bool DeployConfirm { get; set; } = true;
             public bool AutoDeploy { get; set; } = true;
+            public string? RepositoryRoot { get; set; }
         }
 
         private static string GetConfigPath()
@@ -209,6 +210,27 @@ namespace UEModManager.Services
             {
                 var cfg = LoadConfig();
                 cfg.AutoDeploy = auto;
+                SaveConfig(cfg);
+            }
+            catch { }
+        }
+
+        public static string? LoadRepositoryRoot()
+        {
+            try
+            {
+                var path = LoadConfig().RepositoryRoot?.Trim();
+                return string.IsNullOrWhiteSpace(path) ? null : path;
+            }
+            catch { return null; }
+        }
+
+        public static void SaveRepositoryRoot(string? path)
+        {
+            try
+            {
+                var cfg = LoadConfig();
+                cfg.RepositoryRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim();
                 SaveConfig(cfg);
             }
             catch { }

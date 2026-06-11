@@ -146,7 +146,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 Console.WriteLine($"MainWindow 构造函数异常: {ex}");
-                CyberMessageBox.Show(this, $"初始化失败: {ex.Message}", "严重错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(IsVisible ? this : null, $"初始化失败: {ex.Message}", "严重错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 throw;
             }
         }
@@ -423,6 +423,29 @@ namespace UEModManager
             DonatePopup.IsOpen = !DonatePopup.IsOpen;
         }
 
+        // 使用说明书 — 打开 WPS 云文档
+        private const string HelpDocUrl = "https://www.kdocs.cn/l/chqhf7cWy7K8";
+
+        private void HelpDocBtn_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = HelpDocUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "打开使用说明书失败");
+                Views.CyberMessageBox.Show(this,
+                    $"无法打开默认浏览器，请手动复制此链接到浏览器访问：\n\n{HelpDocUrl}",
+                    "打开使用说明书", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
         // ═════════════════════════════════════════
         //  游戏选择
         // ═════════════════════════════════════════
@@ -514,7 +537,7 @@ namespace UEModManager
 
                 // 关闭方案管理窗口后刷新
                 UpdateProfileSelector();
-                _ = _vm.RefreshModsAsync();
+                _ = _vm.RefreshFromRepositoryAsync();
             }
             catch (Exception ex)
             {
@@ -817,28 +840,10 @@ namespace UEModManager
         {
             var detailWin = new ModDetailWindow(
                 mod,
-                onToggle: async m =>
-                {
-                    await _vm.ModList.ToggleModAsync(m);
-                    UpdateNavCounts();
-                    UpdateModCountText();
-                },
-                onDelete: async m =>
-                {
-                    await _vm.ModList.DeleteModAsync(m);
-                    UpdateNavCounts();
-                    UpdateModCountText();
-                    UpdateEmptyState();
-                },
-                onChangePreview: async m =>
-                {
-                    _vm.ModDetail.CurrentMod = m;
-                    await _vm.ModDetail.ChangePreviewAsync();
-                },
-                onRename: async m =>
-                {
-                    await _vm.ModData.SaveModAsync(m);
-                }
+                onToggle: async m => await ToggleModFromUiAsync(m, !m.IsEnabled),
+                onDelete: async m => await DeleteModFromUiAsync(m, confirm: false),
+                onChangePreview: async m => await ChangePreviewFromUiAsync(m),
+                onRename: async (m, newName) => await RenameModFromUiAsync(m, newName)
             );
             detailWin.Owner = this;
             detailWin.ShowDialog();
@@ -855,30 +860,7 @@ namespace UEModManager
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod == null) return;
 
-            // v2.0: 尝试走事务部署层
-            var packageKey = mod.RealName;
-            var enable = !mod.IsEnabled;
-            try
-            {
-                var success = await _vm.DeployToggleAsync(packageKey, enable);
-                if (success)
-                {
-                    mod.IsEnabled = enable;
-                    Console.WriteLine($"[Deploy] v2.0 事务部署: {packageKey} → {(enable ? "启用" : "禁用")}");
-                }
-                else
-                {
-                    // 回退到旧版
-                    await _vm.ModList.ToggleModAsync(mod);
-                }
-            }
-            catch
-            {
-                // DeployToggle 失败（如仓库中没有此包），回退到旧版
-                await _vm.ModList.ToggleModAsync(mod);
-            }
-            UpdateNavCounts();
-            UpdateModCountText();
+            await ToggleModFromUiAsync(mod, !mod.IsEnabled);
         }
 
         // ── MOD 导入 (v2.0: ImportDialog → ImportConfirmDialog) ──
@@ -913,6 +895,18 @@ namespace UEModManager
                 filesToImport = importDlg.SelectedFiles.ToArray();
             }
 
+            var unsupportedArchives = filesToImport
+                .Where(f => string.Equals(Path.GetExtension(f), ".rar", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(Path.GetExtension(f), ".7z", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (unsupportedArchives.Count > 0)
+            {
+                CyberMessageBox.Show(this,
+                    "检测到 RAR/7z 压缩包。\n\n当前版本仅保证 ZIP、PAK/UCAS/UTOC 等文件稳定导入。RAR/7z 受用户电脑解压环境影响，可能出现解压失败或中文文件名乱码。\n\n请先用 WinRAR/7-Zip 手动解压，再把解压后的文件夹或其中的 MOD 文件重新导入。",
+                    "请先手动解压 RAR/7z", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             // Step 2: 打开确认对话框
             var confirmDlg = new Views.ImportConfirmDialog(
                 _vm.PackageImport, _vm.PackageRepo, _vm.ProfileService, _vm.ConflictAnalysis, _gameConfig)
@@ -923,8 +917,20 @@ namespace UEModManager
                 var successCount = confirmDlg.ImportResults.Count(r => r.Success);
                 if (successCount > 0)
                 {
-                    // 刷新 MOD 列表（兼容旧扫描流程）
-                    await _vm.RefreshModsAsync();
+                    var importedPackages = confirmDlg.ImportResults
+                        .Where(r => r.Success && r.Package != null)
+                        .Select(r => r.Package!)
+                        .ToList();
+
+                    await _vm.ProfileService.AddPackagesToCurrentProfileAsync(importedPackages);
+
+                    if (UiPreferences.LoadAutoDeploy())
+                    {
+                        foreach (var package in importedPackages)
+                            await _vm.DeployToggleAsync(package.PackageKey, true);
+                    }
+
+                    await _vm.RefreshFromRepositoryAsync();
                     UpdateNavCounts();
                     UpdateModCountText();
                     UpdateEmptyState();
@@ -960,59 +966,35 @@ namespace UEModManager
         {
             var mod = GetModFromContextMenu(sender);
             if (mod != null && !mod.IsEnabled)
-            {
-                try { await _vm.DeployToggleAsync(mod.RealName, true); mod.IsEnabled = true; }
-                catch { await _vm.ModList.ToggleModAsync(mod); }
-                UpdateNavCounts();
-                UpdateModCountText();
-            }
+                await ToggleModFromUiAsync(mod, true);
         }
 
         private async void DisableModMenuItem_Click(object sender, RoutedEventArgs e)
         {
             var mod = GetModFromContextMenu(sender);
             if (mod != null && mod.IsEnabled)
-            {
-                try { await _vm.DeployToggleAsync(mod.RealName, false); mod.IsEnabled = false; }
-                catch { await _vm.ModList.ToggleModAsync(mod); }
-                UpdateNavCounts();
-                UpdateModCountText();
-            }
+                await ToggleModFromUiAsync(mod, false);
         }
 
         private async void RenameModMenuItem_Click(object sender, RoutedEventArgs e)
         {
             var mod = GetModFromContextMenu(sender);
-            if (mod == null) return;
-            var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", mod.Name);
-            if (!string.IsNullOrWhiteSpace(newName) && newName != mod.Name)
-            {
-                mod.Name = newName;
-                await _vm.ModData.SaveModAsync(mod);
-            }
+            if (mod != null)
+                await RenameModFromUiAsync(mod);
         }
 
         private async void ChangePreviewMenuItem_Click(object sender, RoutedEventArgs e)
         {
             var mod = GetModFromContextMenu(sender);
             if (mod != null)
-            {
-                _vm.ModDetail.CurrentMod = mod;
-                await _vm.ModDetail.ChangePreviewAsync();
-            }
+                await ChangePreviewFromUiAsync(mod);
         }
 
         private async void DeleteModMenuItem_Click(object sender, RoutedEventArgs e)
         {
             var mod = GetModFromContextMenu(sender);
             if (mod != null)
-            {
-                var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？", "确认删除", MessageBoxButton.YesNo);
-                if (r == MessageBoxResult.Yes)
-                    await _vm.ModList.DeleteModAsync(mod);
-            }
-            UpdateNavCounts();
-            UpdateModCountText();
+                await DeleteModFromUiAsync(mod);
         }
 
         private ModInfo? GetModFromContextMenu(object sender)
@@ -1020,6 +1002,66 @@ namespace UEModManager
             if (sender is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement fe)
                 return fe.DataContext as ModInfo ?? fe.Tag as ModInfo;
             return _vm.ModList.SelectedMod;
+        }
+
+        private async Task<bool> ToggleModFromUiAsync(ModInfo mod, bool enable)
+        {
+            if (!await _vm.ToggleModAsync(mod, enable)) return false;
+
+            UpdateNavCounts();
+            UpdateModCountText();
+            UpdateEmptyState();
+            return true;
+        }
+
+        private async Task RenameModFromUiAsync(ModInfo mod)
+        {
+            var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", mod.Name);
+            if (string.IsNullOrWhiteSpace(newName) || newName == mod.Name) return;
+
+            await RenameModFromUiAsync(mod, newName);
+        }
+
+        private async Task<bool> RenameModFromUiAsync(ModInfo mod, string newName)
+        {
+            if (!await _vm.RenameModAsync(mod, newName)) return false;
+
+            UpdateNavCounts();
+            UpdateModCountText();
+            return true;
+        }
+
+        private async Task<bool> ChangePreviewFromUiAsync(ModInfo mod)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "选择预览图",
+                Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*"
+            };
+
+            if (dialog.ShowDialog(this) != true) return false;
+            if (!await _vm.ChangePreviewAsync(mod, dialog.FileName)) return false;
+
+            UpdateNavCounts();
+            UpdateModCountText();
+            return true;
+        }
+
+        private async Task<bool> DeleteModFromUiAsync(ModInfo mod, bool confirm = true)
+        {
+            if (confirm)
+            {
+                var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return false;
+            }
+
+            if (!await _vm.DeletePackageModAsync(mod)) return false;
+
+            _vm.ModList.SelectedMod = null;
+            UpdateNavCounts();
+            UpdateModCountText();
+            UpdateEmptyState();
+            return true;
         }
 
         // ═════════════════════════════════════════
@@ -1050,6 +1092,40 @@ namespace UEModManager
         {
             e.Handled = true;
             _vm.ModList.SelectAll();
+        }
+
+        private async void BatchEnable_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            await _vm.ModList.EnableSelectedAsync();
+            UpdateNavCounts();
+            UpdateModCountText();
+            UpdateEmptyState();
+        }
+
+        private async void BatchDisable_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            await _vm.ModList.DisableSelectedAsync();
+            UpdateNavCounts();
+            UpdateModCountText();
+            UpdateEmptyState();
+        }
+
+        private async void BatchDelete_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            var count = _vm.ModList.SelectedCount;
+            if (count <= 0) return;
+
+            var r = CyberMessageBox.Show(this, $"确认卸载选中的 {count} 个 MOD？\n此操作会从当前方案、包仓库和已部署文件中移除这些 MOD。", "批量卸载", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (r != MessageBoxResult.Yes) return;
+
+            await _vm.ModList.DeleteSelectedAsync();
+            _vm.ModList.SelectedMod = null;
+            UpdateNavCounts();
+            UpdateModCountText();
+            UpdateEmptyState();
         }
 
         private void SortButton_Click(object sender, MouseButtonEventArgs e)
@@ -1157,10 +1233,7 @@ namespace UEModManager
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-            {
-                _vm.ModDetail.CurrentMod = mod;
-                await _vm.ModDetail.ChangePreviewAsync();
-            }
+                await ChangePreviewFromUiAsync(mod);
         }
 
         private async void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1168,14 +1241,7 @@ namespace UEModManager
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-            {
-                var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？", "确认删除", MessageBoxButton.YesNo);
-                if (r == MessageBoxResult.Yes)
-                    await _vm.ModList.DeleteModAsync(mod);
-                UpdateNavCounts();
-                UpdateModCountText();
-                UpdateEmptyState();
-            }
+                await DeleteModFromUiAsync(mod);
         }
 
         private void ModMore_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1255,7 +1321,7 @@ namespace UEModManager
         {
             try
             {
-                await _vm.RefreshModsAsync();
+                await _vm.RefreshFromRepositoryAsync();
                 UpdateNavCounts();
                 UpdateModCountText();
             }
@@ -1431,6 +1497,9 @@ namespace UEModManager
                 ImportModText.Text = "Import";
                 LaunchGameText.Text = "Launch";
                 SelectAllText.Text = "Select All";
+                BatchEnableText.Text = "Enable";
+                BatchDisableText.Text = "Disable";
+                BatchDeleteText.Text = "Uninstall";
                 LoadingText.Text = "Loading...";
                 CtxMenuRename.Header = "Rename";
                 CtxMenuDelete.Header = "Delete";
@@ -1450,6 +1519,9 @@ namespace UEModManager
                 ImportModText.Text = "导入";
                 LaunchGameText.Text = "启动游戏";
                 SelectAllText.Text = "全选";
+                BatchEnableText.Text = "启用";
+                BatchDisableText.Text = "禁用";
+                BatchDeleteText.Text = "卸载";
                 LoadingText.Text = "加载中...";
                 CtxMenuRename.Header = "重命名";
                 CtxMenuDelete.Header = "删除";
@@ -1488,6 +1560,8 @@ namespace UEModManager
                         {
                             var bitmap = new System.Windows.Media.Imaging.BitmapImage();
                             bitmap.BeginInit();
+                            // IgnoreImageCache：每次都从磁盘重读，避免相同 URI 字符串命中 WPF 内部缓存导致切换"看上去没生效"
+                            bitmap.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
                             bitmap.UriSource = new Uri(bg.ImagePath, UriKind.Absolute);
                             bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
                             bitmap.EndInit();
@@ -1503,6 +1577,11 @@ namespace UEModManager
                             }
 
                             BgOverlay.Visibility = Visibility.Visible;
+                            Console.WriteLine($"[MainWindow] 背景图已应用: {bg.ImagePath} (Opacity={bg.Opacity:F2}, Blur={bg.BlurRadius:F2})");
+                        }
+                        else if (!string.IsNullOrEmpty(bg.ImagePath))
+                        {
+                            Console.WriteLine($"[MainWindow] 背景图路径不存在，跳过: {bg.ImagePath}");
                         }
                         break;
 

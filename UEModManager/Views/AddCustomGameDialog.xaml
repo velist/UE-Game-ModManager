@@ -92,6 +92,7 @@
                     <ComboBoxItem Content="RE Engine"/>
                     <ComboBoxItem Content="Godot"/>
                     <ComboBoxItem Content="Decima"/>
+                    <ComboBoxItem Content="暗黑 4 引擎 (Diablo 4)"/>
                 </ComboBox>
                 <TextBlock x:Name="EngineDetectionHint" FontSize="11"
                            Foreground="{StaticResource Text500Brush}" Margin="2,4,0,0"

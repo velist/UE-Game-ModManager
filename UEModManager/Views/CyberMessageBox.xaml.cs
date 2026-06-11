@@ -24,7 +24,7 @@ namespace UEModManager.Views
             dlg.Title = title;
             dlg.MessageText.Text = message;
 
-            if (owner != null)
+            if (owner != null && owner.IsVisible)
                 dlg.Owner = owner;
             else
                 dlg.WindowStartupLocation = WindowStartupLocation.CenterScreen;

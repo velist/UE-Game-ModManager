@@ -170,20 +170,30 @@ namespace UEModManager.Services
         /// </summary>
         public List<string> GetAvailableGames()
         {
+            // 官网与管理器共享的常驻游戏列表，按社区热度 + 官网展示顺序排列。
             var builtIn = new List<string>
             {
+                "黑神话·悟空",
                 "剑星",
                 "剑星 (CNS)",
-                "黑神话·悟空",
                 "光与影：33号远征队",
                 "明末·渊虚之羽",
+                "暗黑破坏神4",
+                "生化危机9",
+                "识质存在",
                 "无主之地4",
-                "杀戮尖塔2",
-                "死亡搁浅2"
+                "死亡搁浅2",
+                "杀戮尖塔2"
             };
 
             if (Config.CustomGames?.Count > 0)
-                builtIn.AddRange(Config.CustomGames);
+            {
+                foreach (var custom in Config.CustomGames)
+                {
+                    if (!builtIn.Contains(custom))
+                        builtIn.Add(custom);
+                }
+            }
 
             return builtIn;
         }
@@ -357,8 +367,8 @@ namespace UEModManager.Services
         /// </summary>
         private static readonly HashSet<string> BuiltInGames = new()
         {
-            "剑星", "剑星 (CNS)", "黑神话·悟空", "光与影：33号远征队", "明末·渊虚之羽", "无主之地4",
-            "杀戮尖塔2", "死亡搁浅2"
+            "黑神话·悟空", "剑星", "剑星 (CNS)", "光与影：33号远征队", "明末·渊虚之羽",
+            "暗黑破坏神4", "生化危机9", "识质存在", "无主之地4", "死亡搁浅2", "杀戮尖塔2"
         };
 
         /// <summary>
@@ -371,6 +381,8 @@ namespace UEModManager.Services
             // 非 UE 引擎的内置游戏
             if (gameName == "杀戮尖塔2") return EngineType.Godot;
             if (gameName == "死亡搁浅2") return EngineType.Decima;
+            if (gameName == "生化危机9" || gameName == "识质存在") return EngineType.REEngine;
+            if (gameName == "暗黑破坏神4") return EngineType.Diablo4Engine;
 
             if (BuiltInGames.Contains(gameName)) return EngineType.UnrealEngine;
 

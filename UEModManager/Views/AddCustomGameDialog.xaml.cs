@@ -52,6 +52,7 @@ namespace UEModManager.Views
                     3 => EngineType.REEngine,
                     4 => EngineType.Godot,
                     5 => EngineType.Decima,
+                    6 => EngineType.Diablo4Engine,
                     _ => EngineType.Unknown // 自动检测时由调用方处理
                 };
             }
@@ -137,6 +138,8 @@ namespace UEModManager.Views
                             EngineType.Unity => 2,
                             EngineType.REEngine => 3,
                             EngineType.Godot => 4,
+                            EngineType.Decima => 5,
+                            EngineType.Diablo4Engine => 6,
                             _ => 0
                         };
                         EngineDetectionHint.Text = $"已自动识别为 {EngineProfile.Get(detected).DisplayName} 引擎";

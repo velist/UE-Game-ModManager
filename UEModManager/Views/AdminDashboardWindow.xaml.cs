@@ -30,24 +30,6 @@ namespace UEModManager.Views
 
 {
 
-    /// <summary>
-
-    /// 云端数据库状态枚举
-
-    /// </summary>
-
-    public enum CloudDatabaseStatus
-
-    {
-
-        NotConfigured,  // 未配置
-
-        Configured,     // 已配置但连接失败
-
-        Online          // 在线可用
-
-    }
-
     public partial class AdminDashboardWindow : Window
 
     {
@@ -56,17 +38,11 @@ namespace UEModManager.Views
 
         private readonly LocalAuthService _localAuthService;
 
-        private readonly SupabaseRestService _supabaseRestService;
-
         private readonly DispatcherTimer _statusUpdateTimer;
 
         private readonly ObservableCollection<UserInfo> _users;
 
         private DateTime _systemStartTime;
-
-        private bool _useCloudData = true; // 默认优先使用云端数据
-
-        private bool _cloudViaRest = false; // 云端是否通过Supabase REST
 
 
 
@@ -86,8 +62,6 @@ namespace UEModManager.Views
             _logger = serviceProvider.GetRequiredService<ILogger<AdminDashboardWindow>>();
 
             _localAuthService = serviceProvider.GetRequiredService<LocalAuthService>();
-
-            _supabaseRestService = serviceProvider.GetRequiredService<SupabaseRestService>();
 
 
 
@@ -201,71 +175,15 @@ namespace UEModManager.Views
 
             {
 
-                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 开始更新统计数据 (数据源: {(_useCloudData ? "云端" : "本地")})");
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 开始更新本地统计数据");
 
 
 
-                int totalUsers = 0;
+                var totalUsers = await _localAuthService.GetTotalUsersCountAsync();
 
-                int activeUsers = 0;
+                var activeUsers = await _localAuthService.GetActiveUsersCountAsync();
 
-
-
-                // 尝试云端数据，失败则回退到本地
-
-                if (_useCloudData)
-
-                {
-
-                    try
-
-                    {
-
-                        if (_cloudViaRest && _supabaseRestService != null && _supabaseRestService.IsConfigured)
-
-                        {
-
-                            totalUsers = await _supabaseRestService.GetUsersCountAsync(false);
-
-                            activeUsers = await _supabaseRestService.GetUsersCountAsync(true);
-
-                        }
-
-                        AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 云端统计数据: 总用户{totalUsers}, 活跃用户{activeUsers} (REST)");
-
-                    }
-
-                    catch (Exception cloudEx)
-
-                    {
-
-                        _logger.LogWarning(cloudEx, "获取云端统计数据失败，回退到本地数据");
-
-                        AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 云端数据获取失败，切换到本地数据源");
-
-                        _useCloudData = false;
-
-                        _cloudViaRest = false;
-
-                    }
-
-                }
-
-
-
-                // 如果云端失败或未启用，使用本地数据
-
-                if (!_useCloudData)
-
-                {
-
-                    totalUsers = await _localAuthService.GetTotalUsersCountAsync();
-
-                    activeUsers = await _localAuthService.GetActiveUsersCountAsync();
-
-                    AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 本地统计数据: 总用户{totalUsers}, 活跃用户{activeUsers}");
-
-                }
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 本地统计数据: 总用户{totalUsers}, 活跃用户{activeUsers}");
 
 
 
@@ -375,81 +293,17 @@ namespace UEModManager.Views
 
 
 
-                // 检查云端Supabase数据库状态
+                PrimaryDbStatusText.Text = localDbHealthy ? "🟢 SQLite 正常" : "🔴 SQLite 异常";
 
-                var (cloudDbStatus, cloudDbLatency, cloudDbMessage) = await CheckCloudDatabaseStatusAsync();
+                BackupDbStatusText.Text = "未启用";
 
-                switch (cloudDbStatus)
-
-                {
-
-                    case CloudDatabaseStatus.Online:
-
-                        PrimaryDbStatusText.Text = $"🟢 Supabase 在线{(_cloudViaRest ? "(REST)" : "")}";
-
-                        BackupDbStatusText.Text = "🟢 备用在线";
-
-                        PrimaryDbLatencyText.Text = $"延迟: {cloudDbLatency}ms";
-
-                        // 启用云端数据源
-
-                        if (!_useCloudData && cloudDbLatency > 0)
-
-                        {
-
-                            _useCloudData = true;
-
-                            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 检测到云端数据库可用，启用云端数据源");
-
-                        }
-
-                        break;
-
-                    case CloudDatabaseStatus.Configured:
-
-                        PrimaryDbStatusText.Text = "🔴 Supabase 离线";
-
-                        BackupDbStatusText.Text = "🔴 备用离线";
-
-                        PrimaryDbLatencyText.Text = $"错误: {cloudDbMessage}";
-
-                        _useCloudData = false;
-
-                        _cloudViaRest = false;
-
-                        break;
-
-                    case CloudDatabaseStatus.NotConfigured:
-
-                        PrimaryDbStatusText.Text = "🟡 未配置";
-
-                        BackupDbStatusText.Text = "🟡 未配置";
-
-                        PrimaryDbLatencyText.Text = "延迟: --ms";
-
-                        _useCloudData = false;
-
-                        _cloudViaRest = false;
-
-                        break;
-
-                }
+                PrimaryDbLatencyText.Text = string.Empty;
 
 
 
                 // 设置整体数据库状态
 
-                if (localDbHealthy && cloudDbStatus == CloudDatabaseStatus.Online)
-
-                {
-
-                    DatabaseStatusText.Text = "优秀";
-
-                    DatabaseStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.LightGreen);
-
-                }
-
-                else if (localDbHealthy)
+                if (localDbHealthy)
 
                 {
 
@@ -487,7 +341,7 @@ namespace UEModManager.Views
 
 
 
-                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 系统状态更新完成 (云端: {cloudDbStatus}, 延迟: {cloudDbLatency}ms)");
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 系统状态更新完成");
 
             }
 
@@ -534,116 +388,6 @@ namespace UEModManager.Views
             {
 
                 _logger.LogWarning(ex, "本地数据库检查失败");
-
-                return false;
-
-            }
-
-        }
-
-
-
-        /// <summary>
-
-        /// 检查云端Supabase数据库状态
-
-        /// </summary>
-
-        private async Task<(CloudDatabaseStatus status, long latency, string message)> CheckCloudDatabaseStatusAsync()
-
-        {
-
-            try
-
-            {
-
-                // 使用 Supabase REST 检查云端状态
-
-                if (_supabaseRestService != null && _supabaseRestService.IsConfigured)
-
-                {
-
-                    var (ok, msg, restLatency) = await _supabaseRestService.TestAsync();
-
-                    if (ok)
-
-                    {
-
-                        _cloudViaRest = true;
-
-                        return (CloudDatabaseStatus.Online, restLatency, "REST连接正常");
-
-                    }
-
-                    _cloudViaRest = false;
-
-                    return (CloudDatabaseStatus.Configured, 0, $"REST失败: {msg}");
-
-                }
-
-                _cloudViaRest = false;
-
-                return (CloudDatabaseStatus.NotConfigured, 0, "云端服务未配置");
-
-            }
-
-            catch (Exception ex)
-
-            {
-
-                _logger.LogError(ex, "检查云端数据库状态失败");
-
-                _cloudViaRest = false;
-
-                return (CloudDatabaseStatus.Configured, 0, ex.Message);
-
-            }
-
-        }
-
-
-
-        /// <summary>
-
-        /// 检查云端数据库是否已配置
-
-        /// </summary>
-
-        private async Task<bool> IsCloudDatabaseConfiguredAsync()
-
-        {
-
-            try
-
-            {
-
-                // 检查是否有有效的云端数据库配置
-
-                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-
-                var configFile = System.IO.Path.Combine(appDataPath, "UEModManager", "current_database.json");
-
-
-
-                if (System.IO.File.Exists(configFile))
-
-                {
-
-                    var json = await System.IO.File.ReadAllTextAsync(configFile);
-
-                    return !string.IsNullOrWhiteSpace(json);
-
-                }
-
-
-
-                return false;
-
-            }
-
-            catch
-
-            {
 
                 return false;
 
@@ -761,17 +505,19 @@ namespace UEModManager.Views
 
             {
 
-                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 开始加载用户数据 (数据源: {(_useCloudData ? "云端" : "本地")})");
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 开始加载本地用户数据");
 
 
 
                 _users.Clear();
 
+                var users = (await _localAuthService.GetAllUsersAsync()).ToList();
+
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 从本地数据库获取到 {users.Count} 个用户");
 
 
-                // 尝试云端数据，失败则回退到本地
 
-                if (_useCloudData)
+                foreach (var user in users)
 
                 {
 
@@ -779,115 +525,31 @@ namespace UEModManager.Views
 
                     {
 
-                        var cloudUsers = (_supabaseRestService != null ? await _supabaseRestService.GetUsersAsync(100, 0) : new List<CloudUserInfo>());
-
-                        AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 从云端数据库获取到 {cloudUsers.Count} 个用户 ({(_cloudViaRest ? "REST" : "PG")})");
-
-
-
-                        foreach (var user in cloudUsers)
+                        _users.Add(new UserInfo
 
                         {
 
-                            try
+                            Id = user.Id,
 
-                            {
+                            Email = user.Email ?? "N/A",
 
-                                _users.Add(new UserInfo
+                            CreatedAt = user.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
 
-                                {
+                            LastLoginAt = user.LastLoginAt == default(DateTime) ? "从未" : user.LastLoginAt.ToString("yyyy-MM-dd HH:mm"),
 
-                                    Id = user.Id,
+                            Status = user.IsLocked ? "已锁定" : "正常"
 
-                                    Email = user.Email ?? "N/A",
-
-                                    CreatedAt = user.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
-
-                                    LastLoginAt = user.LastLoginAt == null ? "从未" : user.LastLoginAt.Value.ToString("yyyy-MM-dd HH:mm"),
-
-                                    Status = user.IsActive ? "正常" : "已禁用"
-
-                                });
-
-                            }
-
-                            catch (Exception userEx)
-
-                            {
-
-                                _logger.LogError(userEx, $"添加云端用户 {user.Id} 到显示列表失败");
-
-                                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 添加云端用户 {user.Id} 失败: {userEx.Message}");
-
-                            }
-
-                        }
+                        });
 
                     }
 
-                    catch (Exception cloudEx)
+                    catch (Exception userEx)
 
                     {
 
-                        _logger.LogWarning(cloudEx, "获取云端用户数据失败，回退到本地数据");
+                        _logger.LogError(userEx, $"添加本地用户 {user.Id} 到显示列表失败");
 
-                        AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 云端用户数据获取失败，切换到本地数据源");
-
-                        _useCloudData = false;
-
-                    }
-
-                }
-
-
-
-                // 如果云端失败或未启用，使用本地数据
-
-                if (!_useCloudData)
-
-                {
-
-                    var users = await _localAuthService.GetAllUsersAsync();
-
-                    AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 从本地数据库获取到 {users.Count()} 个用户");
-
-
-
-                    foreach (var user in users)
-
-                    {
-
-                        try
-
-                        {
-
-                            _users.Add(new UserInfo
-
-                            {
-
-                                Id = user.Id,
-
-                                Email = user.Email ?? "N/A",
-
-                                CreatedAt = user.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
-
-                                LastLoginAt = user.LastLoginAt == default(DateTime) ? "从未" : user.LastLoginAt.ToString("yyyy-MM-dd HH:mm"),
-
-                                Status = user.IsLocked ? "已锁定" : "正常"
-
-                            });
-
-                        }
-
-                        catch (Exception userEx)
-
-                        {
-
-                            _logger.LogError(userEx, $"添加本地用户 {user.Id} 到显示列表失败");
-
-                            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 添加本地用户 {user.Id} 失败: {userEx.Message}");
-
-                        }
+                        AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 添加本地用户 {user.Id} 失败: {userEx.Message}");
 
                     }
 
@@ -898,8 +560,6 @@ namespace UEModManager.Views
                 AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 已成功加载 {_users.Count} 个用户到显示列表");
 
 
-
-                // 强制更新UI
 
                 _ = Dispatcher.BeginInvoke(() =>
 

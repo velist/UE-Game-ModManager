@@ -19,6 +19,9 @@ namespace UEModManager.ViewModels
         private readonly GameConfigService _gameConfig;
         private readonly ModDataService _modData;
         private readonly ILogger _logger;
+        private Func<ModInfo, bool, Task<bool>>? _toggleModAsync;
+        private Func<ModInfo, string, Task<bool>>? _changePreviewAsync;
+        private Func<ModInfo, Task<bool>>? _deleteModAsync;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ModName))]
@@ -53,6 +56,16 @@ namespace UEModManager.ViewModels
             _gameConfig = gameConfig;
             _modData = modData;
             _logger = logger;
+        }
+
+        public void ConfigureActions(
+            Func<ModInfo, bool, Task<bool>> toggleModAsync,
+            Func<ModInfo, string, Task<bool>> changePreviewAsync,
+            Func<ModInfo, Task<bool>> deleteModAsync)
+        {
+            _toggleModAsync = toggleModAsync;
+            _changePreviewAsync = changePreviewAsync;
+            _deleteModAsync = deleteModAsync;
         }
 
         // ─── 绑定属性 ───
@@ -112,17 +125,14 @@ namespace UEModManager.ViewModels
         {
             if (CurrentMod == null) return;
 
-            bool success;
-            if (CurrentMod.IsEnabled)
-                success = await _modService.DisableModAsync(CurrentMod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-            else
-                success = await _modService.EnableModAsync(CurrentMod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            var success = _toggleModAsync != null
+                ? await _toggleModAsync(CurrentMod, !CurrentMod.IsEnabled)
+                : await ToggleLegacyAsync(CurrentMod);
 
             if (success)
             {
                 OnPropertyChanged(nameof(Status));
                 OnPropertyChanged(nameof(IsEnabled));
-                await _modData.SaveModAsync(CurrentMod);
                 ModStateChanged?.Invoke();
             }
         }
@@ -143,12 +153,13 @@ namespace UEModManager.ViewModels
 
             if (dialog.ShowDialog() == true)
             {
-                var newPath = _modService.ChangePreviewImage(CurrentMod, dialog.FileName, _gameConfig.CurrentBackupPath);
-                if (newPath != null)
+                var changed = _changePreviewAsync != null
+                    ? await _changePreviewAsync(CurrentMod, dialog.FileName)
+                    : await ChangePreviewLegacyAsync(dialog.FileName);
+                if (changed)
                 {
-                    CurrentMod.PreviewImage = null; // 清除缓存，强制重新加载
+                    CurrentMod.PreviewImage = null;
                     OnPropertyChanged(nameof(PreviewImage));
-                    await _modData.SaveModAsync(CurrentMod);
                 }
             }
         }
@@ -161,13 +172,44 @@ namespace UEModManager.ViewModels
         {
             if (CurrentMod == null) return;
 
-            if (await _modService.DeleteModAsync(CurrentMod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath))
+            var success = _deleteModAsync != null
+                ? await _deleteModAsync(CurrentMod)
+                : await DeleteLegacyAsync(CurrentMod);
+
+            if (success)
             {
-                await _modData.RemoveModAsync(CurrentMod.Id);
                 CurrentMod = null;
                 ModStateChanged?.Invoke();
                 CloseRequested?.Invoke();
             }
+        }
+
+        private async Task<bool> ToggleLegacyAsync(ModInfo mod)
+        {
+            if (mod.IsEnabled)
+                return await _modService.DisableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+
+            return await _modService.EnableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+        }
+
+        private async Task<bool> ChangePreviewLegacyAsync(string imagePath)
+        {
+            if (CurrentMod == null) return false;
+
+            var newPath = _modService.ChangePreviewImage(CurrentMod, imagePath, _gameConfig.CurrentBackupPath);
+            if (newPath == null) return false;
+
+            await _modData.SaveModAsync(CurrentMod);
+            return true;
+        }
+
+        private async Task<bool> DeleteLegacyAsync(ModInfo mod)
+        {
+            if (!await _modService.DeleteModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath))
+                return false;
+
+            await _modData.RemoveModAsync(mod.Id);
+            return true;
         }
 
         /// <summary>

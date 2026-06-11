@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Import;
@@ -65,12 +66,12 @@ namespace UEModManager.Services
         /// 从文件路径导入包。支持压缩包和直接文件。
         /// 返回导入成功的包列表。
         /// </summary>
-        public async Task<List<PackageImportResult>> ImportAsync(string[] filePaths)
+        public async Task<List<PackageImportResult>> ImportAsync(string[] filePaths, string? targetRootPath = null)
         {
             var results = new List<PackageImportResult>();
             foreach (var filePath in filePaths)
             {
-                var result = await ImportSingleAsync(filePath);
+                var result = await ImportSingleAsync(filePath, targetRootPath);
                 results.AddRange(result);
             }
             return results;
@@ -79,7 +80,7 @@ namespace UEModManager.Services
         /// <summary>
         /// 导入单个文件（可能产生多个包，如压缩包内含多组 MOD）。
         /// </summary>
-        public async Task<List<PackageImportResult>> ImportSingleAsync(string filePath)
+        public async Task<List<PackageImportResult>> ImportSingleAsync(string filePath, string? targetRootPath = null)
         {
             var results = new List<PackageImportResult>();
 
@@ -95,13 +96,13 @@ namespace UEModManager.Services
                 switch (kind)
                 {
                     case ImportFileKind.Compressed:
-                        results = await ImportCompressedAsync(filePath);
+                        results = await ImportCompressedAsync(filePath, targetRootPath);
                         break;
                     case ImportFileKind.DirectImport:
-                        results.Add(await ImportDirectFileAsync(filePath));
+                        results.Add(await ImportDirectFileAsync(filePath, targetRootPath));
                         break;
                     default:
-                        results.Add(await ImportAsPluginAsync(filePath));
+                        results.Add(await ImportAsPluginAsync(filePath, targetRootPath));
                         break;
                 }
             }
@@ -141,7 +142,7 @@ namespace UEModManager.Services
                     Kind = PackageKind.Plugin,
                     Tags = new List<string> { "插件" },
                     HostGameName = gameName,
-                    PluginTargetPath = pluginTargetPath,
+                    TargetRootPath = NormalizeTargetRootPath(pluginTargetPath),
                     ImportSourcePath = filePath,
                 };
 
@@ -193,7 +194,7 @@ namespace UEModManager.Services
 
         // ─── 内部导入逻辑 ───
 
-        private async Task<PackageImportResult> ImportDirectFileAsync(string filePath)
+        private async Task<PackageImportResult> ImportDirectFileAsync(string filePath, string? targetRootPath = null)
         {
             var fileName = IOPath.GetFileNameWithoutExtension(filePath);
 
@@ -210,6 +211,7 @@ namespace UEModManager.Services
                 Tags = new List<string> { DetectCategory(fileName) },
                 HostGameName = gameName,
                 ImportSourcePath = filePath,
+                TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
             };
 
             var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
@@ -245,10 +247,12 @@ namespace UEModManager.Services
             return new PackageImportResult { Success = true, Package = package };
         }
 
-        private async Task<List<PackageImportResult>> ImportCompressedAsync(string filePath)
+        private async Task<List<PackageImportResult>> ImportCompressedAsync(string filePath, string? targetRootPath = null)
         {
             var results = new List<PackageImportResult>();
-            var tempDir = IOPath.Combine(IOPath.GetTempPath(), $"uemod_import_{Guid.NewGuid()}");
+            _objectStore.EnsureInitialized();
+            var tempRoot = IOPath.Combine(_objectStore.RepositoryRoot, ".import-tmp");
+            var tempDir = IOPath.Combine(tempRoot, $"uemod_import_{Guid.NewGuid()}");
             var archiveName = IOPath.GetFileNameWithoutExtension(filePath);
 
             try
@@ -266,20 +270,8 @@ namespace UEModManager.Services
                 CleanupArchives(tempDir);
 
                 // 收集 MOD 文件
-                var extractedDirs = Directory.GetDirectories(tempDir, "*_extracted", SearchOption.AllDirectories);
-                List<string> modFiles;
-
-                if (extractedDirs.Length > 0)
-                {
-                    modFiles = extractedDirs
-                        .SelectMany(d => Directory.GetFiles(d, "*.*", SearchOption.AllDirectories))
-                        .Where(f => IsModFile(f)).ToList();
-                }
-                else
-                {
-                    modFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories)
-                        .Where(f => IsModFile(f)).ToList();
-                }
+                var modFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => IsModFile(f)).ToList();
 
                 if (modFiles.Count == 0)
                 {
@@ -287,7 +279,8 @@ namespace UEModManager.Services
                     var allFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories);
                     if (allFiles.Length > 0)
                     {
-                        var result = await ImportFilesAsPackageAsync(archiveName, allFiles.ToList(), tempDir, filePath);
+                        var packageName = EnsureUniquePackageName(archiveName, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                        var result = await ImportFilesAsPackageAsync(packageName, allFiles.ToList(), tempDir, filePath, targetRootPath);
                         results.Add(result);
                     }
                     else
@@ -297,17 +290,20 @@ namespace UEModManager.Services
                     return results;
                 }
 
-                // 按前缀分组
-                var groups = GroupModFilesByPrefix(modFiles);
+                var groups = ModFileGrouper.SplitByImportScope(modFiles, tempDir)
+                    .SelectMany(scope => GroupModFilesByPrefix(scope)
+                        .Where(g => g.Value.Count > 0)
+                        .Select(g => new KeyValuePair<string, List<string>>(g.Key, g.Value)))
+                    .ToList();
 
                 int index = 1;
-                foreach (var group in groups.Where(g => g.Value.Count > 0))
+                var usedPackageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var group in groups)
                 {
                     var packageName = DetermineGroupName(group.Value) ?? group.Key ?? $"{archiveName}_{index}";
-                    if (_repository.Exists(packageName))
-                        packageName = $"{packageName}_{DateTime.Now:yyyyMMdd_HHmmss}";
+                    packageName = EnsureUniquePackageName(packageName, usedPackageNames);
 
-                    var result = await ImportFilesAsPackageAsync(packageName, group.Value, tempDir, filePath);
+                    var result = await ImportFilesAsPackageAsync(packageName, group.Value, tempDir, filePath, targetRootPath);
                     results.Add(result);
                     index++;
                 }
@@ -326,7 +322,7 @@ namespace UEModManager.Services
         }
 
         private async Task<PackageImportResult> ImportFilesAsPackageAsync(
-            string packageName, List<string> files, string tempDir, string sourcePath)
+            string packageName, List<string> files, string tempDir, string sourcePath, string? targetRootPath = null)
         {
             try
             {
@@ -340,6 +336,7 @@ namespace UEModManager.Services
                     Tags = new List<string> { DetectCategory(packageName) },
                     HostGameName = gameName,
                     ImportSourcePath = sourcePath,
+                    TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
                 };
 
                 long totalSize = 0;
@@ -388,7 +385,7 @@ namespace UEModManager.Services
             }
         }
 
-        private async Task<PackageImportResult> ImportAsPluginAsync(string filePath)
+        private async Task<PackageImportResult> ImportAsPluginAsync(string filePath, string? targetRootPath = null)
         {
             var fileName = IOPath.GetFileNameWithoutExtension(filePath);
             if (_repository.Exists(fileName))
@@ -404,6 +401,7 @@ namespace UEModManager.Services
                 Tags = new List<string> { DetectCategory(fileName) },
                 HostGameName = gameName,
                 ImportSourcePath = filePath,
+                TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
             };
 
             var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
@@ -425,6 +423,13 @@ namespace UEModManager.Services
             PackageImported?.Invoke(package);
 
             return new PackageImportResult { Success = true, Package = package };
+        }
+
+        private static string? NormalizeTargetRootPath(string? targetRootPath)
+        {
+            if (string.IsNullOrWhiteSpace(targetRootPath)) return null;
+            return targetRootPath.Trim().TrimStart(IOPath.DirectorySeparatorChar, IOPath.AltDirectorySeparatorChar)
+                .Replace(IOPath.AltDirectorySeparatorChar, IOPath.DirectorySeparatorChar);
         }
 
         // ─── 类型检测 ───
@@ -464,14 +469,16 @@ namespace UEModManager.Services
                 var ext = IOPath.GetExtension(filePath).ToLower();
                 if (ext == ".zip")
                 {
-                    ZipFile.ExtractToDirectory(filePath, extractPath, true);
+                    ExtractZipFile(filePath, extractPath);
                     return true;
                 }
 
-                using var archive = ArchiveFactory.Open(filePath);
-                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                using var stream = File.OpenRead(filePath);
+                using var reader = ReaderFactory.OpenReader(stream, new ReaderOptions());
+                while (reader.MoveToNextEntry())
                 {
-                    entry.WriteToFile(IOPath.Combine(extractPath, entry.Key ?? ""), new ExtractionOptions
+                    if (reader.Entry.IsDirectory) continue;
+                    reader.WriteEntryToDirectory(extractPath, new ExtractionOptions
                     {
                         ExtractFullPath = true,
                         Overwrite = true
@@ -486,19 +493,43 @@ namespace UEModManager.Services
             }
         }
 
+        private static void ExtractZipFile(string filePath, string extractPath)
+        {
+            try
+            {
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.GetEncoding(936), true);
+            }
+            catch (InvalidDataException)
+            {
+                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.UTF8, true);
+            }
+        }
+
         private void ProcessNestedArchives(string directory)
         {
-            var archives = Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
-                .Where(CompressedArchive.IsCompressed)
-                .ToList();
+            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var pending = new Queue<string>(Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Where(CompressedArchive.IsCompressed));
 
-            foreach (var archive in archives)
+            while (pending.Count > 0)
             {
+                var archive = pending.Dequeue();
+                if (!processed.Add(archive))
+                    continue;
+
                 var extractDir = archive + "_extracted";
                 try
                 {
                     Directory.CreateDirectory(extractDir);
-                    ExtractCompressedFile(archive, extractDir);
+                    if (!ExtractCompressedFile(archive, extractDir))
+                        continue;
+
+                    foreach (var nestedArchive in Directory.GetFiles(extractDir, "*.*", SearchOption.AllDirectories)
+                        .Where(CompressedArchive.IsCompressed))
+                    {
+                        pending.Enqueue(nestedArchive);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -529,6 +560,20 @@ namespace UEModManager.Services
 
         private string? DetermineGroupName(List<string> groupFiles)
             => ModFileGrouper.SelectGroupName(groupFiles, EngineConfig.GroupPriorityExtensions);
+
+        private string EnsureUniquePackageName(string packageName, HashSet<string> usedPackageNames)
+        {
+            var uniqueName = packageName;
+            var suffix = 1;
+            while (_repository.Exists(uniqueName) || usedPackageNames.Contains(uniqueName))
+            {
+                suffix++;
+                uniqueName = $"{packageName}_{suffix}";
+            }
+
+            usedPackageNames.Add(uniqueName);
+            return uniqueName;
+        }
 
         // ─── 辅助方法 ───
 

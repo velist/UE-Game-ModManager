@@ -75,6 +75,29 @@
                         </Border>
                     </Border>
 
+                    <!-- 使用说明书按钮 (底部固定，在 DonateArea 上方) -->
+                    <Border DockPanel.Dock="Bottom" Padding="16,4,16,4">
+                        <Border x:Name="HelpDocBtn" CornerRadius="10" Padding="10,8" Cursor="Hand"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                                ToolTip="打开在线使用说明书（WPS 云文档）"
+                                MouseLeftButtonDown="HelpDocBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <!-- 书本图标 -->
+                                <Viewbox Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M4 4 L4 20 L11 20 L11 6 Q11 4 9 4 Z M13 4 L13 20 L20 20 L20 6 Q20 4 18 4 Z"
+                                              Stroke="{StaticResource PrimaryLightBrush}" StrokeThickness="2"
+                                              StrokeLineJoin="Round"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="使用说明书" FontSize="12" FontWeight="Medium"
+                                           Foreground="{StaticResource Text400Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+
                     <!-- DonateArea (底部固定，在 UserArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,12,16,8">
                         <Grid>
@@ -621,6 +644,28 @@
                                     </Viewbox>
                                     <TextBlock x:Name="SelectAllText" Text="全选" Foreground="{StaticResource Text500Brush}"
                                                FontSize="13" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border x:Name="BatchActionsPanel" CornerRadius="10" Padding="8,6" Margin="0,0,16,0"
+                                    Background="#991B2430" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1"
+                                    Visibility="{Binding ModList.HasSelectedMods, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding ModList.SelectedCount, StringFormat=已选 {0}}"
+                                               Foreground="{StaticResource Text300Brush}" FontSize="12"
+                                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                            Background="#2238D996" MouseLeftButtonDown="BatchEnable_Click">
+                                        <TextBlock x:Name="BatchEnableText" Text="启用" Foreground="{StaticResource StatusGreenBrush}" FontSize="12"/>
+                                    </Border>
+                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                            Background="#22A1A1AA" MouseLeftButtonDown="BatchDisable_Click">
+                                        <TextBlock x:Name="BatchDisableText" Text="禁用" Foreground="{StaticResource Text300Brush}" FontSize="12"/>
+                                    </Border>
+                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand"
+                                            Background="#33EF4444" MouseLeftButtonDown="BatchDelete_Click">
+                                        <TextBlock x:Name="BatchDeleteText" Text="卸载" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
+                                    </Border>
                                 </StackPanel>
                             </Border>
 

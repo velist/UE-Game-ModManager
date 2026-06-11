@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UEModManager.Services.Import;
 
@@ -125,6 +126,50 @@ public class ModFileGrouperTests
     public void GroupByBaseName_Null_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => ModFileGrouper.GroupByBaseName(null!));
+    }
+
+    [Fact]
+    public void SplitByImportScope_SameFileNameInDifferentNestedArchives_SeparateScopes()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var files = new[]
+        {
+            Path.Combine(root, "A.zip_extracted", "pakchunk0-WindowsNoEditor_P.pak"),
+            Path.Combine(root, "B.zip_extracted", "pakchunk0-WindowsNoEditor_P.pak"),
+        };
+
+        var scopes = ModFileGrouper.SplitByImportScope(files, root);
+
+        Assert.Equal(2, scopes.Count);
+        Assert.All(scopes, s => Assert.Single(s));
+    }
+
+    [Fact]
+    public void SplitByImportScope_MultiLevelNestedArchive_UsesInnermostExtractedScope()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var files = new[]
+        {
+            Path.Combine(root, "outer.zip_extracted", "innerA.zip_extracted", "pakchunk0-WindowsNoEditor_P.pak"),
+            Path.Combine(root, "outer.zip_extracted", "innerB.zip_extracted", "pakchunk0-WindowsNoEditor_P.pak"),
+        };
+
+        var scopes = ModFileGrouper.SplitByImportScope(files, root);
+
+        Assert.Equal(2, scopes.Count);
+        Assert.All(scopes, s => Assert.Single(s));
+    }
+
+    [Fact]
+    public void SplitByImportScope_DeduplicatesFilesFromOverlappingScans()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(root, "A.zip_extracted", "MyMod.pak");
+
+        var scopes = ModFileGrouper.SplitByImportScope([file, file], root);
+
+        Assert.Single(scopes);
+        Assert.Single(scopes[0]);
     }
 
     // ─── SelectGroupName ───

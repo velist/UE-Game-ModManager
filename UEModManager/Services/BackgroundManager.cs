@@ -67,6 +67,8 @@ namespace UEModManager.Services
             {
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
+                // IgnoreImageCache：避免 WPF 按 URI 字符串缓存，切图后弹窗也能拿到最新内容
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 bitmap.UriSource = new Uri(bg.ImagePath, UriKind.Absolute);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
@@ -78,7 +80,10 @@ namespace UEModManager.Services
                 bgImage.Visibility = Visibility.Visible;
                 bgOverlay.Visibility = Visibility.Visible;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BackgroundManager] ApplyToDialog 失败: {ex.Message}");
+            }
         }
     }
 }

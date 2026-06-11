@@ -104,8 +104,17 @@ namespace UEModManager.Models
         public PackageKind Kind { get; set; } = PackageKind.Mod;
 
         /// <summary>
-        /// 插件目标路径（仅 Plugin 类型使用）。
+        /// 非 MOD 包目标根路径（相对于游戏根目录）。
         /// </summary>
-        public string? PluginTargetPath { get; set; }
+        public string? TargetRootPath { get; set; }
+
+        /// <summary>
+        /// 插件目标路径（旧字段，保留兼容）。
+        /// </summary>
+        public string? PluginTargetPath
+        {
+            get => TargetRootPath;
+            set => TargetRootPath = value;
+        }
     }
 }

@@ -1,0 +1,15 @@
+name = "modmanger-api"
+main = "src/index.js"
+compatibility_date = "2025-10-02"
+account_id = "4c1d8aa164a8e9f8a174a9e89fd3bffe"
+workers_dev = false
+preview_urls = false
+
+# secrets (BREVO_API_KEY / BREVO_FROM / BREVO_FROM_NAME / SUPABASE_*) 在 Cloudflare 端单独管理
+# wrangler deploy 不会清除现有 secret 值
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "7bca3c2fb15b4bc09034695d3435360f"
+
+# routes 已经在 zone 级别绑定到 api.modmanger.com/*，部署不带 routes 不会改动

@@ -202,17 +202,11 @@ namespace UEModManager
                     // 注册统一认证服务
                     services.AddScoped<UnifiedAuthService>();
 
-                    // 注册 Supabase REST 服务（使用 service key 访问 PostgREST）
-                    services.AddHttpClient<SupabaseRestService>();
-
                     // 注册本地缓存服务
                     services.AddScoped<LocalCacheService>();
 
                     // 注册离线模式服务
                     services.AddScoped<OfflineModeService>();
-
-                    // 保留Supabase服务作为备用 (未来用于云同步)
-                    SupabaseConfig.ConfigureServices(services);
 
                     // 注册邮件发送服务（Brevo API + SMTP 双通道）
                     RegisterEmailServices(services);
@@ -334,8 +328,7 @@ namespace UEModManager
                 var unifiedAuthService = ServiceProvider.GetRequiredService<UnifiedAuthService>();
                 Console.WriteLine("[Auth] UnifiedAuthService.InitializeAsync");
                 await unifiedAuthService.InitializeAsync();
-                // 强制切换为在线模式（Supabase 优先），避免离线导致回到旧账号
-                try { Console.WriteLine("[Auth] SetAuthMode -> OnlineOnly"); await unifiedAuthService.SetAuthModeAsync(UEModManager.Services.UnifiedAuthService.AuthMode.OnlineOnly); } catch (Exception smEx) { Console.WriteLine($"[Auth] SetAuthMode failed: {smEx}"); }
+                try { Console.WriteLine("[Auth] SetAuthMode -> OfflineOnly"); await unifiedAuthService.SetAuthModeAsync(UEModManager.Services.UnifiedAuthService.AuthMode.OfflineOnly); } catch (Exception smEx) { Console.WriteLine($"[Auth] SetAuthMode failed: {smEx}"); }
 
                 // 尝试恢复会话（自动登录）
                 Console.WriteLine("[Auth] Try RestoreSession");
@@ -431,14 +424,22 @@ namespace UEModManager
         }
 
         /// <summary>
-        /// 注册邮件发送服务（仅Brevo API + SMTP）
+        /// 注册邮件发送服务（Worker 代理为主通道，Brevo 直连为兜底）
         /// </summary>
         private static void RegisterEmailServices(IServiceCollection services)
         {
-            // 加载Brevo配置
+            // 加载Brevo配置（开发期本地放 brevo.env 仍可作为兜底；分发包不再内置 key）
             var brevoConfig = LoadBrevoConfig();
 
-            // 注册 Brevo API 服务（主通道，样式显示最佳）
+            // 主通道：通过 Cloudflare Worker (api.modmanger.com) 代理调 Brevo
+            // 客户端不持有任何 API Key，所有 secrets 保留在 Worker 端
+            services.AddSingleton<WorkerEmailService>(provider =>
+            {
+                var logger = provider.GetRequiredService<ILogger<WorkerEmailService>>();
+                return new WorkerEmailService(logger, "https://api.modmanger.com");
+            });
+
+            // 注册 Brevo API 服务（兜底通道，仅当 brevoConfig.ApiKey 非空时实际生效）
             services.AddSingleton<BrevoApiEmailService>(provider =>
             {
                 var logger = provider.GetRequiredService<ILogger<BrevoApiEmailService>>();
@@ -450,7 +451,7 @@ namespace UEModManager
                 );
             });
 
-            // 注册 Brevo SMTP 服务（备用通道）
+            // 注册 Brevo SMTP 服务（最后兜底）
             services.AddSingleton<BrevoEmailService>(provider =>
             {
                 var logger = provider.GetRequiredService<ILogger<BrevoEmailService>>();
@@ -463,14 +464,15 @@ namespace UEModManager
                 );
             });
 
-            // 注册故障切换服务（主服务）
+            // 注册故障切换服务：Worker 优先 → Brevo API 兜底 → Brevo SMTP 最后兜底
             services.AddSingleton<FallbackEmailService>(provider =>
             {
                 var logger = provider.GetRequiredService<ILogger<FallbackEmailService>>();
                 var senders = new List<IEmailSender>
                 {
-                    provider.GetRequiredService<BrevoApiEmailService>(),  // API 优先（样式最佳）
-                    provider.GetRequiredService<BrevoEmailService>()      // SMTP 备用
+                    provider.GetRequiredService<WorkerEmailService>(),    // 主：Worker 代理
+                    provider.GetRequiredService<BrevoApiEmailService>(),  // 兜底1：Brevo API 直连
+                    provider.GetRequiredService<BrevoEmailService>()      // 兜底2：Brevo SMTP
                 };
                 return new FallbackEmailService(logger, senders);
             });

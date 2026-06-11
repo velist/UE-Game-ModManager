@@ -15,10 +15,17 @@ namespace UEModManager.Views
         private readonly GameConfigService _gameConfig;
         private readonly ObjectStore? _objectStore;
         private readonly PackageRepository? _packageRepo;
+        private readonly DiagnosticExportService? _diagnosticExport;
         private string? _pendingGameIconPath;
         private BackgroundMode _selectedBgMode;
         private BackgroundSettings? _originalBgSettings;
         private DeploymentBackendType _selectedBackend = DeploymentBackendType.Copy;
+
+        /// <summary>
+        /// 背景图副本的实际路径（程序内部 AppData 下的拷贝），用于持久化与渲染。
+        /// 文本框 BgImagePathBox 显示的是用户**原始**选择路径，仅作视觉反馈，不参与渲染。
+        /// </summary>
+        private string? _bgImageActualPath;
 
         public SettingsWindow()
         {
@@ -28,6 +35,7 @@ namespace UEModManager.Views
             _gameConfig = sp!.GetRequiredService<GameConfigService>();
             _objectStore = sp.GetService<ObjectStore>();
             _packageRepo = sp.GetService<PackageRepository>();
+            _diagnosticExport = sp.GetService<DiagnosticExportService>();
 
             // 初始化语言下拉框（避免触发 SelectionChanged）
             LanguageComboBox.SelectionChanged -= LanguageComboBox_SelectionChanged;
@@ -77,6 +85,7 @@ namespace UEModManager.Views
             AppearancePanel.Visibility = Visibility.Collapsed;
             AboutPanel.Visibility = Visibility.Collapsed;
             DeployPanel.Visibility = Visibility.Collapsed;
+            FeedbackPanel.Visibility = Visibility.Collapsed;
 
             if (sender == TabGeneral)
                 GeneralPanel.Visibility = Visibility.Visible;
@@ -88,6 +97,8 @@ namespace UEModManager.Views
                 AboutPanel.Visibility = Visibility.Visible;
             else if (sender == TabDeploy)
                 DeployPanel.Visibility = Visibility.Visible;
+            else if (sender == TabFeedback)
+                FeedbackPanel.Visibility = Visibility.Visible;
         }
 
         // ─── 加载当前游戏配置 ───
@@ -125,7 +136,9 @@ namespace UEModManager.Views
             _selectedBgMode = bg.Mode;
             UpdateBgModeUI();
 
-            // 图片路径
+            // 图片路径：bg.ImagePath 持久化的是副本路径
+            // 显示在文本框里时尽量给"用户能看懂"的路径——若副本存在，仍显示副本路径（兼容旧设置）
+            _bgImageActualPath = string.IsNullOrEmpty(bg.ImagePath) ? null : bg.ImagePath;
             if (!string.IsNullOrEmpty(bg.ImagePath))
                 BgImagePathBox.Text = bg.ImagePath;
 
@@ -195,19 +208,50 @@ namespace UEModManager.Views
                         "UEModManager", "Backgrounds");
                     Directory.CreateDirectory(bgDir);
 
+                    // 唯一文件名 — 避开 File.Copy 同名覆盖竞争 + WPF BitmapImage URI 缓存
                     var ext = Path.GetExtension(dlg.FileName);
-                    var destPath = Path.Combine(bgDir, $"custom_bg{ext}");
+                    var destPath = Path.Combine(bgDir, $"bg_{DateTime.Now.Ticks}{ext}");
                     File.Copy(dlg.FileName, destPath, true);
 
-                    BgImagePathBox.Text = destPath;
+                    Console.WriteLine($"[Settings] 背景图已复制: {dlg.FileName} -> {destPath}");
+
+                    // 清理旧副本，保留当前一份（含历史 custom_bg.* 命名）
+                    CleanupOldBackgroundCopies(bgDir, destPath);
+
+                    // 字段：实际副本路径（用于渲染 / 持久化）
+                    _bgImageActualPath = destPath;
+
+                    // 文本框：用户**原始**选择路径（视觉反馈，不参与渲染）
+                    BgImagePathBox.Text = dlg.FileName;
+
                     PreviewBackground();
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"[Settings] 背景图选择失败: {ex.Message}");
                     CyberMessageBox.Show(this, $"选择图片失败: {ex.Message}", "错误",
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        /// <summary>清理 Backgrounds 目录下除当前副本外的所有 bg_* / custom_bg.* 旧文件，避免堆积。</summary>
+        private static void CleanupOldBackgroundCopies(string bgDir, string keepPath)
+        {
+            try
+            {
+                var keep = Path.GetFullPath(keepPath);
+                var files = System.Linq.Enumerable.Concat(
+                    Directory.EnumerateFiles(bgDir, "bg_*"),
+                    Directory.EnumerateFiles(bgDir, "custom_bg.*"));
+                foreach (var f in files)
+                {
+                    if (string.Equals(Path.GetFullPath(f), keep, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    try { File.Delete(f); } catch { /* 被占用就跳过，下次再清 */ }
+                }
+            }
+            catch { /* 清理是 best-effort，失败不影响主流程 */ }
         }
 
         private void BgOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -235,7 +279,8 @@ namespace UEModManager.Views
             var preview = new BackgroundSettings
             {
                 Mode = _selectedBgMode,
-                ImagePath = BgImagePathBox?.Text?.Trim(),
+                // 优先用副本路径（_bgImageActualPath），fallback 到文本框（兼容旧设置加载）
+                ImagePath = _bgImageActualPath ?? BgImagePathBox?.Text?.Trim(),
                 Opacity = BgOpacitySlider.Value / 100.0,
                 BlurRadius = BgBlurSlider.Value / 100.0,
                 ApplyToDialogs = ApplyToDialogsToggle?.IsChecked == true
@@ -476,6 +521,7 @@ namespace UEModManager.Views
                 TabPaths.Content = "Game Paths";
                 TabAppearance.Content = "Appearance";
                 TabAbout.Content = "About";
+                TabFeedback.Content = "Feedback & Diagnostics";
                 AppearanceTitle.Text = "Appearance";
                 BgModeLabel.Text = "Background Mode";
                 BgModeGradientText.Text = "Gradient";
@@ -496,6 +542,22 @@ namespace UEModManager.Views
                 AboutDesc2.Text = "Supports Stellar Blade, Black Myth Wukong and more";
                 DonationText.Text = "If you find this helpful, buy me a coffee!";
                 CreditsTitle.Text = "Credits";
+
+                // 反馈与诊断
+                FeedbackTitle.Text = "Feedback & Diagnostics";
+                FeedbackSubtitle.Text = "Export a diagnostic bundle when reporting issues, or contact us via the channels below.";
+                DiagBundleTitle.Text = "Export Diagnostic Bundle";
+                DiagBundleHint.Text = "Bundle logs, current data snapshot, and recent transactions in one click";
+                DiagBundleContentLabel.Text = "Bundle contents";
+                DiagBundleRedactHint.Text = "Passwords, tokens and emails are automatically redacted — safe to send.";
+                ExportDiagButton.Content = "Export Bundle";
+                FeedbackChannelsTitle.Text = "Contact Channels";
+                QqGroupLabel.Text = "QQ Group (recommended)";
+                EmailLabel.Text = "Email";
+                GithubLabel.Text = "GitHub Issue";
+                JoinQqGroupBtn.Content = "Join";
+                SendEmailBtn.Content = "Send";
+                OpenGithubBtn.Content = "Open";
             }
             else
             {
@@ -504,6 +566,7 @@ namespace UEModManager.Views
                 TabPaths.Content = "游戏路径";
                 TabAppearance.Content = "外观设置";
                 TabAbout.Content = "关于软件";
+                TabFeedback.Content = "反馈与诊断";
                 AppearanceTitle.Text = "外观设置";
                 BgModeLabel.Text = "背景模式";
                 BgModeGradientText.Text = "默认渐变";
@@ -524,6 +587,99 @@ namespace UEModManager.Views
                 AboutDesc2.Text = "支持剑星、黑神话悟空等多款游戏";
                 DonationText.Text = "如果你觉得有帮助，可以请我喝一杯咖啡！";
                 CreditsTitle.Text = "鸣谢名单";
+
+                // 反馈与诊断
+                FeedbackTitle.Text = "反馈与诊断";
+                FeedbackSubtitle.Text = "出问题时导出诊断包发给开发者，或通过下面的渠道直接联系";
+                DiagBundleTitle.Text = "导出诊断包";
+                DiagBundleHint.Text = "一键打包日志、当前数据快照与最近事务记录";
+                DiagBundleContentLabel.Text = "包内容";
+                DiagBundleRedactHint.Text = "包内的密码、token、邮箱地址会自动脱敏，可以放心发给开发者";
+                ExportDiagButton.Content = "导出诊断包";
+                FeedbackChannelsTitle.Text = "反馈渠道";
+                QqGroupLabel.Text = "QQ 群（推荐）";
+                EmailLabel.Text = "邮箱";
+                GithubLabel.Text = "GitHub Issue";
+                JoinQqGroupBtn.Content = "加入";
+                SendEmailBtn.Content = "发送";
+                OpenGithubBtn.Content = "打开";
+            }
+        }
+
+        // ─── 反馈与诊断 ───
+
+        private async void ExportDiagnostic_Click(object sender, RoutedEventArgs e)
+        {
+            if (_diagnosticExport == null)
+            {
+                CyberMessageBox.Show(this,
+                    "诊断包导出服务未初始化。请重启程序后再试。",
+                    "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "导出诊断包",
+                FileName = $"UEModManager_diag_{DateTime.Now:yyyyMMdd_HHmmss}.zip",
+                Filter = "诊断包 (*.zip)|*.zip",
+                DefaultExt = ".zip"
+            };
+
+            if (dialog.ShowDialog(this) != true) return;
+
+            try
+            {
+                Mouse.OverrideCursor = Cursors.Wait;
+                ExportDiagButton.IsEnabled = false;
+
+                var count = await _diagnosticExport.ExportToZipAsync(dialog.FileName);
+
+                CyberMessageBox.Show(this,
+                    $"诊断包已导出（共 {count} 个条目）：\n{dialog.FileName}\n\n敏感信息已自动脱敏，可放心发给开发者。",
+                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this,
+                    $"导出失败：{ex.Message}",
+                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                ExportDiagButton.IsEnabled = true;
+                Mouse.OverrideCursor = null;
+            }
+        }
+
+        private void JoinQqGroup_Click(object sender, RoutedEventArgs e)
+        {
+            OpenUrl("https://qm.qq.com/q/CIi6LT94zK");
+        }
+
+        private void SendEmail_Click(object sender, RoutedEventArgs e)
+        {
+            OpenUrl("mailto:mr.xzuo@foxmail.com?subject=爱酱MOD管理器%20-%20反馈&body=请在这里描述问题，并附上诊断包文件%0A%0A");
+        }
+
+        private void OpenGithub_Click(object sender, RoutedEventArgs e)
+        {
+            OpenUrl("https://github.com/velist/UE-Game-ModManager");
+        }
+
+        private static void OpenUrl(string url)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Settings] 打开链接失败 {url}: {ex.Message}");
             }
         }
 
@@ -559,7 +715,8 @@ namespace UEModManager.Views
                 var bgSettings = new BackgroundSettings
                 {
                     Mode = _selectedBgMode,
-                    ImagePath = BgImagePathBox.Text?.Trim(),
+                    // 优先用副本路径，fallback 到文本框（兼容旧设置）
+                    ImagePath = _bgImageActualPath ?? BgImagePathBox.Text?.Trim(),
                     Opacity = BgOpacitySlider.Value / 100.0,
                     BlurRadius = BgBlurSlider.Value / 100.0,
                     ApplyToDialogs = ApplyToDialogsToggle.IsChecked == true
@@ -573,6 +730,13 @@ namespace UEModManager.Views
                 UiPreferences.SavePluginEnabled(PluginSystemToggle.IsChecked == true);
 
                 // 保存部署设置
+                var repoPath = RepoPathTextBox.Text?.Trim();
+                if (_objectStore != null && !string.IsNullOrWhiteSpace(repoPath))
+                {
+                    Directory.CreateDirectory(repoPath);
+                    _objectStore.SetRepositoryRoot(repoPath);
+                }
+
                 UiPreferences.SaveDeployBackend(_selectedBackend);
                 UiPreferences.SaveDeployConfirm(DeployConfirmToggle.IsChecked == true);
                 UiPreferences.SaveAutoDeploy(AutoDeployToggle.IsChecked == true);

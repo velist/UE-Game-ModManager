@@ -93,3 +93,13 @@ dashboard-preview.png
 *.swp
 *.swo
 *~
+
+# ─── 密钥/环境变量（严禁提交）───
+*.env
+!*.env.example
+
+# ─── 用户诊断反馈数据（含用户隐私）───
+用户反馈/
+
+# ─── Wrangler 构建产物 ───
+.wrangler/

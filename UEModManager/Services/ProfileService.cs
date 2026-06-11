@@ -266,10 +266,68 @@ namespace UEModManager.Services
 
             if (entry != null)
             {
+                if (entry.IsEnabled == enabled) return;
+
                 entry.IsEnabled = enabled;
                 CurrentProfile.LastModified = DateTime.Now;
                 await SaveProfilesAsync();
             }
+        }
+
+        public async Task AddPackagesToCurrentProfileAsync(IEnumerable<Package> packages)
+        {
+            if (CurrentProfile == null) return;
+
+            var existing = new HashSet<string>(
+                CurrentProfile.Packages.Select(p => p.PackageKey),
+                StringComparer.OrdinalIgnoreCase);
+
+            var priority = CurrentProfile.Packages.Count == 0
+                ? 0
+                : CurrentProfile.Packages.Max(p => p.Priority) + 1;
+            var changed = false;
+
+            foreach (var package in packages)
+            {
+                if (!existing.Add(package.PackageKey))
+                    continue;
+
+                CurrentProfile.Packages.Add(new ProfilePackageEntry
+                {
+                    PackageKey = package.PackageKey,
+                    IsEnabled = false,
+                    Priority = priority++,
+                    Kind = package.Kind,
+                    TargetRootPath = package.TargetRootPath
+                });
+                changed = true;
+            }
+
+            if (!changed) return;
+
+            CurrentProfile.LastModified = DateTime.Now;
+            await SaveProfilesAsync();
+            ProfileChanged?.Invoke(CurrentProfile);
+        }
+
+        public async Task RemovePackageReferencesAsync(string packageKey)
+        {
+            var changed = false;
+            foreach (var profile in _profiles)
+            {
+                var removed = profile.Packages.RemoveAll(p =>
+                    p.PackageKey.Equals(packageKey, StringComparison.OrdinalIgnoreCase));
+                if (removed <= 0) continue;
+
+                profile.LastModified = DateTime.Now;
+                changed = true;
+            }
+
+            if (!changed) return;
+
+            await SaveProfilesAsync();
+            ProfileListChanged?.Invoke();
+            ProfileChanged?.Invoke(CurrentProfile);
         }
 
         /// <summary>

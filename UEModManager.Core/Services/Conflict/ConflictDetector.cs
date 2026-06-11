@@ -114,8 +114,8 @@ namespace UEModManager.Services.Conflict
 
         /// <summary>
         /// 根据包类型计算 Artifact 在游戏目录中的目标绝对路径。
-        /// - Plugin → gamePath/PluginTargetPath/PackageKey/RelativeTargetPath
-        /// - Mod/Config → modPath/PackageKey/RelativeTargetPath
+        /// - 非 MOD → gamePath/TargetRootPath/PackageKey/RelativeTargetPath
+        /// - MOD → modPath/PackageKey/RelativeTargetPath
         /// </summary>
         public static string ComputeTargetPath(
             PackageArtifact artifact,
@@ -124,10 +124,10 @@ namespace UEModManager.Services.Conflict
             string modPath,
             string gamePath)
         {
-            if (package.Kind == PackageKind.Plugin)
+            if (package.Kind != PackageKind.Mod)
             {
-                var pluginPath = entry.PluginTargetPath ?? package.PluginTargetPath ?? "";
-                return Path.Combine(gamePath, pluginPath, package.PackageKey, artifact.RelativeTargetPath);
+                var targetRootPath = entry.TargetRootPath ?? package.TargetRootPath ?? "";
+                return Path.Combine(gamePath, targetRootPath, package.PackageKey, artifact.RelativeTargetPath);
             }
             return Path.Combine(modPath, package.PackageKey, artifact.RelativeTargetPath);
         }
@@ -138,8 +138,8 @@ namespace UEModManager.Services.Conflict
         /// （即引擎按加载顺序会发生覆盖的潜在冲突）。
         ///
         /// 路径布局：
-        /// - Plugin → gamePath/PluginTargetPath/RelativeTargetPath
-        /// - Mod/Config → modPath/RelativeTargetPath
+        /// - 非 MOD → gamePath/TargetRootPath/RelativeTargetPath
+        /// - MOD → modPath/RelativeTargetPath
         /// </summary>
         public static string ComputeLoadConflictKey(
             PackageArtifact artifact,
@@ -148,10 +148,10 @@ namespace UEModManager.Services.Conflict
             string modPath,
             string gamePath)
         {
-            if (package.Kind == PackageKind.Plugin)
+            if (package.Kind != PackageKind.Mod)
             {
-                var pluginPath = entry.PluginTargetPath ?? package.PluginTargetPath ?? "";
-                return Path.Combine(gamePath, pluginPath, artifact.RelativeTargetPath);
+                var targetRootPath = entry.TargetRootPath ?? package.TargetRootPath ?? "";
+                return Path.Combine(gamePath, targetRootPath, artifact.RelativeTargetPath);
             }
             return Path.Combine(modPath, artifact.RelativeTargetPath);
         }

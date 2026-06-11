@@ -14,7 +14,7 @@ using UEModManager.Services;
 namespace UEModManager.Views
 {
     /// <summary>
-    /// 数据库配置窗口（已废弃 — 云端数据库现通过 Cloudflare Workers + Supabase REST 管理）
+    /// 数据库配置窗口（已废弃 — 云端数据库配置已移除，当前使用本地 SQLite 数据库）
     /// 保留窗口壳以兼容 XAML，Phase 6 将完全重写
     /// </summary>
     public partial class DatabaseConfigWindow : Window
@@ -30,7 +30,7 @@ namespace UEModManager.Views
             var serviceProvider = ((App)Application.Current).ServiceProvider;
             _logger = serviceProvider.GetRequiredService<ILogger<DatabaseConfigWindow>>();
 
-            _logger.LogInformation("数据库配置窗口已废弃，云端数据库通过 Supabase REST 管理");
+            _logger.LogInformation("数据库配置窗口已废弃，当前使用本地 SQLite 数据库");
         }
 
         private void LoadFreeProviders() { }
@@ -52,13 +52,13 @@ namespace UEModManager.Views
 
         private void TestConnection_Click(object sender, RoutedEventArgs e)
         {
-            CyberMessageBox.Show(this, "此功能已废弃。\n云端数据库现通过 Cloudflare Workers + Supabase REST 管理。",
+            CyberMessageBox.Show(this, "此功能已废弃。\n云端数据库配置已移除，当前使用本地 SQLite 数据库。",
                           "功能已迁移", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void InitializeDatabase_Click(object sender, RoutedEventArgs e)
         {
-            CyberMessageBox.Show(this, "此功能已废弃。\n云端数据库现通过 Cloudflare Workers + Supabase REST 管理。",
+            CyberMessageBox.Show(this, "此功能已废弃。\n云端数据库配置已移除，当前使用本地 SQLite 数据库。",
                           "功能已迁移", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 

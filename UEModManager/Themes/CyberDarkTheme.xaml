@@ -72,6 +72,10 @@
     <SolidColorBrush x:Key="StatusGreenBrush" Color="{StaticResource StatusGreenColor}"/>
     <SolidColorBrush x:Key="StatusOrangeBrush" Color="{StaticResource StatusOrangeColor}"/>
     <SolidColorBrush x:Key="StatusRedBrush" Color="{StaticResource StatusRedColor}"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource StatusGreenColor}"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource StatusOrangeColor}"/>
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource StatusRedColor}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource StatusRedColor}"/>
     <SolidColorBrush x:Key="CloseHoverBrush" Color="{StaticResource CloseHoverColor}"/>
     <SolidColorBrush x:Key="ClosePressedBrush" Color="{StaticResource ClosePressedColor}"/>
 

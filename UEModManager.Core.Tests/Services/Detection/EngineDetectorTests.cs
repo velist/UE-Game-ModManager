@@ -113,6 +113,36 @@ public class EngineDetectorTests
         Assert.Equal(EngineType.Decima, EngineDetector.Detect(dir, file, dirGlob));
     }
 
+    // ─── Diablo 4 (暴雪自研) ───
+
+    [Fact]
+    public void Detect_Diablo4_MpqFile()
+    {
+        var (dir, file, dirGlob) = Probes(files: new HashSet<string> { "*.mpq" });
+        Assert.Equal(EngineType.Diablo4Engine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
+    [Fact]
+    public void Detect_Diablo4_DiabloIvExe()
+    {
+        var (dir, file, dirGlob) = Probes(files: new HashSet<string> { "Diablo IV.exe" });
+        Assert.Equal(EngineType.Diablo4Engine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
+    [Fact]
+    public void Detect_Diablo4_ConfigWtfFile()
+    {
+        var (dir, file, dirGlob) = Probes(files: new HashSet<string> { "Config.wtf" });
+        Assert.Equal(EngineType.Diablo4Engine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
+    [Fact]
+    public void Detect_Diablo4_WtfDirectory()
+    {
+        var (dir, file, dirGlob) = Probes(dirs: new HashSet<string> { "WTF" });
+        Assert.Equal(EngineType.Diablo4Engine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
     // ─── 优先级 ───
 
     [Fact]
@@ -144,6 +174,27 @@ public class EngineDetectorTests
             files: new HashSet<string> { "*.pck" });
 
         Assert.Equal(EngineType.REEngine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
+    [Fact]
+    public void Detect_UE_Beats_Diablo4_WhenBothHit()
+    {
+        // 同时命中 UE 和 Diablo4 特征 → UE 先返回（决策树前置优先级）
+        var (dir, file, dirGlob) = Probes(
+            dirs: new HashSet<string> { "Content/Paks" },
+            files: new HashSet<string> { "*.mpq" });
+
+        Assert.Equal(EngineType.UnrealEngine, EngineDetector.Detect(dir, file, dirGlob));
+    }
+
+    [Fact]
+    public void Detect_Decima_Beats_Diablo4_WhenBothHit()
+    {
+        // Decima 决策位在 Diablo4 之前 → 命中 *.core 时优先返回 Decima
+        var (dir, file, dirGlob) = Probes(
+            files: new HashSet<string> { "*.core", "*.mpq" });
+
+        Assert.Equal(EngineType.Decima, EngineDetector.Detect(dir, file, dirGlob));
     }
 
     // ─── 参数校验 ───

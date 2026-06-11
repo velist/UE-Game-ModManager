@@ -57,6 +57,13 @@ namespace UEModManager.Services.Detection
                 || directoryExists("Prefetch"))
                 return EngineType.Decima;
 
+            // Diablo 4（暴雪自研）：*.mpq 包、Diablo IV.exe、Config.wtf 反和谐配置、WTF 启动配置目录
+            if (hasFileMatching("*.mpq")
+                || hasFileMatching("Diablo IV.exe")
+                || hasFileMatching("Config.wtf")
+                || directoryExists("WTF"))
+                return EngineType.Diablo4Engine;
+
             return EngineType.Unknown;
         }
     }

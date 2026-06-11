@@ -7,8 +7,8 @@ namespace UEModManager.Services.DeploymentPlanning
     /// 部署目标路径计算（纯函数）。
     ///
     /// MOD 包：<c>{modPath}/{packageKey}/{RelativeTargetPath}</c>
-    /// 插件包：<c>{gamePath}/{PluginTargetPath}/{packageKey}/{RelativeTargetPath}</c>
-    /// 其中 PluginTargetPath 优先取 ProfilePackageEntry.PluginTargetPath，否则取 Package.PluginTargetPath。
+    /// 非 MOD 包：<c>{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}</c>
+    /// 其中 TargetRootPath 优先取 ProfilePackageEntry.TargetRootPath，否则取 Package.TargetRootPath。
     ///
     /// 与主项目的部署逻辑一致；与 ResolvedView Layer 1 的"无 PackageKey 子目录"语义不同
     /// （后者用于冲突检测，详见 docs/findings/2026-04-28-conflict-detector-noop-by-design.md）。
@@ -23,10 +23,10 @@ namespace UEModManager.Services.DeploymentPlanning
             string modPath,
             string gamePath)
         {
-            if (package.Kind == PackageKind.Plugin)
+            if (package.Kind != PackageKind.Mod)
             {
-                var pluginPath = entry?.PluginTargetPath ?? package.PluginTargetPath ?? "";
-                return Path.Combine(gamePath, pluginPath, package.PackageKey, artifact.RelativeTargetPath);
+                var targetRootPath = entry?.TargetRootPath ?? package.TargetRootPath ?? "";
+                return Path.Combine(gamePath, targetRootPath, package.PackageKey, artifact.RelativeTargetPath);
             }
 
             return Path.Combine(modPath, package.PackageKey, artifact.RelativeTargetPath);
@@ -41,10 +41,10 @@ namespace UEModManager.Services.DeploymentPlanning
             string gamePath,
             string absoluteTargetPath)
         {
-            if (package.Kind == PackageKind.Plugin)
+            if (package.Kind != PackageKind.Mod)
             {
-                var pluginPath = entry?.PluginTargetPath ?? package.PluginTargetPath ?? "";
-                var baseDir = Path.Combine(gamePath, pluginPath);
+                var targetRootPath = entry?.TargetRootPath ?? package.TargetRootPath ?? "";
+                var baseDir = Path.Combine(gamePath, targetRootPath);
                 return Path.GetRelativePath(baseDir, absoluteTargetPath);
             }
 

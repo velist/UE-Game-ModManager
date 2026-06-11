@@ -112,7 +112,20 @@ namespace UEModManager.Views
                 AddFileRow(entry);
             }
 
+            UpdateTargetPathPanel();
             CheckConflicts();
+        }
+
+        private void UpdateTargetPathPanel()
+        {
+            var hasNonMod = _fileEntries.Any(f => f.Kind != PackageKind.Mod && f.ShouldImport);
+            TargetPathPanel.Visibility = hasNonMod ? Visibility.Visible : Visibility.Collapsed;
+            if (!hasNonMod || !string.IsNullOrWhiteSpace(TargetPathTextBox.Text))
+                return;
+
+            TargetPathTextBox.Text = _fileEntries.Any(f => f.Kind == PackageKind.Plugin)
+                ? "Binaries/Win64"
+                : "Saved/Config/WindowsNoEditor";
         }
 
         private void AddFileRow(FileEntry entry)
@@ -205,8 +218,8 @@ namespace UEModManager.Views
                 VerticalAlignment = VerticalAlignment.Center,
                 Tag = entry
             };
-            checkbox.Checked += (_, _) => entry.ShouldImport = true;
-            checkbox.Unchecked += (_, _) => entry.ShouldImport = false;
+            checkbox.Checked += (_, _) => { entry.ShouldImport = true; UpdateTargetPathPanel(); UpdateDeployPaths(); };
+            checkbox.Unchecked += (_, _) => { entry.ShouldImport = false; UpdateTargetPathPanel(); UpdateDeployPaths(); };
             Grid.SetColumn(checkbox, 3);
             grid.Children.Add(checkbox);
 
@@ -254,13 +267,22 @@ namespace UEModManager.Views
 
         private async void ConfirmButton_Click(object sender, RoutedEventArgs e)
         {
-            var toImport = _fileEntries.Where(f => f.ShouldImport).Select(f => f.FilePath).ToArray();
+            var selectedEntries = _fileEntries.Where(f => f.ShouldImport).ToList();
+            var toImport = selectedEntries.Select(f => f.FilePath).ToArray();
             if (toImport.Length == 0) return;
+
+            var targetRootPath = NormalizeTargetPath(TargetPathTextBox.Text);
+            if (selectedEntries.Any(f => f.Kind != PackageKind.Mod) && string.IsNullOrWhiteSpace(targetRootPath))
+            {
+                MessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
+                TargetPathTextBox.Focus();
+                return;
+            }
 
             ConfirmButton.IsEnabled = false;
             try
             {
-                ImportResults = await _importService.ImportAsync(toImport);
+                ImportResults = await _importService.ImportAsync(toImport, targetRootPath);
                 DialogResult = true;
             }
             catch (Exception ex)
@@ -284,14 +306,13 @@ namespace UEModManager.Views
             ModPathText.Text = string.IsNullOrEmpty(modPath) ? "未配置" : modPath;
 
             var gameName = _gameConfig.CurrentGameName;
-            var pluginPath = !string.IsNullOrEmpty(gameName) ? _gameConfig.GetPluginPath(gameName) : "";
-            PluginPathText.Text = string.IsNullOrEmpty(pluginPath) ? "未配置" : pluginPath;
+            var nonModTargetPath = NormalizeTargetPath(TargetPathTextBox.Text);
+            PluginPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? "未配置" : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
+            ConfigPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? "未配置" : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
 
-            ConfigPathText.Text = string.IsNullOrEmpty(modPath) ? "未配置" : modPath;
-
-            bool hasMod = _fileEntries.Any(f => f.Kind == PackageKind.Mod);
-            bool hasPlugin = _fileEntries.Any(f => f.Kind == PackageKind.Plugin);
-            bool hasConfig = _fileEntries.Any(f => f.Kind == PackageKind.Config);
+            bool hasMod = _fileEntries.Any(f => f.Kind == PackageKind.Mod && f.ShouldImport);
+            bool hasPlugin = _fileEntries.Any(f => f.Kind == PackageKind.Plugin && f.ShouldImport);
+            bool hasConfig = _fileEntries.Any(f => f.Kind == PackageKind.Config && f.ShouldImport);
 
             ModPathRow.Visibility = hasMod ? Visibility.Visible : Visibility.Collapsed;
             PluginPathRow.Visibility = hasPlugin ? Visibility.Visible : Visibility.Collapsed;
@@ -300,8 +321,8 @@ namespace UEModManager.Views
             var warnings = new List<string>();
             if (hasMod && string.IsNullOrEmpty(modPath))
                 warnings.Add("MOD");
-            if (hasPlugin && string.IsNullOrEmpty(pluginPath))
-                warnings.Add("插件");
+            if ((hasPlugin || hasConfig) && string.IsNullOrEmpty(nonModTargetPath))
+                warnings.Add("插件/配置");
 
             if (warnings.Count > 0)
             {
@@ -324,6 +345,20 @@ namespace UEModManager.Views
             OpenGamePathDialog();
         }
 
+        private void TargetPathPresetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TargetPathPresetBox.SelectedItem is not ComboBoxItem item) return;
+            var path = item.Tag?.ToString();
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            TargetPathTextBox.Text = path;
+        }
+
+        private void TargetPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateDeployPaths();
+        }
+
         private void OpenGamePathDialog()
         {
             var gameName = _gameConfig.CurrentGameName;
@@ -335,6 +370,13 @@ namespace UEModManager.Views
         }
 
         // ─── 工具方法 ───
+
+        private static string NormalizeTargetPath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            return path.Trim().TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        }
 
         private static PackageKind DetectKind(string ext) => ext switch
         {

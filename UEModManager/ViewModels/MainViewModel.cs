@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -141,7 +142,9 @@ namespace UEModManager.ViewModels
             _logger = logger;
 
             ModList = new ModListViewModel(modService, gameConfig, logger);
+            ModList.ConfigureActions(ToggleModAsync, DeletePackageModAsync, ToggleModsAsync, DeletePackageModsAsync);
             ModDetail = new ModDetailViewModel(modService, gameConfig, modData, logger);
+            ModDetail.ConfigureActions(ToggleModAsync, ChangePreviewAsync, DeletePackageModAsync);
             Categories = new CategoryViewModel(categoryService, logger);
 
             // 连接子 ViewModel 事件
@@ -246,7 +249,7 @@ namespace UEModManager.ViewModels
                             _logger.LogWarning("数据迁移部分失败: {Error}", result.ErrorMessage);
                     }
 
-                    await RefreshModsAsync();
+                    await RefreshFromRepositoryAsync();
                 }
             }
             catch (Exception ex)
@@ -261,57 +264,10 @@ namespace UEModManager.ViewModels
         }
 
         /// <summary>
-        /// 刷新 MOD 列表，并同步到当前 Profile。
+        /// 刷新 MOD 列表。v2.0 的主数据源是 PackageRepository/Profile，不再用目录扫描覆盖方案状态。
         /// </summary>
         [RelayCommand]
-        public async Task RefreshModsAsync()
-        {
-            try
-            {
-                IsLoading = true;
-                LoadingMessage = "扫描MOD...";
-
-                // 初始化数据服务
-                await _modData.SetCurrentGameAsync(_gameConfig.CurrentGameName);
-                await _categoryService.SetCurrentGameAsync(_gameConfig.CurrentGameName);
-
-                // 扫描文件系统
-                var mods = await _modService.ScanModsAsync(
-                    _gameConfig.CurrentModPath,
-                    _gameConfig.CurrentBackupPath);
-
-                // 更新 AllMods
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    AllMods.Clear();
-                    foreach (var mod in mods)
-                        AllMods.Add(mod);
-
-                    // 更新子 ViewModel
-                    ModList.SetSource(AllMods);
-                    Categories.UpdateCounts(AllMods);
-                });
-
-                // 同步到当前 Profile
-                await _profileService.SyncPackagesAsync(mods);
-                UpdateProfileSummary();
-
-                // 保存元数据
-                await _modData.SaveModsAsync(AllMods);
-
-                UpdateStatusBar();
-                _logger.LogInformation("MOD 刷新完成: {Count} 个", mods.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "刷新 MOD 失败");
-            }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
-            }
-        }
+        public Task RefreshModsAsync() => RefreshFromRepositoryAsync();
 
         // ─── 游戏操作 ───
 
@@ -347,7 +303,7 @@ namespace UEModManager.ViewModels
                 await _dataMigrationService.MigrateAsync(gameName);
             }
 
-            await RefreshModsAsync();
+            await RefreshFromRepositoryAsync();
         }
 
         /// <summary>
@@ -357,6 +313,59 @@ namespace UEModManager.ViewModels
         public void LaunchGame()
         {
             _gameConfig.LaunchGame();
+        }
+
+        public async Task RefreshFromRepositoryAsync()
+        {
+            try
+            {
+                IsLoading = true;
+                LoadingMessage = "刷新仓库...";
+
+                var profile = _profileService.CurrentProfile;
+                var profileEntries = profile?.Packages.ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase)
+                                     ?? new Dictionary<string, ProfilePackageEntry>(StringComparer.OrdinalIgnoreCase);
+                var packages = _packageRepository.GetAllPackages();
+
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    AllMods.Clear();
+                    foreach (var package in packages)
+                    {
+                        profileEntries.TryGetValue(package.PackageKey, out var entry);
+                        AllMods.Add(new ModInfo
+                        {
+                            Name = package.DisplayName,
+                            RealName = package.PackageKey,
+                            Description = package.Note ?? string.Empty,
+                            Categories = package.Tags.Count > 0 ? new List<string>(package.Tags) : new List<string> { "未分类" },
+                            IsEnabled = entry?.IsEnabled ?? false,
+                            IsPlugin = package.Kind == PackageKind.Plugin,
+                            PluginTargetPath = package.PluginTargetPath ?? string.Empty,
+                            PreviewImagePath = package.PreviewImagePath ?? string.Empty,
+                            FileSize = package.TotalSize,
+                            InstallDate = package.ImportedAt
+                        });
+                    }
+
+                    ModList.SetSource(AllMods);
+                    Categories.UpdateCounts(AllMods);
+                });
+
+                UpdateProfileSummary();
+                await _modData.SaveModsAsync(AllMods);
+                UpdateStatusBar();
+                _logger.LogInformation("仓库刷新完成: {Count} 个", packages.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "刷新仓库失败");
+            }
+            finally
+            {
+                IsLoading = false;
+                LoadingMessage = string.Empty;
+            }
         }
 
         // ─── MOD 操作 ───
@@ -374,32 +383,7 @@ namespace UEModManager.ViewModels
             };
 
             if (dialog.ShowDialog() == true)
-            {
-                IsLoading = true;
-                LoadingMessage = "导入MOD...";
-
-                try
-                {
-                    var count = await _modService.ImportModsAsync(
-                        dialog.FileNames,
-                        _gameConfig.CurrentModPath,
-                        _gameConfig.CurrentBackupPath);
-
-                    if (count > 0)
-                        await RefreshModsAsync();
-
-                    _logger.LogInformation("导入了 {Count} 个 MOD", count);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "导入 MOD 失败");
-                }
-                finally
-                {
-                    IsLoading = false;
-                    LoadingMessage = string.Empty;
-                }
-            }
+                await ImportModsAsync(dialog.FileNames);
         }
 
         /// <summary>
@@ -420,17 +404,25 @@ namespace UEModManager.ViewModels
             LoadingMessage = "导入MOD...";
             try
             {
-                var count = await _modService.ImportModsAsync(
-                    filePaths,
-                    _gameConfig.CurrentModPath,
-                    _gameConfig.CurrentBackupPath);
-                if (count > 0)
-                    await RefreshModsAsync();
-                _logger.LogInformation("拖拽导入了 {Count} 个 MOD", count);
+                var results = await _packageImportService.ImportAsync(filePaths);
+                var importedPackages = results
+                    .Where(r => r.Success && r.Package != null)
+                    .Select(r => r.Package!)
+                    .ToList();
+
+                await _profileService.AddPackagesToCurrentProfileAsync(importedPackages);
+                if (UiPreferences.LoadAutoDeploy())
+                {
+                    foreach (var package in importedPackages)
+                        await DeployToggleAsync(package.PackageKey, true);
+                }
+
+                await RefreshFromRepositoryAsync();
+                _logger.LogInformation("导入了 {Count} 个包", importedPackages.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "拖拽导入 MOD 失败");
+                _logger.LogError(ex, "导入 MOD 失败");
             }
             finally
             {
@@ -455,14 +447,14 @@ namespace UEModManager.ViewModels
                 var plan = await _deploymentPlanner.CreateTogglePlanAsync(packageKey, enable);
                 if (!plan.HasChanges)
                 {
-                    _logger.LogInformation("无需部署变更: {Key} (enable={Enable})", packageKey, enable);
+                    await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);
+                    _logger.LogInformation("无需部署变更，已同步状态: {Key} (enable={Enable})", packageKey, enable);
                     return true;
                 }
 
                 var transaction = await _deploymentService.ExecuteAsync(plan);
                 if (transaction.Status == DeploymentStatus.Committed)
                 {
-                    // 更新 Profile 中的启用状态（仅元数据 — 部署事务已成功）
                     await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);
                     _logger.LogInformation("部署成功: {Key} → {State}", packageKey, enable ? "启用" : "禁用");
                     return true;
@@ -475,6 +467,113 @@ namespace UEModManager.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "部署切换失败: {Key}", packageKey);
+                return false;
+            }
+            finally
+            {
+                IsLoading = false;
+                LoadingMessage = string.Empty;
+            }
+        }
+
+        public async Task<bool> ToggleModAsync(ModInfo mod, bool enable)
+        {
+            var success = await DeployToggleAsync(mod.RealName, enable);
+            if (!success) return false;
+
+            mod.IsEnabled = enable;
+            await RefreshFromRepositoryAsync();
+            return true;
+        }
+
+        public async Task<bool> ToggleModsAsync(IReadOnlyList<ModInfo> mods, bool enable)
+        {
+            var changed = false;
+            foreach (var mod in mods)
+            {
+                if (mod.IsEnabled == enable) continue;
+                if (!await DeployToggleAsync(mod.RealName, enable))
+                    continue;
+
+                mod.IsEnabled = enable;
+                changed = true;
+            }
+
+            if (changed)
+                await RefreshFromRepositoryAsync();
+
+            return changed;
+        }
+
+        public async Task<bool> RenameModAsync(ModInfo mod, string newName)
+        {
+            var package = _packageRepository.GetByKey(mod.RealName);
+            if (package == null) return false;
+
+            package.DisplayName = newName.Trim();
+            await _packageRepository.UpdatePackageAsync(package);
+            mod.Name = package.DisplayName;
+            await RefreshFromRepositoryAsync();
+            return true;
+        }
+
+        public async Task<bool> ChangePreviewAsync(ModInfo mod, string imagePath)
+        {
+            var storedPath = await _packageRepository.UpdatePreviewImageAsync(mod.RealName, imagePath);
+            if (string.IsNullOrEmpty(storedPath)) return false;
+
+            mod.PreviewImage = null;
+            mod.PreviewImagePath = storedPath;
+            await RefreshFromRepositoryAsync();
+            return true;
+        }
+
+        public async Task<bool> DeletePackageModAsync(ModInfo mod)
+        {
+            var success = await DeletePackageModCoreAsync(mod);
+            if (!success) return false;
+
+            await RefreshFromRepositoryAsync();
+            return true;
+        }
+
+        public async Task<bool> DeletePackageModsAsync(IReadOnlyList<ModInfo> mods)
+        {
+            var changed = false;
+            foreach (var mod in mods)
+                changed |= await DeletePackageModCoreAsync(mod);
+
+            if (changed)
+                await RefreshFromRepositoryAsync();
+
+            return changed;
+        }
+
+        private async Task<bool> DeletePackageModCoreAsync(ModInfo mod)
+        {
+            try
+            {
+                IsLoading = true;
+                LoadingMessage = "删除中...";
+
+                var package = _packageRepository.GetByKey(mod.RealName);
+                if (package == null) return false;
+
+                if (!await DeployToggleAsync(package.PackageKey, false))
+                    return false;
+
+                var (success, _) = await _packageRepository.DeletePackageAsync(
+                    package.PackageKey, _profileService.GetProfiles(), force: true);
+                if (!success) return false;
+
+                await _profileService.RemovePackageReferencesAsync(package.PackageKey);
+                await _modData.RemoveModAsync(package.PackageKey);
+                _logger.LogInformation("包已从仓库和所有方案删除: {Key}", package.PackageKey);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "删除包失败: {Key}", mod.RealName);
                 return false;
             }
             finally
@@ -514,7 +613,7 @@ namespace UEModManager.ViewModels
                 if (transaction.Status == DeploymentStatus.Committed)
                 {
                     _logger.LogInformation("完整部署成功: {Count} 个操作", plan.TotalCount);
-                    await RefreshModsAsync();
+                    await RefreshFromRepositoryAsync();
                 }
 
                 return transaction;

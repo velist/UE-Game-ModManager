@@ -27,10 +27,10 @@ namespace UEModManager.Services
         public ObjectStore(ILogger<ObjectStore> logger)
         {
             _logger = logger;
-            // 默认仓库路径
-            _repositoryRoot = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "UEModManager", "Repository");
+            _repositoryRoot = UiPreferences.LoadRepositoryRoot()
+                ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "UEModManager", "Repository");
         }
 
         /// <summary>仓库根目录。</summary>
@@ -42,6 +42,7 @@ namespace UEModManager.Services
         public void SetRepositoryRoot(string path)
         {
             _repositoryRoot = path;
+            UiPreferences.SaveRepositoryRoot(path);
             _logger.LogInformation("仓库路径设置为: {Path}", path);
         }
 

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
@@ -418,7 +418,10 @@ namespace UEModManager.Services
 
         private bool ImportCompressedMod(string filePath, string modName, string modPath, string backupPath)
         {
-            var tempDir = IOPath.Combine(IOPath.GetTempPath(), $"uemod_temp_{Guid.NewGuid()}");
+            var tempRoot = !string.IsNullOrWhiteSpace(backupPath)
+                ? IOPath.Combine(backupPath, ".import-tmp")
+                : IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", ".import-tmp");
+            var tempDir = IOPath.Combine(tempRoot, $"uemod_temp_{Guid.NewGuid()}");
 
             try
             {
@@ -438,35 +441,24 @@ namespace UEModManager.Services
                     try { File.Delete(archive); } catch { }
                 }
 
-                // 查找嵌套解压目录
-                var extractedDirs = Directory.GetDirectories(tempDir, "*_extracted", SearchOption.AllDirectories);
-                List<string> modFiles;
-
-                if (extractedDirs.Length > 0)
-                {
-                    // 集合压缩包
-                    modFiles = extractedDirs
-                        .SelectMany(d => Directory.GetFiles(d, "*.*", SearchOption.AllDirectories))
-                        .Where(f => IsModFile(f)).ToList();
-                }
-                else
-                {
-                    modFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories)
-                        .Where(f => IsModFile(f)).ToList();
-                }
+                var modFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => IsModFile(f)).ToList();
 
                 if (modFiles.Count == 0)
                     return false;
 
-                // 按前缀分组
-                var groups = GroupModFilesByPrefix(modFiles)
-                    .Where(g => g.Value.Count > 0)
-                    .ToDictionary(g => g.Key, g => g.Value);
+                var groups = ModFileGrouper.SplitByImportScope(modFiles, tempDir)
+                    .SelectMany(scope => GroupModFilesByPrefix(scope)
+                        .Where(g => g.Value.Count > 0)
+                        .Select(g => new KeyValuePair<string, List<string>>(g.Key, g.Value)))
+                    .ToList();
 
                 int index = 1;
+                var usedModNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var group in groups)
                 {
                     var finalModName = DetermineGroupContainerBaseName(group.Value) ?? group.Key ?? $"{modName}_{index}";
+                    finalModName = EnsureUniqueImportName(finalModName, backupPath, usedModNames);
                     var modBackupSubDir = IOPath.Combine(backupPath, finalModName);
 
                     if (!Directory.Exists(modBackupSubDir))
@@ -811,32 +803,15 @@ namespace UEModManager.Services
         /// </summary>
         public Dictionary<string, List<string>> GroupModFilesByPrefix(List<string> modFiles)
         {
-            var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var result = ModFileGrouper.GroupByBaseName(modFiles).ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value,
+                StringComparer.OrdinalIgnoreCase);
 
-            foreach (var file in modFiles)
-            {
-                var fileName = IOPath.GetFileNameWithoutExtension(file);
-                var baseName = ExtractModBaseName(fileName);
-
-                var matchedKey = result.Keys.FirstOrDefault(k =>
-                    ExtractModBaseName(k).Equals(baseName, StringComparison.OrdinalIgnoreCase));
-
-                if (matchedKey != null)
-                    result[matchedKey].Add(file);
-                else
-                    result[fileName] = new List<string> { file };
-            }
-
-            // CNS 特殊合并
             if (CurrentGameType == GameType.StellarBladeCNS)
                 result = MergeCNSRelatedGroups(result);
 
             return result;
-        }
-
-        private static string ExtractModBaseName(string fileName)
-        {
-            return Regex.Replace(fileName, @"(_\d*|_P|_p)$", "", RegexOptions.IgnoreCase);
         }
 
         private string? DetermineGroupContainerBaseName(List<string> groupFiles)
@@ -859,6 +834,20 @@ namespace UEModManager.Services
             return IOPath.GetFileNameWithoutExtension(groupFiles[0]);
         }
 
+        private static string EnsureUniqueImportName(string modName, string backupPath, HashSet<string> usedModNames)
+        {
+            var uniqueName = modName;
+            var suffix = 1;
+            while (usedModNames.Contains(uniqueName) || Directory.Exists(IOPath.Combine(backupPath, uniqueName)))
+            {
+                suffix++;
+                uniqueName = $"{modName}_{suffix}";
+            }
+
+            usedModNames.Add(uniqueName);
+            return uniqueName;
+        }
+
         // ─── 解压缩 ───
 
         private bool ExtractCompressedFile(string filePath, string extractPath)
@@ -868,15 +857,16 @@ namespace UEModManager.Services
                 var ext = IOPath.GetExtension(filePath).ToLower();
                 if (ext == ".zip")
                 {
-                    ZipFile.ExtractToDirectory(filePath, extractPath, true);
+                    ExtractZipFile(filePath, extractPath);
                     return true;
                 }
 
-                // .rar / .7z 使用 SharpCompress
-                using var archive = SharpCompress.Archives.ArchiveFactory.Open(filePath);
-                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                using var stream = File.OpenRead(filePath);
+                using var reader = ReaderFactory.OpenReader(stream, new ReaderOptions());
+                while (reader.MoveToNextEntry())
                 {
-                    entry.WriteToFile(IOPath.Combine(extractPath, entry.Key ?? ""), new ExtractionOptions
+                    if (reader.Entry.IsDirectory) continue;
+                    reader.WriteEntryToDirectory(extractPath, new ExtractionOptions
                     {
                         ExtractFullPath = true,
                         Overwrite = true
@@ -891,22 +881,43 @@ namespace UEModManager.Services
             }
         }
 
+        private static void ExtractZipFile(string filePath, string extractPath)
+        {
+            try
+            {
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.GetEncoding(936), true);
+            }
+            catch (InvalidDataException)
+            {
+                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.UTF8, true);
+            }
+        }
+
         private void ProcessNestedArchives(string directory)
         {
-            var archives = Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
-                .Where(f =>
-                {
-                    var ext = IOPath.GetExtension(f).ToLower();
-                    return ext is ".zip" or ".rar" or ".7z";
-                }).ToList();
+            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var pending = new Queue<string>(Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Where(CompressedArchive.IsCompressed));
 
-            foreach (var archive in archives)
+            while (pending.Count > 0)
             {
+                var archive = pending.Dequeue();
+                if (!processed.Add(archive))
+                    continue;
+
                 var extractDir = archive + "_extracted";
                 try
                 {
                     Directory.CreateDirectory(extractDir);
-                    ExtractCompressedFile(archive, extractDir);
+                    if (!ExtractCompressedFile(archive, extractDir))
+                        continue;
+
+                    foreach (var nestedArchive in Directory.GetFiles(extractDir, "*.*", SearchOption.AllDirectories)
+                        .Where(CompressedArchive.IsCompressed))
+                    {
+                        pending.Enqueue(nestedArchive);
+                    }
                 }
                 catch (Exception ex)
                 {

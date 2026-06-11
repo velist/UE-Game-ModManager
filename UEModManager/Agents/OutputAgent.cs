@@ -439,8 +439,8 @@ namespace UEModManager.Agents
             return new List<Dictionary<string, object>>
             {
                 new() { { "Key", "SystemName" }, { "Value", "UEModManager" } },
-                new() { { "Key", "Version" }, { "Value", "1.7.38" } },
-                new() { { "Key", "DatabaseProvider" }, { "Value", "Supabase" } }
+                new() { { "Key", "Version" }, { "Value", "2.0.3-beta" } },
+                new() { { "Key", "DatabaseProvider" }, { "Value", "SQLite" } }
             };
         }
 

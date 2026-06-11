@@ -4,7 +4,7 @@
 > 详细每轮重构记录见 [`CHANGELOG.md`](./CHANGELOG.md)。
 > 接手指南见 [`v2.0升级指南_开发者接手文档.md`](./v2.0升级指南_开发者接手文档.md)。
 
-**当前状态：v2.0-rc2 已打标签（commit `4d8e5ba`，5 项目协同 0/0，598 测试全绿）。**
+**当前状态：v2.0-rc2 已打标签（commit `4d8e5ba`，5 项目协同 0/0，604 测试全绿）+ v2.0-beta 安装包已发布（`installer_output/UEModManager_v2.0-beta_Setup.exe`，56.6 MB）。**
 
 ---
 
@@ -132,7 +132,7 @@
 
 ---
 
-# 8. 当前落地快照（2026-04-30，v2.0-rc2 已打）
+# 8. 当前落地快照（2026-05-03，v2.0-rc2 + v2.0-beta 安装包发布）
 
 ## 项目结构
 
@@ -150,7 +150,8 @@
 
 ```bash
 dotnet build UEModManager.sln --configuration Debug    # 0 errors / 0 warnings（5 项目）
-dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed (~26 ms)
+dotnet test UEModManager.Core.Tests/...                # 604 passed / 0 failed (~28 ms)
+.\Build-Installer.ps1                                   # → installer_output/UEModManager_v2.0-beta_Setup.exe
 ```
 
 ## 18 轮 Core 拆分 + 修复批 A 累积成果
@@ -158,6 +159,19 @@ dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed (
 - Config / Conflict / Recovery / Lock / Health / Logging / Diagnostics 全部已有 Core 承载
 - ResolvedViews（Layer 1+2+3 纯函数）/ DeploymentPlanning / Deployment / Launch / Detection / Profile / Migration / Import / Backends / Repository
 - **rc2 修复批 A 新增**：`PackageReferenceCounter` + `PackageDeletionPlanner`；扩 `DeploymentStatus` +3 状态值；`RollbackActionType` +2；加 `RollbackFailure` record；事务 `SchemaVersion=2`
+
+## rc2 → v2.0-beta 微迭代（2026-05-03，未 commit）
+
+主题：常驻游戏列表对齐官网 + 多引擎扩展 + 反馈通道补全。
+
+- **常驻游戏列表 6 → 11 款**（按热度排列）：黑神话·悟空 / 剑星 / 剑星 (CNS) / 33号远征队 / 明末·渊虚之羽 / 暗黑破坏神4 / 生化危机9 / 识质存在 / 无主之地4 / 死亡搁浅2 / 杀戮尖塔2
+- **Pragmata → 识质存在**：管理器 / 官网 / Inno 安装说明三处同步改名
+- **EngineType 新增 `Diablo4Engine`**：扩展枚举、EngineProfile（`.mpq/.json/.xml/.stl/.meta/.d4a/.dds/.wtf`）、EngineDetector（D4 探测：`*.mpq` / `Diablo IV.exe` / `Config.wtf` / `WTF/`）、AddCustomGameDialog 引擎下拉新增第 6 项
+- **非 UE 引擎归类落地**：杀戮尖塔2→Godot / 死亡搁浅2→Decima / 生化危机9+识质存在→REEngine / 暗黑破坏神4→Diablo4Engine
+- **设置→反馈与诊断面板**：把 `DiagnosticExportService` 接入设置入口（rc2 之前只在管理中心可见）+ QQ群 / 邮箱 / GitHub 三个反馈渠道
+- **EngineDetectorTests +6**：4 个 D4 命中 + 2 个优先级测试，598 → 604
+
+引擎决策树优先级：`UE > Unity > REEngine > Godot > Decima > Diablo4Engine > Unknown`。Core 文件零新增（仅扩枚举值），主项目 +1 UI 面板。
 
 ## 已知未修复（留给后续批次）
 
@@ -189,11 +203,12 @@ dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed (
 
 | 层 | 当前覆盖 |
 |----|---------|
-| **Domain Tests** | 冲突求解 / 依赖图 / 配置合并 / View 构建 / Hash 稳定性 — 552 个起步，rc2 增至 **598** |
+| **Domain Tests** | 冲突求解 / 依赖图 / 配置合并 / View 构建 / Hash 稳定性 — 552 个起步，rc2 增至 598，rc2→beta 增至 **604** |
 | **Adapter Tests** | HostAdapterResolver / SampleAdapter（契约测试通过 SampleAdapter 编译验证）|
 | **Deployment Tests** | RollbackActionPlanner / DeploymentResultBuilder / TogglePlanBuilder / DeploymentTargetPathBuilder |
 | **Recovery Tests** | CrashRecoveryScanner（rc2 扩展新状态）|
 | **Repository Tests** | PackageReferenceCounter / PackageDeletionPlanner（rc2 新增）|
+| **Detection Tests** | EngineDetector（rc2→beta 新增 6 个 Diablo4Engine 测试）/ PackageKindDetector / ArtifactTypeDetector / ModCategoryClassifier / GameNameNormalizer |
 | **Launch Tests** | LaunchPipelineBuilder / LaunchStepEvaluator |
 | **Integration Tests** | 缺，需补（修复批 B 前置） |
 
@@ -274,8 +289,8 @@ dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed (
 
 > v2.0 不是"加几个游戏"或"换个 UI"，而是**把"装东西的软件"重构成"宿主修改的编排平台"**：以实例为中心、纯函数化决策、事务化部署、可回滚、可恢复、可扩展、可解释。
 
-**rc2 当前已具备生产 RC 候选条件**（事务安全网完整、状态机收紧、字体合规、598 测试覆盖），下一步走实机验收 + 远程 push + 修复批 B 加固，然后升 v2.0 正式标签。
+**rc2 已具备生产 RC 候选条件**（事务安全网完整、状态机收紧、字体合规、604 测试覆盖），rc2→beta 又补齐了"常驻游戏对齐官网 + Diablo4Engine 落地 + 设置反馈通道"。下一步：把 rc2→beta 微迭代提交并打 `v2.0-beta` 标签 → 走实机验收 → 远程 push → 修复批 B 加固 → 升 v2.0 正式标签。
 
 ---
 
-**最后更新：** 2026-04-30（v2.0-rc2，commit `4d8e5ba`，598 测试全绿）
+**最后更新：** 2026-05-03（v2.0-rc2 commit `4d8e5ba` + v2.0-beta 安装包发布，**604 测试**全绿）

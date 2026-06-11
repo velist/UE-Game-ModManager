@@ -39,9 +39,12 @@
                 <RadioButton x:Name="TabDeploy" GroupName="SettingsTabs"
                              Style="{StaticResource CyberNavItem}" Content="部署与仓库"
                              Tag="&#xE835;" Click="TabButton_Click"/>
+                <RadioButton x:Name="TabFeedback" GroupName="SettingsTabs"
+                             Style="{StaticResource CyberNavItem}" Content="反馈与诊断"
+                             Tag="&#xE939;" Click="TabButton_Click"/>
 
                 <!-- 弹性间距 -->
-                <Border Height="160"/>
+                <Border Height="120"/>
 
                 <RadioButton x:Name="TabAbout" GroupName="SettingsTabs"
                              Style="{StaticResource CyberNavItem}" Content="关于软件"
@@ -435,7 +438,7 @@
                     <!-- 软件信息 -->
                     <TextBlock Text="爱酱MOD管理器" FontSize="16" FontWeight="SemiBold"
                                Foreground="{StaticResource Text200Brush}"/>
-                    <TextBlock x:Name="VersionText" Text="版本 2.0.0" FontSize="13"
+                    <TextBlock x:Name="VersionText" Text="版本 2.0.2 测试版" FontSize="13"
                                Foreground="{StaticResource Text500Brush}" Margin="0,4,0,16"/>
                     <TextBlock x:Name="AboutDesc1" Text="专为虚幻引擎游戏设计的 MOD 管理器" FontSize="13"
                                Foreground="{StaticResource Text400Brush}" TextWrapping="Wrap"/>
@@ -608,6 +611,160 @@
                                   Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"
                                   IsChecked="True"/>
                     </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 反馈与诊断面板 -->
+            <ScrollViewer x:Name="FeedbackPanel" Grid.Row="0" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="32">
+                    <TextBlock x:Name="FeedbackTitle" Text="反馈与诊断" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="FeedbackSubtitle" Text="出问题时导出诊断包发给开发者，或通过下面的渠道直接联系" FontSize="12"
+                               Foreground="{StaticResource Text500Brush}" Margin="0,0,0,24"/>
+
+                    <!-- 诊断包导出卡片 -->
+                    <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                            Padding="20,18" Margin="0,0,0,20">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Width="32" Height="32" CornerRadius="8"
+                                        Background="#1a06b6d4" Margin="0,0,12,0">
+                                    <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                               Foreground="{StaticResource PrimaryBrush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock x:Name="DiagBundleTitle" Text="导出诊断包" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text100Brush}"/>
+                                    <TextBlock x:Name="DiagBundleHint" Text="一键打包日志、当前数据快照与最近事务记录" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Border Background="#0a0a0f" CornerRadius="8" Padding="14,10" Margin="0,8,0,12">
+                                <StackPanel>
+                                    <TextBlock x:Name="DiagBundleContentLabel" Text="包内容" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text400Brush}" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="DiagBundleContentLines" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" TextWrapping="Wrap"
+                                               LineHeight="18">
+                                        <Run Text="• console.log + 最近 5 份轮转日志"/><LineBreak/>
+                                        <Run Text="• Data/ 目录下的 JSON 索引（profiles / packages / categories ...）"/><LineBreak/>
+                                        <Run Text="• 最近 10 笔部署事务记录"/><LineBreak/>
+                                        <Run Text="• 实时健康检查报告"/><LineBreak/>
+                                        <Run Text="• 元数据：版本号、操作系统、.NET 运行时、当前游戏"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#1a16a34a" CornerRadius="6" Padding="10,8" Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                               Foreground="#16a34a" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock x:Name="DiagBundleRedactHint"
+                                               Text="包内的密码、token、邮箱地址会自动脱敏，可以放心发给开发者"
+                                               FontSize="11" Foreground="{StaticResource Text400Brush}"
+                                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Button x:Name="ExportDiagButton" Content="导出诊断包"
+                                    Style="{StaticResource CyberPrimaryButton}"
+                                    HorizontalAlignment="Left" Width="140" Height="36"
+                                    Click="ExportDiagnostic_Click"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 反馈渠道卡片 -->
+                    <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                            Padding="20,18">
+                        <StackPanel>
+                            <TextBlock x:Name="FeedbackChannelsTitle" Text="反馈渠道" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Text100Brush}" Margin="0,0,0,12"/>
+
+                            <!-- QQ 群 -->
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="28" Height="28" CornerRadius="6"
+                                        Background="#1a3b82f6" Margin="0,0,12,0">
+                                    <TextBlock Text="&#xE125;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                               Foreground="#3b82f6"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="QqGroupLabel" Text="QQ 群（推荐）" FontSize="13"
+                                               Foreground="{StaticResource Text200Brush}"/>
+                                    <TextBlock Text="682707942" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" x:Name="JoinQqGroupBtn" Content="加入"
+                                        Style="{StaticResource CyberSecondaryButton}"
+                                        Width="68" Height="28" FontSize="12"
+                                        Click="JoinQqGroup_Click"/>
+                            </Grid>
+
+                            <Border Height="1" Background="#33272727" Margin="0,4,0,10"/>
+
+                            <!-- 邮箱 -->
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="28" Height="28" CornerRadius="6"
+                                        Background="#1aef4444" Margin="0,0,12,0">
+                                    <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                               Foreground="#ef4444"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="EmailLabel" Text="邮箱" FontSize="13"
+                                               Foreground="{StaticResource Text200Brush}"/>
+                                    <TextBlock Text="mr.xzuo@foxmail.com" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" x:Name="SendEmailBtn" Content="发送"
+                                        Style="{StaticResource CyberSecondaryButton}"
+                                        Width="68" Height="28" FontSize="12"
+                                        Click="SendEmail_Click"/>
+                            </Grid>
+
+                            <Border Height="1" Background="#33272727" Margin="0,4,0,10"/>
+
+                            <!-- GitHub -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="28" Height="28" CornerRadius="6"
+                                        Background="#1aa855f7" Margin="0,0,12,0">
+                                    <TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                               Foreground="#a855f7"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="GithubLabel" Text="GitHub Issue" FontSize="13"
+                                               Foreground="{StaticResource Text200Brush}"/>
+                                    <TextBlock Text="github.com/velist/UE-Game-ModManager" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" x:Name="OpenGithubBtn" Content="打开"
+                                        Style="{StaticResource CyberSecondaryButton}"
+                                        Width="68" Height="28" FontSize="12"
+                                        Click="OpenGithub_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 

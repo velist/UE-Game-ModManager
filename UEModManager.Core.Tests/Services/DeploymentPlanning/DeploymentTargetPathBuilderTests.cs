@@ -24,14 +24,24 @@ public class DeploymentTargetPathBuilderTests
             HostGameName = "demo",
         };
 
-    private static Package MakePlugin(string key = "plugA", string? pluginTargetPath = "Engine/Plugins")
+    private static Package MakePlugin(string key = "plugA", string? targetRootPath = "Engine/Plugins")
         => new()
         {
             PackageKey = key,
             DisplayName = key.ToUpperInvariant(),
             Kind = PackageKind.Plugin,
             HostGameName = "demo",
-            PluginTargetPath = pluginTargetPath,
+            TargetRootPath = targetRootPath,
+        };
+
+    private static Package MakeConfig(string key = "cfgA", string? targetRootPath = "Saved/Config/WindowsNoEditor")
+        => new()
+        {
+            PackageKey = key,
+            DisplayName = key.ToUpperInvariant(),
+            Kind = PackageKind.Config,
+            HostGameName = "demo",
+            TargetRootPath = targetRootPath,
         };
 
     [Fact]
@@ -56,7 +66,7 @@ public class DeploymentTargetPathBuilderTests
         var entry = new ProfilePackageEntry
         {
             PackageKey = "plugA",
-            PluginTargetPath = "GameMods/Plugins",
+            TargetRootPath = "GameMods/Plugins",
         };
 
         var path = DeploymentTargetPathBuilder.ComputeTargetPath(
@@ -72,7 +82,7 @@ public class DeploymentTargetPathBuilderTests
     {
         var artifact = MakeArtifact("dll.dll", ArtifactType.PluginFile);
         var package = MakePlugin("plugA", "Engine/Plugins");
-        var entry = new ProfilePackageEntry { PackageKey = "plugA", PluginTargetPath = null };
+        var entry = new ProfilePackageEntry { PackageKey = "plugA", TargetRootPath = null };
 
         var path = DeploymentTargetPathBuilder.ComputeTargetPath(
             artifact, package, entry,
@@ -95,6 +105,20 @@ public class DeploymentTargetPathBuilderTests
         var normalized = path.Replace('\\', '/');
         Assert.EndsWith("/plugA/dll.dll", normalized);
         Assert.StartsWith("/g/game", normalized);
+    }
+
+    [Fact]
+    public void ComputeTargetPath_Config_UsesTargetRootPath()
+    {
+        var artifact = MakeArtifact("Engine.ini", ArtifactType.ConfigFile);
+        var package = MakeConfig("cfgA", "Saved/Config/WindowsNoEditor");
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null,
+            modPath: "/g/mods", gamePath: "/g/game");
+
+        var normalized = path.Replace('\\', '/');
+        Assert.Equal("/g/game/Saved/Config/WindowsNoEditor/cfgA/Engine.ini", normalized);
     }
 
     [Fact]

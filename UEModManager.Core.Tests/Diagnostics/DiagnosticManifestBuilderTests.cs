@@ -66,14 +66,14 @@ public class DiagnosticManifestBuilderTests
             logFiles: [@"C:\a\console.log"],
             dataFiles: [],
             recentTransactionFiles: [],
-            appVersion: "2.0.1",
+            appVersion: "2.0.2",
             osVersion: "Windows 11",
             dotNetVersion: "8.0.5",
             currentGame: "Stellar Blade");
 
         var text = m.ToMetadataText();
 
-        Assert.Contains("App Version: 2.0.1", text);
+        Assert.Contains("App Version: 2.0.2", text);
         Assert.Contains("OS: Windows 11", text);
         Assert.Contains(".NET: 8.0.5", text);
         Assert.Contains("Stellar Blade", text);

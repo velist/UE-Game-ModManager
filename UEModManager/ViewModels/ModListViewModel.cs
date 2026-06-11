@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -20,6 +21,10 @@ namespace UEModManager.ViewModels
         private readonly ModManagementService _modService;
         private readonly GameConfigService _gameConfig;
         private readonly ILogger _logger;
+        private Func<ModInfo, Task<bool>>? _deleteModAsync;
+        private Func<ModInfo, bool, Task<bool>>? _toggleModAsync;
+        private Func<IReadOnlyList<ModInfo>, Task<bool>>? _deleteModsAsync;
+        private Func<IReadOnlyList<ModInfo>, bool, Task<bool>>? _toggleModsAsync;
         private ObservableCollection<ModInfo> _source = new();
 
         /// <summary>
@@ -42,6 +47,12 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private bool _isSelectAll;
 
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasSelectedMods))]
+        private int _selectedCount;
+
+        public bool HasSelectedMods => SelectedCount > 0;
+
         /// <summary>
         /// MOD 被选中事件。
         /// </summary>
@@ -61,12 +72,30 @@ namespace UEModManager.ViewModels
             _logger = logger;
         }
 
+        public void ConfigureActions(
+            Func<ModInfo, bool, Task<bool>> toggleModAsync,
+            Func<ModInfo, Task<bool>> deleteModAsync,
+            Func<IReadOnlyList<ModInfo>, bool, Task<bool>>? toggleModsAsync = null,
+            Func<IReadOnlyList<ModInfo>, Task<bool>>? deleteModsAsync = null)
+        {
+            _toggleModAsync = toggleModAsync;
+            _deleteModAsync = deleteModAsync;
+            _toggleModsAsync = toggleModsAsync;
+            _deleteModsAsync = deleteModsAsync;
+        }
+
         /// <summary>
         /// 设置数据源（AllMods）。
         /// </summary>
         public void SetSource(ObservableCollection<ModInfo> source)
         {
+            foreach (var mod in _source)
+                mod.PropertyChanged -= OnModPropertyChanged;
+
             _source = source;
+            foreach (var mod in _source)
+                mod.PropertyChanged += OnModPropertyChanged;
+
             ApplyFilter(_currentCategory, SearchText);
         }
 
@@ -83,6 +112,18 @@ namespace UEModManager.ViewModels
         partial void OnSortModeChanged(string value)
         {
             ApplySort(value);
+        }
+
+        private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ModInfo.IsSelected))
+                UpdateSelectionState();
+        }
+
+        private void UpdateSelectionState()
+        {
+            SelectedCount = Mods.Count(m => m.IsSelected);
+            IsSelectAll = Mods.Count > 0 && SelectedCount == Mods.Count;
         }
 
         // ─── 过滤与排序 ───
@@ -121,6 +162,7 @@ namespace UEModManager.ViewModels
             Mods.Clear();
             foreach (var mod in result)
                 Mods.Add(mod);
+            UpdateSelectionState();
         }
 
         /// <summary>
@@ -132,6 +174,7 @@ namespace UEModManager.ViewModels
             Mods.Clear();
             foreach (var mod in sorted)
                 Mods.Add(mod);
+            UpdateSelectionState();
         }
 
         private static IEnumerable<ModInfo> ApplySortInternal(IEnumerable<ModInfo> mods, string sortMode)
@@ -159,14 +202,20 @@ namespace UEModManager.ViewModels
         {
             if (mod == null) return;
 
-            bool success;
-            if (mod.IsEnabled)
-                success = await _modService.DisableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-            else
-                success = await _modService.EnableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            var success = _toggleModAsync != null
+                ? await _toggleModAsync(mod, !mod.IsEnabled)
+                : await ToggleLegacyAsync(mod);
 
             if (success)
                 ModsChanged?.Invoke();
+        }
+
+        private async Task<bool> ToggleLegacyAsync(ModInfo mod)
+        {
+            if (mod.IsEnabled)
+                return await _modService.DisableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+
+            return await _modService.EnableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
         }
 
         /// <summary>
@@ -177,7 +226,11 @@ namespace UEModManager.ViewModels
         {
             if (mod == null) return;
 
-            if (await _modService.DeleteModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath))
+            var success = _deleteModAsync != null
+                ? await _deleteModAsync(mod)
+                : await _modService.DeleteModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+
+            if (success)
             {
                 Mods.Remove(mod);
                 if (SelectedMod == mod)
@@ -213,6 +266,7 @@ namespace UEModManager.ViewModels
             IsSelectAll = !IsSelectAll;
             foreach (var mod in Mods)
                 mod.IsSelected = IsSelectAll;
+            UpdateSelectionState();
         }
 
         /// <summary>
@@ -221,7 +275,19 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public async Task EnableAllAsync()
         {
-            await _modService.EnableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            if (_toggleModsAsync != null)
+            {
+                await _toggleModsAsync(Mods.Where(m => !m.IsEnabled).ToList(), true);
+            }
+            else if (_toggleModAsync != null)
+            {
+                foreach (var mod in Mods.Where(m => !m.IsEnabled).ToList())
+                    await _toggleModAsync(mod, true);
+            }
+            else
+            {
+                await _modService.EnableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            }
             ModsChanged?.Invoke();
         }
 
@@ -231,8 +297,58 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public async Task DisableAllAsync()
         {
-            await _modService.DisableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            if (_toggleModsAsync != null)
+            {
+                await _toggleModsAsync(Mods.Where(m => m.IsEnabled).ToList(), false);
+            }
+            else if (_toggleModAsync != null)
+            {
+                foreach (var mod in Mods.Where(m => m.IsEnabled).ToList())
+                    await _toggleModAsync(mod, false);
+            }
+            else
+            {
+                await _modService.DisableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            }
             ModsChanged?.Invoke();
+        }
+
+        public async Task EnableSelectedAsync()
+        {
+            await ToggleSelectedAsync(true);
+        }
+
+        public async Task DisableSelectedAsync()
+        {
+            await ToggleSelectedAsync(false);
+        }
+
+        private async Task ToggleSelectedAsync(bool enable)
+        {
+            var selected = Mods.Where(m => m.IsSelected && m.IsEnabled != enable).ToList();
+            if (selected.Count == 0) return;
+
+            var changed = false;
+            if (_toggleModsAsync != null)
+            {
+                changed = await _toggleModsAsync(selected, enable);
+            }
+            else if (_toggleModAsync != null)
+            {
+                foreach (var mod in selected)
+                    changed |= await _toggleModAsync(mod, enable);
+            }
+            else
+            {
+                if (enable)
+                    await _modService.EnableAllAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+                else
+                    await _modService.DisableAllAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+                changed = true;
+            }
+
+            if (changed)
+                ModsChanged?.Invoke();
         }
 
         /// <summary>
@@ -244,12 +360,28 @@ namespace UEModManager.ViewModels
             var selected = Mods.Where(m => m.IsSelected).ToList();
             if (selected.Count == 0) return;
 
-            await _modService.DeleteModsAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            var changed = false;
+            if (_deleteModsAsync != null)
+            {
+                changed = await _deleteModsAsync(selected);
+            }
+            else if (_deleteModAsync != null)
+            {
+                foreach (var mod in selected)
+                    changed |= await _deleteModAsync(mod);
+            }
+            else
+            {
+                await _modService.DeleteModsAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+                changed = true;
+            }
 
-            foreach (var mod in selected)
-                Mods.Remove(mod);
-
-            ModsChanged?.Invoke();
+            if (changed)
+            {
+                foreach (var mod in selected)
+                    mod.IsSelected = false;
+                ModsChanged?.Invoke();
+            }
         }
     }
 }

@@ -93,6 +93,20 @@ namespace UEModManager.Views
             var valid = filePaths.Where(f => File.Exists(f)).ToList();
             if (valid.Count == 0) return;
 
+            var unsupportedArchives = valid
+                .Where(f => string.Equals(Path.GetExtension(f), ".rar", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(Path.GetExtension(f), ".7z", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (unsupportedArchives.Count > 0)
+            {
+                MessageBox.Show(this,
+                    "检测到 RAR/7z 压缩包。\n\n当前版本仅保证 ZIP、PAK/UCAS/UTOC 等文件稳定导入。RAR/7z 受用户电脑解压环境影响，可能出现解压失败或中文文件名乱码。\n\n请先用 WinRAR/7-Zip 手动解压，再把解压后的文件夹或其中的 MOD 文件重新导入。",
+                    "请先手动解压 RAR/7z",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             SelectedFiles.Clear();
             SelectedFiles.AddRange(valid);
             DialogResult = true;

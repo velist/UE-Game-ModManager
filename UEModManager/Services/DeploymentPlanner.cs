@@ -204,23 +204,23 @@ namespace UEModManager.Services
                 }
             }
 
-            // 扫描插件目录
-            foreach (var entry in profile.Packages.Where(p => p.Kind == PackageKind.Plugin))
+            // 扫描非 MOD 目标目录
+            foreach (var entry in profile.Packages.Where(p => p.Kind != PackageKind.Mod))
             {
-                var pluginPath = entry.PluginTargetPath;
-                if (string.IsNullOrEmpty(pluginPath) || string.IsNullOrEmpty(gamePath))
+                var targetRootPath = entry.TargetRootPath;
+                if (string.IsNullOrEmpty(targetRootPath) || string.IsNullOrEmpty(gamePath))
                     continue;
 
-                var pluginDir = Path.Combine(gamePath, pluginPath, entry.PackageKey);
-                if (!Directory.Exists(pluginDir))
+                var packageDir = Path.Combine(gamePath, targetRootPath, entry.PackageKey);
+                if (!Directory.Exists(packageDir))
                     continue;
 
                 var package = _packageRepository.GetByKey(entry.PackageKey);
 
-                foreach (var file in Directory.GetFiles(pluginDir, "*.*", SearchOption.AllDirectories))
+                foreach (var file in Directory.GetFiles(packageDir, "*.*", SearchOption.AllDirectories))
                 {
                     var relativePath = Path.GetRelativePath(
-                        Path.Combine(gamePath, pluginPath), file);
+                        Path.Combine(gamePath, targetRootPath), file);
 
                     map[file] = new DeployedFile(
                         PackageKey: entry.PackageKey,
@@ -228,7 +228,7 @@ namespace UEModManager.Services
                         RelativePath: relativePath,
                         Hash: null,
                         FileSize: new FileInfo(file).Length,
-                        Kind: PackageKind.Plugin,
+                        Kind: entry.Kind,
                         BelongsToKnownPackage: !entry.IsEnabled);
                 }
             }

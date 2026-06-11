@@ -88,6 +88,20 @@ namespace UEModManager.Models
                 GroupPriorityExtensions = new[] { ".bin", ".core", ".stream" }
             },
 
+            [EngineType.Diablo4Engine] = new EngineProfile
+            {
+                DisplayName = "暗黑 4 引擎",
+                // MOD 主体：MPQ 打包包；数据：JSON/XML；专属二进制：.stl 字符串、.meta 索引、.d4a 动画；
+                // 贴图：.dds（.png 不收，避免误识别普通图片）；启动配置：.wtf。
+                ModFileExtensions = new HashSet<string> { ".mpq", ".json", ".xml", ".stl", ".meta", ".d4a", ".dds", ".wtf" },
+                DirectImportExtensions = new HashSet<string> { ".mpq", ".json", ".xml", ".stl", ".meta", ".d4a", ".dds", ".wtf" },
+                FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.mpq;*.json;*.xml;*.stl;*.meta;*.d4a;*.dds;*.wtf|所有文件|*.*",
+                // mods/ 是 D4ModManager 等加载器约定目录；WTF/ 用于反和谐 Config.wtf。
+                DefaultModPathPatterns = new[] { "mods", "WTF" },
+                SupportsConflictDetection = false,
+                GroupPriorityExtensions = new[] { ".mpq", ".json", ".stl" }
+            },
+
             [EngineType.Unknown] = new EngineProfile
             {
                 DisplayName = "通用",
@@ -121,6 +135,7 @@ namespace UEModManager.Models
                 "reengine" or "re engine" => EngineType.REEngine,
                 "godot" => EngineType.Godot,
                 "decima" => EngineType.Decima,
+                "diablo4engine" or "diablo4" or "d4engine" or "d4" or "暗黑4引擎" or "暗黑 4 引擎" => EngineType.Diablo4Engine,
                 _ => EngineType.Unknown
             };
         }
