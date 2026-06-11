@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
+using UEModManager.Services.Persistence;
 using AppConfig = UEModManager.Models.AppConfig;
 
 namespace UEModManager.Services
@@ -133,7 +134,7 @@ namespace UEModManager.Services
             try
             {
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_configFilePath, json);
+                AtomicFileWriter.WriteAllText(_configFilePath, json);
                 _logger.LogInformation("配置已保存");
             }
             catch (Exception ex)

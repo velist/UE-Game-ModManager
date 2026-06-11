@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using UEModManager.Models;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -331,7 +332,7 @@ namespace UEModManager.Services
         {
             var path = GetIndexPath();
             var json = JsonConvert.SerializeObject(_artifacts, Formatting.Indented);
-            await File.WriteAllTextAsync(path, json);
+            await AtomicFileWriter.WriteAllTextAsync(path, json);
         }
 
         // ─── 哈希 ───

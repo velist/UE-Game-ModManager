@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -224,12 +225,8 @@ namespace UEModManager.Services
         {
             try
             {
-                var dir = Path.GetDirectoryName(OverridesFilePath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
                 var json = JsonSerializer.Serialize(_userOverrides, JsonOptions);
-                await File.WriteAllTextAsync(OverridesFilePath, json);
+                await AtomicFileWriter.WriteAllTextAsync(OverridesFilePath, json);
             }
             catch (Exception ex)
             {
