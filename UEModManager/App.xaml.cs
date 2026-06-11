@@ -272,8 +272,6 @@ namespace UEModManager
                     // 注册窗口
                     services.AddTransient<MainWindow>();
                     services.AddTransient<LoginWindow>();
-                    services.AddTransient<RegisterWindow>();
-                    services.AddTransient<AuthSettingsWindow>();
                     services.AddTransient<Views.ProfileManagerWindow>();
 
                     // v2.0 Phase 2-4 UI 窗口
