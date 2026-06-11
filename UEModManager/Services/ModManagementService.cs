@@ -233,26 +233,31 @@ namespace UEModManager.Services
                         return false;
                     }
 
-                    // 插件使用 PluginTargetPath，普通 MOD 使用 modPath
-                    string modTargetDir;
-                    if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        modTargetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
-                    else
-                        modTargetDir = IOPath.Combine(modPath, mod.RealName);
+                    var modTargetDir = GetModTargetDirectory(mod, modPath, gamePath);
+                    var stagingDir = $"{modTargetDir}.staging";
+                    if (Directory.Exists(stagingDir))
+                        Directory.Delete(stagingDir, true);
+                    Directory.CreateDirectory(stagingDir);
 
-                    if (Directory.Exists(modTargetDir))
-                        Directory.Delete(modTargetDir, true);
-                    Directory.CreateDirectory(modTargetDir);
-
-                    // 复制文件
-                    foreach (var backupFile in backupFiles)
+                    try
                     {
-                        var relativePath = IOPath.GetRelativePath(modBackupDir, backupFile);
-                        var targetFile = IOPath.Combine(modTargetDir, relativePath);
-                        var targetFileDir = IOPath.GetDirectoryName(targetFile);
-                        if (!string.IsNullOrEmpty(targetFileDir) && !Directory.Exists(targetFileDir))
-                            Directory.CreateDirectory(targetFileDir);
-                        File.Copy(backupFile, targetFile, true);
+                        foreach (var backupFile in backupFiles)
+                        {
+                            var relativePath = IOPath.GetRelativePath(modBackupDir, backupFile);
+                            var targetFile = IOPath.Combine(stagingDir, relativePath);
+                            var targetFileDir = IOPath.GetDirectoryName(targetFile);
+                            if (!string.IsNullOrEmpty(targetFileDir) && !Directory.Exists(targetFileDir))
+                                Directory.CreateDirectory(targetFileDir);
+                            File.Copy(backupFile, targetFile, true);
+                        }
+
+                        ReplaceDirectoryWithStaging(modTargetDir, stagingDir);
+                    }
+                    catch
+                    {
+                        if (Directory.Exists(stagingDir))
+                            Directory.Delete(stagingDir, true);
+                        throw;
                     }
 
                     mod.IsEnabled = true;
@@ -278,14 +283,27 @@ namespace UEModManager.Services
             {
                 try
                 {
-                    string modTargetDir;
-                    if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        modTargetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
-                    else
-                        modTargetDir = IOPath.Combine(modPath, mod.RealName);
+                    var modTargetDir = GetModTargetDirectory(mod, modPath, gamePath);
 
                     if (Directory.Exists(modTargetDir))
                     {
+                        var modBackupDir = IOPath.Combine(backupPath, mod.RealName);
+                        if (!Directory.Exists(modBackupDir))
+                        {
+                            _logger.LogError("禁用 '{Name}' 被阻止：备份目录不存在 {Path}", mod.Name, modBackupDir);
+                            return false;
+                        }
+
+                        var targetFileCount = CountFilesExcludingPreview(modTargetDir);
+                        var backupFileCount = CountFilesExcludingPreview(modBackupDir);
+                        if (backupFileCount < targetFileCount)
+                        {
+                            _logger.LogError(
+                                "禁用 '{Name}' 被阻止：备份文件数不足 (backup={BackupCount}, target={TargetCount})",
+                                mod.Name, backupFileCount, targetFileCount);
+                            return false;
+                        }
+
                         Directory.Delete(modTargetDir, true);
                         _logger.LogInformation("{Type} '{Name}' 已禁用",
                             mod.IsPlugin ? "插件" : "MOD", mod.Name);
@@ -310,12 +328,12 @@ namespace UEModManager.Services
         /// <summary>
         /// 批量启用所有 MOD。
         /// </summary>
-        public async Task<int> EnableAllAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath)
+        public async Task<int> EnableAllAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath, string gamePath = "")
         {
             int count = 0;
             foreach (var mod in mods.Where(m => !m.IsEnabled))
             {
-                if (await EnableModAsync(mod, modPath, backupPath))
+                if (await EnableModAsync(mod, modPath, backupPath, gamePath))
                     count++;
             }
             return count;
@@ -324,12 +342,12 @@ namespace UEModManager.Services
         /// <summary>
         /// 批量禁用所有 MOD。
         /// </summary>
-        public async Task<int> DisableAllAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath)
+        public async Task<int> DisableAllAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath, string gamePath = "")
         {
             int count = 0;
             foreach (var mod in mods.Where(m => m.IsEnabled))
             {
-                if (await DisableModAsync(mod, modPath, backupPath))
+                if (await DisableModAsync(mod, modPath, backupPath, gamePath))
                     count++;
             }
             return count;
@@ -608,20 +626,16 @@ namespace UEModManager.Services
             {
                 try
                 {
-                    // 删除备份目录
-                    var backupDir = IOPath.Combine(backupPath, mod.RealName);
-                    if (Directory.Exists(backupDir))
-                        Directory.Delete(backupDir, true);
-
                     // 删除 MOD/插件目录
-                    string targetDir;
-                    if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        targetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
-                    else
-                        targetDir = IOPath.Combine(modPath, mod.RealName);
+                    var targetDir = GetModTargetDirectory(mod, modPath, gamePath);
 
                     if (Directory.Exists(targetDir))
                         Directory.Delete(targetDir, true);
+
+                    // 目标目录删除成功后再删除备份，避免目标被占用时丢失备份。
+                    var backupDir = IOPath.Combine(backupPath, mod.RealName);
+                    if (Directory.Exists(backupDir))
+                        Directory.Delete(backupDir, true);
 
                     _logger.LogInformation("{Type} '{Name}' 已删除", mod.IsPlugin ? "插件" : "MOD", mod.Name);
                     return true;
@@ -637,15 +651,69 @@ namespace UEModManager.Services
         /// <summary>
         /// 批量删除 MOD。
         /// </summary>
-        public async Task<int> DeleteModsAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath)
+        public async Task<int> DeleteModsAsync(IEnumerable<ModInfo> mods, string modPath, string backupPath, string gamePath = "")
         {
             int count = 0;
             foreach (var mod in mods.ToList())
             {
-                if (await DeleteModAsync(mod, modPath, backupPath))
+                if (await DeleteModAsync(mod, modPath, backupPath, gamePath))
                     count++;
             }
             return count;
+        }
+
+        private static string GetModTargetDirectory(ModInfo mod, string modPath, string gamePath)
+        {
+            if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
+                return IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
+
+            return IOPath.Combine(modPath, mod.RealName);
+        }
+
+        private static int CountFilesExcludingPreview(string directory)
+        {
+            return Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Count(f => !IOPath.GetFileName(f).StartsWith("preview", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void ReplaceDirectoryWithStaging(string targetDir, string stagingDir)
+        {
+            var oldDir = $"{targetDir}.old-{Guid.NewGuid():N}";
+            var movedOld = false;
+
+            try
+            {
+                if (Directory.Exists(targetDir))
+                {
+                    Directory.Move(targetDir, oldDir);
+                    movedOld = true;
+                }
+
+                Directory.Move(stagingDir, targetDir);
+
+                if (movedOld && Directory.Exists(oldDir))
+                {
+                    Directory.Delete(oldDir, true);
+                    movedOld = false;
+                }
+            }
+            catch
+            {
+                if (movedOld && Directory.Exists(oldDir) && !Directory.Exists(targetDir))
+                {
+                    try
+                    {
+                        Directory.Move(oldDir, targetDir);
+                        movedOld = false;
+                    }
+                    catch
+                    {
+                        // 保留 oldDir，避免恢复失败时继续破坏原目标目录。
+                    }
+                }
+
+                throw;
+            }
         }
 
         // ─── 备份 ───
