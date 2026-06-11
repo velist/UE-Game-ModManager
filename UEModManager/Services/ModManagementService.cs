@@ -918,82 +918,10 @@ namespace UEModManager.Services
         }
 
         // ─── 解压缩 ───
-
         private bool ExtractCompressedFile(string filePath, string extractPath)
-        {
-            try
-            {
-                var ext = IOPath.GetExtension(filePath).ToLower();
-                if (ext == ".zip")
-                {
-                    ExtractZipFile(filePath, extractPath);
-                    return true;
-                }
-
-                using var stream = File.OpenRead(filePath);
-                using var reader = ReaderFactory.OpenReader(stream, new ReaderOptions());
-                while (reader.MoveToNextEntry())
-                {
-                    if (reader.Entry.IsDirectory) continue;
-                    reader.WriteEntryToDirectory(extractPath, new ExtractionOptions
-                    {
-                        ExtractFullPath = true,
-                        Overwrite = true
-                    });
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "解压文件失败: {Path}", filePath);
-                return false;
-            }
-        }
-
-        private static void ExtractZipFile(string filePath, string extractPath)
-        {
-            try
-            {
-                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.GetEncoding(936), true);
-            }
-            catch (InvalidDataException)
-            {
-                ZipFile.ExtractToDirectory(filePath, extractPath, Encoding.UTF8, true);
-            }
-        }
-
+            => ArchiveExtractor.ExtractCompressedFile(filePath, extractPath, _logger);
         private void ProcessNestedArchives(string directory)
-        {
-            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var pending = new Queue<string>(Directory.GetFiles(directory, "*.*", SearchOption.AllDirectories)
-                .Where(CompressedArchive.IsCompressed));
-
-            while (pending.Count > 0)
-            {
-                var archive = pending.Dequeue();
-                if (!processed.Add(archive))
-                    continue;
-
-                var extractDir = archive + "_extracted";
-                try
-                {
-                    Directory.CreateDirectory(extractDir);
-                    if (!ExtractCompressedFile(archive, extractDir))
-                        continue;
-
-                    foreach (var nestedArchive in Directory.GetFiles(extractDir, "*.*", SearchOption.AllDirectories)
-                        .Where(CompressedArchive.IsCompressed))
-                    {
-                        pending.Enqueue(nestedArchive);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "处理嵌套压缩包失败: {Path}", archive);
-                }
-            }
-        }
+            => ArchiveExtractor.ProcessNestedArchives(directory, _logger);
 
         private void CopyPreviewImageFromTemp(List<string> groupFiles, string tempDir, string modBackupDir)
         {

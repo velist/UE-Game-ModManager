@@ -304,34 +304,22 @@ namespace UEModManager.Views
         {
             if (string.IsNullOrEmpty(_gameConfig.CurrentGameName))
             {
-                CyberMessageBox.Show(this, "请先在主界面选择游戏后再设置图标。", "提示");
+                CyberMessageBox.Show(this, "\u8bf7\u5148\u5728\u4e3b\u754c\u9762\u9009\u62e9\u6e38\u620f\u540e\u518d\u8bbe\u7f6e\u56fe\u6807\u3002", "\u63d0\u793a");
                 return;
             }
 
-            var dlg = new Microsoft.Win32.OpenFileDialog
+            try
             {
-                Title = "选择游戏图标",
-                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.ico;*.webp|所有文件|*.*"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                try
-                {
-                    var iconsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "GameIcons");
-                    Directory.CreateDirectory(iconsDir);
-                    var ext = Path.GetExtension(dlg.FileName);
-                    var destName = $"{_gameConfig.CurrentGameName.Replace(" ", "_").Replace("/", "_")}{ext}";
-                    var destPath = Path.Combine(iconsDir, destName);
-                    File.Copy(dlg.FileName, destPath, true);
+                var destPath = UEModManager.Infrastructure.GameIconPicker.BrowseAndCopy(this, _gameConfig.CurrentGameName);
+                if (string.IsNullOrEmpty(destPath)) return;
 
-                    _pendingGameIconPath = destPath;
-                    ShowSettingsIconPreview(destPath);
-                }
-                catch (Exception ex)
-                {
-                    CyberMessageBox.Show(this, $"设置图标失败: {ex.Message}", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                _pendingGameIconPath = destPath;
+                ShowSettingsIconPreview(destPath);
+            }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, $"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}", "\u9519\u8bef",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -348,13 +336,8 @@ namespace UEModManager.Views
         {
             try
             {
-                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 128;
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(path, decodePixelWidth: 128);
+                if (bitmap == null) return;
 
                 SettingsGameIconPreview.Source = bitmap;
                 SettingsGameIconPreview.Visibility = Visibility.Visible;

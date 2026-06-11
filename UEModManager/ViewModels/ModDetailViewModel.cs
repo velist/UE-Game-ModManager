@@ -96,14 +96,12 @@ namespace UEModManager.ViewModels
                 {
                     try
                     {
-                        var bitmap = new BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.UriSource = new Uri(CurrentMod.PreviewImagePath, UriKind.Absolute);
-                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        bitmap.Freeze();
-                        CurrentMod.PreviewImage = bitmap;
-                        return bitmap;
+                        var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(CurrentMod.PreviewImagePath);
+                        if (bitmap != null)
+                        {
+                            CurrentMod.PreviewImage = bitmap;
+                            return bitmap;
+                        }
                     }
                     catch (Exception ex)
                     {

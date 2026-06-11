@@ -71,7 +71,7 @@ namespace UEModManager.Views
                 return new FileListItem
                 {
                     Name = isDir ? $"[文件夹] {Path.GetFileName(p)}" : Path.GetFileName(p),
-                    SizeText = FormatSize(size)
+                    SizeText = UEModManager.Core.Utils.FileSizeFormatter.Format(size)
                 };
             }).ToList();
 
@@ -166,16 +166,6 @@ namespace UEModManager.Views
         {
             DialogResult = false;
             SystemCommands.CloseWindow(this);
-        }
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes <= 0) return "0 B";
-            string[] units = { "B", "KB", "MB", "GB" };
-            int i = 0;
-            double size = bytes;
-            while (size >= 1024 && i < units.Length - 1) { size /= 1024; i++; }
-            return $"{size:F1} {units[i]}";
         }
 
         public class FileListItem

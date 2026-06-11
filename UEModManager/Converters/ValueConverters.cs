@@ -351,13 +351,7 @@ namespace UEModManager.Converters
         {
             if (value is long bytes)
             {
-                if (bytes >= 1024 * 1024 * 1024)
-                    return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
-                if (bytes >= 1024 * 1024)
-                    return $"{bytes / (1024.0 * 1024.0):F1} MB";
-                if (bytes >= 1024)
-                    return $"{bytes / 1024.0:F1} KB";
-                return $"{bytes} B";
+                return UEModManager.Core.Utils.FileSizeFormatter.Format(bytes);
             }
             return "0 B";
         }

@@ -70,14 +70,11 @@ namespace UEModManager.Views
         {
             if (_mod.PreviewImage == null && !string.IsNullOrEmpty(_mod.PreviewImagePath) && File.Exists(_mod.PreviewImagePath))
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(_mod.PreviewImagePath, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                _mod.PreviewImage = bitmap;
+                var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(_mod.PreviewImagePath, ignoreImageCache: true);
+                if (bitmap != null)
+                {
+                    _mod.PreviewImage = bitmap;
+                }
             }
 
             if (_mod.PreviewImage != null)

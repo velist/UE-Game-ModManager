@@ -471,20 +471,10 @@ namespace UEModManager
 
                     // 加载游戏图标
                     var iconPath = _gameConfig.GetGameIconPath(game);
-                    if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
+                    var bitmap = ImageLoader.LoadFrozen(iconPath, decodePixelWidth: 32);
+                    if (bitmap != null)
                     {
-                        try
-                        {
-                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.UriSource = new Uri(iconPath, UriKind.Absolute);
-                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                            bitmap.DecodePixelWidth = 32;
-                            bitmap.EndInit();
-                            bitmap.Freeze();
-                            item.Icon = new Image { Source = bitmap, Width = 20, Height = 20, Stretch = Stretch.UniformToFill };
-                        }
-                        catch { }
+                        item.Icon = new Image { Source = bitmap, Width = 20, Height = 20, Stretch = Stretch.UniformToFill };
                     }
 
                     item.Click += GameMenuItem_Click;
@@ -900,14 +890,15 @@ namespace UEModManager
             }
 
             var unsupportedArchives = filesToImport
-                .Where(f => string.Equals(Path.GetExtension(f), ".rar", StringComparison.OrdinalIgnoreCase)
-                         || string.Equals(Path.GetExtension(f), ".7z", StringComparison.OrdinalIgnoreCase))
+                .Where(ImportWarningMessages.IsUnsupportedArchive)
                 .ToList();
             if (unsupportedArchives.Count > 0)
             {
                 CyberMessageBox.Show(this,
-                    "检测到 RAR/7z 压缩包。\n\n当前版本仅保证 ZIP、PAK/UCAS/UTOC 等文件稳定导入。RAR/7z 受用户电脑解压环境影响，可能出现解压失败或中文文件名乱码。\n\n请先用 WinRAR/7-Zip 手动解压，再把解压后的文件夹或其中的 MOD 文件重新导入。",
-                    "请先手动解压 RAR/7z", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ImportWarningMessages.UnsupportedArchiveMessage,
+                    ImportWarningMessages.UnsupportedArchiveTitle,
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -1372,16 +1363,9 @@ namespace UEModManager
             try
             {
                 var iconPath = _gameConfig.GetGameIconPath(gameName);
-                if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
+                var bitmap = ImageLoader.LoadFrozen(iconPath, decodePixelWidth: 64);
+                if (bitmap != null)
                 {
-                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(iconPath, UriKind.Absolute);
-                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    bitmap.DecodePixelWidth = 64;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
                     CurrentGameIcon.Source = bitmap;
                     CurrentGameIcon.Visibility = Visibility.Visible;
                     CurrentGameIconPlaceholder.Visibility = Visibility.Collapsed;
@@ -1570,14 +1554,11 @@ namespace UEModManager
                     case BackgroundMode.Image:
                         if (!string.IsNullOrEmpty(bg.ImagePath) && File.Exists(bg.ImagePath))
                         {
-                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                            bitmap.BeginInit();
-                            // IgnoreImageCache：每次都从磁盘重读，避免相同 URI 字符串命中 WPF 内部缓存导致切换"看上去没生效"
-                            bitmap.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
-                            bitmap.UriSource = new Uri(bg.ImagePath, UriKind.Absolute);
-                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                            bitmap.EndInit();
-                            bitmap.Freeze();
+                            var bitmap = ImageLoader.LoadFrozen(bg.ImagePath, ignoreImageCache: true);
+                            if (bitmap == null)
+                            {
+                                break;
+                            }
 
                             BgImage.Source = bitmap;
                             BgImage.Opacity = bg.Opacity;

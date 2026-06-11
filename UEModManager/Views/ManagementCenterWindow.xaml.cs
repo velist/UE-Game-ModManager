@@ -106,7 +106,7 @@ namespace UEModManager.Views
                 var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
                 var dupGroups = _packageRepo.GetDuplicateGroups();
 
-                RepoTotalSize.Text = FormatSize(_packageRepo.GetTotalSize());
+                RepoTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_packageRepo.GetTotalSize());
                 RepoTotalCount.Text = _packageRepo.GetTotalCount().ToString();
                 RepoUnrefCount.Text = orphans.Count.ToString();
                 RepoDupCount.Text = dupGroups.Count.ToString();
@@ -393,7 +393,7 @@ namespace UEModManager.Views
 
                 GenActiveCount.Text = active.ToString();
                 GenExpiredCount.Text = stale.ToString();
-                GenTotalSize.Text = FormatSize(_overwriteStore.TotalSize);
+                GenTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_overwriteStore.TotalSize);
 
                 if (artifacts.Count == 0)
                 {
@@ -678,18 +678,5 @@ namespace UEModManager.Views
         }
 
         // ─── 工具方法 ───
-
-        private static string FormatSize(long bytes)
-        {
-            string[] units = ["B", "KB", "MB", "GB"];
-            double size = bytes;
-            int unitIndex = 0;
-            while (size >= 1024 && unitIndex < units.Length - 1)
-            {
-                size /= 1024;
-                unitIndex++;
-            }
-            return $"{size:F1} {units[unitIndex]}";
-        }
     }
 }

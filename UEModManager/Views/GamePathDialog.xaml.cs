@@ -162,31 +162,18 @@ namespace UEModManager.Views
 
         private void BrowseGameIcon()
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog
+            try
             {
-                Title = "选择游戏图标",
-                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.ico;*.webp|所有文件|*.*"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                // 复制到应用数据目录
-                try
-                {
-                    var iconsDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "GameIcons");
-                    System.IO.Directory.CreateDirectory(iconsDir);
-                    var ext = System.IO.Path.GetExtension(dlg.FileName);
-                    var destName = $"{GameName.Replace(" ", "_").Replace("/", "_")}{ext}";
-                    var destPath = System.IO.Path.Combine(iconsDir, destName);
-                    System.IO.File.Copy(dlg.FileName, destPath, true);
+                var destPath = UEModManager.Infrastructure.GameIconPicker.BrowseAndCopy(this, GameName);
+                if (string.IsNullOrEmpty(destPath)) return;
 
-                    GameIconPath = destPath;
-                    ShowIconPreview(destPath);
-                }
-                catch (Exception ex)
-                {
-                    CyberMessageBox.Show(this, $"设置图标失败: {ex.Message}", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                GameIconPath = destPath;
+                ShowIconPreview(destPath);
+            }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, $"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}", "\u9519\u8bef",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -203,13 +190,8 @@ namespace UEModManager.Views
         {
             try
             {
-                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 128;
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(path, decodePixelWidth: 128);
+                if (bitmap == null) return;
 
                 GameIconPreview.Source = bitmap;
                 GameIconPreview.Visibility = Visibility.Visible;
