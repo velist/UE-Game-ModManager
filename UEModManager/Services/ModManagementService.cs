@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Import;
+using UEModManager.Services.Security;
 using IOPath = System.IO.Path;
 
 namespace UEModManager.Services
@@ -235,7 +236,7 @@ namespace UEModManager.Services
                     // 插件使用 PluginTargetPath，普通 MOD 使用 modPath
                     string modTargetDir;
                     if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        modTargetDir = IOPath.Combine(gamePath, mod.PluginTargetPath, mod.RealName);
+                        modTargetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
                     else
                         modTargetDir = IOPath.Combine(modPath, mod.RealName);
 
@@ -279,7 +280,7 @@ namespace UEModManager.Services
                 {
                     string modTargetDir;
                     if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        modTargetDir = IOPath.Combine(gamePath, mod.PluginTargetPath, mod.RealName);
+                        modTargetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
                     else
                         modTargetDir = IOPath.Combine(modPath, mod.RealName);
 
@@ -538,7 +539,7 @@ namespace UEModManager.Services
                         Directory.CreateDirectory(pluginBackupDir);
 
                         // 目标安装目录
-                        var targetDir = IOPath.Combine(gamePath, pluginTargetPath, pluginName);
+                        var targetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, pluginTargetPath), pluginName);
                         Directory.CreateDirectory(targetDir);
 
                         long totalSize = 0;
@@ -615,7 +616,7 @@ namespace UEModManager.Services
                     // 删除 MOD/插件目录
                     string targetDir;
                     if (mod.IsPlugin && !string.IsNullOrEmpty(mod.PluginTargetPath) && !string.IsNullOrEmpty(gamePath))
-                        targetDir = IOPath.Combine(gamePath, mod.PluginTargetPath, mod.RealName);
+                        targetDir = IOPath.Combine(PathSanitizer.SafeCombine(gamePath, mod.PluginTargetPath), mod.RealName);
                     else
                         targetDir = IOPath.Combine(modPath, mod.RealName);
 

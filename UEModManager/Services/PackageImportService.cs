@@ -11,6 +11,7 @@ using SharpCompress.Readers;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Import;
+using UEModManager.Services.Security;
 using IOPath = System.IO.Path;
 
 namespace UEModManager.Services
@@ -160,15 +161,25 @@ namespace UEModManager.Services
                     var relativeName = isDirectory
                         ? IOPath.GetRelativePath(filePath, file)
                         : IOPath.GetFileName(file);
+                    string safeRelativeName;
+                    try
+                    {
+                        safeRelativeName = PathSanitizer.SanitizeRelative(relativeName);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "跳过非法导入相对路径: {Path}", relativeName);
+                        continue;
+                    }
 
-                    var (relPath, hash, size) = await _objectStore.StoreFileAsync(pluginName, file, relativeName);
+                    var (relPath, hash, size) = await _objectStore.StoreFileAsync(pluginName, file, safeRelativeName);
                     totalSize += size;
 
                     package.Artifacts.Add(new PackageArtifact
                     {
                         PackageId = package.Id,
                         RelativeSourcePath = relPath,
-                        RelativeTargetPath = relativeName,
+                        RelativeTargetPath = safeRelativeName,
                         FileName = IOPath.GetFileName(file),
                         FileSize = size,
                         FileHash = hash,
@@ -428,8 +439,7 @@ namespace UEModManager.Services
         private static string? NormalizeTargetRootPath(string? targetRootPath)
         {
             if (string.IsNullOrWhiteSpace(targetRootPath)) return null;
-            return targetRootPath.Trim().TrimStart(IOPath.DirectorySeparatorChar, IOPath.AltDirectorySeparatorChar)
-                .Replace(IOPath.AltDirectorySeparatorChar, IOPath.DirectorySeparatorChar);
+            return PathSanitizer.SanitizeRelative(targetRootPath);
         }
 
         // ─── 类型检测 ───
