@@ -55,7 +55,7 @@
                                Foreground="{StaticResource Text100Brush}"
                                HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="支持 .zip .rar .7z .pak .dll .ini .json"
+                    <TextBlock Text="MOD &#x6587;&#x4EF6; / ZIP &#x538B;&#x7F29;&#x5305;"
                                FontSize="12" Foreground="{StaticResource Text500Brush}"
                                HorizontalAlignment="Center" Margin="0,0,0,16"/>
 
@@ -115,7 +115,7 @@
                             <TextBlock Text="MOD 文件" FontSize="13" FontWeight="Medium"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
-                        <TextBlock Text=".pak .utoc .ucas" FontSize="11"
+                        <TextBlock Text="MOD &#x6587;&#x4EF6; / ZIP &#x538B;&#x7F29;&#x5305;" FontSize="11"
                                    Foreground="{StaticResource Text500Brush}"/>
                     </StackPanel>
                 </Border>

@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using UEModManager.Models;
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 using UEModManager.Services.Config;
 
@@ -220,7 +221,7 @@ namespace UEModManager.Views
             });
             info.Children.Add(new TextBlock
             {
-                Text = $"{tx.TotalOperations} 个操作 · {tx.BackendType}",
+                Text = $"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}",
                 Foreground = (Brush)FindResource("Text500Brush"),
                 FontSize = 11,
                 Margin = new Thickness(0, 2, 0, 0)
@@ -237,7 +238,7 @@ namespace UEModManager.Views
             };
             var statusText = new TextBlock
             {
-                Text = tx.Status.ToString(),
+                Text = DisplayNameMapper.DeploymentStatus(tx.Status),
                 Foreground = (Brush)FindResource(statusColor),
                 FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center,

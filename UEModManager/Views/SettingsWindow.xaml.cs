@@ -521,8 +521,8 @@ namespace UEModManager.Views
                 ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "Exit directly";
                 ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "Minimize to taskbar";
                 AboutTitle.Text = "About";
-                AboutDesc1.Text = "A MOD manager designed for Unreal Engine games";
-                AboutDesc2.Text = "Supports Stellar Blade, Black Myth Wukong and more";
+                AboutDesc1.Text = "A mod manager for popular games, built for everyone";
+                AboutDesc2.Text = "Supports multiple popular games";
                 DonationText.Text = "If you find this helpful, buy me a coffee!";
                 CreditsTitle.Text = "Credits";
 
@@ -566,8 +566,8 @@ namespace UEModManager.Views
                 ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "直接退出";
                 ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "最小化到任务栏";
                 AboutTitle.Text = "关于软件";
-                AboutDesc1.Text = "专为虚幻引擎游戏设计的 MOD 管理器";
-                AboutDesc2.Text = "支持剑星、黑神话悟空等多款游戏";
+                AboutDesc1.Text = "面向普通玩家的游戏 MOD 管理器，已适配多款热门游戏";
+                AboutDesc2.Text = "轻松管理导入、启用、备份与恢复";
                 DonationText.Text = "如果你觉得有帮助，可以请我喝一杯咖啡！";
                 CreditsTitle.Text = "鸣谢名单";
 

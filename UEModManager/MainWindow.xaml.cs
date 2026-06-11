@@ -212,7 +212,7 @@ namespace UEModManager
                 summary.AppendLine();
                 foreach (var c in candidates.Take(5))
                 {
-                    summary.AppendLine($"  • {c.CreatedAt:yyyy-MM-dd HH:mm}  [{c.Status}]  {c.Reason}");
+                    summary.AppendLine($"  • {c.CreatedAt:yyyy-MM-dd HH:mm}  [{DisplayNameMapper.DeploymentStatus(c.Status)}]  {c.Reason}");
                 }
                 if (candidates.Count > 5) summary.AppendLine($"  …还有 {candidates.Count - 5} 个");
                 summary.AppendLine();
