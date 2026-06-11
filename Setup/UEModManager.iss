@@ -1,18 +1,27 @@
 ; ============================================================
-;   爱酱MOD管理器 v2.0.3测试版 - Inno Setup 安装脚本
+;   爱酱MOD管理器 - Inno Setup 安装脚本
 ;   编译要求：Inno Setup 6+
 ;   触发方式：根目录 Build-Installer.ps1
 ; ============================================================
 
-#define MyAppName       "爱酱MOD管理器"
-#define MyAppVersion    "2.0.3-beta"
-#define MyAppDisplayVer "v2.0.3测试版"
-#define MyAppPublisher  "爱酱工作室"
-#define MyAppURL        "https://www.modmanger.com"
-#define MyAppExeName    "UEModManager.exe"
-#define MyHelpDocUrl    "https://www.kdocs.cn/l/chqhf7cWy7K8"
+#define MyAppName        "爱酱MOD管理器"
+#ifndef MyAppVersion
+#define MyAppVersion     "2.1.0"
+#endif
+#ifndef MyAppDisplayVer
+#define MyAppDisplayVer  "v2.1.0"
+#endif
+#ifndef MyOutputBaseFilename
+#define MyOutputBaseFilename "UEModManager_v2.1.0_Setup"
+#endif
+#define MyAppPublisher   "爱酱工作室"
+#define MyAppURL         "https://www.modmanger.com"
+#define MyAppExeName     "UEModManager.exe"
+#define MyHelpDocUrl     "https://www.kdocs.cn/l/chqhf7cWy7K8"
 #define DotNetRuntimeUrl "https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0"
-#define SourceDir       "..\UEModManager\bin\Release\net8.0-windows"
+#ifndef SourceDir
+#define SourceDir        "..\UEModManager\bin\Release\net8.0-windows"
+#endif
 
 [Setup]
 AppId={{8E4A2D5C-1F4B-4E7B-9C8E-2A3D4F5B6C7D}
@@ -27,7 +36,7 @@ DefaultDirName={userpf}\UEModManager
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\installer_output
-OutputBaseFilename=UEModManager_v2.0.3-beta_Setup
+OutputBaseFilename={#MyOutputBaseFilename}
 SetupIconFile=..\UEModManager\mnlogo.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardImageFile=wizard-images\banner.bmp

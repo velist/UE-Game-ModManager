@@ -1,48 +1,86 @@
-Write-Host "=== UEModManager v2.0.3 beta installer build ===" -ForegroundColor Green
-
-$localInnoDir = "D:\" + [char]0x5B89 + [char]0x88C5
-$innoCandidates = @(
-    (Join-Path $localInnoDir "ISCC.exe"),
-    (Join-Path $localInnoDir "Compil32.exe"),
-    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-    "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+param(
+    [string]$Version = "2.1.0",
+    [ValidateSet("Debug", "Release")]
+    [string]$Configuration = "Release",
+    [string]$InnoPath = ""
 )
 
-$innoPath = $innoCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$ErrorActionPreference = 'Stop'
+Set-Location $PSScriptRoot
+
+Write-Host "=== UEModManager v$Version installer build ($Configuration) ===" -ForegroundColor Green
+
+$programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+$programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+
+if ($InnoPath) {
+    $candidate = $InnoPath
+    if (Test-Path -LiteralPath $candidate -PathType Container) {
+        $candidate = Join-Path $candidate "ISCC.exe"
+    }
+    if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        throw "Specified Inno Setup compiler was not found: $candidate"
+    }
+    if ([System.IO.Path]::GetFileName($candidate) -ne "ISCC.exe") {
+        throw "InnoPath must point to ISCC.exe, not Compil32.exe or another executable."
+    }
+    $innoPath = (Resolve-Path -LiteralPath $candidate).Path
+} else {
+    $innoCandidates = @(
+        (Join-Path $programFilesX86 "Inno Setup 6\ISCC.exe"),
+        (Join-Path $programFiles "Inno Setup 6\ISCC.exe")
+    ) | Where-Object { $_ }
+
+    $innoPath = $innoCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
 if (!$innoPath) {
-    Write-Host "ERROR: Inno Setup 6 compiler was not found." -ForegroundColor Red
-    Write-Host "Install Inno Setup 6, then run this script again."
-    exit 1
+    throw "Inno Setup 6 command-line compiler (ISCC.exe) was not found. Install Inno Setup 6 or rerun with -InnoPath."
 }
 Write-Host "Inno Setup: $innoPath" -ForegroundColor Green
 
+$projectPath = Join-Path $PSScriptRoot "UEModManager\UEModManager.csproj"
+$exePath = Join-Path $PSScriptRoot "UEModManager\bin\$Configuration\net8.0-windows\UEModManager.exe"
+$issPath = Join-Path $PSScriptRoot "Setup\UEModManager.iss"
+$outputDirectory = Join-Path $PSScriptRoot "installer_output"
+$outputBaseFilename = "UEModManager_v${Version}_Setup"
+$installer = Join-Path $outputDirectory "$outputBaseFilename.exe"
+
 Write-Host ""
-Write-Host "Building Release project..." -ForegroundColor Yellow
-$buildResult = & dotnet build "UEModManager\UEModManager.csproj" --configuration Release --nologo --verbosity quiet 2>&1
+Write-Host "Building $Configuration project..." -ForegroundColor Yellow
+$buildResult = & dotnet build $projectPath --configuration $Configuration --nologo --verbosity quiet 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Release build failed:" -ForegroundColor Red
+    Write-Host "ERROR: $Configuration build failed:" -ForegroundColor Red
     Write-Host $buildResult
     exit 1
 }
-Write-Host "Release build succeeded." -ForegroundColor Green
+Write-Host "$Configuration build succeeded." -ForegroundColor Green
 
-$exePath = "UEModManager\bin\Release\net8.0-windows\UEModManager.exe"
 if (!(Test-Path $exePath)) {
-    Write-Host "ERROR: Release exe not found: $exePath" -ForegroundColor Red
-    exit 1
+    throw "Build output exe not found: $exePath"
 }
 Write-Host "Main exe: $exePath" -ForegroundColor Green
 
-$issPath = "Setup\UEModManager.iss"
 if (!(Test-Path $issPath)) {
-    Write-Host "ERROR: Inno Setup script not found: $issPath" -ForegroundColor Red
-    exit 1
+    throw "Inno Setup script not found: $issPath"
 }
 Write-Host "Setup script: $issPath" -ForegroundColor Green
 
-if (Test-Path "Setup\wizard-images\banner_raw.png") {
+$wizardRawImage = Join-Path $PSScriptRoot "Setup\wizard-images\banner_raw.png"
+if (Test-Path $wizardRawImage) {
     Write-Host "Converting wizard images..." -ForegroundColor Yellow
-    $convertResult = & python -c "from PIL import Image; from pathlib import Path; p=Path('Setup/wizard-images'); items=[('banner_raw.png','banner.bmp',(384,772)),('step1_import_raw.png','step1.bmp',(1024,614)),('step2_deploy_raw.png','step2.bmp',(1024,614)),('step3_check_raw.png','step3.bmp',(1024,614))]; [Image.open(p/s).convert('RGB').resize(sz, Image.Resampling.LANCZOS).save(p/d) for s,d,sz in items]; logo=Image.open(p/'aichan-logo.png').convert('RGBA'); canvas=Image.new('RGBA',(110,110),(250,250,250,255)); logo=logo.crop(logo.getbbox()) if logo.getbbox() else logo; logo.thumbnail((86,86), Image.Resampling.LANCZOS); canvas.alpha_composite(logo,((110-logo.width)//2,(110-logo.height)//2)); canvas.convert('RGB').save(p/'small.bmp')" 2>&1
+
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (!$python) {
+        throw "Python was not found in PATH. Install Python and Pillow, then run this script again."
+    }
+
+    $converter = Join-Path $PSScriptRoot "Setup\convert_wizard_images.py"
+    if (!(Test-Path $converter)) {
+        throw "Wizard image converter not found: $converter"
+    }
+
+    $convertResult = & $python.Source $converter 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Wizard image conversion failed:" -ForegroundColor Red
         Write-Host $convertResult
@@ -51,22 +89,29 @@ if (Test-Path "Setup\wizard-images\banner_raw.png") {
     Write-Host "Wizard images converted." -ForegroundColor Green
 }
 
-if (!(Test-Path "installer_output")) {
-    New-Item -ItemType Directory -Path "installer_output" | Out-Null
+if (!(Test-Path $outputDirectory)) {
+    New-Item -ItemType Directory -Path $outputDirectory | Out-Null
 }
 
 Write-Host ""
 Write-Host "Compiling installer..." -ForegroundColor Yellow
-$process = Start-Process -FilePath $innoPath -ArgumentList $issPath -Wait -PassThru -NoNewWindow
-if ($process.ExitCode -ne 0) {
-    Write-Host "ERROR: Inno Setup failed with exit code $($process.ExitCode)." -ForegroundColor Red
+$sourceDirForIss = "..\UEModManager\bin\$Configuration\net8.0-windows"
+$innoArgs = @(
+    "/DMyAppVersion=$Version",
+    "/DMyAppDisplayVer=v$Version",
+    "/DMyOutputBaseFilename=$outputBaseFilename",
+    "/DSourceDir=$sourceDirForIss",
+    $issPath
+)
+$compileResult = & $innoPath @innoArgs 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Inno Setup failed:" -ForegroundColor Red
+    Write-Host $compileResult
     exit 1
 }
 
-$installer = "installer_output\UEModManager_v2.0.3-beta_Setup.exe"
 if (!(Test-Path $installer)) {
-    Write-Host "ERROR: Output installer not found: $installer" -ForegroundColor Red
-    exit 1
+    throw "Output installer not found: $installer"
 }
 
 $size = [math]::Round((Get-Item $installer).Length / 1MB, 2)

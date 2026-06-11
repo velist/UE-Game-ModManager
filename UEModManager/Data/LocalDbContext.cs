@@ -17,6 +17,7 @@ namespace UEModManager.Data
     {
         private const string BaselineMigrationId = "20250825183311_AddUserAdminAndLockFields";
         private const string EfProductVersion = "8.0.0";
+        private const string SeedAppVersion = "2.1.0";
 
         private readonly ILogger<LocalDbContext>? _logger;
 
@@ -128,7 +129,7 @@ namespace UEModManager.Data
         {
             // 预设应用程序配置
             modelBuilder.Entity<AppConfiguration>().HasData(
-                new AppConfiguration { Id = 1, Key = "AppVersion", Value = "2.0.3-beta", Description = "应用程序版本" },
+                new AppConfiguration { Id = 1, Key = "AppVersion", Value = SeedAppVersion, Description = "应用程序版本" },
                 new AppConfiguration { Id = 2, Key = "DatabaseVersion", Value = "1.0.0", Description = "数据库结构版本" },
                 new AppConfiguration { Id = 3, Key = "FirstRun", Value = "true", Description = "是否首次运行" },
                 new AppConfiguration { Id = 4, Key = "CloudSyncEnabled", Value = "false", Description = "云同步是否启用" },
@@ -459,7 +460,7 @@ namespace UEModManager.Data
             var now = DateTime.Now.ToString("O");
             var statements = new[]
             {
-                $"INSERT OR IGNORE INTO \"Configurations\" (\"Id\", \"Key\", \"Value\", \"Description\", \"CreatedAt\", \"UpdatedAt\") VALUES (1, 'AppVersion', '2.0.3-beta', '应用程序版本', '{now}', '{now}');",
+                $"INSERT OR IGNORE INTO \"Configurations\" (\"Id\", \"Key\", \"Value\", \"Description\", \"CreatedAt\", \"UpdatedAt\") VALUES (1, 'AppVersion', '{SeedAppVersion}', '应用程序版本', '{now}', '{now}');",
                 $"INSERT OR IGNORE INTO \"Configurations\" (\"Id\", \"Key\", \"Value\", \"Description\", \"CreatedAt\", \"UpdatedAt\") VALUES (2, 'DatabaseVersion', '1.0.0', '数据库结构版本', '{now}', '{now}');",
                 $"INSERT OR IGNORE INTO \"Configurations\" (\"Id\", \"Key\", \"Value\", \"Description\", \"CreatedAt\", \"UpdatedAt\") VALUES (3, 'FirstRun', 'true', '是否首次运行', '{now}', '{now}');",
                 $"INSERT OR IGNORE INTO \"Configurations\" (\"Id\", \"Key\", \"Value\", \"Description\", \"CreatedAt\", \"UpdatedAt\") VALUES (4, 'CloudSyncEnabled', 'false', '云同步是否启用', '{now}', '{now}');",
