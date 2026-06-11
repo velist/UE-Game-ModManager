@@ -18,7 +18,8 @@ namespace UEModManager.Views
         /// 显示主题化消息框
         /// </summary>
         public static MessageBoxResult Show(Window? owner, string message, string title = "提示",
-            MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage icon = MessageBoxImage.Information)
+            MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage icon = MessageBoxImage.Information,
+            string? yesText = null, string? noText = null, string? cancelText = null, string? okText = null)
         {
             var dlg = new CyberMessageBox();
             dlg.Title = title;
@@ -49,27 +50,27 @@ namespace UEModManager.Views
             switch (buttons)
             {
                 case MessageBoxButton.YesNo:
-                    var noBtn = CreateButton(dlg, "否", MessageBoxResult.No, false);
-                    var yesBtn = CreateButton(dlg, "是", MessageBoxResult.Yes, true);
+                    var noBtn = CreateButton(dlg, noText ?? "否", MessageBoxResult.No, false);
+                    var yesBtn = CreateButton(dlg, yesText ?? "是", MessageBoxResult.Yes, true);
                     dlg.ButtonPanel.Children.Add(noBtn);
                     dlg.ButtonPanel.Children.Add(yesBtn);
                     break;
                 case MessageBoxButton.OKCancel:
-                    var cancelBtn = CreateButton(dlg, "取消", MessageBoxResult.Cancel, false);
-                    var okBtn = CreateButton(dlg, "确定", MessageBoxResult.OK, true);
+                    var cancelBtn = CreateButton(dlg, cancelText ?? "取消", MessageBoxResult.Cancel, false);
+                    var okBtn = CreateButton(dlg, okText ?? "确定", MessageBoxResult.OK, true);
                     dlg.ButtonPanel.Children.Add(cancelBtn);
                     dlg.ButtonPanel.Children.Add(okBtn);
                     break;
                 case MessageBoxButton.YesNoCancel:
-                    var cancelBtn2 = CreateButton(dlg, "取消", MessageBoxResult.Cancel, false);
-                    var noBtn2 = CreateButton(dlg, "否", MessageBoxResult.No, false);
-                    var yesBtn2 = CreateButton(dlg, "是", MessageBoxResult.Yes, true);
+                    var cancelBtn2 = CreateButton(dlg, cancelText ?? "取消", MessageBoxResult.Cancel, false);
+                    var noBtn2 = CreateButton(dlg, noText ?? "否", MessageBoxResult.No, false);
+                    var yesBtn2 = CreateButton(dlg, yesText ?? "是", MessageBoxResult.Yes, true);
                     dlg.ButtonPanel.Children.Add(cancelBtn2);
                     dlg.ButtonPanel.Children.Add(noBtn2);
                     dlg.ButtonPanel.Children.Add(yesBtn2);
                     break;
                 default: // OK
-                    var okOnlyBtn = CreateButton(dlg, "确定", MessageBoxResult.OK, true);
+                    var okOnlyBtn = CreateButton(dlg, okText ?? "确定", MessageBoxResult.OK, true);
                     dlg.ButtonPanel.Children.Add(okOnlyBtn);
                     break;
             }

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Recovery;
 using UEModManager.Views;
 using UEModManager.Infrastructure;
 
@@ -204,8 +205,10 @@ namespace UEModManager
                 var candidates = await _crashRecovery.ScanForCrashesAsync();
                 if (candidates.Count == 0) return;
 
-                var rollbackCount = candidates.Count(c => c.Action == UEModManager.Services.Recovery.RecoveryAction.RollbackRecommended);
-                var cleanupCount = candidates.Count(c => c.Action == UEModManager.Services.Recovery.RecoveryAction.MarkFailedRecommended);
+                var rollbackCount = candidates.Count(c => c.Action == RecoveryAction.RollbackRecommended);
+                var cleanupCount = candidates.Count(c => c.Action == RecoveryAction.MarkFailedRecommended);
+                var manualReviewCount = candidates.Count(c => c.Action == RecoveryAction.ManualReviewRequired);
+                var verifyCount = candidates.Count(c => c.Action == RecoveryAction.VerifyAndResubmit);
 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"检测到 {candidates.Count} 个未完成的部署事务（可能是上次崩溃留下的）：");
@@ -216,10 +219,30 @@ namespace UEModManager
                 }
                 if (candidates.Count > 5) summary.AppendLine($"  …还有 {candidates.Count - 5} 个");
                 summary.AppendLine();
-                summary.Append("是否回滚所有可回滚事务并清理失败记录？");
+                summary.AppendLine($"建议处理：回滚 {rollbackCount} 个，标记失败 {cleanupCount} 个，人工核查 {manualReviewCount} 个，日志核查 {verifyCount} 个。");
+                summary.AppendLine();
+                summary.Append("请选择要执行的操作。\"本次跳过\"下次启动仍会提醒；\"不再提醒\"会把这些事务标记为已忽略。");
 
-                var result = MessageBox.Show(this, summary.ToString(),
-                    "崩溃恢复", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var result = CyberMessageBox.Show(this, summary.ToString(),
+                    "崩溃恢复", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning,
+                    yesText: "恢复", noText: "本次跳过", cancelText: "不再提醒");
+
+                if (result == MessageBoxResult.Cancel)
+                {
+                    int dismissed = 0, dismissFailed = 0;
+                    foreach (var c in candidates)
+                    {
+                        if (await _crashRecovery.DismissTransactionAsync(c.TransactionId, "用户在启动崩溃恢复弹窗选择不再提醒"))
+                            dismissed++;
+                        else
+                            dismissFailed++;
+                    }
+
+                    CyberMessageBox.Show(this,
+                        $"已忽略：成功 {dismissed}，失败 {dismissFailed}。",
+                        "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
                 if (result != MessageBoxResult.Yes) return;
 
@@ -232,7 +255,7 @@ namespace UEModManager
                         failed++;
                 }
 
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"恢复完成：成功 {succeeded}，失败 {failed}。",
                     "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
             }
