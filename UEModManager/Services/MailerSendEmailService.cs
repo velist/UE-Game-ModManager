@@ -38,7 +38,7 @@ namespace UEModManager.Services
                 Timeout = TimeSpan.FromSeconds(30)
             };
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiToken}");
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.3-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.4-beta");
         }
 
         public async Task<EmailSendResult> SendEmailAsync(string to, string subject, string htmlContent, string? textContent = null)

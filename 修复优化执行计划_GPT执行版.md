@@ -1,4 +1,4 @@
-# UEModManager v2.1 修复优化执行计划（AI 执行版）
+# UEModManager v2.0.4 修复优化执行计划（AI 执行版）
 
 > **执行者必读：** 本计划由 2026-06-11 的四路全代码库审计产出，供 AI 工程师（GPT-5.5）逐任务执行。
 > 所有行号以 commit `1de4f63`（分支 `ux-copy-audit`）为基线。**执行时以实际代码为准**——若发现代码与计划描述不符（行号漂移属正常，逻辑不符则异常），先核实再动手，不要硬套。
@@ -29,7 +29,7 @@ dotnet test UEModManager.Core.Tests --configuration Debug
 
 ### 0.2 分支与提交纪律
 
-- [ ] 开始前从 `ux-copy-audit` 切出新分支：`git checkout -b fix/v2.1-hardening`
+- [ ] 开始前从 `ux-copy-audit` 切出新分支：`git checkout -b fix/v2.0.4-hardening`
 - **每个任务一个独立 commit**，message 格式参照仓库现有风格（`fix:`/`refactor:`/`chore:` + 中文描述）。
 - 提交前必须：`dotnet build` 0 error → `dotnet test` 全绿 → `git add <相关文件>`（**禁止 `git add -A` 盲加**）。
 - **严禁提交**：`*.env` 文件（`allcfkey.env`/`brevo.env` 含真实密钥，已在 .gitignore）、`用户反馈/` 目录（用户隐私数据）、`.wrangler/` 构建产物。

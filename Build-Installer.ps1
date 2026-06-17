@@ -63,7 +63,7 @@ if ($process.ExitCode -ne 0) {
     exit 1
 }
 
-$installer = "installer_output\UEModManager_v2.0.3-beta_Setup.exe"
+$installer = "installer_output\UEModManager_v2.0.4-beta_Setup.exe"
 if (!(Test-Path $installer)) {
     Write-Host "ERROR: Output installer not found: $installer" -ForegroundColor Red
     exit 1

@@ -31,7 +31,7 @@ namespace UEModManager.Services
                 BaseAddress = new Uri(baseUrl + "/"),
                 Timeout = TimeSpan.FromSeconds(15)
             };
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.3-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.4-beta");
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         }
 

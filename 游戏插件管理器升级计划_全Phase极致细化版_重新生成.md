@@ -176,7 +176,7 @@ dotnet test UEModManager.Core.Tests/...                # 604 passed / 0 failed (
 ## 已知未修复（留给后续批次）
 
 - **修复批 B（推荐下批）**：S1 SQLite 单库共享 / S2 ObjectStore 全局共享 / W7 Profile 切换不触发部署 / W1 ConflictAnalyzer 内存全局 / W2 启用入口分散 / W3 事务无并发锁
-- **修复批 C / v2.1**：S8 跨包依赖图 / W4 备份链多层 / N1-N4 Schema 版本兼容 / 幽灵文件检测
+- **修复批 C / v2.0.4**：S8 跨包依赖图 / W4 备份链多层 / N1-N4 Schema 版本兼容 / 幽灵文件检测
 
 详见 [`CHANGELOG.md`](./CHANGELOG.md) 和 [接手文档](./v2.0升级指南_开发者接手文档.md)。
 
@@ -189,7 +189,7 @@ dotnet test UEModManager.Core.Tests/...                # 604 passed / 0 failed (
 - 事务日志与快照分开
 - 尽量保留哈希和来源链
 - 便于复现：包索引 + 部署日志 + Profile 状态可独立重放
-- v2.1 候选：分库（每个游戏独立 SQLite）+ GameId 外键
+- v2.0.4 候选：分库（每个游戏独立 SQLite）+ GameId 外键
 
 ## 当前实现
 
@@ -281,7 +281,7 @@ dotnet test UEModManager.Core.Tests/...                # 604 passed / 0 failed (
 | 取消恢复死循环 | rc2 已修：`Dismissed` 状态 + Reset API |
 | 多游戏数据库共享 | **未修，留批 B**：S1/S2 |
 | Profile 切换不触发部署 | **未修，留批 B**：W7 |
-| 跨包依赖未管理 | **留 v2.1**：S8 / N2 |
+| 跨包依赖未管理 | **留 v2.0.4**：S8 / N2 |
 
 ---
 

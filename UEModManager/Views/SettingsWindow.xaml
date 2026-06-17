@@ -438,9 +438,9 @@
                     <!-- 软件信息 -->
                     <TextBlock Text="爱酱MOD管理器" FontSize="16" FontWeight="SemiBold"
                                Foreground="{StaticResource Text200Brush}"/>
-                    <TextBlock x:Name="VersionText" Text="版本 2.0.2 测试版" FontSize="13"
+                    <TextBlock x:Name="VersionText" Text="版本 2.0.4 测试版" FontSize="13"
                                Foreground="{StaticResource Text500Brush}" Margin="0,4,0,16"/>
-                    <TextBlock x:Name="AboutDesc1" Text="专为虚幻引擎游戏设计的 MOD 管理器" FontSize="13"
+                    <TextBlock x:Name="AboutDesc1" Text="多引擎游戏 MOD 管理工具" FontSize="13"
                                Foreground="{StaticResource Text400Brush}" TextWrapping="Wrap"/>
                     <TextBlock x:Name="AboutDesc2" Text="支持剑星、黑神话悟空等多款游戏" FontSize="13"
                                Foreground="{StaticResource Text500Brush}" Margin="0,8,0,0"/>

@@ -1,12 +1,12 @@
 ; ============================================================
-;   爱酱MOD管理器 v2.0.3测试版 - Inno Setup 安装脚本
+;   爱酱MOD管理器 v2.0.4测试版 - Inno Setup 安装脚本
 ;   编译要求：Inno Setup 6+
 ;   触发方式：根目录 Build-Installer.ps1
 ; ============================================================
 
 #define MyAppName       "爱酱MOD管理器"
-#define MyAppVersion    "2.0.3-beta"
-#define MyAppDisplayVer "v2.0.3测试版"
+#define MyAppVersion    "2.0.4-beta"
+#define MyAppDisplayVer "v2.0.4测试版"
 #define MyAppPublisher  "爱酱工作室"
 #define MyAppURL        "https://www.modmanger.com"
 #define MyAppExeName    "UEModManager.exe"
@@ -27,7 +27,7 @@ DefaultDirName={userpf}\UEModManager
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\installer_output
-OutputBaseFilename=UEModManager_v2.0.3-beta_Setup
+OutputBaseFilename=UEModManager_v2.0.4-beta_Setup
 SetupIconFile=..\UEModManager\mnlogo.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardImageFile=wizard-images\banner.bmp
