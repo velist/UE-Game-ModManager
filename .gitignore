@@ -61,6 +61,14 @@ recovered_*/
 # ─── 内部规划目录（中文目录名，开发笔记，开发期不入仓） ───
 优化向/
 
+# ─── 网站审查截图 / 幻灯片素材（开发期不入仓）───
+slide*.png
+website-*.png
+hero-current.png
+download-no-troubleshoot*.png
+演示幻灯片.html
+assets/icons/
+
 # ─── Claude IDE 状态（可能含 session 缓存，不入仓） ───
 .claude/
 
