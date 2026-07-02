@@ -73,6 +73,41 @@ public class DeploymentDiffComputerTests
     }
 
     [Fact]
+    public void SizeDiffers_ProducesReplaceEvenWhenHashesMissing()
+    {
+        var desired = new Dictionary<string, DesiredFile> { ["/g/a"] = Want("a", "/g/a", hash: null, size: 101) };
+        var actual = new Dictionary<string, DeployedFile> { ["/g/a"] = Have("a", hash: null, size: 100) };
+
+        var ops = DeploymentDiffComputer.ComputeDiff(desired, actual);
+
+        var op = Assert.Single(ops);
+        Assert.Equal(DeploymentOperationType.Replace, op.Type);
+    }
+
+    [Fact]
+    public void SizeMatchesAndActualHashMissing_NoOp()
+    {
+        var desired = new Dictionary<string, DesiredFile> { ["/g/a"] = Want("a", "/g/a", "expected", size: 100) };
+        var actual = new Dictionary<string, DeployedFile> { ["/g/a"] = Have("a", hash: null, size: 100) };
+
+        var ops = DeploymentDiffComputer.ComputeDiff(desired, actual);
+
+        Assert.Empty(ops);
+    }
+
+    [Fact]
+    public void SizeMatchesButHashesDiffer_ProducesReplace()
+    {
+        var desired = new Dictionary<string, DesiredFile> { ["/g/a"] = Want("a", "/g/a", "new", size: 100) };
+        var actual = new Dictionary<string, DeployedFile> { ["/g/a"] = Have("a", "old", size: 100) };
+
+        var ops = DeploymentDiffComputer.ComputeDiff(desired, actual);
+
+        var op = Assert.Single(ops);
+        Assert.Equal(DeploymentOperationType.Replace, op.Type);
+    }
+
+    [Fact]
     public void ActualOnlyKnownPackage_ProducesRemove()
     {
         var desired = new Dictionary<string, DesiredFile>();

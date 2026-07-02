@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
+using UEModManager.Services.Persistence;
 using UEModManager.Services.Repository;
 
 namespace UEModManager.Services
@@ -328,14 +329,8 @@ namespace UEModManager.Services
             try
             {
                 var path = GetIndexPath();
-                var tempFile = path + ".tmp";
                 var json = JsonSerializer.Serialize(_packages, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(tempFile, json);
-
-                if (File.Exists(path))
-                    File.Replace(tempFile, path, null);
-                else
-                    File.Move(tempFile, path);
+                await AtomicFileWriter.WriteAllTextAsync(path, json);
             }
             catch (Exception ex)
             {
@@ -355,7 +350,7 @@ namespace UEModManager.Services
 
                 var manifest = PackageManifest.FromPackage(package);
                 var json = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(manifestPath, json);
+                await AtomicFileWriter.WriteAllTextAsync(manifestPath, json);
             }
             catch (Exception ex)
             {

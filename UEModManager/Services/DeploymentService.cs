@@ -129,9 +129,9 @@ namespace UEModManager.Services
                 // 阶段 2: 逐个执行操作
                 foreach (var operation in plan.Operations)
                 {
+                    transaction.ExecutedOperations.Add(operation);
                     await ExecuteOperationAsync(operation, backend, backupDir);
                     operation.IsExecuted = true;
-                    transaction.ExecutedOperations.Add(operation);
                     transaction.CompletedOperations++;
                     ProgressChanged?.Invoke(transaction);
                 }
@@ -179,6 +179,11 @@ namespace UEModManager.Services
                 // 保存事务日志
                 await SaveTransactionLogAsync(transaction);
                 ProgressChanged?.Invoke(transaction);
+
+                if (transaction.Status == DeploymentStatus.Committed)
+                {
+                    ScheduleBackupCleanup();
+                }
             }
 
             return transaction;
@@ -283,18 +288,20 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 清理旧备份目录（保留最近 N 个）。
+        /// 清理旧备份目录（保留最近 N 个终态事务）。
         /// </summary>
-        public void CleanupOldBackups(int keepCount = 5)
+        public void CleanupOldBackups(int keepCount = 10)
         {
             if (!Directory.Exists(_backupRootPath)) return;
 
             var dirs = Directory.GetDirectories(_backupRootPath)
-                .OrderByDescending(d => Directory.GetCreationTime(d))
+                .Select(LoadBackupTransaction)
+                .Where(x => x.Transaction != null && IsCleanupSafeStatus(x.Transaction.Status))
+                .OrderByDescending(x => x.Transaction!.CompletedAt ?? Directory.GetCreationTime(x.Directory))
                 .Skip(keepCount)
                 .ToList();
 
-            foreach (var dir in dirs)
+            foreach (var (dir, _) in dirs)
             {
                 try
                 {
@@ -307,6 +314,46 @@ namespace UEModManager.Services
                 }
             }
         }
+
+        private void ScheduleBackupCleanup()
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    CleanupOldBackups();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "部署提交后清理旧备份失败");
+                }
+            });
+        }
+
+        private (string Directory, DeploymentTransaction? Transaction) LoadBackupTransaction(string directory)
+        {
+            var logPath = Path.Combine(directory, "transaction.json");
+            if (!File.Exists(logPath))
+            {
+                return (directory, null);
+            }
+
+            try
+            {
+                var json = File.ReadAllText(logPath);
+                return (directory, JsonSerializer.Deserialize<DeploymentTransaction>(json, JsonOptions));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "跳过无法解析的备份目录: {Dir}", directory);
+                return (directory, null);
+            }
+        }
+
+        private static bool IsCleanupSafeStatus(DeploymentStatus status)
+            => status is DeploymentStatus.Committed
+                or DeploymentStatus.RolledBack
+                or DeploymentStatus.Dismissed;
 
         /// <summary>
         /// 扫描 Backups 目录，加载所有事务历史记录。

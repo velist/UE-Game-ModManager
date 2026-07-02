@@ -35,7 +35,7 @@ namespace UEModManager.Services
 
             // 配置HTTP客户端
             _httpClient.BaseAddress = new Uri(_config.ApiBaseUrl);
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.4-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.5-beta");
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace UEModManager.Services
                     email = email,
                     password = password,
                     device_info = GetDeviceInfo(),
-                    app_version = "2.0.4-beta"
+                    app_version = "2.0.5-beta"
                 };
 
                 var json = JsonSerializer.Serialize(loginRequest);
@@ -112,52 +112,13 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 使用激活码登录
+        /// Activation-code login is reserved for the future cloud implementation.
         /// </summary>
-        public async Task<CloudAuthResult> LoginWithActivationCodeAsync(string email, string activationCode)
+        public Task<CloudAuthResult> LoginWithActivationCodeAsync(string email, string activationCode)
         {
-            try
-            {
-                _logger.LogInformation($"开始云端激活码认证: {email}");
-
-                // 模拟激活码认证逻辑
-                // 在实际环境中，这里应该调用真实的云端API
-                await Task.Delay(1000); // 模拟网络请求
-
-                // 简单的激活码验证逻辑（实际应该是API验证）
-                if (activationCode == "123456" || activationCode == DateTime.Now.ToString("HHmmss"))
-                {
-                    var mockUser = new CloudUser
-                    {
-                        Id = new Random().Next(10000, 99999), // Use int instead of string
-                        Email = email,
-                        DisplayName = email.Split('@')[0],
-                        CreatedAt = DateTime.Now,
-                        UpdatedAt = DateTime.Now,
-                        LastLoginAt = DateTime.Now,
-                        IsActive = true
-                    };
-
-                    _currentUser = mockUser;
-                    _accessToken = "mock_activation_token_" + Guid.NewGuid().ToString();
-                    _tokenExpiresAt = DateTime.Now.AddHours(24);
-
-                    _logger.LogInformation($"云端激活码认证成功: {email}");
-                    AuthStateChanged?.Invoke(this, new CloudAuthEventArgs(CloudAuthEventType.SignedIn, _currentUser));
-
-                    return CloudAuthResult.Success("激活码认证成功", _currentUser);
-                }
-                else
-                {
-                    _logger.LogWarning($"云端激活码认证失败: {email} - 激活码无效");
-                    return CloudAuthResult.Failed("激活码无效或已过期");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"云端激活码认证异常: {email}");
-                return CloudAuthResult.Failed("激活码认证过程中发生异常");
-            }
+            // TODO(v2.x): replace this stub with the real cloud activation API before exposing it to users.
+            _logger.LogWarning("[CloudAuth] Activation-code login is disabled until the cloud implementation is live: {Email}", email);
+            return Task.FromResult(CloudAuthResult.Failed("\u6fc0\u6d3b\u7801\u767b\u5f55\u529f\u80fd\u5c1a\u672a\u5f00\u653e"));
         }
 
         /// <summary>
@@ -175,7 +136,7 @@ namespace UEModManager.Services
                     password = password,
                     username = username ?? email.Split('@')[0],
                     device_info = GetDeviceInfo(),
-                    app_version = "2.0.4-beta"
+                    app_version = "2.0.5-beta"
                 };
 
                 var json = JsonSerializer.Serialize(registerRequest);

@@ -44,14 +44,14 @@ namespace UEModManager.Services
                     if (timeSinceLastSend.TotalSeconds < 60)
                     {
                         var waitSeconds = (int)(60 - timeSinceLastSend.TotalSeconds);
-                        _logger.LogWarning($"[CustomOTP] {email} 发送频率过快，需等待 {waitSeconds}秒");
+                        _logger.LogWarning($"[CustomOTP] {MaskEmail(email)} 发送频率过快，需等待 {waitSeconds}秒");
                         return (false, $"请等待 {waitSeconds} 秒后重试", waitSeconds);
                     }
                 }
 
                 // 生成6位数字验证码
                 var otp = GenerateOtp();
-                _logger.LogInformation($"[CustomOTP] 为 {email} 生成验证码: {otp}");
+                _logger.LogInformation($"[CustomOTP] 为 {MaskEmail(email)} 生成验证码（已脱敏）");
 
                 // 生成邮件内容
                 var subject = "【UEModManager】验证码登录";
@@ -74,7 +74,7 @@ namespace UEModManager.Services
                     };
 
                     _otpStore[normalizedEmail] = record;
-                    _logger.LogInformation($"[CustomOTP] 验证码已发送至 {email}，有效期 {OtpValidityMinutes} 分钟");
+                    _logger.LogInformation($"[CustomOTP] 验证码已发送至 {MaskEmail(email)}，有效期 {OtpValidityMinutes} 分钟");
 
                     return (true, "验证码已发送，请查收邮件", null);
                 }
@@ -103,7 +103,7 @@ namespace UEModManager.Services
 
                 if (!_otpStore.TryGetValue(normalizedEmail, out var record))
                 {
-                    _logger.LogWarning($"[CustomOTP] {email} 无验证码记录");
+                    _logger.LogWarning($"[CustomOTP] {MaskEmail(email)} 无验证码记录");
                     return (false, "验证码不存在或已过期");
                 }
 
@@ -111,7 +111,7 @@ namespace UEModManager.Services
                 if (DateTime.UtcNow > record.ExpiresAt)
                 {
                     _otpStore.TryRemove(normalizedEmail, out _);
-                    _logger.LogWarning($"[CustomOTP] {email} 验证码已过期");
+                    _logger.LogWarning($"[CustomOTP] {MaskEmail(email)} 验证码已过期");
                     return (false, "验证码已过期，请重新获取");
                 }
 
@@ -120,7 +120,7 @@ namespace UEModManager.Services
                 if (record.Attempts > MaxAttemptsPerEmail)
                 {
                     _otpStore.TryRemove(normalizedEmail, out _);
-                    _logger.LogWarning($"[CustomOTP] {email} 验证次数超限");
+                    _logger.LogWarning($"[CustomOTP] {MaskEmail(email)} 验证次数超限");
                     return (false, "验证次数过多，请重新获取验证码");
                 }
 
@@ -128,12 +128,12 @@ namespace UEModManager.Services
                 if (record.Otp == normalizedOtp)
                 {
                     _otpStore.TryRemove(normalizedEmail, out _);
-                    _logger.LogInformation($"[CustomOTP] {email} 验证成功");
+                    _logger.LogInformation($"[CustomOTP] {MaskEmail(email)} 验证成功");
                     return (true, "验证成功");
                 }
                 else
                 {
-                    _logger.LogWarning($"[CustomOTP] {email} 验证码错误 (剩余尝试: {MaxAttemptsPerEmail - record.Attempts})");
+                    _logger.LogWarning($"[CustomOTP] {MaskEmail(email)} 验证码错误 (剩余尝试: {MaxAttemptsPerEmail - record.Attempts})");
                     return (false, $"验证码错误，剩余尝试次数: {MaxAttemptsPerEmail - record.Attempts}");
                 }
             }
@@ -156,6 +156,23 @@ namespace UEModManager.Services
             }
             var number = BitConverter.ToUInt32(bytes, 0) % 1000000;
             return number.ToString("D6");
+        }
+
+        private static string MaskEmail(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return "<empty>";
+            }
+
+            var trimmed = email.Trim();
+            var atIndex = trimmed.IndexOf('@');
+            if (atIndex <= 0 || atIndex == trimmed.Length - 1)
+            {
+                return "***";
+            }
+
+            return $"{trimmed[0]}***{trimmed[atIndex..]}";
         }
 
         /// <summary>

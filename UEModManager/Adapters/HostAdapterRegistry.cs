@@ -66,7 +66,7 @@ namespace UEModManager.Adapters
             var engineType = gameType switch
             {
                 GameType.StellarBlade or GameType.BlackMythWukong or GameType.WuchangFallenFeathers
-                    or GameType.Enshrouded or GameType.Borderlands4 => EngineType.UnrealEngine,
+                    or GameType.Expedition33 or GameType.Borderlands4 => EngineType.UnrealEngine,
                 GameType.StellarBladeCNS => EngineType.UnrealEngine,
                 _ => EngineType.Unknown
             };
@@ -77,7 +77,7 @@ namespace UEModManager.Adapters
                 GameType.StellarBladeCNS => "剑星（CNS模式）",
                 GameType.BlackMythWukong => "黑神话·悟空",
                 GameType.WuchangFallenFeathers => "明末·渊虚之羽",
-                GameType.Enshrouded => "光与影：33号远征队",
+                GameType.Expedition33 => "光与影：33号远征队",
                 GameType.Borderlands4 => "无主之地4",
                 _ => gameType.ToString()
             };

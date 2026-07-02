@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.ViewModels;
@@ -15,15 +17,17 @@ namespace UEModManager.Views
         private readonly ProfileViewModel _vm;
         private readonly ProfileService _profileService;
         private readonly ProfileLockService? _lockService;
+        private readonly ILogger<ProfileManagerWindow> _logger;
 
         public ProfileManagerWindow(
             ProfileService profileService,
-            Microsoft.Extensions.Logging.ILogger<ProfileManagerWindow> logger,
+            ILogger<ProfileManagerWindow> logger,
             ProfileLockService? lockService = null)
         {
             InitializeComponent();
             _profileService = profileService;
             _lockService = lockService;
+            _logger = logger;
             _vm = new ProfileViewModel(profileService, logger);
             _vm.PropertyChanged += Vm_PropertyChanged;
         }
@@ -48,16 +52,22 @@ namespace UEModManager.Views
 
         private void NewProfile_Click(object sender, RoutedEventArgs e)
         {
-            _ = _vm.CreateProfileCommand.ExecuteAsync(null);
-            RenderProfileCards();
-            ShowSelectedProfile();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.CreateProfileCommand.ExecuteAsync(null);
+                RenderProfileCards();
+                ShowSelectedProfile();
+            }, _logger, "Create profile");
         }
 
-        private async void CloneProfile_Click(object sender, RoutedEventArgs e)
+        private void CloneProfile_Click(object sender, RoutedEventArgs e)
         {
-            await _vm.CloneProfileCommand.ExecuteAsync(null);
-            RenderProfileCards();
-            ShowSelectedProfile();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.CloneProfileCommand.ExecuteAsync(null);
+                RenderProfileCards();
+                ShowSelectedProfile();
+            }, _logger, "Clone profile");
         }
 
         private async void DeleteProfile_Click(object sender, RoutedEventArgs e)
@@ -445,7 +455,7 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "Lock 服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -461,7 +471,7 @@ namespace UEModManager.Views
             {
                 Title = "导出方案 lock",
                 FileName = $"{profile.Name}.profile.lock.json",
-                Filter = "Profile Lock (*.profile.lock.json)|*.profile.lock.json|JSON (*.json)|*.json",
+                Filter = "方案文件 (*.profile.lock.json)|*.profile.lock.json|JSON (*.json)|*.json",
                 DefaultExt = ".profile.lock.json"
             };
             if (dialog.ShowDialog(this) != true) return;
@@ -490,14 +500,14 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "Lock 服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "导入方案 lock",
-                Filter = "Profile Lock (*.profile.lock.json;*.json)|*.profile.lock.json;*.json"
+                Filter = "方案文件 (*.profile.lock.json;*.json)|*.profile.lock.json;*.json"
             };
             if (dialog.ShowDialog(this) != true) return;
 
@@ -513,7 +523,7 @@ namespace UEModManager.Views
                 summary.AppendLine();
                 summary.AppendLine($"  ✓ 本地有匹配：{diff.MatchedCount}");
                 summary.AppendLine($"  ✗ 本地缺失：{diff.MissingCount}");
-                summary.AppendLine($"  ⚠ 哈希不一致：{diff.HashMismatchCount}");
+                summary.AppendLine($"  ⚠ 文件校验不一致：{diff.HashMismatchCount}");
 
                 if (diff.MissingCount > 0)
                 {
@@ -557,7 +567,7 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "Lock 服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -602,7 +612,7 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "Lock 服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -624,7 +634,7 @@ namespace UEModManager.Views
                 summary.AppendLine();
                 summary.AppendLine($"  ✓ 本地已有：{preview.Diff.MatchedCount}");
                 summary.AppendLine($"  ✗ 本地缺失：{preview.Diff.MissingCount}");
-                summary.AppendLine($"  ⚠ 哈希不一致：{preview.Diff.HashMismatchCount}");
+                summary.AppendLine($"  ⚠ 文件校验不一致：{preview.Diff.HashMismatchCount}");
                 summary.AppendLine();
                 summary.AppendLine($"整合包内附带：{preview.PackageKeysInBundle.Count} 个包");
 

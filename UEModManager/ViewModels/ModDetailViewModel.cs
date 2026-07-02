@@ -96,14 +96,12 @@ namespace UEModManager.ViewModels
                 {
                     try
                     {
-                        var bitmap = new BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.UriSource = new Uri(CurrentMod.PreviewImagePath, UriKind.Absolute);
-                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        bitmap.Freeze();
-                        CurrentMod.PreviewImage = bitmap;
-                        return bitmap;
+                        var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(CurrentMod.PreviewImagePath);
+                        if (bitmap != null)
+                        {
+                            CurrentMod.PreviewImage = bitmap;
+                            return bitmap;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -124,10 +122,10 @@ namespace UEModManager.ViewModels
         public async Task ToggleEnabledAsync()
         {
             if (CurrentMod == null) return;
+            if (_toggleModAsync == null)
+                throw DeploymentServiceNotInitialized("切换 MOD");
 
-            var success = _toggleModAsync != null
-                ? await _toggleModAsync(CurrentMod, !CurrentMod.IsEnabled)
-                : await ToggleLegacyAsync(CurrentMod);
+            var success = await _toggleModAsync(CurrentMod, !CurrentMod.IsEnabled);
 
             if (success)
             {
@@ -171,10 +169,10 @@ namespace UEModManager.ViewModels
         public async Task DeleteAsync()
         {
             if (CurrentMod == null) return;
+            if (_deleteModAsync == null)
+                throw DeploymentServiceNotInitialized("删除 MOD");
 
-            var success = _deleteModAsync != null
-                ? await _deleteModAsync(CurrentMod)
-                : await DeleteLegacyAsync(CurrentMod);
+            var success = await _deleteModAsync(CurrentMod);
 
             if (success)
             {
@@ -182,14 +180,6 @@ namespace UEModManager.ViewModels
                 ModStateChanged?.Invoke();
                 CloseRequested?.Invoke();
             }
-        }
-
-        private async Task<bool> ToggleLegacyAsync(ModInfo mod)
-        {
-            if (mod.IsEnabled)
-                return await _modService.DisableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-
-            return await _modService.EnableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
         }
 
         private async Task<bool> ChangePreviewLegacyAsync(string imagePath)
@@ -203,15 +193,6 @@ namespace UEModManager.ViewModels
             return true;
         }
 
-        private async Task<bool> DeleteLegacyAsync(ModInfo mod)
-        {
-            if (!await _modService.DeleteModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath))
-                return false;
-
-            await _modData.RemoveModAsync(mod.Id);
-            return true;
-        }
-
         /// <summary>
         /// 关闭详情面板。
         /// </summary>
@@ -219,6 +200,12 @@ namespace UEModManager.ViewModels
         public void Close()
         {
             CloseRequested?.Invoke();
+        }
+
+        private InvalidOperationException DeploymentServiceNotInitialized(string operation)
+        {
+            _logger.LogError("部署服务未初始化，无法执行操作: {Operation}", operation);
+            return new InvalidOperationException("部署服务未初始化");
         }
     }
 }

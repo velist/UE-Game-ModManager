@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -16,7 +17,6 @@ namespace UEModManager.Services
     ///
     /// 冲突检测分两层：
     /// 1. 文件路径冲突（轻量）— 多个包部署到同一目标路径
-    /// 2. UE 资产冲突（重量）— CUE4Parse pak 内容检测（委托给 ModConflictService）
     /// </summary>
     public class ConflictAnalyzer
     {
@@ -224,12 +224,8 @@ namespace UEModManager.Services
         {
             try
             {
-                var dir = Path.GetDirectoryName(OverridesFilePath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
                 var json = JsonSerializer.Serialize(_userOverrides, JsonOptions);
-                await File.WriteAllTextAsync(OverridesFilePath, json);
+                await AtomicFileWriter.WriteAllTextAsync(OverridesFilePath, json);
             }
             catch (Exception ex)
             {

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services
 {
@@ -85,7 +86,7 @@ namespace UEModManager.Services
         {
             EnsureInitialized();
 
-            var fileName = targetRelativeName ?? Path.GetFileName(sourceFilePath);
+            var fileName = PathSanitizer.SanitizeRelative(targetRelativeName ?? Path.GetFileName(sourceFilePath));
             var packageFilesDir = GetPackageFilesDirectory(packageKey);
             Directory.CreateDirectory(packageFilesDir);
 

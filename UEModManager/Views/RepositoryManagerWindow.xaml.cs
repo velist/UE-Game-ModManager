@@ -44,14 +44,14 @@ namespace UEModManager.Views
             var duplicates = _packageRepo.GetDuplicateGroups();
             var totalSize = _packageRepo.GetTotalSize();
 
-            TotalSizeText.Text = FormatSize(totalSize);
+            TotalSizeText.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize);
             TotalCountText.Text = allPackages.Count.ToString();
             OrphanCountText.Text = orphans.Count.ToString();
             DuplicateCountText.Text = duplicates.Count.ToString();
 
             var orphanSize = orphans.Sum(p => p.TotalSize);
             CleanupButtonText.Text = orphanSize > 0
-                ? $"清理未使用 ({FormatSize(orphanSize)})"
+                ? $"清理未使用 ({UEModManager.Core.Utils.FileSizeFormatter.Format(orphanSize)})"
                 : "清理未使用";
 
             // 包列表
@@ -99,7 +99,7 @@ namespace UEModManager.Views
             // 大小
             var size = new TextBlock
             {
-                Text = FormatSize(pkg.TotalSize),
+                Text = UEModManager.Core.Utils.FileSizeFormatter.Format(pkg.TotalSize),
                 FontSize = 12,
                 Foreground = (Brush)FindResource("Text400Brush"),
                 TextAlignment = TextAlignment.Right,
@@ -208,7 +208,7 @@ namespace UEModManager.Views
 
             var totalSize = orphans.Sum(p => p.TotalSize);
             var result = CyberMessageBox.Show(this,
-                $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {FormatSize(totalSize)}）。\n此操作不可撤销，确认继续？",
+                $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize)}）。\n此操作不可撤销，确认继续？",
                 "清理未使用文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.Yes)
@@ -223,13 +223,5 @@ namespace UEModManager.Views
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
-            if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F0} MB";
-            if (bytes >= 1024) return $"{bytes / 1024.0:F0} KB";
-            return $"{bytes} B";
-        }
     }
 }

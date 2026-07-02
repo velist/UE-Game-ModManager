@@ -201,21 +201,13 @@ namespace UEModManager.ViewModels
         public async Task ToggleModAsync(ModInfo? mod)
         {
             if (mod == null) return;
+            if (_toggleModAsync == null)
+                throw DeploymentServiceNotInitialized("切换 MOD");
 
-            var success = _toggleModAsync != null
-                ? await _toggleModAsync(mod, !mod.IsEnabled)
-                : await ToggleLegacyAsync(mod);
+            var success = await _toggleModAsync(mod, !mod.IsEnabled);
 
             if (success)
                 ModsChanged?.Invoke();
-        }
-
-        private async Task<bool> ToggleLegacyAsync(ModInfo mod)
-        {
-            if (mod.IsEnabled)
-                return await _modService.DisableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-
-            return await _modService.EnableModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
         }
 
         /// <summary>
@@ -225,10 +217,10 @@ namespace UEModManager.ViewModels
         public async Task DeleteModAsync(ModInfo? mod)
         {
             if (mod == null) return;
+            if (_deleteModAsync == null)
+                throw DeploymentServiceNotInitialized("删除 MOD");
 
-            var success = _deleteModAsync != null
-                ? await _deleteModAsync(mod)
-                : await _modService.DeleteModAsync(mod, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+            var success = await _deleteModAsync(mod);
 
             if (success)
             {
@@ -286,7 +278,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                await _modService.EnableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+                throw DeploymentServiceNotInitialized("批量启用 MOD");
             }
             ModsChanged?.Invoke();
         }
@@ -308,7 +300,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                await _modService.DisableAllAsync(Mods, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
+                throw DeploymentServiceNotInitialized("批量禁用 MOD");
             }
             ModsChanged?.Invoke();
         }
@@ -340,11 +332,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                if (enable)
-                    await _modService.EnableAllAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-                else
-                    await _modService.DisableAllAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-                changed = true;
+                throw DeploymentServiceNotInitialized(enable ? "启用选中 MOD" : "禁用选中 MOD");
             }
 
             if (changed)
@@ -372,8 +360,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                await _modService.DeleteModsAsync(selected, _gameConfig.CurrentModPath, _gameConfig.CurrentBackupPath);
-                changed = true;
+                throw DeploymentServiceNotInitialized("删除选中 MOD");
             }
 
             if (changed)
@@ -382,6 +369,12 @@ namespace UEModManager.ViewModels
                     mod.IsSelected = false;
                 ModsChanged?.Invoke();
             }
+        }
+
+        private InvalidOperationException DeploymentServiceNotInitialized(string operation)
+        {
+            _logger.LogError("部署服务未初始化，无法执行操作: {Operation}", operation);
+            return new InvalidOperationException("部署服务未初始化");
         }
     }
 }

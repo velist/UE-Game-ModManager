@@ -82,7 +82,7 @@ namespace UEModManager.Views
                     ArchiveInfoCard.Visibility = Visibility.Visible;
                     ArchiveFileName.Text = Path.GetFileName(FilePaths[0]);
                     var fi = new FileInfo(FilePaths[0]);
-                    ArchiveFileInfo.Text = $"压缩包 · {FormatSize(fi.Length)}";
+                    ArchiveFileInfo.Text = $"压缩包 · {UEModManager.Core.Utils.FileSizeFormatter.Format(fi.Length)}";
                 }
                 else
                 {
@@ -200,7 +200,7 @@ namespace UEModManager.Views
             // 大小
             var sizeText = new TextBlock
             {
-                Text = FormatSize(entry.Size),
+                Text = UEModManager.Core.Utils.FileSizeFormatter.Format(entry.Size),
                 FontSize = 12,
                 Foreground = (Brush)FindResource("Text400Brush"),
                 TextAlignment = TextAlignment.Right,
@@ -385,14 +385,6 @@ namespace UEModManager.Views
             ".ini" or ".json" or ".cfg" or ".yaml" or ".xml" => PackageKind.Config,
             _ => PackageKind.Mod // 压缩包默认为 MOD
         };
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes >= 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
-            if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F0} MB";
-            if (bytes >= 1024) return $"{bytes / 1024.0:F0} KB";
-            return $"{bytes} B";
-        }
 
         private class FileEntry
         {

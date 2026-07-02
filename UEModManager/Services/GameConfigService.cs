@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
+using UEModManager.Services.Persistence;
 using AppConfig = UEModManager.Models.AppConfig;
 
 namespace UEModManager.Services
@@ -133,7 +134,7 @@ namespace UEModManager.Services
             try
             {
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_configFilePath, json);
+                AtomicFileWriter.WriteAllText(_configFilePath, json);
                 _logger.LogInformation("配置已保存");
             }
             catch (Exception ex)
@@ -325,7 +326,14 @@ namespace UEModManager.Services
                 }
                 else if (gameName == "光与影：33号远征队")
                 {
-                    match = validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("enshrouded"));
+                    match = validExes.FirstOrDefault(e =>
+                    {
+                        var fn = Path.GetFileNameWithoutExtension(e).ToLowerInvariant();
+                        return fn.Contains("expedition33steam-win64-shipping")
+                            || fn.Contains("expedition33")
+                            || fn.Contains("sandfall-win64-shipping")
+                            || fn.Contains("sandfall");
+                    });
                 }
                 else if (gameName != null && (gameName.Contains("明末") || gameName.Contains("渊虚之羽")))
                 {
@@ -450,7 +458,15 @@ namespace UEModManager.Services
             if (gameName.Contains("CNS")) return GameType.StellarBladeCNS;
             if (gameName.StartsWith("剑星")) return GameType.StellarBlade;
             if (gameName.Contains("黑神话") || gameName.Contains("悟空")) return GameType.BlackMythWukong;
-            if (gameName.Contains("光与影") || gameName.Contains("Enshrouded")) return GameType.Enshrouded;
+            if (gameName.Contains("光与影")
+                || gameName.Contains("33号远征队")
+                || gameName.Contains("Expedition 33", StringComparison.OrdinalIgnoreCase)
+                || gameName.Contains("Expedition33", StringComparison.OrdinalIgnoreCase)
+                || gameName.Contains("Clair Obscur", StringComparison.OrdinalIgnoreCase)
+                || gameName.Contains("Sandfall", StringComparison.OrdinalIgnoreCase))
+            {
+                return GameType.Expedition33;
+            }
             if (gameName.Contains("明末") || gameName.Contains("渊虚之羽")) return GameType.WuchangFallenFeathers;
             if (gameName.Contains("无主之地") || gameName.Contains("Borderlands")) return GameType.Borderlands4;
             return GameType.Other;

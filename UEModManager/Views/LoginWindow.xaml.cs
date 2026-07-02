@@ -10,7 +10,7 @@ using UEModManager.Services;
 
 namespace UEModManager.Views
 {    public partial class LoginWindow : Window
-    {        private readonly UnifiedAuthService _unifiedAuth;
+    {
         private readonly LocalAuthService _localAuth;
         private readonly CustomOtpService _otpService;
         private readonly ILogger<LoginWindow> _logger;
@@ -25,7 +25,6 @@ namespace UEModManager.Views
 
             // 解析依赖
             var sp = (Application.Current as App)?.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider 未初始化");
-            _unifiedAuth = sp.GetRequiredService<UnifiedAuthService>();
             _localAuth = sp.GetRequiredService<LocalAuthService>();
             _otpService = sp.GetRequiredService<CustomOtpService>();
             _logger = sp.GetService<ILogger<LoginWindow>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LoginWindow>.Instance;

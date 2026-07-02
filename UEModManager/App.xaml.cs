@@ -84,20 +84,6 @@ namespace UEModManager
                 // 启动主机
                 await _host.StartAsync();
 
-#if DEBUG
-                // 在调试模式下运行本地存储测试
-                try
-                {
-                    var logger = ServiceProvider.GetRequiredService<ILogger<App>>();
-                    logger.LogInformation("开始运行本地存储系统测试...");
-                    await UEModManager.Tests.LocalStorageTest.RunAllTestsAsync(ServiceProvider);
-                }
-                catch (Exception testEx)
-                {
-                    var logger = ServiceProvider.GetRequiredService<ILogger<App>>();
-                    logger.LogError(testEx, "本地存储测试失败，但不影响应用程序启动");
-                }
-#endif
 
                 // 显示认证窗口
                 ShowAuthenticationWindow();
@@ -205,8 +191,6 @@ namespace UEModManager
                     // 注册本地缓存服务
                     services.AddScoped<LocalCacheService>();
 
-                    // 注册离线模式服务
-                    services.AddScoped<OfflineModeService>();
 
                     // 注册邮件发送服务（Brevo API + SMTP 双通道）
                     RegisterEmailServices(services);
@@ -272,8 +256,6 @@ namespace UEModManager
                     // 注册窗口
                     services.AddTransient<MainWindow>();
                     services.AddTransient<LoginWindow>();
-                    services.AddTransient<RegisterWindow>();
-                    services.AddTransient<AuthSettingsWindow>();
                     services.AddTransient<Views.ProfileManagerWindow>();
 
                     // v2.0 Phase 2-4 UI 窗口
@@ -315,7 +297,26 @@ namespace UEModManager
                 Console.WriteLine("[Auth] Resolve LocalDbContext");
                 var localDbContext = ServiceProvider.GetRequiredService<LocalDbContext>();
                 Console.WriteLine("[Auth] EnsureDatabaseCreatedAsync");
-                await localDbContext.EnsureDatabaseCreatedAsync();
+                var databaseReady = await localDbContext.EnsureDatabaseCreatedAsync();
+                if (!databaseReady)
+                {
+                    var choice = MessageBox.Show(
+                        "本地数据库初始化失败。可以以离线只读方式继续，但账号登录、会话恢复和本地资料保存可能不可用。\n\n是否继续？",
+                        "数据库初始化失败",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (choice == MessageBoxResult.Yes)
+                    {
+                        Console.WriteLine("[Auth] Database init failed, continue in offline read-only mode");
+                        ShowMainWindow();
+                    }
+                    else
+                    {
+                        Console.WriteLine("[Auth] Database init failed, user chose exit");
+                        Shutdown();
+                    }
+                    return;
+                }
 
                 // 初始化默认管理员账户
                 Console.WriteLine("[Auth] Resolve LocalAuthService");
@@ -599,10 +600,21 @@ namespace UEModManager
                     var key = parts[0].Trim();
                     var value = parts[1].Trim();
                     result[key] = value;
-                    Console.WriteLine($"[App] ParseEnv: {key}={value.Substring(0, Math.Min(10, value.Length))}...");
+                    var preview = IsSensitiveEnvKey(key)
+                        ? "<redacted>"
+                        : $"{value.Substring(0, Math.Min(10, value.Length))}...";
+                    Console.WriteLine($"[App] ParseEnv: {key}={preview}");
                 }
             }
             return result;
+        }
+
+        private static bool IsSensitiveEnvKey(string key)
+        {
+            return key.Contains("KEY", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("TOKEN", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("SECRET", StringComparison.OrdinalIgnoreCase)
+                || key.Contains("PASSWORD", StringComparison.OrdinalIgnoreCase);
         }
 
 } 

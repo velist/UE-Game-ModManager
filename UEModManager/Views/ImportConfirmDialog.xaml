@@ -144,10 +144,10 @@
                               Style="{StaticResource CyberComboBox}"
                               SelectionChanged="TargetPathPresetBox_SelectionChanged">
                         <ComboBoxItem Content="选择常用路径" Tag="" IsSelected="True"/>
-                        <ComboBoxItem Content="Binaries/Win64" Tag="Binaries/Win64"/>
-                        <ComboBoxItem Content="Content/Paks/~mods" Tag="Content/Paks/~mods"/>
-                        <ComboBoxItem Content="Saved/Config/WindowsNoEditor" Tag="Saved/Config/WindowsNoEditor"/>
-                        <ComboBoxItem Content="Mods" Tag="Mods"/>
+                        <ComboBoxItem Content="插件目录（Binaries/Win64）" Tag="Binaries/Win64"/>
+                        <ComboBoxItem Content="游戏 MOD 目录（Content/Paks/~mods）" Tag="Content/Paks/~mods"/>
+                        <ComboBoxItem Content="配置目录（Saved/Config/WindowsNoEditor）" Tag="Saved/Config/WindowsNoEditor"/>
+                        <ComboBoxItem Content="Mods 目录（Mods）" Tag="Mods"/>
                     </ComboBox>
                 </Grid>
             </StackPanel>

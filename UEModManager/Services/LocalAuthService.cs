@@ -1089,12 +1089,13 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 确保默认管理员账户存在
+        /// 确保默认管理员账户存在。默认管理员仅供 DEBUG 开发调试，Release 不会创建。
         /// </summary>
         public async Task<bool> EnsureDefaultAdminAsync()
         {
             try
             {
+#if DEBUG
                 // 检查是否已有管理员
                 var existingAdmin = await _dbContext.Users
                     .FirstOrDefaultAsync(u => u.IsAdmin);
@@ -1136,6 +1137,31 @@ namespace UEModManager.Services
                 }
 
                 return true;
+#else
+                const string defaultAdminEmail = "admin@uemodmanager.com";
+                const string defaultAdminPassword = "Admin@123456";
+
+                var existingAdmin = await _dbContext.Users
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == defaultAdminEmail);
+
+                if (existingAdmin != null && VerifyPassword(defaultAdminPassword, existingAdmin.PasswordHash))
+                {
+                    existingAdmin.IsActive = false;
+
+                    var activeSessions = await _dbContext.UserSessions
+                        .Where(s => s.UserId == existingAdmin.Id && s.IsActive)
+                        .ToListAsync();
+                    foreach (var session in activeSessions)
+                    {
+                        session.IsActive = false;
+                    }
+
+                    await _dbContext.SaveChangesAsync();
+                    _logger.LogWarning("Release 环境已禁用未改密的遗留默认管理员账户: {Email}", defaultAdminEmail);
+                }
+
+                return true;
+#endif
             }
             catch (Exception ex)
             {

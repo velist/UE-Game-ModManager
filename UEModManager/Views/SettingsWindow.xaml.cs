@@ -304,34 +304,22 @@ namespace UEModManager.Views
         {
             if (string.IsNullOrEmpty(_gameConfig.CurrentGameName))
             {
-                CyberMessageBox.Show(this, "请先在主界面选择游戏后再设置图标。", "提示");
+                CyberMessageBox.Show(this, "\u8bf7\u5148\u5728\u4e3b\u754c\u9762\u9009\u62e9\u6e38\u620f\u540e\u518d\u8bbe\u7f6e\u56fe\u6807\u3002", "\u63d0\u793a");
                 return;
             }
 
-            var dlg = new Microsoft.Win32.OpenFileDialog
+            try
             {
-                Title = "选择游戏图标",
-                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.ico;*.webp|所有文件|*.*"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                try
-                {
-                    var iconsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "GameIcons");
-                    Directory.CreateDirectory(iconsDir);
-                    var ext = Path.GetExtension(dlg.FileName);
-                    var destName = $"{_gameConfig.CurrentGameName.Replace(" ", "_").Replace("/", "_")}{ext}";
-                    var destPath = Path.Combine(iconsDir, destName);
-                    File.Copy(dlg.FileName, destPath, true);
+                var destPath = UEModManager.Infrastructure.GameIconPicker.BrowseAndCopy(this, _gameConfig.CurrentGameName);
+                if (string.IsNullOrEmpty(destPath)) return;
 
-                    _pendingGameIconPath = destPath;
-                    ShowSettingsIconPreview(destPath);
-                }
-                catch (Exception ex)
-                {
-                    CyberMessageBox.Show(this, $"设置图标失败: {ex.Message}", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                _pendingGameIconPath = destPath;
+                ShowSettingsIconPreview(destPath);
+            }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, $"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}", "\u9519\u8bef",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -348,13 +336,8 @@ namespace UEModManager.Views
         {
             try
             {
-                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 128;
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = UEModManager.Infrastructure.ImageLoader.LoadFrozen(path, decodePixelWidth: 128);
+                if (bitmap == null) return;
 
                 SettingsGameIconPreview.Source = bitmap;
                 SettingsGameIconPreview.Visibility = Visibility.Visible;
@@ -538,8 +521,8 @@ namespace UEModManager.Views
                 ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "Exit directly";
                 ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "Minimize to taskbar";
                 AboutTitle.Text = "About";
-                AboutDesc1.Text = "A MOD manager designed for Unreal Engine games";
-                AboutDesc2.Text = "Supports Stellar Blade, Black Myth Wukong and more";
+                AboutDesc1.Text = "A mod manager for popular games, built for everyone";
+                AboutDesc2.Text = "Supports multiple popular games";
                 DonationText.Text = "If you find this helpful, buy me a coffee!";
                 CreditsTitle.Text = "Credits";
 
@@ -583,8 +566,8 @@ namespace UEModManager.Views
                 ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "直接退出";
                 ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "最小化到任务栏";
                 AboutTitle.Text = "关于软件";
-                AboutDesc1.Text = "专为虚幻引擎游戏设计的 MOD 管理器";
-                AboutDesc2.Text = "支持剑星、黑神话悟空等多款游戏";
+                AboutDesc1.Text = "面向普通玩家的游戏 MOD 管理器，已适配多款热门游戏";
+                AboutDesc2.Text = "轻松管理导入、启用、备份与恢复";
                 DonationText.Text = "如果你觉得有帮助，可以请我喝一杯咖啡！";
                 CreditsTitle.Text = "鸣谢名单";
 

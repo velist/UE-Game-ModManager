@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using UEModManager.Models;
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 using UEModManager.Services.Config;
 
@@ -106,7 +107,7 @@ namespace UEModManager.Views
                 var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
                 var dupGroups = _packageRepo.GetDuplicateGroups();
 
-                RepoTotalSize.Text = FormatSize(_packageRepo.GetTotalSize());
+                RepoTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_packageRepo.GetTotalSize());
                 RepoTotalCount.Text = _packageRepo.GetTotalCount().ToString();
                 RepoUnrefCount.Text = orphans.Count.ToString();
                 RepoDupCount.Text = dupGroups.Count.ToString();
@@ -220,7 +221,7 @@ namespace UEModManager.Views
             });
             info.Children.Add(new TextBlock
             {
-                Text = $"{tx.TotalOperations} 个操作 · {tx.BackendType}",
+                Text = $"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}",
                 Foreground = (Brush)FindResource("Text500Brush"),
                 FontSize = 11,
                 Margin = new Thickness(0, 2, 0, 0)
@@ -237,7 +238,7 @@ namespace UEModManager.Views
             };
             var statusText = new TextBlock
             {
-                Text = tx.Status.ToString(),
+                Text = DisplayNameMapper.DeploymentStatus(tx.Status),
                 Foreground = (Brush)FindResource(statusColor),
                 FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -393,7 +394,7 @@ namespace UEModManager.Views
 
                 GenActiveCount.Text = active.ToString();
                 GenExpiredCount.Text = stale.ToString();
-                GenTotalSize.Text = FormatSize(_overwriteStore.TotalSize);
+                GenTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_overwriteStore.TotalSize);
 
                 if (artifacts.Count == 0)
                 {
@@ -678,18 +679,5 @@ namespace UEModManager.Views
         }
 
         // ─── 工具方法 ───
-
-        private static string FormatSize(long bytes)
-        {
-            string[] units = ["B", "KB", "MB", "GB"];
-            double size = bytes;
-            int unitIndex = 0;
-            while (size >= 1024 && unitIndex < units.Length - 1)
-            {
-                size /= 1024;
-                unitIndex++;
-            }
-            return $"{size:F1} {units[unitIndex]}";
-        }
     }
 }

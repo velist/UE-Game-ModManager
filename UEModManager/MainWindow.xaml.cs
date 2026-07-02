@@ -20,7 +20,9 @@ using Microsoft.Extensions.Logging;
 using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Recovery;
 using UEModManager.Views;
+using UEModManager.Infrastructure;
 
 using IOPath = System.IO.Path;
 
@@ -203,22 +205,44 @@ namespace UEModManager
                 var candidates = await _crashRecovery.ScanForCrashesAsync();
                 if (candidates.Count == 0) return;
 
-                var rollbackCount = candidates.Count(c => c.Action == UEModManager.Services.Recovery.RecoveryAction.RollbackRecommended);
-                var cleanupCount = candidates.Count(c => c.Action == UEModManager.Services.Recovery.RecoveryAction.MarkFailedRecommended);
+                var rollbackCount = candidates.Count(c => c.Action == RecoveryAction.RollbackRecommended);
+                var cleanupCount = candidates.Count(c => c.Action == RecoveryAction.MarkFailedRecommended);
+                var manualReviewCount = candidates.Count(c => c.Action == RecoveryAction.ManualReviewRequired);
+                var verifyCount = candidates.Count(c => c.Action == RecoveryAction.VerifyAndResubmit);
 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"检测到 {candidates.Count} 个未完成的部署事务（可能是上次崩溃留下的）：");
                 summary.AppendLine();
                 foreach (var c in candidates.Take(5))
                 {
-                    summary.AppendLine($"  • {c.CreatedAt:yyyy-MM-dd HH:mm}  [{c.Status}]  {c.Reason}");
+                    summary.AppendLine($"  • {c.CreatedAt:yyyy-MM-dd HH:mm}  [{DisplayNameMapper.DeploymentStatus(c.Status)}]  {c.Reason}");
                 }
                 if (candidates.Count > 5) summary.AppendLine($"  …还有 {candidates.Count - 5} 个");
                 summary.AppendLine();
-                summary.Append("是否回滚所有可回滚事务并清理失败记录？");
+                summary.AppendLine($"建议处理：回滚 {rollbackCount} 个，标记失败 {cleanupCount} 个，人工核查 {manualReviewCount} 个，日志核查 {verifyCount} 个。");
+                summary.AppendLine();
+                summary.Append("请选择要执行的操作。\"本次跳过\"下次启动仍会提醒；\"不再提醒\"会把这些事务标记为已忽略。");
 
-                var result = MessageBox.Show(this, summary.ToString(),
-                    "崩溃恢复", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var result = CyberMessageBox.Show(this, summary.ToString(),
+                    "崩溃恢复", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning,
+                    yesText: "恢复", noText: "本次跳过", cancelText: "不再提醒");
+
+                if (result == MessageBoxResult.Cancel)
+                {
+                    int dismissed = 0, dismissFailed = 0;
+                    foreach (var c in candidates)
+                    {
+                        if (await _crashRecovery.DismissTransactionAsync(c.TransactionId, "用户在启动崩溃恢复弹窗选择不再提醒"))
+                            dismissed++;
+                        else
+                            dismissFailed++;
+                    }
+
+                    CyberMessageBox.Show(this,
+                        $"已忽略：成功 {dismissed}，失败 {dismissFailed}。",
+                        "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
                 if (result != MessageBoxResult.Yes) return;
 
@@ -231,7 +255,7 @@ namespace UEModManager
                         failed++;
                 }
 
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"恢复完成：成功 {succeeded}，失败 {failed}。",
                     "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -470,20 +494,10 @@ namespace UEModManager
 
                     // 加载游戏图标
                     var iconPath = _gameConfig.GetGameIconPath(game);
-                    if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
+                    var bitmap = ImageLoader.LoadFrozen(iconPath, decodePixelWidth: 32);
+                    if (bitmap != null)
                     {
-                        try
-                        {
-                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.UriSource = new Uri(iconPath, UriKind.Absolute);
-                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                            bitmap.DecodePixelWidth = 32;
-                            bitmap.EndInit();
-                            bitmap.Freeze();
-                            item.Icon = new Image { Source = bitmap, Width = 20, Height = 20, Stretch = Stretch.UniformToFill };
-                        }
-                        catch { }
+                        item.Icon = new Image { Source = bitmap, Width = 20, Height = 20, Stretch = Stretch.UniformToFill };
                     }
 
                     item.Click += GameMenuItem_Click;
@@ -585,8 +599,10 @@ namespace UEModManager
             }
         }
 
-        private async void ShowGamePathDialog(string gameName)
+        private void ShowGamePathDialog(string gameName)
         {
+            SafeEvent.Run(this, async () =>
+            {
             var dialog = new GamePathDialog(gameName) { Owner = this };
             if (dialog.ShowDialog() == true)
             {
@@ -624,6 +640,7 @@ namespace UEModManager
                 }
                 finally { IsEnabled = true; Cursor = Cursors.Arrow; }
             }
+            }, _logger, "Configure game path");
         }
 
         // ═════════════════════════════════════════
@@ -865,16 +882,16 @@ namespace UEModManager
 
         // ── MOD 导入 (v2.0: ImportDialog → ImportConfirmDialog) ──
 
-        private async void ImportMod_Click(object sender, MouseButtonEventArgs e)
+        private void ImportMod_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await OpenImportWizardAsync();
+            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import MOD");
         }
 
-        private async void ImportPlugin_Click(object sender, MouseButtonEventArgs e)
+        private void ImportPlugin_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await OpenImportWizardAsync();
+            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import plugin");
         }
 
         /// <summary>v2.0 统一导入流程：ImportDialog → ImportConfirmDialog → 刷新。</summary>
@@ -896,14 +913,15 @@ namespace UEModManager
             }
 
             var unsupportedArchives = filesToImport
-                .Where(f => string.Equals(Path.GetExtension(f), ".rar", StringComparison.OrdinalIgnoreCase)
-                         || string.Equals(Path.GetExtension(f), ".7z", StringComparison.OrdinalIgnoreCase))
+                .Where(ImportWarningMessages.IsUnsupportedArchive)
                 .ToList();
             if (unsupportedArchives.Count > 0)
             {
                 CyberMessageBox.Show(this,
-                    "检测到 RAR/7z 压缩包。\n\n当前版本仅保证 ZIP、PAK/UCAS/UTOC 等文件稳定导入。RAR/7z 受用户电脑解压环境影响，可能出现解压失败或中文文件名乱码。\n\n请先用 WinRAR/7-Zip 手动解压，再把解压后的文件夹或其中的 MOD 文件重新导入。",
-                    "请先手动解压 RAR/7z", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ImportWarningMessages.UnsupportedArchiveMessage,
+                    ImportWarningMessages.UnsupportedArchiveTitle,
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -945,15 +963,14 @@ namespace UEModManager
         private void MainWindow_DragEnter(object sender, DragEventArgs e) => e.Effects = DragDropEffects.Copy;
         private void MainWindow_DragOver(object sender, DragEventArgs e) => e.Effects = DragDropEffects.Copy;
 
-        private async void MainWindow_Drop(object sender, DragEventArgs e)
+        private void MainWindow_Drop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 if (files?.Length > 0)
                 {
-                    // v2.0: 拖拽文件直接进入确认流程
-                    await OpenImportWizardAsync(files);
+                    SafeEvent.Run(this, () => OpenImportWizardAsync(files), _logger, "Drag import MOD");
                 }
             }
         }
@@ -1094,38 +1111,47 @@ namespace UEModManager
             _vm.ModList.SelectAll();
         }
 
-        private async void BatchEnable_Click(object sender, MouseButtonEventArgs e)
+        private void BatchEnable_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await _vm.ModList.EnableSelectedAsync();
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.ModList.EnableSelectedAsync();
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch enable MOD");
         }
 
-        private async void BatchDisable_Click(object sender, MouseButtonEventArgs e)
+        private void BatchDisable_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            await _vm.ModList.DisableSelectedAsync();
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+            SafeEvent.Run(this, async () =>
+            {
+                await _vm.ModList.DisableSelectedAsync();
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch disable MOD");
         }
 
-        private async void BatchDelete_Click(object sender, MouseButtonEventArgs e)
+        private void BatchDelete_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            var count = _vm.ModList.SelectedCount;
-            if (count <= 0) return;
+            SafeEvent.Run(this, async () =>
+            {
+                var count = _vm.ModList.SelectedCount;
+                if (count <= 0) return;
 
-            var r = CyberMessageBox.Show(this, $"确认卸载选中的 {count} 个 MOD？\n此操作会从当前方案、包仓库和已部署文件中移除这些 MOD。", "批量卸载", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (r != MessageBoxResult.Yes) return;
+                var r = CyberMessageBox.Show(this, $"\u786e\u8ba4\u5378\u8f7d\u9009\u4e2d\u7684 {count} \u4e2a MOD\uff1f\n\u6b64\u64cd\u4f5c\u4f1a\u4ece\u5f53\u524d\u65b9\u6848\u3001\u5305\u4ed3\u5e93\u548c\u5df2\u90e8\u7f72\u6587\u4ef6\u4e2d\u79fb\u9664\u8fd9\u4e9b MOD\u3002", "\u6279\u91cf\u5378\u8f7d", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
 
-            await _vm.ModList.DeleteSelectedAsync();
-            _vm.ModList.SelectedMod = null;
-            UpdateNavCounts();
-            UpdateModCountText();
-            UpdateEmptyState();
+                await _vm.ModList.DeleteSelectedAsync();
+                _vm.ModList.SelectedMod = null;
+                UpdateNavCounts();
+                UpdateModCountText();
+                UpdateEmptyState();
+            }, _logger, "Batch delete MOD");
         }
 
         private void SortButton_Click(object sender, MouseButtonEventArgs e)
@@ -1360,16 +1386,9 @@ namespace UEModManager
             try
             {
                 var iconPath = _gameConfig.GetGameIconPath(gameName);
-                if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
+                var bitmap = ImageLoader.LoadFrozen(iconPath, decodePixelWidth: 64);
+                if (bitmap != null)
                 {
-                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(iconPath, UriKind.Absolute);
-                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    bitmap.DecodePixelWidth = 64;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
                     CurrentGameIcon.Source = bitmap;
                     CurrentGameIcon.Visibility = Visibility.Visible;
                     CurrentGameIconPlaceholder.Visibility = Visibility.Collapsed;
@@ -1558,14 +1577,11 @@ namespace UEModManager
                     case BackgroundMode.Image:
                         if (!string.IsNullOrEmpty(bg.ImagePath) && File.Exists(bg.ImagePath))
                         {
-                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                            bitmap.BeginInit();
-                            // IgnoreImageCache：每次都从磁盘重读，避免相同 URI 字符串命中 WPF 内部缓存导致切换"看上去没生效"
-                            bitmap.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
-                            bitmap.UriSource = new Uri(bg.ImagePath, UriKind.Absolute);
-                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                            bitmap.EndInit();
-                            bitmap.Freeze();
+                            var bitmap = ImageLoader.LoadFrozen(bg.ImagePath, ignoreImageCache: true);
+                            if (bitmap == null)
+                            {
+                                break;
+                            }
 
                             BgImage.Source = bitmap;
                             BgImage.Opacity = bg.Opacity;

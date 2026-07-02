@@ -31,11 +31,11 @@ namespace UEModManager.Views
 
             ActiveCountText.Text = active.ToString();
             StaleCountText.Text = stale.ToString();
-            TotalSizeText.Text = FormatSize(_overwriteStore.TotalSize);
+            TotalSizeText.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_overwriteStore.TotalSize);
 
             var staleSize = _overwriteStore.StaleSize;
             CleanupButtonText.Text = staleSize > 0
-                ? $"清理可删除文件 ({FormatSize(staleSize)})"
+                ? $"清理可删除文件 ({UEModManager.Core.Utils.FileSizeFormatter.Format(staleSize)})"
                 : "清理可删除文件";
 
             ArtifactListPanel.Children.Clear();
@@ -242,7 +242,7 @@ namespace UEModManager.Views
             }
 
             var result = CyberMessageBox.Show(this,
-                $"将清理所有不再使用的临时文件，释放 {FormatSize(staleSize)}。\n此操作不可撤销，确认继续？",
+                $"将清理所有不再使用的临时文件，释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(staleSize)}。\n此操作不可撤销，确认继续？",
                 "清理可删除文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.Yes)
@@ -278,13 +278,5 @@ namespace UEModManager.Views
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
-            if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F0} MB";
-            if (bytes >= 1024) return $"{bytes / 1024.0:F0} KB";
-            return $"{bytes} B";
-        }
     }
 }

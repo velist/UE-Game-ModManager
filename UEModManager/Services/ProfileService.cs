@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
+using UEModManager.Services.Persistence;
 using UEModManager.Services.Profile;
 
 namespace UEModManager.Services
@@ -408,7 +409,7 @@ namespace UEModManager.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "加载方案失败");
+                BackupCorruptProfileFile(filePath, ex);
                 _profiles = [];
             }
         }
@@ -419,11 +420,27 @@ namespace UEModManager.Services
             {
                 var filePath = GetProfileFilePath();
                 var json = JsonSerializer.Serialize(_profiles, JsonOptions);
-                await File.WriteAllTextAsync(filePath, json);
+                await AtomicFileWriter.WriteAllTextAsync(filePath, json);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "保存方案失败");
+                throw;
+            }
+        }
+
+        private void BackupCorruptProfileFile(string filePath, Exception loadException)
+        {
+            try
+            {
+                var backupPath = $"{filePath}.corrupt-{DateTime.Now:yyyyMMddHHmmss}.bak";
+                File.Copy(filePath, backupPath, overwrite: false);
+                _logger.LogWarning(loadException, "加载方案失败，已备份损坏文件: {BackupPath}", backupPath);
+            }
+            catch (Exception backupException)
+            {
+                _logger.LogWarning(loadException, "加载方案失败，且损坏文件备份失败: {Path}", filePath);
+                _logger.LogWarning(backupException, "损坏方案文件备份失败");
             }
         }
 

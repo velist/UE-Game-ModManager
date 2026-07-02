@@ -1,5 +1,6 @@
 using System.IO;
 using UEModManager.Models;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services.DeploymentPlanning
 {
@@ -25,11 +26,15 @@ namespace UEModManager.Services.DeploymentPlanning
         {
             if (package.Kind != PackageKind.Mod)
             {
-                var targetRootPath = entry?.TargetRootPath ?? package.TargetRootPath ?? "";
-                return Path.Combine(gamePath, targetRootPath, package.PackageKey, artifact.RelativeTargetPath);
+                var targetRootPath = PathSanitizer.SanitizeRelative(entry?.TargetRootPath ?? package.TargetRootPath);
+                var packageKey = PathSanitizer.SanitizeRelative(package.PackageKey);
+                var artifactPath = PathSanitizer.SanitizeRelative(artifact.RelativeTargetPath);
+                return Path.Combine(gamePath, targetRootPath, packageKey, artifactPath);
             }
 
-            return Path.Combine(modPath, package.PackageKey, artifact.RelativeTargetPath);
+            return Path.Combine(modPath,
+                PathSanitizer.SanitizeRelative(package.PackageKey),
+                PathSanitizer.SanitizeRelative(artifact.RelativeTargetPath));
         }
 
         /// <summary>计算单个 Artifact 部署目标的相对路径（用于 UI 展示）。</summary>
@@ -43,7 +48,7 @@ namespace UEModManager.Services.DeploymentPlanning
         {
             if (package.Kind != PackageKind.Mod)
             {
-                var targetRootPath = entry?.TargetRootPath ?? package.TargetRootPath ?? "";
+                var targetRootPath = PathSanitizer.SanitizeRelative(entry?.TargetRootPath ?? package.TargetRootPath);
                 var baseDir = Path.Combine(gamePath, targetRootPath);
                 return Path.GetRelativePath(baseDir, absoluteTargetPath);
             }
