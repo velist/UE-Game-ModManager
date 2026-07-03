@@ -260,8 +260,8 @@ var index_default = {
         </div>
     </div>
     <script>
-        const SUPABASE_URL='https://oiatqeymovnyubrnlmlu.supabase.co';
-        const SUPABASE_ANON_KEY='***REMOVED-SUPABASE-ANON-KEY***';
+        const SUPABASE_URL='${(env.SUPABASE_URL || "").trim().replace(/[\r\n]/g, "")}';
+        const SUPABASE_ANON_KEY='${(env.SUPABASE_ANON_KEY || "").trim().replace(/[\r\n]/g, "")}';
         const urlParams=new URLSearchParams(window.location.search);
         const hashParams=new URLSearchParams(window.location.hash.substring(1));
         const form=document.getElementById('resetForm');
