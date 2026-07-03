@@ -462,8 +462,6 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                         <!-- 文件复制 -->
@@ -511,31 +509,7 @@
                                                Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
-                                <TextBlock Text="不额外复制文件，仅限 MOD 和游戏在同一磁盘"
-                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 符号链接 -->
-                        <Border x:Name="BackendSymlink" Grid.Column="4" CornerRadius="10" Padding="16,14"
-                                Cursor="Hand" MouseLeftButtonDown="BackendSymlink_Click"
-                                BorderThickness="2">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="BackendSymlinkRadio" GroupName="Backend"
-                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="高级链接模式" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <TextBlock Text="可跨磁盘使用，但需要管理员权限或开发者模式"
+                                <TextBlock Text="不额外复制文件、不占双倍空间；MOD 与游戏需在同一磁盘，跨磁盘时自动改用复制"
                                            FontSize="11" Foreground="{StaticResource Text500Brush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>

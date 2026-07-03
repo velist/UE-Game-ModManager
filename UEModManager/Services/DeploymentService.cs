@@ -38,17 +38,17 @@ namespace UEModManager.Services
             ILogger<DeploymentService> logger,
             CopyBackend copyBackend,
             HardLinkBackend hardLinkBackend,
-            SymlinkBackend symlinkBackend,
             OverwriteStore overwriteStore)
         {
             _logger = logger;
             _overwriteStore = overwriteStore;
 
+            // Symlink 后端已下线：普通用户需开发者模式/管理员权限，实际不可用。
+            // 旧数据中的 Symlink 计划经 GetBackend 自动降级为 Copy。
             _backends = new Dictionary<DeploymentBackendType, IDeploymentBackend>
             {
                 [DeploymentBackendType.Copy] = copyBackend,
-                [DeploymentBackendType.HardLink] = hardLinkBackend,
-                [DeploymentBackendType.Symlink] = symlinkBackend
+                [DeploymentBackendType.HardLink] = hardLinkBackend
             };
 
             _backupRootPath = Path.Combine(

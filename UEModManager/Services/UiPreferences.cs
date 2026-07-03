@@ -166,7 +166,14 @@ namespace UEModManager.Services
 
         public static DeploymentBackendType LoadDeployBackend()
         {
-            try { return (DeploymentBackendType)LoadConfig().DeployBackendType; }
+            try
+            {
+                var backend = (DeploymentBackendType)LoadConfig().DeployBackendType;
+                // Symlink 已下线（普通用户需开发者模式/管理员权限，实际不可用），旧配置回落 Copy
+                return backend is DeploymentBackendType.Copy or DeploymentBackendType.HardLink
+                    ? backend
+                    : DeploymentBackendType.Copy;
+            }
             catch { return DeploymentBackendType.Copy; }
         }
 

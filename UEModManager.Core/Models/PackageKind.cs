@@ -27,7 +27,10 @@ namespace UEModManager.Models
         /// <summary>硬链接（节省空间，同卷限制）。</summary>
         HardLink,
 
-        /// <summary>符号链接（需管理员权限）。</summary>
+        /// <summary>
+        /// 符号链接。已于 v2.0.5 下线（普通用户需开发者模式/管理员权限，实际不可用）。
+        /// 枚举值保留用于反序列化旧事务/配置，运行时自动降级为 Copy。
+        /// </summary>
         Symlink
     }
 

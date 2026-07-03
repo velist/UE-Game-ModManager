@@ -214,7 +214,6 @@ namespace UEModManager
                     // v2.0 Phase 3: 部署服务
                     services.AddSingleton<CopyBackend>();
                     services.AddSingleton<HardLinkBackend>();
-                    services.AddSingleton<SymlinkBackend>();
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
 

@@ -435,11 +435,9 @@ namespace UEModManager.Views
 
             BackendCopy.BorderBrush = _selectedBackend == DeploymentBackendType.Copy ? primaryBrush : borderBrush;
             BackendHardLink.BorderBrush = _selectedBackend == DeploymentBackendType.HardLink ? primaryBrush : borderBrush;
-            BackendSymlink.BorderBrush = _selectedBackend == DeploymentBackendType.Symlink ? primaryBrush : borderBrush;
 
             BackendCopyRadio.IsChecked = _selectedBackend == DeploymentBackendType.Copy;
             BackendHardLinkRadio.IsChecked = _selectedBackend == DeploymentBackendType.HardLink;
-            BackendSymlinkRadio.IsChecked = _selectedBackend == DeploymentBackendType.Symlink;
         }
 
         private void BackendCopy_Click(object sender, MouseButtonEventArgs e)
@@ -451,12 +449,6 @@ namespace UEModManager.Views
         private void BackendHardLink_Click(object sender, MouseButtonEventArgs e)
         {
             _selectedBackend = DeploymentBackendType.HardLink;
-            UpdateBackendUI();
-        }
-
-        private void BackendSymlink_Click(object sender, MouseButtonEventArgs e)
-        {
-            _selectedBackend = DeploymentBackendType.Symlink;
             UpdateBackendUI();
         }
 

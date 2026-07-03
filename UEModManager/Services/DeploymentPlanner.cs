@@ -81,7 +81,7 @@ namespace UEModManager.Services
                     ProfileId = profile.Id,
                     HostGameName = profile.HostGameName,
                     Operations = operations,
-                    BackendType = profile.BackendType
+                    BackendType = UiPreferences.LoadDeployBackend()
                 };
 
                 _logger.LogInformation(
@@ -123,7 +123,7 @@ namespace UEModManager.Services
                     ProfileId = profile.Id,
                     HostGameName = profile.HostGameName,
                     Operations = operations,
-                    BackendType = profile.BackendType
+                    BackendType = UiPreferences.LoadDeployBackend()
                 };
             });
         }
