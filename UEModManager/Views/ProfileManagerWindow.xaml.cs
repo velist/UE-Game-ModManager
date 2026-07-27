@@ -1,9 +1,11 @@
 using System;
+using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Media;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
@@ -12,6 +14,19 @@ using UEModManager.ViewModels;
 
 namespace UEModManager.Views
 {
+    /// <summary>
+    /// 优先级列的显示转换：Priority 从 0 开始存储，界面按 #1 起算。
+    /// 通用转换器集中在 ValueConverters.cs，那属于主题模块；本窗口专用的这一个就近放在这里。
+    /// </summary>
+    public sealed class PriorityDisplayConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is int priority ? $"#{priority + 1}" : string.Empty;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
     public partial class ProfileManagerWindow : Window
     {
         private readonly ProfileViewModel _vm;
@@ -30,6 +45,7 @@ namespace UEModManager.Views
             _logger = logger;
             _vm = new ProfileViewModel(profileService, logger);
             _vm.PropertyChanged += Vm_PropertyChanged;
+            DataContext = _vm;
         }
 
         /// <summary>
@@ -38,16 +54,15 @@ namespace UEModManager.Views
         public void LoadForGame(string gameName)
         {
             _vm.LoadProfiles(gameName);
-            RenderProfileCards();
-            ShowSelectedProfile();
+            RefreshProfileCards();
         }
 
         // ─── 事件处理 ───
 
-        private void Vm_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ProfileViewModel.SelectedProfile))
-                ShowSelectedProfile();
+                ApplyModListSort();
         }
 
         private void NewProfile_Click(object sender, RoutedEventArgs e)
@@ -55,8 +70,7 @@ namespace UEModManager.Views
             SafeEvent.Run(this, async () =>
             {
                 await _vm.CreateProfileCommand.ExecuteAsync(null);
-                RenderProfileCards();
-                ShowSelectedProfile();
+                RefreshProfileCards();
             }, _logger, "Create profile");
         }
 
@@ -65,8 +79,7 @@ namespace UEModManager.Views
             SafeEvent.Run(this, async () =>
             {
                 await _vm.CloneProfileCommand.ExecuteAsync(null);
-                RenderProfileCards();
-                ShowSelectedProfile();
+                RefreshProfileCards();
             }, _logger, "Clone profile");
         }
 
@@ -86,8 +99,7 @@ namespace UEModManager.Views
                 if (result == MessageBoxResult.Yes)
                 {
                     await _vm.DeleteProfileCommand.ExecuteAsync(null);
-                    RenderProfileCards();
-                    ShowSelectedProfile();
+                    RefreshProfileCards();
                 }
             }, _logger, "删除方案");
 
@@ -99,345 +111,57 @@ namespace UEModManager.Views
             if (!string.IsNullOrWhiteSpace(newName))
             {
                 _ = _vm.RenameProfileAsync(newName);
-                RenderProfileCards();
-                ShowSelectedProfile();
-            }
-        }
-
-        // ─── 渲染方法 ───
-
-        /// <summary>
-        /// 渲染左侧方案卡片列表。
-        /// </summary>
-        private void RenderProfileCards()
-        {
-            ProfileCardList.Children.Clear();
-            ProfileCountText.Text = $"{_vm.Profiles.Count} 个方案";
-
-            foreach (var profile in _vm.Profiles)
-            {
-                var card = CreateProfileCard(profile);
-                ProfileCardList.Children.Add(card);
+                RefreshProfileCards();
             }
         }
 
         /// <summary>
-        /// 创建单个方案卡片（1:1 还原原型）。
+        /// 双击卡片切换为活跃方案。单击选中已由 ListBox 自身完成，
+        /// 不再需要旧实现里"每次点击重建整棵卡片树"的做法。
         /// </summary>
-        private Border CreateProfileCard(InstanceProfile profile)
+        private void ProfileCard_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            bool isSelected = _vm.SelectedProfile?.Id == profile.Id;
-            bool isActive = profile.IsActive;
+            if (sender is not ListBoxItem { DataContext: InstanceProfile profile }) return;
 
-            // 卡片容器
-            var card = new Border
+            SafeEvent.Run(this, async () =>
             {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(14, 12, 14, 12),
-                Margin = new Thickness(0, 0, 0, 8),
-                Cursor = Cursors.Hand,
-                Background = isSelected
-                    ? new SolidColorBrush(Color.FromArgb(0x1a, 0x06, 0xb6, 0xd4))
-                    : new SolidColorBrush(Color.FromArgb(0xff, 0x0f, 0x0f, 0x11)),
-                BorderThickness = new Thickness(1),
-                BorderBrush = isSelected
-                    ? new SolidColorBrush(Color.FromArgb(0xff, 0x06, 0xb6, 0xd4))
-                    : new SolidColorBrush(Color.FromArgb(0xff, 0x27, 0x27, 0x2a))
-            };
-
-            var stack = new StackPanel();
-
-            // 第一行：图标 + 名称 + 活跃标签
-            var row1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-
-            // 方案图标
-            var iconBorder = new Border
-            {
-                Width = 32, Height = 32,
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(Color.FromArgb(0x1a, 0x06, 0xb6, 0xd4)),
-                Margin = new Thickness(0, 0, 10, 0)
-            };
-            var iconText = new TextBlock
-            {
-                Text = "\uE72E", // Shield icon
-                FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0x06, 0xb6, 0xd4)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            iconBorder.Child = iconText;
-            row1.Children.Add(iconBorder);
-
-            // 名称
-            var nameBlock = new TextBlock
-            {
-                Text = profile.Name,
-                FontSize = 14, FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0xf4, 0xf4, 0xf5)),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            row1.Children.Add(nameBlock);
-
-            // 活跃标签
-            if (isActive)
-            {
-                var activeBadge = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromArgb(0x1a, 0x22, 0xc5, 0x5e)),
-                    CornerRadius = new CornerRadius(4),
-                    Padding = new Thickness(6, 2, 6, 2),
-                    Margin = new Thickness(8, 0, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                activeBadge.Child = new TextBlock
-                {
-                    Text = "活跃",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0x22, 0xc5, 0x5e))
-                };
-                row1.Children.Add(activeBadge);
-            }
-
-            stack.Children.Add(row1);
-
-            // 第二行：描述
-            if (!string.IsNullOrEmpty(profile.Description))
-            {
-                var descBlock = new TextBlock
-                {
-                    Text = profile.Description,
-                    FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0x71, 0x71, 0x7a)),
-                    Margin = new Thickness(0, 0, 0, 6),
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                };
-                stack.Children.Add(descBlock);
-            }
-
-            // 第三行：统计信息
-            var statsRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-            // MOD 数量
-            AddStatBadge(statsRow, $"{profile.ModCount} MOD", "#06b6d4");
-            // 插件数量
-            if (profile.PluginCount > 0)
-                AddStatBadge(statsRow, $"{profile.PluginCount} 插件", "#a855f7");
-            // 配置数量
-            if (profile.ConfigCount > 0)
-                AddStatBadge(statsRow, $"{profile.ConfigCount} 配置", "#f59e0b");
-
-            stack.Children.Add(statsRow);
-
-            card.Child = stack;
-
-            // 点击事件
-            card.MouseLeftButtonDown += (s, e) =>
-            {
-                _vm.SelectedProfile = profile;
-                RenderProfileCards();
-                ShowSelectedProfile();
-            };
-
-            // 双击切换
-            card.MouseLeftButtonDown += (s, e) =>
-            {
-                if (e.ClickCount == 2)
-                    _ = _vm.SwitchToProfileCommand.ExecuteAsync(profile);
-            };
-
-            return card;
+                await _vm.SwitchToProfileCommand.ExecuteAsync(profile);
+                RefreshProfileCards();
+            }, _logger, "切换方案");
         }
 
-        private static void AddStatBadge(StackPanel container, string text, string colorHex)
+        // ─── 视图刷新 ───
+
+        /// <summary>
+        /// 让卡片列表重新读取数据源。
+        ///
+        /// InstanceProfile 是 Core 里的纯模型、不实现 INotifyPropertyChanged，
+        /// 所以"改名""切换活跃方案"这类只改模型字段、不动集合的操作不会自动反映到界面。
+        /// 这里在旧实现调用 RenderProfileCards() 的同样位置刷新视图，刷新时机保持一致。
+        /// </summary>
+        private void RefreshProfileCards()
         {
-            var color = (Color)ColorConverter.ConvertFromString(colorHex);
-            var badge = new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0x1a, color.R, color.G, color.B)),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(6, 2, 6, 2),
-                Margin = new Thickness(0, 0, 6, 0)
-            };
-            badge.Child = new TextBlock
-            {
-                Text = text,
-                FontSize = 10,
-                Foreground = new SolidColorBrush(color)
-            };
-            container.Children.Add(badge);
+            CollectionViewSource.GetDefaultView(ProfileCardList.ItemsSource)?.Refresh();
+            ApplyModListSort();
         }
 
         /// <summary>
-        /// 显示右侧选中方案详情。
+        /// MOD 清单按 Priority 升序，与旧实现的 OrderBy(p => p.Priority) 一致。
+        /// ItemsControl 没有声明式排序，而放进资源字典的 CollectionViewSource 拿不到 DataContext，
+        /// 故在数据源切换后重新挂一次排序。
         /// </summary>
-        private void ShowSelectedProfile()
+        private void ApplyModListSort()
         {
-            var profile = _vm.SelectedProfile;
-            if (profile == null)
+            var items = ModListPanel.Items;
+            if (items.SortDescriptions.Count == 1
+                && items.SortDescriptions[0].PropertyName == nameof(ProfilePackageEntry.Priority))
             {
-                DetailPanel.Visibility = Visibility.Collapsed;
-                EmptyState.Visibility = Visibility.Visible;
                 return;
             }
 
-            DetailPanel.Visibility = Visibility.Visible;
-            EmptyState.Visibility = Visibility.Collapsed;
-
-            DetailProfileName.Text = profile.Name;
-            ActiveBadge.Visibility = profile.IsActive ? Visibility.Visible : Visibility.Collapsed;
-
-            // 更新统计
-            StatModCount.Text = profile.ModCount.ToString();
-            StatPluginCount.Text = profile.PluginCount.ToString();
-            StatConfigCount.Text = profile.ConfigCount.ToString();
-
-            // 渲染 MOD 列表
-            RenderModList(profile);
-        }
-
-        /// <summary>
-        /// 渲染右侧 MOD 列表表格。
-        /// </summary>
-        private void RenderModList(InstanceProfile profile)
-        {
-            ModListPanel.Children.Clear();
-
-            var sortedPackages = profile.Packages
-                .OrderBy(p => p.Priority)
-                .ToList();
-
-            for (int i = 0; i < sortedPackages.Count; i++)
-            {
-                var entry = sortedPackages[i];
-                var isEven = i % 2 == 0;
-
-                var row = new Border
-                {
-                    Padding = new Thickness(12, 8, 12, 8),
-                    Background = isEven
-                        ? new SolidColorBrush(Color.FromArgb(0x08, 0xff, 0xff, 0xff))
-                        : Brushes.Transparent
-                };
-
-                var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-
-                // 优先级
-                var priorityText = new TextBlock
-                {
-                    Text = $"#{entry.Priority + 1}",
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0xa1, 0xa1, 0xaa)),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(priorityText, 0);
-                grid.Children.Add(priorityText);
-
-                // 名称
-                var nameText = new TextBlock
-                {
-                    Text = entry.PackageKey,
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0xe4, 0xe4, 0xe7)),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                };
-                Grid.SetColumn(nameText, 1);
-                grid.Children.Add(nameText);
-
-                // 类型标签
-                var (typeText, typeColor) = entry.Kind switch
-                {
-                    PackageKind.Mod => ("MOD", "#06b6d4"),
-                    PackageKind.Plugin => ("插件", "#a855f7"),
-                    PackageKind.Config => ("配置", "#f59e0b"),
-                    _ => ("MOD", "#06b6d4")
-                };
-
-                var typeBadge = CreateTypeBadge(typeText, typeColor);
-                Grid.SetColumn(typeBadge, 2);
-                grid.Children.Add(typeBadge);
-
-                // 大小（暂时占位）
-                var sizeText = new TextBlock
-                {
-                    Text = "-",
-                    FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xff, 0x71, 0x71, 0x7a)),
-                    TextAlignment = TextAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(sizeText, 3);
-                grid.Children.Add(sizeText);
-
-                // 开关 Toggle
-                var toggleContainer = new Border
-                {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Cursor = Cursors.Hand
-                };
-                var toggle = CreateToggleSwitch(entry.IsEnabled);
-                toggleContainer.Child = toggle;
-                Grid.SetColumn(toggleContainer, 4);
-                grid.Children.Add(toggleContainer);
-
-                row.Child = grid;
-                ModListPanel.Children.Add(row);
-            }
-        }
-
-        private static Border CreateTypeBadge(string text, string colorHex)
-        {
-            var color = (Color)ColorConverter.ConvertFromString(colorHex);
-            var badge = new Border
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0x20, color.R, color.G, color.B)),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(8, 2, 8, 2),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            badge.Child = new TextBlock
-            {
-                Text = text,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(color)
-            };
-            return badge;
-        }
-
-        /// <summary>
-        /// 创建开关组件（1:1 还原原型的 Toggle Switch）。
-        /// </summary>
-        private static Border CreateToggleSwitch(bool isOn)
-        {
-            var track = new Border
-            {
-                Width = 36, Height = 20,
-                CornerRadius = new CornerRadius(10),
-                Background = isOn
-                    ? new SolidColorBrush(Color.FromArgb(0xff, 0x06, 0xb6, 0xd4))
-                    : new SolidColorBrush(Color.FromArgb(0xff, 0x3f, 0x3f, 0x46))
-            };
-
-            var thumb = new Border
-            {
-                Width = 16, Height = 16,
-                CornerRadius = new CornerRadius(8),
-                Background = Brushes.White,
-                HorizontalAlignment = isOn ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                Margin = new Thickness(2)
-            };
-
-            track.Child = thumb;
-            return track;
+            items.SortDescriptions.Clear();
+            items.SortDescriptions.Add(
+                new SortDescription(nameof(ProfilePackageEntry.Priority), ListSortDirection.Ascending));
         }
 
         // ─── 窗口控制 ───
@@ -548,8 +272,7 @@ namespace UEModManager.Views
                 var newProfile = await _lockService.ApplyImportAsync(lockFile);
 
                 _vm.LoadProfiles(_profileService.CurrentProfile?.HostGameName ?? newProfile.HostGameName);
-                RenderProfileCards();
-                ShowSelectedProfile();
+                RefreshProfileCards();
 
                 CyberMessageBox.Show(this,
                     $"已创建新方案 \"{newProfile.Name}\"，包含 {newProfile.Packages.Count} 个包。",
@@ -664,8 +387,7 @@ namespace UEModManager.Views
                 Mouse.OverrideCursor = Cursors.Wait;
                 var newProfile = await _lockService.ApplyBundleImportAsync(dialog.FileName, preview.LockFile);
                 _vm.LoadProfiles(_profileService.CurrentProfile?.HostGameName ?? newProfile.HostGameName);
-                RenderProfileCards();
-                ShowSelectedProfile();
+                RefreshProfileCards();
 
                 CyberMessageBox.Show(this,
                     $"已创建新方案 \"{newProfile.Name}\"，包含 {newProfile.Packages.Count} 个包。",
