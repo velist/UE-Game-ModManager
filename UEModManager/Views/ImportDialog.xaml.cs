@@ -99,7 +99,7 @@ namespace UEModManager.Views
                 .ToList();
             if (unsupportedArchives.Count > 0)
             {
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     ImportWarningMessages.UnsupportedArchiveMessage,
                     ImportWarningMessages.UnsupportedArchiveTitle,
                     MessageBoxButton.OK,

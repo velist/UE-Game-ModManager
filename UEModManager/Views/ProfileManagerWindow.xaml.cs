@@ -76,12 +76,13 @@ namespace UEModManager.Views
                 if (_vm.SelectedProfile == null) return;
                 if (_vm.Profiles.Count <= 1)
                 {
-                    MessageBox.Show("不能删除最后一个方案", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    CyberMessageBox.Show(this, "不能删除最后一个方案", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                var result = MessageBox.Show($"确定删除方案「{_vm.SelectedProfile.Name}」吗？",
-                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var result = CyberMessageBox.Show(this, $"确定删除方案「{_vm.SelectedProfile.Name}」吗？",
+                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question,
+                    yesText: "删除", noText: "取消");
                 if (result == MessageBoxResult.Yes)
                 {
                     await _vm.DeleteProfileCommand.ExecuteAsync(null);
@@ -456,14 +457,14 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             var profile = _profileService.CurrentProfile;
             if (profile == null)
             {
-                MessageBox.Show(this, "请先选择一个活跃方案", "提示",
+                CyberMessageBox.Show(this, "请先选择一个活跃方案", "提示",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -481,14 +482,14 @@ namespace UEModManager.Views
             {
                 Mouse.OverrideCursor = Cursors.Wait;
                 await _lockService.ExportAsync(dialog.FileName);
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"已导出：\n{dialog.FileName}\n\n" +
                     "可分享给其他用户。对方导入时若缺少包，应用会提示。",
                     "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                MessageBox.Show(this, $"导出失败：{ex.Message}", "错误",
+                CyberMessageBox.Show(this, $"导出失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -501,7 +502,7 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -535,10 +536,11 @@ namespace UEModManager.Views
                 summary.AppendLine();
                 summary.Append("是否继续导入并创建新方案？");
 
-                var result = MessageBox.Show(this, summary.ToString(),
+                var result = CyberMessageBox.Show(this, summary.ToString(),
                     "导入预览",
                     MessageBoxButton.YesNo,
-                    diff.CanImportFully ? MessageBoxImage.Question : MessageBoxImage.Warning);
+                    diff.CanImportFully ? MessageBoxImage.Question : MessageBoxImage.Warning,
+                    yesText: "导入", noText: "取消");
 
                 if (result != MessageBoxResult.Yes) return;
 
@@ -549,13 +551,13 @@ namespace UEModManager.Views
                 RenderProfileCards();
                 ShowSelectedProfile();
 
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"已创建新方案 \"{newProfile.Name}\"，包含 {newProfile.Packages.Count} 个包。",
                     "导入成功", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                MessageBox.Show(this, $"导入失败：{ex.Message}", "错误",
+                CyberMessageBox.Show(this, $"导入失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -568,14 +570,14 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             var profile = _profileService.CurrentProfile;
             if (profile == null)
             {
-                MessageBox.Show(this, "请先选择一个活跃方案", "提示",
+                CyberMessageBox.Show(this, "请先选择一个活跃方案", "提示",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -595,7 +597,7 @@ namespace UEModManager.Views
                 await _lockService.ExportBundleAsync(dialog.FileName);
                 Mouse.OverrideCursor = null;
 
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"整合包已导出：\n{dialog.FileName}\n\n" +
                     $"包含 {profile.Packages.Count} 个包条目及其物理文件。\n" +
                     "对方导入即可还原方案，无需单独导 MOD。",
@@ -604,7 +606,7 @@ namespace UEModManager.Views
             catch (System.Exception ex)
             {
                 Mouse.OverrideCursor = null;
-                MessageBox.Show(this, $"导出失败：{ex.Message}", "错误",
+                CyberMessageBox.Show(this, $"导出失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -613,7 +615,7 @@ namespace UEModManager.Views
         {
             if (_lockService == null)
             {
-                MessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, "方案服务未初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -651,10 +653,11 @@ namespace UEModManager.Views
                 summary.AppendLine();
                 summary.Append("是否继续导入并创建新方案？");
 
-                var result = MessageBox.Show(this, summary.ToString(),
+                var result = CyberMessageBox.Show(this, summary.ToString(),
                     "整合包导入预览",
                     MessageBoxButton.YesNo,
-                    canFullyRestore ? MessageBoxImage.Question : MessageBoxImage.Warning);
+                    canFullyRestore ? MessageBoxImage.Question : MessageBoxImage.Warning,
+                    yesText: "导入", noText: "取消");
 
                 if (result != MessageBoxResult.Yes) return;
 
@@ -664,13 +667,13 @@ namespace UEModManager.Views
                 RenderProfileCards();
                 ShowSelectedProfile();
 
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"已创建新方案 \"{newProfile.Name}\"，包含 {newProfile.Packages.Count} 个包。",
                     "导入成功", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (System.Exception ex)
             {
-                MessageBox.Show(this, $"导入失败：{ex.Message}", "错误",
+                CyberMessageBox.Show(this, $"导入失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally

@@ -274,7 +274,7 @@ namespace UEModManager.Views
             var targetRootPath = NormalizeTargetPath(TargetPathTextBox.Text);
             if (selectedEntries.Any(f => f.Kind != PackageKind.Mod) && string.IsNullOrWhiteSpace(targetRootPath))
             {
-                MessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
+                CyberMessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
                 TargetPathTextBox.Focus();
                 return;
             }
@@ -287,7 +287,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"导入失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"导入失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

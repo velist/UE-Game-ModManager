@@ -962,8 +962,15 @@ namespace UEModManager
 
                     if (UiPreferences.LoadAutoDeploy())
                     {
+                        // 自动部署失败过去被整个丢掉：包导进了仓库，文件没进游戏目录，
+                        // 用户看到 MOD 显示为"已启用"却不生效。汇总后一次性告知。
+                        var deployResults = new List<OperationResult>();
                         foreach (var package in importedPackages)
-                            await _vm.DeployToggleAsync(package.PackageKey, true);
+                            deployResults.Add(await _vm.DeployToggleAsync(package.PackageKey, true));
+
+                        var deployResult = OperationResult.Aggregate(deployResults);
+                        if (!deployResult.Success)
+                            ShowOperationFailure(deployResult, "导入后自动部署失败");
                     }
 
                     await _vm.RefreshFromRepositoryAsync();
@@ -1046,12 +1053,32 @@ namespace UEModManager
 
         private async Task<bool> ToggleModFromUiAsync(ModInfo mod, bool enable)
         {
-            if (!await _vm.ToggleModAsync(mod, enable)) return false;
+            var result = await _vm.ToggleModAsync(mod, enable);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, enable ? "启用 MOD 失败" : "禁用 MOD 失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
             UpdateEmptyState();
             return true;
+        }
+
+        /// <summary>
+        /// 把操作失败的原因呈现给用户。
+        /// 这些操作过去只返回 bool，失败原因（部署事务的 ErrorMessage、异常消息）
+        /// 只进日志就被丢掉，用户看到的是"开关弹回原位，什么都没说"。
+        /// 用户主动取消不是失败，不弹框。
+        /// </summary>
+        private void ShowOperationFailure(OperationResult result, string title)
+        {
+            if (result.IsCancelled) return;
+
+            CyberMessageBox.Show(this,
+                result.Error ?? OperationResult.DefaultError,
+                title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         private async Task RenameModFromUiAsync(ModInfo mod)
@@ -1064,7 +1091,12 @@ namespace UEModManager
 
         private async Task<bool> RenameModFromUiAsync(ModInfo mod, string newName)
         {
-            if (!await _vm.RenameModAsync(mod, newName)) return false;
+            var result = await _vm.RenameModAsync(mod, newName);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "重命名 MOD 失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
@@ -1079,8 +1111,15 @@ namespace UEModManager
                 Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*"
             };
 
+            // 用户在文件对话框里点了取消——不是失败，直接退出，不能弹错误框
             if (dialog.ShowDialog(this) != true) return false;
-            if (!await _vm.ChangePreviewAsync(mod, dialog.FileName)) return false;
+
+            var result = await _vm.ChangePreviewAsync(mod, dialog.FileName);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "更换预览图失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
@@ -1092,10 +1131,16 @@ namespace UEModManager
             if (confirm)
             {
                 var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                // 用户选择"否"——不是失败，直接退出，不能弹错误框
                 if (r != MessageBoxResult.Yes) return false;
             }
 
-            if (!await _vm.DeletePackageModAsync(mod)) return false;
+            var result = await _vm.DeletePackageModAsync(mod);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "删除 MOD 失败");
+                return false;
+            }
 
             _vm.ModList.SelectedMod = null;
             UpdateNavCounts();

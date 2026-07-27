@@ -269,7 +269,7 @@ namespace UEModManager.Views
 
             if (launcher.SessionHistory.Count == 0)
             {
-                MessageBox.Show(this, "暂无启动记录。", "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, "暂无启动记录。", "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -283,7 +283,7 @@ namespace UEModManager.Views
                     lines.AppendLine($"    原因: {s.FailureReason}");
             }
 
-            MessageBox.Show(this, lines.ToString(), "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+            CyberMessageBox.Show(this, lines.ToString(), "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e)

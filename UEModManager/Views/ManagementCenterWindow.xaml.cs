@@ -269,9 +269,10 @@ namespace UEModManager.Views
         {
             if (sender is not Button btn || btn.Tag is not DeploymentTransaction tx) return;
 
-            var result = MessageBox.Show(
+            var result = CyberMessageBox.Show(this,
                 $"确定要回滚 {tx.CreatedAt:yyyy-MM-dd HH:mm} 的部署事务吗？",
-                "确认回滚", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "确认回滚", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "回滚", noText: "取消");
             if (result != MessageBoxResult.Yes) return;
 
             try
@@ -281,7 +282,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"回滚失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"回滚失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -505,7 +506,7 @@ namespace UEModManager.Views
             try
             {
                 var issues = await _packageRepo.CheckIntegrityAsync();
-                MessageBox.Show(
+                CyberMessageBox.Show(this,
                     issues.Count == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {issues.Count} 个文件问题",
                     "检查缺失文件", MessageBoxButton.OK,
                     issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
@@ -513,7 +514,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -524,7 +525,7 @@ namespace UEModManager.Views
                 var dupGroups = _packageRepo.GetDuplicateGroups();
                 if (dupGroups.Count == 0)
                 {
-                    MessageBox.Show("没有发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, "没有发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -543,27 +544,28 @@ namespace UEModManager.Views
                         else if (plan != null)
                         {
                             // 重复包仍在某 Profile 中启用 — 跳过，提示用户
-                            MessageBox.Show(
+                            CyberMessageBox.Show(this,
                                 $"跳过 {dup.PackageKey}: {plan.Explanation}",
                                 "跳过删除", MessageBoxButton.OK, MessageBoxImage.Information);
                         }
                     }
                 }
 
-                MessageBox.Show($"合并了 {merged} 个相同文件", "合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"合并了 {merged} 个相同文件", "合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadModLibAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"合并失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"合并失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void RepoCleanUnreferenced_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(
+            var confirm = CyberMessageBox.Show(this,
                 "确定要清理所有未被任何 MOD 方案使用的文件吗？此操作不可撤销。",
-                "确认清理", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "确认清理", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "清理", noText: "取消");
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -583,12 +585,12 @@ namespace UEModManager.Views
                     if (success) count++;
                 }
 
-                MessageBox.Show($"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadModLibAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -603,13 +605,13 @@ namespace UEModManager.Views
                 var pkg = await _overwriteStore.PromoteToPackageAsync(artifactId);
                 if (pkg != null)
                 {
-                    MessageBox.Show($"已转为正式 MOD: {pkg.DisplayName}", "转换成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, $"已转为正式 MOD: {pkg.DisplayName}", "转换成功", MessageBoxButton.OK, MessageBoxImage.Information);
                         await LoadGenFilesAsync();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"转换失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"转换失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -617,7 +619,8 @@ namespace UEModManager.Views
         {
             if (sender is not Button btn || btn.Tag is not Guid artifactId) return;
 
-            var confirm = MessageBox.Show("确定要删除此临时文件吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var confirm = CyberMessageBox.Show(this, "确定要删除此临时文件吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "删除", noText: "取消");
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -627,7 +630,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"删除失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"删除失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -636,12 +639,12 @@ namespace UEModManager.Views
             try
             {
                 var count = await _overwriteStore.CleanupStaleAsync();
-                MessageBox.Show($"清理了 {count} 个可删除文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"清理了 {count} 个可删除文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadGenFilesAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -663,13 +666,13 @@ namespace UEModManager.Views
             {
                 Mouse.OverrideCursor = Cursors.Wait;
                 var count = await _diagnosticExport.ExportToZipAsync(dialog.FileName);
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"诊断包已导出（{count} 个条目）：\n{dialog.FileName}",
                     "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"导出失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }

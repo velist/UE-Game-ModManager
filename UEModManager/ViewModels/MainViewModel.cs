@@ -138,9 +138,19 @@ namespace UEModManager.ViewModels
             _logger = logger;
 
             ModList = new ModListViewModel(modService, gameConfig, logger);
-            ModList.ConfigureActions(ToggleModAsync, DeletePackageModAsync, ToggleModsAsync, DeletePackageModsAsync);
+            // ModListViewModel / ModDetailViewModel 的回调契约仍是 Task<bool>，
+            // 这里把 OperationResult 降级成 bool 适配。失败原因由 View 层
+            // （MainWindow 的 *FromUiAsync）直接从 OperationResult 取，不经过这条通道。
+            ModList.ConfigureActions(
+                async (mod, enable) => (await ToggleModAsync(mod, enable)).Success,
+                async mod => (await DeletePackageModAsync(mod)).Success,
+                async (mods, enable) => (await ToggleModsAsync(mods, enable)).Success,
+                async mods => (await DeletePackageModsAsync(mods)).Success);
             ModDetail = new ModDetailViewModel(modService, gameConfig, modData, logger);
-            ModDetail.ConfigureActions(ToggleModAsync, ChangePreviewAsync, DeletePackageModAsync);
+            ModDetail.ConfigureActions(
+                async (mod, enable) => (await ToggleModAsync(mod, enable)).Success,
+                async (mod, path) => (await ChangePreviewAsync(mod, path)).Success,
+                async mod => (await DeletePackageModAsync(mod)).Success);
             Categories = new CategoryViewModel(categoryService, logger);
 
             // 连接子 ViewModel 事件
@@ -433,7 +443,7 @@ namespace UEModManager.ViewModels
         /// 通过部署层切换 MOD 启用/禁用状态。
         /// 生成精简部署计划并执行。
         /// </summary>
-        public async Task<bool> DeployToggleAsync(string packageKey, bool enable)
+        public async Task<OperationResult> DeployToggleAsync(string packageKey, bool enable)
         {
             try
             {
@@ -445,7 +455,7 @@ namespace UEModManager.ViewModels
                 {
                     await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);
                     _logger.LogInformation("无需部署变更，已同步状态: {Key} (enable={Enable})", packageKey, enable);
-                    return true;
+                    return OperationResult.Ok();
                 }
 
                 var transaction = await _deploymentService.ExecuteAsync(plan);
@@ -453,17 +463,17 @@ namespace UEModManager.ViewModels
                 {
                     await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);
                     _logger.LogInformation("部署成功: {Key} → {State}", packageKey, enable ? "启用" : "禁用");
-                    return true;
+                    return OperationResult.Ok();
                 }
 
                 _logger.LogWarning("部署失败: {Key}, 错误: {Error}",
                     packageKey, transaction.ErrorMessage);
-                return false;
+                return OperationResult.Fail(transaction.ErrorMessage);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "部署切换失败: {Key}", packageKey);
-                return false;
+                return OperationResult.Fail(ex.Message);
             }
             finally
             {
@@ -472,24 +482,28 @@ namespace UEModManager.ViewModels
             }
         }
 
-        public async Task<bool> ToggleModAsync(ModInfo mod, bool enable)
+        public async Task<OperationResult> ToggleModAsync(ModInfo mod, bool enable)
         {
-            var success = await DeployToggleAsync(mod.RealName, enable);
-            if (!success) return false;
+            var result = await DeployToggleAsync(mod.RealName, enable);
+            if (!result.Success) return result;
 
             mod.IsEnabled = enable;
             await RefreshFromRepositoryAsync();
-            return true;
+            return result;
         }
 
-        public async Task<bool> ToggleModsAsync(IReadOnlyList<ModInfo> mods, bool enable)
+        public async Task<OperationResult> ToggleModsAsync(IReadOnlyList<ModInfo> mods, bool enable)
         {
             var changed = false;
+            var results = new List<OperationResult>();
+
             foreach (var mod in mods)
             {
                 if (mod.IsEnabled == enable) continue;
-                if (!await DeployToggleAsync(mod.RealName, enable))
-                    continue;
+
+                var result = await DeployToggleAsync(mod.RealName, enable);
+                results.Add(result);
+                if (!result.Success) continue;
 
                 mod.IsEnabled = enable;
                 changed = true;
@@ -498,54 +512,68 @@ namespace UEModManager.ViewModels
             if (changed)
                 await RefreshFromRepositoryAsync();
 
-            return changed;
+            return OperationResult.Aggregate(results);
         }
 
-        public async Task<bool> RenameModAsync(ModInfo mod, string newName)
+        public async Task<OperationResult> RenameModAsync(ModInfo mod, string newName)
         {
             var package = _packageRepository.GetByKey(mod.RealName);
-            if (package == null) return false;
+            if (package == null)
+            {
+                _logger.LogWarning("重命名失败，仓库中找不到包: {Key}", mod.RealName);
+                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+            }
 
             package.DisplayName = newName.Trim();
             await _packageRepository.UpdatePackageAsync(package);
             mod.Name = package.DisplayName;
             await RefreshFromRepositoryAsync();
-            return true;
+            return OperationResult.Ok();
         }
 
-        public async Task<bool> ChangePreviewAsync(ModInfo mod, string imagePath)
+        public async Task<OperationResult> ChangePreviewAsync(ModInfo mod, string imagePath)
         {
             var storedPath = await _packageRepository.UpdatePreviewImageAsync(mod.RealName, imagePath);
-            if (string.IsNullOrEmpty(storedPath)) return false;
+            if (string.IsNullOrEmpty(storedPath))
+            {
+                _logger.LogWarning("更换预览图失败: {Key} ← {Path}", mod.RealName, imagePath);
+                return OperationResult.Fail($"预览图保存失败。请确认图片文件仍然存在且可读取：{imagePath}");
+            }
 
             mod.PreviewImage = null;
             mod.PreviewImagePath = storedPath;
             await RefreshFromRepositoryAsync();
-            return true;
+            return OperationResult.Ok();
         }
 
-        public async Task<bool> DeletePackageModAsync(ModInfo mod)
+        public async Task<OperationResult> DeletePackageModAsync(ModInfo mod)
         {
-            var success = await DeletePackageModCoreAsync(mod);
-            if (!success) return false;
+            var result = await DeletePackageModCoreAsync(mod);
+            if (!result.Success) return result;
 
             await RefreshFromRepositoryAsync();
-            return true;
+            return result;
         }
 
-        public async Task<bool> DeletePackageModsAsync(IReadOnlyList<ModInfo> mods)
+        public async Task<OperationResult> DeletePackageModsAsync(IReadOnlyList<ModInfo> mods)
         {
             var changed = false;
+            var results = new List<OperationResult>();
+
             foreach (var mod in mods)
-                changed |= await DeletePackageModCoreAsync(mod);
+            {
+                var result = await DeletePackageModCoreAsync(mod);
+                results.Add(result);
+                changed |= result.Success;
+            }
 
             if (changed)
                 await RefreshFromRepositoryAsync();
 
-            return changed;
+            return OperationResult.Aggregate(results);
         }
 
-        private async Task<bool> DeletePackageModCoreAsync(ModInfo mod)
+        private async Task<OperationResult> DeletePackageModCoreAsync(ModInfo mod)
         {
             try
             {
@@ -553,24 +581,34 @@ namespace UEModManager.ViewModels
                 LoadingMessage = "删除中...";
 
                 var package = _packageRepository.GetByKey(mod.RealName);
-                if (package == null) return false;
+                if (package == null)
+                {
+                    _logger.LogWarning("删除失败，仓库中找不到包: {Key}", mod.RealName);
+                    return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+                }
 
-                if (!await DeployToggleAsync(package.PackageKey, false))
-                    return false;
+                // 先卸载已部署的文件；这一步失败就不能继续删仓库，否则游戏目录里会留下孤儿文件
+                var undeploy = await DeployToggleAsync(package.PackageKey, false);
+                if (!undeploy.Success)
+                    return OperationResult.Fail($"无法从游戏目录移除「{mod.Name}」的已部署文件，已中止删除。{Environment.NewLine}{undeploy.Error}");
 
                 var (success, _) = await _packageRepository.DeletePackageAsync(
                     package.PackageKey, _profileService.GetProfiles(), force: true);
-                if (!success) return false;
+                if (!success)
+                {
+                    _logger.LogWarning("从仓库删除包失败: {Key}", package.PackageKey);
+                    return OperationResult.Fail($"从包仓库删除「{mod.Name}」失败。文件可能被占用或权限不足。");
+                }
 
                 await _profileService.RemovePackageReferencesAsync(package.PackageKey);
                 await _modData.RemoveModAsync(package.PackageKey);
                 _logger.LogInformation("包已从仓库和所有方案删除: {Key}", package.PackageKey);
-                return true;
+                return OperationResult.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "删除包失败: {Key}", mod.RealName);
-                return false;
+                return OperationResult.Fail(ex.Message);
             }
             finally
             {
