@@ -41,6 +41,14 @@ namespace UEModManager.Services
             public bool DeployConfirm { get; set; } = true;
             public bool AutoDeploy { get; set; } = true;
             public string? RepositoryRoot { get; set; }
+            public string? OverwritesRoot { get; set; }
+            public string? BackupsRoot { get; set; }
+
+            /// <summary>
+            /// 已迁移到的数据目录布局版本（见 DataRelocationPlanner.CurrentLayoutVersion）。
+            /// 0 表示尚未迁移。用版本号而非布尔，是为了将来再次调整目录结构时能做增量迁移。
+            /// </summary>
+            public int DataLayoutVersion { get; set; }
         }
 
         private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
@@ -348,6 +356,58 @@ namespace UEModManager.Services
         public static void SaveRepositoryRoot(string? path)
         {
             Write(cfg => cfg.RepositoryRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存仓库根目录");
+        }
+
+        // ── 其余可自定义的数据根 ──
+        //
+        // 与 RepositoryRoot 同构：非空即表示"用户/迁移器已显式指定过位置"，
+        // 数据搬迁规划器据此判定"一步都不能动"。空白值一律归一为 null，
+        // 避免配置里留下空字符串把数据根指到当前工作目录。
+
+        public static string? LoadOverwritesRoot()
+        {
+            return Read<string?>(cfg =>
+            {
+                var path = cfg.OverwritesRoot?.Trim();
+                return string.IsNullOrWhiteSpace(path) ? null : path;
+            }, null, "读取生成物根目录");
+        }
+
+        public static void SaveOverwritesRoot(string? path)
+        {
+            Write(cfg => cfg.OverwritesRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存生成物根目录");
+        }
+
+        public static string? LoadBackupsRoot()
+        {
+            return Read<string?>(cfg =>
+            {
+                var path = cfg.BackupsRoot?.Trim();
+                return string.IsNullOrWhiteSpace(path) ? null : path;
+            }, null, "读取备份根目录");
+        }
+
+        public static void SaveBackupsRoot(string? path)
+        {
+            Write(cfg => cfg.BackupsRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存备份根目录");
+        }
+
+        // ── 数据目录布局版本 ──
+
+        /// <summary>读取已迁移到的数据目录布局版本；从未迁移过返回 0。</summary>
+        public static int LoadDataLayoutVersion()
+        {
+            return Read(cfg => cfg.DataLayoutVersion, 0, "读取数据布局版本");
+        }
+
+        /// <summary>
+        /// 写入已迁移到的数据目录布局版本。
+        /// 只增不减：读到失败回落的 0 之后又写回 0，会让下次启动重新探测一遍磁盘，
+        /// 但不会造成数据损坏（规划器以墓碑为准）。
+        /// </summary>
+        public static void SaveDataLayoutVersion(int version)
+        {
+            Write(cfg => cfg.DataLayoutVersion = version, "保存数据布局版本");
         }
     }
 }

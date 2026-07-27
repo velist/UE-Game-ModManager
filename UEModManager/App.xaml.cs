@@ -295,6 +295,9 @@ namespace UEModManager
                     // Phase 12: Profile lock 导出/导入
                     services.AddSingleton<ProfileLockService>();
 
+                    // 数据目录搬迁（安装目录 → %LOCALAPPDATA%）
+                    services.AddSingleton<DataLocationMigrator>();
+
                     services.AddTransient<ViewModels.MainViewModel>();
                     // 注册窗口
                     services.AddTransient<MainWindow>();
@@ -334,6 +337,20 @@ namespace UEModManager
                     MessageBox.Show("服务未正确初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                     Shutdown();
                     return;
+                }
+
+                // 数据目录搬迁：必须在任何服务读写数据之前完成。
+                // 迁移器自身不抛异常——失败时沿用旧位置继续，绝不阻断启动。
+                Console.WriteLine("[Startup] DataLocationMigrator");
+                try
+                {
+                    var migrator = ServiceProvider.GetRequiredService<DataLocationMigrator>();
+                    var outcome = await migrator.RunAsync();
+                    Console.WriteLine($"[Startup] 数据目录迁移: {outcome.Summary}");
+                }
+                catch (Exception migEx)
+                {
+                    Console.WriteLine($"[Startup] 数据目录迁移异常（沿用旧位置继续）: {migEx}");
                 }
 
                 // 初始化本地数据库

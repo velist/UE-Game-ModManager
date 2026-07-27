@@ -118,10 +118,18 @@ Filename: "{app}\捐赠引导.jpg"; Description: "查看开发支持二维码"; 
 ; 在浏览器打开使用说明书（用户可选）
 Filename: "{#MyHelpDocUrl}"; Description: "查看使用说明书（联网）"; Flags: nowait postinstall skipifsilent shellexec unchecked
 
-[UninstallDelete]
-; 不删用户数据 — %APPDATA%\UEModManager 由用户自行决定保留/清理
-; 仅清理可能残留的运行时缓存
-Type: filesandordirs; Name: "{app}\Data\Backups"
+; [UninstallDelete] 已整段移除。
+;
+; 原先这里是：
+;     Type: filesandordirs; Name: "{app}\Data\Backups"
+; 上一行注释写着"不删用户数据"，但这条规则删的恰恰是**部署事务备份**
+; （DeploymentService 的备份根），也就是崩溃回滚唯一依赖的数据——
+; 它既是用户数据，也是"卸载重装以修复问题"这条常见路径上最不能丢的东西。
+;
+; 现行约定：卸载一律不碰任何用户数据，也不询问。
+; 卸载常常只是"重装/升级"的一步，此时弹一个"是否删除数据"的对话框，
+; 用户误点一次就永久失去全部 MOD 库。想彻底清理的用户走随包分发的
+; bundled\彻底清理UEModManager用户数据.bat，那是显式且可预期的入口。
 
 [Code]
 var
