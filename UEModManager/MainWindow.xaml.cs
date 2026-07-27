@@ -297,6 +297,10 @@ namespace UEModManager
             // 静态事件是 GC root，必须显式退订，否则窗口连同整棵视觉树永远无法回收
             LanguageManager.LanguageChanged -= OnLanguageChanged;
             BackgroundManager.BackgroundChanged -= OnBackgroundChanged;
+
+            // ProfileService 是单例，退订后 ViewModel 才能被回收
+            _vm.ProfileService.ProfileChanged -= OnProfileSelectorUpdate;
+            _vm.Dispose();
         }
 
         /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>

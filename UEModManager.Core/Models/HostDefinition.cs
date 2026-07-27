@@ -26,7 +26,7 @@ namespace UEModManager.Models
         /// <summary>可执行文件路径（相对或绝对）。</summary>
         public string ExecutablePath { get; set; } = "";
 
-        /// <summary>适配器键名（对应 IHostAdapter.AdapterKey）。</summary>
+        /// <summary>适配器键名（历史字段，Host Adapter 体系已移除，保留仅为兼容旧配置）。</summary>
         public string AdapterKey { get; init; } = "generic-overlay";
 
         /// <summary>MOD 目录路径（绝对或相对于 RootPath）。</summary>

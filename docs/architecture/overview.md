@@ -30,7 +30,6 @@
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
-│  samples/UEModManager.SampleAdapter (net8.0)            │
 │  samples/UEModManager.SampleBackend  (net8.0)           │
 │  - 第三方扩展 SDK 起点（仅引用 Core）                      │
 └─────────────────────────────────────────────────────────┘
@@ -47,7 +46,6 @@
 
 承载（截至第十七轮 Core 拆分）：
 - `Models/` 领域模型（Package/Profile/ConflictRecord/ResolvedView/HostDefinition/EngineType 等 16 个）
-- `Adapters/` IHostAdapter + AdapterCapabilities + HostAdapterResolver
 - `Services/Backends/` IDeploymentBackend 接口
 - `Services/Config/` 配置解析 + 合并（4 种策略纯函数）
 - `Services/Conflict/` 冲突求解 + 检测 + 查询（无 IO 静态分析）
@@ -78,7 +76,6 @@
 - `Views/` WPF 窗口
 - `ViewModels/` UI 状态绑定
 - `Services/` Service 编排和 IO 适配（如 ConfigMergeEngine 是 ConfigMerger 的 IO 层）
-- `Adapters/` 宿主适配器具体实现（UnrealEngineAdapter / GenericFileOverlayAdapter 等）
 - `Services/Backends/` 三种内置后端实现（CopyBackend / HardLinkBackend / SymlinkBackend）
 - `App.xaml.cs` DI 容器配置 + 启动钩子
 - `MainWindow.*` 顶层窗口
@@ -109,10 +106,12 @@ public class ConfigMergeEngine          // 主项目
 
 ### 扩展示例项目
 
-- [`samples/UEModManager.SampleAdapter/`](../../samples/UEModManager.SampleAdapter/) —— 自定义 Host Adapter 示例
 - [`samples/UEModManager.SampleBackend/`](../../samples/UEModManager.SampleBackend/) —— 自定义 Deployment Backend 示例
 
-两者都仅引用 Core，独立可编译，是第三方贡献者的起点。
+仅引用 Core，独立可编译，是第三方贡献者的起点。
+
+> 曾经还有一个 `samples/UEModManager.SampleAdapter`（配套 `IHostAdapter` 扩展点），
+> 已于 2026-07 连同整个 Host Adapter 体系删除，原因见下方"引擎规则维护在哪里"。
 
 ---
 
@@ -129,7 +128,7 @@ public class ConfigMergeEngine          // 主项目
 
 ### 2. 为什么主项目仍是 net8.0-windows 单工程？
 
-- Views/Adapters/Service/认证 全堆在一起
+- Views/Service/认证 全堆在一起
 - 拆分需要重新设计 DI 边界，工作量大且风险高
 - "保守起步" — 等 Core 真的扎实之后再考虑
 
@@ -146,10 +145,33 @@ public class ConfigMergeEngine          // 主项目
 部署路径含 PackageKey 子目录隔离，但加载顺序冲突应该忽略子目录差异——
 否则同名 .pak 永远不会被识别为冲突候选。这是 Phase 4 修复的核心设计。
 
-### 5. 为什么 IDeploymentBackend / IHostAdapter 接口在 Core？
+### 5. 为什么 IDeploymentBackend 接口在 Core？
 
-下沉到 Core 后，`samples/UEModManager.SampleAdapter` 和 `samples/UEModManager.SampleBackend`
-仅引用 Core 即可独立编译，无需拖入 WPF / 主项目。这是 Phase 13 SDK 的关键设计。
+下沉到 Core 后，`samples/UEModManager.SampleBackend` 仅引用 Core 即可独立编译，
+无需拖入 WPF / 主项目。这是 Phase 13 SDK 的关键设计。
+
+### 6. 引擎规则维护在哪里？（新增游戏要改哪些地方）
+
+**引擎规则以 `UEModManager/Models/EngineProfile.cs` 的静态表维护**——
+扩展名集合、直接导入扩展名、文件对话框过滤器、默认 MOD 路径模式、分组优先级、
+是否支持冲突检测，全部按 `EngineType` 索引。
+
+新增一款游戏需要改**四处**：
+
+| # | 位置 | 改什么 |
+|---|---|---|
+| 1 | `Services/GameConfigService.cs` `GetAvailableGames()` | 加入可选游戏列表 |
+| 2 | `Services/GameConfigService.cs` `BuiltInGames` | 标记为内置游戏 |
+| 3 | `Services/GameConfigService.cs` `GetEngineType()` | 游戏名 → EngineType 映射 |
+| 4 | `Models/EngineProfile.cs` `Profiles` 字典 | 该引擎尚未登记时新增一条 |
+
+路径/可执行文件的自动探测关键词另见 `Views/GamePathDialog.xaml.cs`
+（`gameKeywords` 与 `GetGameKeywords`）和 `GameConfigService.AutoDetectExecutable`。
+
+> **不要再造 Adapter 抽象。** 2026-07 之前存在一套 `IHostAdapter` + `HostAdapterRegistry`
+> 扩展点，文档承诺"新增游戏 = 新增 Adapter 类，核心代码零改动"，但**全部 14 个接口成员
+> 生产调用点为 0**：注册表只被存进 `MainViewModel` 的字段就再没被调用过。第三方照文档写出的
+> Adapter 编译得过、注册得进 DI，却永远不会被执行。该体系已整体删除，避免继续误导。
 
 ---
 
@@ -205,7 +227,6 @@ UEModManager.Core.Tests/                              552 个测试
 ├── Services/Migration/                              50+ 测试 (Decision + Step + Catalog + Tracker)
 ├── Services/Import/                                 70+ 测试 (CompressedArchive + Classifier + Grouper + PreviewSelector)
 ├── Services/Profile/                                30+ 测试 (LegacyMigrator + SyncPlanner)
-├── Adapters/                                        15+ 测试 (HostAdapterResolver)
 ├── Health/                                           9  测试
 ├── Logging/                                         30  测试
 └── Diagnostics/                                      7  测试
@@ -225,4 +246,4 @@ dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj
 - [v2.0 升级指南](../../v2.0升级指南_开发者接手文档.md) — 详细 Phase 实施记录 + Core 17 轮拆分记录
 - [总计划](../../游戏插件管理器升级计划_全Phase极致细化版_重新生成.md) — 长期愿景
 - [findings/](../findings/) — 设计漏洞记录
-- [playbooks/](../playbooks/) — 操作指南（如 Adapter / Backend / Core Service / Manifest 写法）
+- [playbooks/](../playbooks/) — 操作指南（如 Backend / Core Service / Manifest 写法）

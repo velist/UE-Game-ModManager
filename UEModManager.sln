@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.Core.Tests", "
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{6F2CEFA6-C08A-45D5-96F7-B16A2D2084EC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.SampleAdapter", "samples\UEModManager.SampleAdapter\UEModManager.SampleAdapter.csproj", "{3893C04F-4201-416B-851B-1980A2077420}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.SampleBackend", "samples\UEModManager.SampleBackend\UEModManager.SampleBackend.csproj", "{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UEModManager.Tests", "UEModManager.Tests\UEModManager.Tests.csproj", "{E8734B5F-5525-4B73-9F82-19C472F7EE4C}"
@@ -63,18 +61,6 @@ Global
 		{28B8F60C-2009-42BB-B925-C2469F96F0F7}.Release|x64.Build.0 = Release|Any CPU
 		{28B8F60C-2009-42BB-B925-C2469F96F0F7}.Release|x86.ActiveCfg = Release|Any CPU
 		{28B8F60C-2009-42BB-B925-C2469F96F0F7}.Release|x86.Build.0 = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|x64.Build.0 = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Debug|x86.Build.0 = Debug|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|x64.ActiveCfg = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|x64.Build.0 = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|x86.ActiveCfg = Release|Any CPU
-		{3893C04F-4201-416B-851B-1980A2077420}.Release|x86.Build.0 = Release|Any CPU
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -104,7 +90,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{3893C04F-4201-416B-851B-1980A2077420} = {6F2CEFA6-C08A-45D5-96F7-B16A2D2084EC}
 		{02D858F0-EDF2-42FE-B4E9-C0CCC8E6C9FA} = {6F2CEFA6-C08A-45D5-96F7-B16A2D2084EC}
 	EndGlobalSection
 EndGlobal

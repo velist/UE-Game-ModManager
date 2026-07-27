@@ -17,7 +17,7 @@ namespace UEModManager.ViewModels
     /// <summary>
     /// 主窗口 ViewModel — 协调所有子 ViewModel。
     /// </summary>
-    public partial class MainViewModel : ObservableObject
+    public partial class MainViewModel : ObservableObject, IDisposable
     {
         private readonly ModManagementService _modService;
         private readonly GameConfigService _gameConfig;
@@ -31,7 +31,6 @@ namespace UEModManager.ViewModels
         private readonly DeploymentService _deploymentService;
         private readonly ConflictAnalyzer _conflictAnalyzer;
         private readonly OverwriteStore _overwriteStore;
-        private readonly Adapters.HostAdapterRegistry _adapterRegistry;
         private readonly Services.Config.ConfigMergeEngine _configMergeEngine;
         private readonly ResolvedViewBuilder _resolvedViewBuilder;
         private readonly LaunchOrchestrator _launchOrchestrator;
@@ -51,7 +50,6 @@ namespace UEModManager.ViewModels
         public DeploymentService DeployService => _deploymentService;
         public ConflictAnalyzer ConflictAnalysis => _conflictAnalyzer;
         public OverwriteStore OverwriteStore => _overwriteStore;
-        public Adapters.HostAdapterRegistry AdapterRegistry => _adapterRegistry;
         public Services.Config.ConfigMergeEngine ConfigMerge => _configMergeEngine;
         public ResolvedViewBuilder ViewBuilder => _resolvedViewBuilder;
         public LaunchOrchestrator Launcher => _launchOrchestrator;
@@ -117,7 +115,6 @@ namespace UEModManager.ViewModels
             DeploymentService deploymentService,
             ConflictAnalyzer conflictAnalyzer,
             OverwriteStore overwriteStore,
-            Adapters.HostAdapterRegistry adapterRegistry,
             Services.Config.ConfigMergeEngine configMergeEngine,
             ResolvedViewBuilder resolvedViewBuilder,
             LaunchOrchestrator launchOrchestrator,
@@ -135,7 +132,6 @@ namespace UEModManager.ViewModels
             _deploymentService = deploymentService;
             _conflictAnalyzer = conflictAnalyzer;
             _overwriteStore = overwriteStore;
-            _adapterRegistry = adapterRegistry;
             _configMergeEngine = configMergeEngine;
             _resolvedViewBuilder = resolvedViewBuilder;
             _launchOrchestrator = launchOrchestrator;
@@ -667,6 +663,26 @@ namespace UEModManager.ViewModels
                 ? $" | 方案: {_profileService.CurrentProfile.Name}"
                 : "";
             StatusBarText = $"已加载MOD: {enabled}/{AllMods.Count}{profileInfo}";
+        }
+
+        // ─── 释放 ───
+
+        private bool _disposed;
+
+        /// <summary>
+        /// 退订对单例服务的事件订阅。
+        /// 本类注册为 AddTransient，而 ProfileService 是 AddSingleton：
+        /// 单例事件持有 ViewModel 的强引用，不退订则每解析一次 MainViewModel
+        /// 就永久泄漏一个（连同它引用的全部子 ViewModel 与 MOD 集合），
+        /// 且后续 Profile 变更会向所有僵尸实例重复派发。
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _profileService.ProfileChanged -= OnProfileChanged;
+            _profileService.ProfileListChanged -= OnProfileListChanged;
         }
     }
 }

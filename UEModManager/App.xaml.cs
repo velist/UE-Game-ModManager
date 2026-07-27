@@ -11,7 +11,6 @@ using UEModManager.Services;
 using UEModManager.Services.Backends;
 using UEModManager.ViewModels;
 using UEModManager.Views;
-using UEModManager.Adapters;
 using UEModManager.Data;
 
 namespace UEModManager
@@ -296,14 +295,7 @@ namespace UEModManager
                     // Phase 12: Profile lock 导出/导入
                     services.AddSingleton<ProfileLockService>();
 
-                    // v2.0 Phase 6: Host Adapter
-                    services.AddSingleton<IHostAdapter, Adapters.UnrealEngineAdapter>();
-                    services.AddSingleton<IHostAdapter, Adapters.StellarBladeCNSAdapter>();
-                    services.AddSingleton<IHostAdapter, Adapters.GenericFileOverlayAdapter>();
-                    services.AddSingleton<Adapters.HostAdapterRegistry>();
-
                     services.AddTransient<ViewModels.MainViewModel>();
-
                     // 注册窗口
                     services.AddTransient<MainWindow>();
                     services.AddTransient<LoginWindow>();
