@@ -45,7 +45,7 @@ UEModManager/
 ├── UEModManager.Core/        # 核心库：纯函数 + 纯模型，无 WPF 依赖
 ├── UEModManager.Core.Tests/  # Core 单元测试（660 个）
 ├── UEModManager.Tests/       # 主程序测试（少量，需要 net8.0-windows）
-├── samples/                  # 第三方扩展示例（SampleBackend / SampleAdapter）
+├── samples/                  # 示例工程（SampleBackend：IDeploymentBackend 实现范例）
 ├── docs/                     # 架构说明、playbooks、审计报告
 ├── cf-workers/               # Cloudflare Workers API
 ├── UEModManager.sln
