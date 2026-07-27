@@ -71,6 +71,54 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private string _loadingMessage = string.Empty;
 
+        /// <summary>
+        /// 加载遮罩的引用计数深度。
+        ///
+        /// 原先每个操作各自 <c>IsLoading = true</c> / <c>finally { IsLoading = false; }</c>，
+        /// 批量操作（"全部启用" N 个 MOD）会让遮罩翻转 N 次，视觉上就是闪烁 N 下；
+        /// 嵌套调用（DeletePackageModCoreAsync 内部又调 DeployToggleAsync）还会让内层的
+        /// finally 提前把外层的遮罩关掉。改成引用计数后，只有最外层结束时才真正收起遮罩。
+        ///
+        /// 只在 UI 线程上访问：ViewModel 的 await 都不带 ConfigureAwait(false)，
+        /// 续体回到 WPF 的同步上下文，因此这里不需要 Interlocked。
+        /// </summary>
+        private int _loadingDepth;
+
+        /// <summary>
+        /// 进入一次加载状态，返回的句柄 Dispose 时退出。支持嵌套。
+        /// </summary>
+        private IDisposable BeginLoading(string message)
+        {
+            var previousMessage = LoadingMessage;
+            _loadingDepth++;
+            IsLoading = true;
+            LoadingMessage = message;
+            return new LoadingScope(this, previousMessage);
+        }
+
+        private sealed class LoadingScope(MainViewModel owner, string previousMessage) : IDisposable
+        {
+            private bool _disposed;
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+
+                if (--owner._loadingDepth <= 0)
+                {
+                    owner._loadingDepth = 0;
+                    owner.IsLoading = false;
+                    owner.LoadingMessage = string.Empty;
+                }
+                else
+                {
+                    // 还有外层在跑，把提示词还原成外层的
+                    owner.LoadingMessage = previousMessage;
+                }
+            }
+        }
+
         [ObservableProperty]
         private string _currentGameName = string.Empty;
 
@@ -217,10 +265,9 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public async Task InitializeAsync()
         {
+            using var loading = BeginLoading("加载配置...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = "加载配置...";
 
                 await _gameConfig.LoadConfigAsync();
                 CurrentGameName = _gameConfig.CurrentGameName;
@@ -261,11 +308,6 @@ namespace UEModManager.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "初始化失败");
-            }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
             }
         }
 
@@ -323,10 +365,9 @@ namespace UEModManager.ViewModels
 
         public async Task RefreshFromRepositoryAsync()
         {
+            using var loading = BeginLoading("刷新仓库...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = "刷新仓库...";
 
                 var profile = _profileService.CurrentProfile;
                 var profileEntries = profile?.Packages.ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase)
@@ -367,11 +408,6 @@ namespace UEModManager.ViewModels
             {
                 _logger.LogError(ex, "刷新仓库失败");
             }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
-            }
         }
 
         // ─── MOD 操作 ───
@@ -406,8 +442,7 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task ImportModsAsync(string[] filePaths)
         {
-            IsLoading = true;
-            LoadingMessage = "导入MOD...";
+            using var loading = BeginLoading("导入MOD...");
             try
             {
                 var results = await _packageImportService.ImportAsync(filePaths);
@@ -419,8 +454,12 @@ namespace UEModManager.ViewModels
                 await _profileService.AddPackagesToCurrentProfileAsync(importedPackages);
                 if (UiPreferences.LoadAutoDeploy())
                 {
-                    foreach (var package in importedPackages)
-                        await DeployToggleAsync(package.PackageKey, true);
+                    // 自动部署同样是 N 次循环，套批处理避免 N 次全量写盘
+                    await using (await _profileService.BeginBatchAsync())
+                    {
+                        foreach (var package in importedPackages)
+                            await DeployToggleAsync(package.PackageKey, true);
+                    }
                 }
 
                 await RefreshFromRepositoryAsync();
@@ -429,11 +468,6 @@ namespace UEModManager.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "导入 MOD 失败");
-            }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
             }
         }
 
@@ -445,10 +479,9 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task<OperationResult> DeployToggleAsync(string packageKey, bool enable)
         {
+            using var loading = BeginLoading(enable ? "启用中..." : "禁用中...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = enable ? "启用中..." : "禁用中...";
 
                 var plan = await _deploymentPlanner.CreateTogglePlanAsync(packageKey, enable);
                 if (!plan.HasChanges)
@@ -475,11 +508,6 @@ namespace UEModManager.ViewModels
                 _logger.LogError(ex, "部署切换失败: {Key}", packageKey);
                 return OperationResult.Fail(ex.Message);
             }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
-            }
         }
 
         public async Task<OperationResult> ToggleModAsync(ModInfo mod, bool enable)
@@ -497,16 +525,25 @@ namespace UEModManager.ViewModels
             var changed = false;
             var results = new List<OperationResult>();
 
-            foreach (var mod in mods)
+            // 外层遮罩：整批期间常亮，而不是每个 MOD 闪一下
+            using var loading = BeginLoading(enable ? "批量启用..." : "批量禁用...");
+
+            // 批处理：循环内每次 DeployToggleAsync 都会写一次 Profile 元数据，
+            // 原先就是 N 次完整 profiles JSON 序列化 + 原子写。作用域内只标脏，结束时落盘一次。
+            // 作用域在刷新之前结束，保证 UI 刷新看到的是已落盘的状态。
+            await using (await _profileService.BeginBatchAsync())
             {
-                if (mod.IsEnabled == enable) continue;
+                foreach (var mod in mods)
+                {
+                    if (mod.IsEnabled == enable) continue;
 
-                var result = await DeployToggleAsync(mod.RealName, enable);
-                results.Add(result);
-                if (!result.Success) continue;
+                    var result = await DeployToggleAsync(mod.RealName, enable);
+                    results.Add(result);
+                    if (!result.Success) continue;
 
-                mod.IsEnabled = enable;
-                changed = true;
+                    mod.IsEnabled = enable;
+                    changed = true;
+                }
             }
 
             if (changed)
@@ -560,11 +597,17 @@ namespace UEModManager.ViewModels
             var changed = false;
             var results = new List<OperationResult>();
 
-            foreach (var mod in mods)
+            using var loading = BeginLoading("批量删除...");
+
+            // 同 ToggleModsAsync：每次删除都会经 RemovePackageReferencesAsync 写一次 Profile
+            await using (await _profileService.BeginBatchAsync())
             {
-                var result = await DeletePackageModCoreAsync(mod);
-                results.Add(result);
-                changed |= result.Success;
+                foreach (var mod in mods)
+                {
+                    var result = await DeletePackageModCoreAsync(mod);
+                    results.Add(result);
+                    changed |= result.Success;
+                }
             }
 
             if (changed)
@@ -575,10 +618,9 @@ namespace UEModManager.ViewModels
 
         private async Task<OperationResult> DeletePackageModCoreAsync(ModInfo mod)
         {
+            using var loading = BeginLoading("删除中...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = "删除中...";
 
                 var package = _packageRepository.GetByKey(mod.RealName);
                 if (package == null)
@@ -610,11 +652,6 @@ namespace UEModManager.ViewModels
                 _logger.LogError(ex, "删除包失败: {Key}", mod.RealName);
                 return OperationResult.Fail(ex.Message);
             }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
-            }
         }
 
         /// <summary>
@@ -638,10 +675,9 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task<DeploymentTransaction?> ExecuteDeploymentAsync(DeploymentPlan plan)
         {
+            using var loading = BeginLoading("部署中...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = "部署中...";
 
                 var transaction = await _deploymentService.ExecuteAsync(plan);
                 if (transaction.Status == DeploymentStatus.Committed)
@@ -657,11 +693,6 @@ namespace UEModManager.ViewModels
                 _logger.LogError(ex, "执行部署失败");
                 return null;
             }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
-            }
         }
 
         // ─── 冲突分析（v2.0 Phase 4） ───
@@ -671,10 +702,9 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task<ConflictAnalysisResult?> AnalyzeConflictsAsync()
         {
+            using var loading = BeginLoading("分析冲突...");
             try
             {
-                IsLoading = true;
-                LoadingMessage = "分析冲突...";
 
                 var result = await _conflictAnalyzer.AnalyzeAsync();
                 _logger.LogInformation("冲突分析完成: {Count} 个冲突", result.TotalConflicts);
@@ -684,11 +714,6 @@ namespace UEModManager.ViewModels
             {
                 _logger.LogError(ex, "冲突分析失败");
                 return null;
-            }
-            finally
-            {
-                IsLoading = false;
-                LoadingMessage = string.Empty;
             }
         }
 

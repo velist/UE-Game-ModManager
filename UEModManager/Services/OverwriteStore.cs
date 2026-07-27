@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -15,6 +16,13 @@ namespace UEModManager.Services
     /// 生成物仓库。管理部署过程和工具产生的非原始输入文件。
     /// 存储路径：%APPDATA%/UEModManager/Overwrites/{gameName}/
     /// 索引文件：Data/{gameName}_overwrites.json
+    ///
+    /// 并发模型与 <see cref="ProfileService"/> 一致：写操作由 <see cref="_gate"/> 串行化、
+    /// 结构性修改走 swap-on-write、事件在出锁后触发。详见 ProfileService 的类注释。
+    ///
+    /// ⚠ 本服务是三者中唯一会外调其他服务的（<see cref="PromoteToPackageAsync"/> 调
+    /// PackageImportService 与 PackageRepository）。那些外调**一律在锁外完成**，
+    /// 锁内只做本服务自己的状态变更，因此不存在跨服务的锁序问题。
     /// </summary>
     public class OverwriteStore
     {
@@ -22,8 +30,14 @@ namespace UEModManager.Services
         private readonly PackageRepository _packageRepo;
         private readonly PackageImportService _packageImport;
         private readonly string _dataDirectory;
+
+        /// <summary>串行化"改内存 + 落盘"。SemaphoreSlim 不可重入，锁内不得调用也要抢锁的方法。</summary>
+        private readonly SemaphoreSlim _gate = new(1, 1);
+
         private string _overwriteRoot;
         private string _currentGame = "";
+
+        /// <summary>生成物索引。**只整体替换，不原地增删**，使无锁读取方的枚举始终安全。</summary>
         private List<GeneratedArtifact> _artifacts = [];
 
         /// <summary>生成物列表发生变化时触发。</summary>
@@ -54,10 +68,16 @@ namespace UEModManager.Services
         /// <summary>切换当前游戏并加载生成物索引。</summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
-            _currentGame = gameName;
             var gameDir = Path.Combine(_overwriteRoot, gameName);
             Directory.CreateDirectory(gameDir);
-            await LoadIndexAsync();
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _currentGame = gameName;
+                await LoadIndexLockedAsync().ConfigureAwait(false);
+            }
+            finally { _gate.Release(); }
         }
 
         // ─── 查询 ───
@@ -111,59 +131,69 @@ namespace UEModManager.Services
             string? sourceDescription = null,
             string? relativeTargetPath = null)
         {
-            var gameDir = Path.Combine(_overwriteRoot, _currentGame);
+            GeneratedArtifact artifact;
 
-            // 如果文件不在 Overwrite 目录中，复制进来
-            string relativePath;
-            if (!filePath.StartsWith(gameDir, StringComparison.OrdinalIgnoreCase))
+            // 整个方法在锁内：下面的"避重名"循环是 File.Exists → File.Copy 的 TOCTOU，
+            // 两个并发 RegisterAsync 会挑中同一个 destPath 从而互相覆盖。
+            // 代价是并发注册被串行化（含文件拷贝），但注册本来就发生在部署的顺序循环里。
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                var fileName = Path.GetFileName(filePath);
-                var typeFolder = type.ToString().ToLowerInvariant();
-                var destDir = Path.Combine(gameDir, typeFolder);
-                Directory.CreateDirectory(destDir);
-                var destPath = Path.Combine(destDir, fileName);
+                var gameDir = Path.Combine(_overwriteRoot, _currentGame);
 
-                // 避免重名
-                var counter = 1;
-                while (File.Exists(destPath))
+                // 如果文件不在 Overwrite 目录中，复制进来
+                string relativePath;
+                if (!filePath.StartsWith(gameDir, StringComparison.OrdinalIgnoreCase))
                 {
-                    var nameNoExt = Path.GetFileNameWithoutExtension(fileName);
-                    var ext = Path.GetExtension(fileName);
-                    destPath = Path.Combine(destDir, $"{nameNoExt}_{counter++}{ext}");
+                    var fileName = Path.GetFileName(filePath);
+                    var typeFolder = type.ToString().ToLowerInvariant();
+                    var destDir = Path.Combine(gameDir, typeFolder);
+                    Directory.CreateDirectory(destDir);
+                    var destPath = Path.Combine(destDir, fileName);
+
+                    // 避免重名
+                    var counter = 1;
+                    while (File.Exists(destPath))
+                    {
+                        var nameNoExt = Path.GetFileNameWithoutExtension(fileName);
+                        var ext = Path.GetExtension(fileName);
+                        destPath = Path.Combine(destDir, $"{nameNoExt}_{counter++}{ext}");
+                    }
+
+                    File.Copy(filePath, destPath);
+                    relativePath = Path.GetRelativePath(gameDir, destPath);
+                }
+                else
+                {
+                    relativePath = Path.GetRelativePath(gameDir, filePath);
                 }
 
-                File.Copy(filePath, destPath);
-                relativePath = Path.GetRelativePath(gameDir, destPath);
+                var fullPath = Path.Combine(gameDir, relativePath);
+                var fi = new FileInfo(fullPath);
+
+                artifact = new GeneratedArtifact
+                {
+                    RelativePath = relativePath,
+                    RelativeTargetPath = relativeTargetPath,
+                    DisplayName = displayName,
+                    Type = type,
+                    Status = GeneratedArtifactStatus.Active,
+                    SourcePackageKey = sourcePackageKey,
+                    SourceProfileId = sourceProfileId,
+                    SourceTransactionId = sourceTransactionId,
+                    SourceDescription = sourceDescription,
+                    FileSize = fi.Exists ? fi.Length : 0,
+                    FileHash = fi.Exists ? await ComputeHashAsync(fullPath).ConfigureAwait(false) : null,
+                    HostGameName = _currentGame
+                };
+
+                _artifacts = [.. _artifacts, artifact];
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                _logger.LogInformation("Registered generated artifact: {Name} ({Type})", displayName, type);
             }
-            else
-            {
-                relativePath = Path.GetRelativePath(gameDir, filePath);
-            }
+            finally { _gate.Release(); }
 
-            var fullPath = Path.Combine(gameDir, relativePath);
-            var fi = new FileInfo(fullPath);
-
-            var artifact = new GeneratedArtifact
-            {
-                RelativePath = relativePath,
-                RelativeTargetPath = relativeTargetPath,
-                DisplayName = displayName,
-                Type = type,
-                Status = GeneratedArtifactStatus.Active,
-                SourcePackageKey = sourcePackageKey,
-                SourceProfileId = sourceProfileId,
-                SourceTransactionId = sourceTransactionId,
-                SourceDescription = sourceDescription,
-                FileSize = fi.Exists ? fi.Length : 0,
-                FileHash = fi.Exists ? await ComputeHashAsync(fullPath) : null,
-                HostGameName = _currentGame
-            };
-
-            _artifacts.Add(artifact);
-            await SaveIndexAsync();
             ArtifactsChanged?.Invoke();
-
-            _logger.LogInformation("Registered generated artifact: {Name} ({Type})", displayName, type);
             return artifact;
         }
 
@@ -172,81 +202,119 @@ namespace UEModManager.Services
         /// <summary>删除单个生成物（文件 + 索引）。</summary>
         public async Task DeleteAsync(Guid artifactId)
         {
-            var artifact = _artifacts.FirstOrDefault(a => a.Id == artifactId);
-            if (artifact == null) return;
+            bool removed;
 
-            var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
-            if (File.Exists(fullPath))
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                File.Delete(fullPath);
-                _logger.LogInformation("Deleted overwrite file: {Path}", fullPath);
-            }
+                var artifact = _artifacts.FirstOrDefault(a => a.Id == artifactId);
+                if (artifact == null) return;
 
-            _artifacts.Remove(artifact);
-            await SaveIndexAsync();
-            ArtifactsChanged?.Invoke();
+                var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
+                if (File.Exists(fullPath))
+                {
+                    File.Delete(fullPath);
+                    _logger.LogInformation("Deleted overwrite file: {Path}", fullPath);
+                }
+
+                _artifacts = _artifacts.Where(a => a.Id != artifactId).ToList();
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                removed = true;
+            }
+            finally { _gate.Release(); }
+
+            if (removed) ArtifactsChanged?.Invoke();
         }
 
         /// <summary>清理所有过期生成物。</summary>
         public async Task<int> CleanupStaleAsync()
         {
-            var stale = _artifacts.Where(a => a.Status == GeneratedArtifactStatus.Stale).ToList();
-            foreach (var artifact in stale)
-            {
-                var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
-                if (File.Exists(fullPath)) File.Delete(fullPath);
-                _artifacts.Remove(artifact);
-            }
+            int count;
 
-            if (stale.Count > 0)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                await SaveIndexAsync();
-                ArtifactsChanged?.Invoke();
-                _logger.LogInformation("Cleaned up {Count} stale artifacts", stale.Count);
+                var stale = _artifacts.Where(a => a.Status == GeneratedArtifactStatus.Stale).ToList();
+                count = stale.Count;
+                if (count == 0) return 0;
+
+                foreach (var artifact in stale)
+                {
+                    var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
+                    if (File.Exists(fullPath)) File.Delete(fullPath);
+                }
+
+                _artifacts = _artifacts.Where(a => a.Status != GeneratedArtifactStatus.Stale).ToList();
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                _logger.LogInformation("Cleaned up {Count} stale artifacts", count);
             }
-            return stale.Count;
+            finally { _gate.Release(); }
+
+            ArtifactsChanged?.Invoke();
+            return count;
         }
 
         /// <summary>清理某个包的所有生成物。包 key 比较忽略大小写，避免留下孤儿生成物文件。</summary>
         public async Task CleanupByPackageAsync(string packageKey)
         {
-            var toRemove = _artifacts.Where(a => IsSamePackage(a, packageKey)).ToList();
-            foreach (var artifact in toRemove)
-            {
-                var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
-                if (File.Exists(fullPath)) File.Delete(fullPath);
-                _artifacts.Remove(artifact);
-            }
+            bool changed;
 
-            if (toRemove.Count > 0)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                await SaveIndexAsync();
-                ArtifactsChanged?.Invoke();
+                var toRemove = _artifacts.Where(a => IsSamePackage(a, packageKey)).ToList();
+                changed = toRemove.Count > 0;
+                if (!changed) return;
+
+                foreach (var artifact in toRemove)
+                {
+                    var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
+                    if (File.Exists(fullPath)) File.Delete(fullPath);
+                }
+
+                _artifacts = _artifacts.Where(a => !IsSamePackage(a, packageKey)).ToList();
+                await SaveIndexLockedAsync().ConfigureAwait(false);
             }
+            finally { _gate.Release(); }
+
+            ArtifactsChanged?.Invoke();
         }
 
         /// <summary>清理某个 Profile 的所有生成物。</summary>
         public async Task CleanupByProfileAsync(Guid profileId)
         {
-            var toRemove = _artifacts.Where(a => a.SourceProfileId == profileId).ToList();
-            foreach (var artifact in toRemove)
-            {
-                var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
-                if (File.Exists(fullPath)) File.Delete(fullPath);
-                _artifacts.Remove(artifact);
-            }
+            bool changed;
 
-            if (toRemove.Count > 0)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                await SaveIndexAsync();
-                ArtifactsChanged?.Invoke();
+                var toRemove = _artifacts.Where(a => a.SourceProfileId == profileId).ToList();
+                changed = toRemove.Count > 0;
+                if (!changed) return;
+
+                foreach (var artifact in toRemove)
+                {
+                    var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
+                    if (File.Exists(fullPath)) File.Delete(fullPath);
+                }
+
+                _artifacts = _artifacts.Where(a => a.SourceProfileId != profileId).ToList();
+                await SaveIndexLockedAsync().ConfigureAwait(false);
             }
+            finally { _gate.Release(); }
+
+            ArtifactsChanged?.Invoke();
         }
 
         // ─── 晋升为正式 Package ───
 
         /// <summary>
         /// 将生成物晋升为正式 Package（复制到仓库 + 注册）。
+        ///
+        /// ⚠ 对 PackageImportService / PackageRepository 的调用**刻意放在锁外**：
+        /// 它们各自有自己的锁，在本服务的锁内调用会形成跨服务的锁嵌套（锁序风险），
+        /// 且导入是长耗时操作，持锁会把所有生成物读写一并卡住。
+        /// 锁只用来包住最后那次"改本服务状态 + 落盘"。
         /// </summary>
         public async Task<Package?> PromoteToPackageAsync(Guid artifactId, string? packageDisplayName = null)
         {
@@ -260,29 +328,41 @@ namespace UEModManager.Services
                 return null;
             }
 
-            // 通过 PackageImportService 导入
-            var results = await _packageImport.ImportAsync([fullPath]);
+            // ── 锁外：跨服务调用 ──
+            var results = await _packageImport.ImportAsync([fullPath]).ConfigureAwait(false);
             if (results.Count == 0 || !results[0].Success || results[0].Package == null)
             {
                 _logger.LogWarning("Cannot promote artifact {Id}: import failed", artifactId);
                 return null;
             }
 
-            // 更新显示名
             var pkg = results[0].Package;
             if (packageDisplayName != null)
             {
                 pkg.DisplayName = packageDisplayName;
-                await _packageRepo.UpdatePackageAsync(pkg);
+                await _packageRepo.UpdatePackageAsync(pkg).ConfigureAwait(false);
             }
 
-            // 标记为已晋升
-            artifact.Status = GeneratedArtifactStatus.Promoted;
-            artifact.LastModified = DateTime.Now;
-            await SaveIndexAsync();
-            ArtifactsChanged?.Invoke();
+            // ── 锁内：只改自己的状态 ──
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                // 重新查一次：跨服务调用期间该生成物可能已被并发删除
+                var current = _artifacts.FirstOrDefault(a => a.Id == artifactId);
+                if (current == null)
+                {
+                    _logger.LogWarning("生成物 {Id} 在晋升过程中已被删除，跳过状态回写", artifactId);
+                    return pkg;
+                }
 
-            _logger.LogInformation("Promoted artifact {Name} to package {Key}", artifact.DisplayName, pkg.PackageKey);
+                current.Status = GeneratedArtifactStatus.Promoted;
+                current.LastModified = DateTime.Now;
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                _logger.LogInformation("Promoted artifact {Name} to package {Key}", current.DisplayName, pkg.PackageKey);
+            }
+            finally { _gate.Release(); }
+
+            ArtifactsChanged?.Invoke();
             return pkg;
         }
 
@@ -291,37 +371,56 @@ namespace UEModManager.Services
         /// <summary>将生成物标记为过期。</summary>
         public async Task MarkStaleAsync(Guid artifactId)
         {
-            var artifact = _artifacts.FirstOrDefault(a => a.Id == artifactId);
-            if (artifact == null) return;
-            artifact.Status = GeneratedArtifactStatus.Stale;
-            artifact.LastModified = DateTime.Now;
-            await SaveIndexAsync();
-            ArtifactsChanged?.Invoke();
+            bool changed;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var artifact = _artifacts.FirstOrDefault(a => a.Id == artifactId);
+                if (artifact == null) return;
+
+                artifact.Status = GeneratedArtifactStatus.Stale;
+                artifact.LastModified = DateTime.Now;
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                changed = true;
+            }
+            finally { _gate.Release(); }
+
+            if (changed) ArtifactsChanged?.Invoke();
         }
 
         /// <summary>将某个部署事务的所有生成物标记为过期。</summary>
         public async Task MarkTransactionStaleAsync(Guid transactionId)
         {
-            var affected = _artifacts
-                .Where(a => a.SourceTransactionId == transactionId && a.Status == GeneratedArtifactStatus.Active)
-                .ToList();
-            foreach (var a in affected)
+            bool changed;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                a.Status = GeneratedArtifactStatus.Stale;
-                a.LastModified = DateTime.Now;
+                var affected = _artifacts
+                    .Where(a => a.SourceTransactionId == transactionId && a.Status == GeneratedArtifactStatus.Active)
+                    .ToList();
+                changed = affected.Count > 0;
+                if (!changed) return;
+
+                foreach (var a in affected)
+                {
+                    a.Status = GeneratedArtifactStatus.Stale;
+                    a.LastModified = DateTime.Now;
+                }
+                await SaveIndexLockedAsync().ConfigureAwait(false);
             }
-            if (affected.Count > 0)
-            {
-                await SaveIndexAsync();
-                ArtifactsChanged?.Invoke();
-            }
+            finally { _gate.Release(); }
+
+            ArtifactsChanged?.Invoke();
         }
 
         // ─── 持久化 ───
 
         private string GetIndexPath() => Path.Combine(_dataDirectory, $"{_currentGame}_overwrites.json");
 
-        private async Task LoadIndexAsync()
+        /// <summary>调用方必须已持有 <see cref="_gate"/>。</summary>
+        private async Task LoadIndexLockedAsync()
         {
             var path = GetIndexPath();
             if (!File.Exists(path))
@@ -361,7 +460,8 @@ namespace UEModManager.Services
             }
         }
 
-        private async Task SaveIndexAsync()
+        /// <summary>调用方必须已持有 <see cref="_gate"/>。</summary>
+        private async Task SaveIndexLockedAsync()
         {
             var path = GetIndexPath();
             var json = JsonConvert.SerializeObject(_artifacts, Formatting.Indented);

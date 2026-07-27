@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
@@ -15,6 +16,9 @@ namespace UEModManager.Services
     /// 包仓库管理服务。
     /// 管理 Package 的全生命周期：注册、查询、更新、删除、引用计数。
     /// 数据索引存储在 Data/{gameName}_packages.json，文件存储在 ObjectStore。
+    ///
+    /// 并发模型与 <see cref="ProfileService"/> 一致：写操作由 <see cref="_gate"/> 串行化、
+    /// 结构性修改走 swap-on-write、事件在出锁后触发。详见 ProfileService 的类注释。
     /// </summary>
     public class PackageRepository : IPackageQuery
     {
@@ -22,6 +26,11 @@ namespace UEModManager.Services
         private readonly ObjectStore _objectStore;
         private readonly string _dataDirectory;
         private string _currentGame = string.Empty;
+
+        /// <summary>串行化"改内存 + 落盘"。SemaphoreSlim 不可重入，锁内只能调 *Locked 方法。</summary>
+        private readonly SemaphoreSlim _gate = new(1, 1);
+
+        /// <summary>包索引。**只整体替换，不原地增删**，使无锁读取方的枚举始终安全。</summary>
         private List<Package> _packages = new();
 
         /// <summary>当包列表发生变化时触发。</summary>
@@ -44,26 +53,32 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
-            _currentGame = gameName;
             _objectStore.EnsureInitialized();
 
             if (!Directory.Exists(_dataDirectory))
                 Directory.CreateDirectory(_dataDirectory);
 
-            _packages = await LoadIndexAsync();
-
-            // 恢复预览图路径
-            foreach (var pkg in _packages)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
-                {
-                    var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
-                    if (preview != null)
-                        pkg.PreviewImagePath = preview;
-                }
-            }
+                _currentGame = gameName;
+                var loaded = await LoadIndexAsync().ConfigureAwait(false);
 
-            _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, _packages.Count);
+                // 恢复预览图路径
+                foreach (var pkg in loaded)
+                {
+                    if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
+                    {
+                        var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
+                        if (preview != null)
+                            pkg.PreviewImagePath = preview;
+                    }
+                }
+
+                _packages = loaded;
+                _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
+            }
+            finally { _gate.Release(); }
         }
 
         // ─── 查询 ───
@@ -73,6 +88,13 @@ namespace UEModManager.Services
 
         /// <summary>按 PackageKey 获取包。</summary>
         public Package? GetByKey(string packageKey)
+            => FindByKey(packageKey);
+
+        /// <summary>
+        /// 无锁按 key 查找。读一次字段引用再查（写入方走 swap-on-write，不会原地增删）。
+        /// 锁内代码也用它——它不抢锁，因此不会自锁。
+        /// </summary>
+        private Package? FindByKey(string packageKey)
             => _packages.FirstOrDefault(p => p.PackageKey.Equals(packageKey, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>按 ID 获取包。</summary>
@@ -105,25 +127,32 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<Package> RegisterPackageAsync(Package package)
         {
-            // 检查重复
-            var existing = GetByKey(package.PackageKey);
-            if (existing != null)
+            Package result;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                _logger.LogWarning("包已存在，更新: {Key}", package.PackageKey);
-                return await UpdatePackageAsync(package);
+                // 检查重复。注意：不能在锁内调 UpdatePackageAsync（它自己也要抢锁），
+                // 走 *Locked 版本。
+                var existing = FindByKey(package.PackageKey);
+                if (existing != null)
+                {
+                    _logger.LogWarning("包已存在，更新: {Key}", package.PackageKey);
+                    result = await UpdatePackageLockedAsync(existing, package).ConfigureAwait(false);
+                }
+                else
+                {
+                    _packages = [.. _packages, package];
+                    await WriteManifestAsync(package).ConfigureAwait(false);
+                    await SaveIndexAsync().ConfigureAwait(false);
+                    _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
+                    result = package;
+                }
             }
-
-            _packages.Add(package);
-
-            // 写 manifest
-            await WriteManifestAsync(package);
-
-            // 写索引
-            await SaveIndexAsync();
+            finally { _gate.Release(); }
 
             PackagesChanged?.Invoke();
-            _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
-            return package;
+            return result;
         }
 
         /// <summary>
@@ -131,12 +160,28 @@ namespace UEModManager.Services
         /// </summary>
         public async Task RegisterPackagesAsync(IEnumerable<Package> packages)
         {
-            foreach (var pkg in packages)
+            var incoming = packages.ToList();
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                if (!Exists(pkg.PackageKey))
-                    _packages.Add(pkg);
+                var appended = new List<Package>();
+                var known = new HashSet<string>(
+                    _packages.Select(p => p.PackageKey), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var pkg in incoming)
+                {
+                    if (known.Add(pkg.PackageKey))
+                        appended.Add(pkg);
+                }
+
+                if (appended.Count > 0)
+                    _packages = [.. _packages, .. appended];
+
+                await SaveIndexAsync().ConfigureAwait(false);
             }
-            await SaveIndexAsync();
+            finally { _gate.Release(); }
+
             PackagesChanged?.Invoke();
         }
 
@@ -147,10 +192,24 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<Package> UpdatePackageAsync(Package updated)
         {
-            var existing = GetByKey(updated.PackageKey);
-            if (existing == null)
-                throw new InvalidOperationException($"包不存在: {updated.PackageKey}");
+            Package existing;
 
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var found = FindByKey(updated.PackageKey)
+                    ?? throw new InvalidOperationException($"包不存在: {updated.PackageKey}");
+                existing = await UpdatePackageLockedAsync(found, updated).ConfigureAwait(false);
+            }
+            finally { _gate.Release(); }
+
+            PackagesChanged?.Invoke();
+            return existing;
+        }
+
+        /// <summary>把 <paramref name="updated"/> 的元数据合并进 <paramref name="existing"/>。调用方必须已持有 <see cref="_gate"/>。</summary>
+        private async Task<Package> UpdatePackageLockedAsync(Package existing, Package updated)
+        {
             existing.DisplayName = updated.DisplayName;
             existing.Note = updated.Note;
             existing.Tags = new List<string>(updated.Tags);
@@ -158,11 +217,8 @@ namespace UEModManager.Services
             existing.PluginTargetPath = updated.PluginTargetPath;
             existing.LastModified = DateTime.Now;
 
-            // 更新 manifest
-            await WriteManifestAsync(existing);
-            await SaveIndexAsync();
-
-            PackagesChanged?.Invoke();
+            await WriteManifestAsync(existing).ConfigureAwait(false);
+            await SaveIndexAsync().ConfigureAwait(false);
             return existing;
         }
 
@@ -171,17 +227,22 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<string?> UpdatePreviewImageAsync(string packageKey, string imagePath)
         {
-            var package = GetByKey(packageKey);
-            if (package == null) return null;
-
-            var storedPath = _objectStore.StorePreviewImage(packageKey, imagePath);
-            if (storedPath != null)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                package.PreviewImagePath = storedPath;
-                package.LastModified = DateTime.Now;
-                await SaveIndexAsync();
+                var package = FindByKey(packageKey);
+                if (package == null) return null;
+
+                var storedPath = _objectStore.StorePreviewImage(packageKey, imagePath);
+                if (storedPath != null)
+                {
+                    package.PreviewImagePath = storedPath;
+                    package.LastModified = DateTime.Now;
+                    await SaveIndexAsync().ConfigureAwait(false);
+                }
+                return storedPath;
             }
-            return storedPath;
+            finally { _gate.Release(); }
         }
 
         // ─── 删除 ───
@@ -214,30 +275,43 @@ namespace UEModManager.Services
             IEnumerable<InstanceProfile>? allProfiles,
             bool force = false)
         {
-            var package = GetByKey(packageKey);
-            if (package == null) return (false, null);
+            // 引用计数在锁外算：它只读传入的 profiles，不碰本服务状态，
+            // 而且 allProfiles 可能是 ProfileService 的实时视图，锁内枚举没有必要。
+            var profileSnapshot = allProfiles?.ToList();
 
             PackageDeletionPlan? plan = null;
-            if (allProfiles != null)
+            bool deleted;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                plan = PlanDeletion(packageKey, allProfiles);
-                if (plan.RequiresUserConfirmation && !force)
+                var package = FindByKey(packageKey);
+                if (package == null) return (false, null);
+
+                if (profileSnapshot != null)
                 {
-                    _logger.LogWarning(
-                        "[PackageRepo] 拒绝删除 {Key}: {Decision} — {Explanation}",
-                        packageKey, plan.Decision, plan.Explanation);
-                    return (false, plan);
+                    plan = PlanDeletion(packageKey, profileSnapshot);
+                    if (plan.RequiresUserConfirmation && !force)
+                    {
+                        _logger.LogWarning(
+                            "[PackageRepo] 拒绝删除 {Key}: {Decision} — {Explanation}",
+                            packageKey, plan.Decision, plan.Explanation);
+                        return (false, plan);
+                    }
                 }
+
+                _packages = _packages.Where(p => !ReferenceEquals(p, package)).ToList();
+                _objectStore.DeletePackage(packageKey);
+                await SaveIndexAsync().ConfigureAwait(false);
+
+                _logger.LogInformation(
+                    "[PackageRepo] 包已删除: {Key} (force={Force}, decision={Decision})",
+                    packageKey, force, plan?.Decision.ToString() ?? "Unchecked");
+                deleted = true;
             }
+            finally { _gate.Release(); }
 
-            _packages.Remove(package);
-            _objectStore.DeletePackage(packageKey);
-            await SaveIndexAsync();
-
-            PackagesChanged?.Invoke();
-            _logger.LogInformation(
-                "[PackageRepo] 包已删除: {Key} (force={Force}, decision={Decision})",
-                packageKey, force, plan?.Decision.ToString() ?? "Unchecked");
+            if (deleted) PackagesChanged?.Invoke();
             return (true, plan);
         }
 
