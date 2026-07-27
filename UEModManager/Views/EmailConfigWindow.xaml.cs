@@ -54,8 +54,18 @@ namespace UEModManager.Views
             var sp = ((App)Application.Current).ServiceProvider;
             _logger = sp.GetRequiredService<ILogger<EmailConfigWindow>>();
             ApplyLocalization();
-            LanguageManager.LanguageChanged += en => { Dispatcher.Invoke(ApplyLocalization); };
+            LanguageManager.LanguageChanged += OnLanguageChanged;
             LoadCurrentConfig();
+        }
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // 静态事件是 GC root，必须显式退订，否则每开一次窗口就永久泄漏一个窗口
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+            base.OnClosed(e);
         }
 
         private void OnMinimizeWindow(object sender, ExecutedRoutedEventArgs e)

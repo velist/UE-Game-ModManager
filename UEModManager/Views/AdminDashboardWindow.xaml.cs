@@ -51,7 +51,7 @@ namespace UEModManager.Views
         {
             InitializeComponent();
             ApplyLocalization();
-            UEModManager.Services.LanguageManager.LanguageChanged += _ => { Dispatcher.Invoke(ApplyLocalization); };
+            UEModManager.Services.LanguageManager.LanguageChanged += OnLanguageChanged;
 
 
 
@@ -1015,9 +1015,19 @@ namespace UEModManager.Views
 
 
 
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
+
+
+
         protected override void OnClosed(EventArgs e)
 
         {
+
+            // 静态事件是 GC root，必须显式退订，否则每开一次窗口就永久泄漏一个窗口
+
+            UEModManager.Services.LanguageManager.LanguageChanged -= OnLanguageChanged;
 
             _statusUpdateTimer?.Stop();
 

@@ -24,7 +24,7 @@ namespace UEModManager.Services
         {
             _settings = settings;
             UiPreferences.SaveBackground(settings);
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            RaiseBackgroundChanged();
         }
 
         /// <summary>
@@ -34,7 +34,7 @@ namespace UEModManager.Services
         public static void Preview(BackgroundSettings settings)
         {
             _settings = settings;
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            RaiseBackgroundChanged();
         }
 
         /// <summary>
@@ -43,7 +43,32 @@ namespace UEModManager.Services
         public static void RevertToSaved()
         {
             _settings = UiPreferences.LoadBackground();
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            RaiseBackgroundChanged();
+        }
+
+        /// <summary>
+        /// 逐个订阅者派发，每个订阅者单独捕获异常。
+        /// 不能直接 <c>BackgroundChanged?.Invoke(...)</c>：多播委托是串行调用，
+        /// 只要某个 handler 抛异常，调用列表中排在它后面的 handler 全部不会被执行，
+        /// 表现为"改了背景只有部分窗口跟着变"且毫无日志。
+        /// </summary>
+        private static void RaiseBackgroundChanged()
+        {
+            var handlers = BackgroundChanged;
+            if (handlers == null) return;
+
+            foreach (var handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    ((Action<BackgroundSettings>)handler)(_settings);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BackgroundManager] 订阅者 " +
+                        $"{handler.Method.DeclaringType?.Name}.{handler.Method.Name} 处理背景变更失败: {ex}");
+                }
+            }
         }
 
         /// <summary>

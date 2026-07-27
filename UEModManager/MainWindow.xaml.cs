@@ -128,7 +128,7 @@ namespace UEModManager
                 // 语言
                 try
                 {
-                    LanguageManager.LanguageChanged += _ => Dispatcher.Invoke(ApplyLocalization);
+                    LanguageManager.LanguageChanged += OnLanguageChanged;
                     ApplyLocalization();
                 }
                 catch { }
@@ -137,7 +137,7 @@ namespace UEModManager
                 try
                 {
                     BackgroundManager.Initialize();
-                    BackgroundManager.BackgroundChanged += bg => Dispatcher.Invoke(() => ApplyBackground(bg));
+                    BackgroundManager.BackgroundChanged += OnBackgroundChanged;
                     ApplyBackground(BackgroundManager.Settings);
                 }
                 catch { }
@@ -293,7 +293,17 @@ namespace UEModManager
             _statsTimer?.Stop();
             _searchDebounceTimer?.Stop();
             DisposeTrayIcon();
+
+            // 静态事件是 GC root，必须显式退订，否则窗口连同整棵视觉树永远无法回收
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+            BackgroundManager.BackgroundChanged -= OnBackgroundChanged;
         }
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnBackgroundChanged(BackgroundSettings bg) => Dispatcher.Invoke(() => ApplyBackground(bg));
 
         // ═════════════════════════════════════════
         //  窗口控制 (Chrome + WM_GETMINMAXINFO)

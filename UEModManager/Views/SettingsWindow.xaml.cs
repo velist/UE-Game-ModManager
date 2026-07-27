@@ -56,14 +56,20 @@ namespace UEModManager.Views
             PluginSystemToggle.IsChecked = UiPreferences.LoadPluginEnabled();
 
             // 语言
-            LanguageManager.LanguageChanged += _ => Dispatcher.Invoke(ApplyLocalization);
+            LanguageManager.LanguageChanged += OnLanguageChanged;
             ApplyLocalization();
         }
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.CloseWindow(this);
 
         private void SettingsWindow_Closed(object? sender, EventArgs e)
         {
+            // 静态事件是 GC root，必须显式退订，否则每开一次设置窗就永久泄漏一个窗口
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+
             // 如果不是保存关闭（DialogResult != true），恢复到原始背景设置
             if (DialogResult != true && _originalBgSettings != null)
             {
