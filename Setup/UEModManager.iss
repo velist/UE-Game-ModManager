@@ -66,7 +66,18 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "附加�
 
 [Files]
 ; 主程序及全部依赖（含思源黑体 OFL 字体）
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.log,console_*.log"; Flags: ignoreversion recursesubdirs createallsubdirs
+;
+; [安全] SourceDir 是 dotnet build 的输出目录本身（Build-Installer.ps1 未做暂存拷贝），
+; 因此开发机在该目录里留下的任何东西都会被 `\*` + recursesubdirs 原样打进安装包。
+; 原 Excludes 只有 "*.log"，意味着：
+;   - brevo.env / allcfkey.env —— SecretFileProtector.cs:80 明确支持"密钥文件放在 exe 旁边"，
+;     开发者调试邮件时把它放过来是自然操作，一旦如此就会分发给每一个用户；
+;   - Data\ —— ModDataService / ProfileService / NewCategoryService 的实时数据目录，
+;     里面是开发机自己的 MOD 清单、Profile 和游戏路径；
+;   - config.json / Backups\ / UserData\ —— 同理，均为运行期在 exe 旁生成的私有数据。
+; 下列排除项分三类：密钥类 / 运行期私有数据类 / 非 Windows 平台产物。
+; Build-Installer.ps1 中另有一道独立的打包前扫描，命中密钥类文件会直接中止构建。
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.env,.env*,*.enc,*.pfx,*.p12,*.key,*.log,\config.json,\Data,\Data\*,\Backups,\Backups\*,\UserData,\UserData\*,*.so,*.dylib,*.a"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; 一键迁移脚本（用户用于老版本升级）
 Source: "bundled\一键迁移老版本数据.bat"; DestDir: "{app}"; Flags: ignoreversion

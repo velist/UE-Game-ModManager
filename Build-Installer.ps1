@@ -61,6 +61,41 @@ if (!(Test-Path $exePath)) {
 }
 Write-Host "Main exe: $exePath" -ForegroundColor Green
 
+# ---- [security] scan the publish directory before packaging -----------------
+# This script hands the raw dotnet build output directory to ISCC (see
+# $sourceDirForIss below); there is no staging copy. Anything a developer leaves
+# in that directory ends up inside the installer.
+# Setup\UEModManager.iss already excludes secret-class patterns, but that is a
+# silent exclusion: the secret still sits in the publish directory, and any edit
+# to the iss file re-exposes it. This is an independent hard gate so the problem
+# becomes visible instead of being quietly worked around.
+$publishDir = Split-Path $exePath -Parent
+
+$secretHits = @(
+    Get-ChildItem -LiteralPath $publishDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '\.(env|enc|pfx|p12|key)$' -or $_.Name -like '.env*' }
+)
+if ($secretHits.Count -gt 0) {
+    Write-Host ""
+    Write-Host "ERROR: secret-class files found in the publish directory. Packaging aborted." -ForegroundColor Red
+    $secretHits | ForEach-Object { Write-Host "  $($_.FullName)" -ForegroundColor Red }
+    Write-Host "Move them out of the publish directory and retry. Secrets belong in Cloudflare Worker secrets only." -ForegroundColor Red
+    exit 1
+}
+
+# Developer-private runtime data (own mod list, profiles, game paths, avatar).
+# Already excluded by the iss file; not a build blocker, but the builder should know.
+$privateData = @(
+    @('Data', 'Backups', 'UserData', 'config.json') |
+        ForEach-Object { Join-Path $publishDir $_ } |
+        Where-Object { Test-Path -LiteralPath $_ }
+)
+if ($privateData.Count -gt 0) {
+    Write-Host "NOTE: publish directory contains developer-private runtime data (excluded by the installer script):" -ForegroundColor Yellow
+    $privateData | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+}
+Write-Host "Publish dir scan passed: no secret-class files." -ForegroundColor Green
+
 if (!(Test-Path $issPath)) {
     throw "Inno Setup script not found: $issPath"
 }

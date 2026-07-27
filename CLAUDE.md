@@ -107,12 +107,29 @@ dotnet build UEModManager.sln --configuration Release
 - 数据库：`%APPDATA%\UEModManager\local.db`
 
 ### Cloudflare Workers 部署
+
+`cf-workers/modmanger-api/` 没有 `package.json`（Worker 是单文件 `src/index.js`，无构建步骤），
+因此不存在 `npm install` / `npm run deploy`，直接用 `npx wrangler`：
+
 ```bash
 cd cf-workers/modmanger-api
-npm install
-wrangler secret put SUPABASE_URL SUPABASE_ANON_KEY BREVO_API_KEY ...
-npm run deploy
+npx wrangler deploy
 ```
+
+secret 需逐个设置（`wrangler secret put` 每次只接受一个键名，会交互式提示输入值）：
+
+```bash
+npx wrangler secret put SUPABASE_URL
+npx wrangler secret put SUPABASE_ANON_KEY
+npx wrangler secret put SUPABASE_SERVICE_KEY
+npx wrangler secret put BREVO_API_KEY
+npx wrangler secret put BREVO_FROM
+npx wrangler secret put BREVO_FROM_NAME
+```
+
+以上 6 个即 `src/index.js` 实际读取的全部 secret。KV 绑定 `RATE_LIMIT` 在
+`wrangler.toml` 中声明，不是 secret，无需 `secret put`。
+`wrangler deploy` 不会清除已有 secret 值。
 
 ---
 
@@ -143,7 +160,7 @@ API 统一用 snake_case，模型用 `[JsonPropertyName("snake_case")]`
 ## 部署
 
 1. 安装包：`.\Build-Installer.ps1` → `installer_output/`
-2. Workers：`npm run deploy`
+2. Workers：`cd cf-workers/modmanger-api && npx wrangler deploy`
 
 ---
 
