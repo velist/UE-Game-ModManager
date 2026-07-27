@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using UEModManager.Models;
 using UEModManager.Services.Launch;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -329,7 +330,7 @@ namespace UEModManager.Services
             {
                 var path = Path.Combine(_sessionLogDir, $"{session.Id:N}.json");
                 var json = JsonConvert.SerializeObject(session, Formatting.Indented);
-                await File.WriteAllTextAsync(path, json);
+                await AtomicFileWriter.WriteAllTextAsync(path, json);
             }
             catch (Exception ex)
             {

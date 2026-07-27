@@ -283,7 +283,7 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查仓库完整性（manifest 存在且文件齐全）。
+        /// 检查仓库完整性（manifest 存在且文件齐全，并反向检出未登记的残留目录）。
         /// </summary>
         public Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
         {
@@ -301,7 +301,35 @@ namespace UEModManager.Services
                 if (files.Count < expectedCount)
                     issues.Add((pkg.PackageKey, $"文件缺失: 期望 {expectedCount}, 实际 {files.Count}"));
             }
+
+            issues.AddRange(FindOrphanPackageDirectories());
             return Task.FromResult(issues);
+        }
+
+        /// <summary>
+        /// 反向检查：磁盘上有目录、却没有 manifest.json 的包。
+        ///
+        /// 只从索引出发的正向检查永远看不到这类目录，而它们正是导入中途失败的残留
+        /// （先逐个文件落盘，最后才写 manifest + 索引）。
+        /// 只报"无 manifest"的目录：仓库根跨游戏共享，有 manifest 但不在当前游戏索引里的，
+        /// 通常是别的游戏的包，不是问题。
+        /// </summary>
+        private List<(string packageKey, string issue)> FindOrphanPackageDirectories()
+        {
+            var orphans = new List<(string, string)>();
+            var indexed = new HashSet<string>(
+                _packages.Select(p => p.PackageKey), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var key in _objectStore.EnumeratePackageKeys())
+            {
+                if (indexed.Contains(key) || _objectStore.PackageExists(key)) continue;
+                orphans.Add((key, "导入残留目录（无 manifest.json，索引中也无记录）"));
+            }
+
+            if (orphans.Count > 0)
+                _logger.LogWarning("发现 {Count} 个导入残留目录", orphans.Count);
+
+            return orphans;
         }
 
         // ─── 持久化 ───

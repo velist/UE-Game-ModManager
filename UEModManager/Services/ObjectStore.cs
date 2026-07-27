@@ -214,6 +214,50 @@ namespace UEModManager.Services
         }
 
         /// <summary>
+        /// 包目录是否已存在于磁盘（不要求 manifest.json）。
+        ///
+        /// 用于识别"磁盘上有、索引里没有"的导入残留：导入是先逐个文件落盘、最后才注册，
+        /// 中途失败会留下有 files/ 但无 manifest、无索引记录的孤儿目录。
+        /// 这类键不能被下一次同名导入复用——StoreFileAsync 是 File.Copy(overwrite:true)，
+        /// 残留文件不会被清掉，只会混进新包。
+        /// 非法 packageKey 视为不存在（谓词不抛异常）。
+        /// </summary>
+        public bool PackageDirectoryExists(string packageKey)
+        {
+            try
+            {
+                return Directory.Exists(GetPackageDirectory(packageKey));
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 枚举仓库根目录下的所有包目录名。
+        /// 注意仓库根是**跨游戏共享**的，返回值包含其它游戏的包。
+        /// </summary>
+        public List<string> EnumeratePackageKeys()
+        {
+            if (!Directory.Exists(_repositoryRoot)) return new List<string>();
+
+            try
+            {
+                return Directory.GetDirectories(_repositoryRoot)
+                    .Select(Path.GetFileName)
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .Select(name => name!)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "枚举仓库包目录失败: {Root}", _repositoryRoot);
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
         /// 计算文件的 SHA-256 哈希（前 16 字符）。
         /// </summary>
         public static async Task<string> ComputeFileHashAsync(string filePath)

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Backends;
 using UEModManager.Services.Deployment;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -249,7 +250,7 @@ namespace UEModManager.Services
                             if (File.Exists(action.TargetPath))
                             {
                                 File.Delete(action.TargetPath);
-                                CleanEmptyDirectories(Path.GetDirectoryName(action.TargetPath));
+                                CleanEmptyDirectoriesWithinDeploymentRoot(op);
                             }
                             break;
 
@@ -454,8 +455,32 @@ namespace UEModManager.Services
 
                 case DeploymentOperationType.Remove:
                     await backend.RemoveFileAsync(operation.TargetPath);
+                    CleanEmptyDirectoriesWithinDeploymentRoot(operation);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 删除目标文件后清理它留下的空目录，范围严格限制在该操作的部署根之内。
+        /// 反推不出部署根时不清理：宁可留下一个空目录，也不做无边界的向上删除
+        /// （旧实现会把 ~mods 目录本身一并删掉，上层若也空还会继续上删）。
+        /// </summary>
+        private void CleanEmptyDirectoriesWithinDeploymentRoot(DeploymentOperation operation)
+        {
+            var root = EmptyDirectoryCleaner.ResolveDeploymentRoot(
+                operation.TargetPath, operation.RelativeTargetPath);
+
+            if (root == null)
+            {
+                _logger.LogDebug("无法反推部署根，跳过空目录清理: {Target}", operation.TargetPath);
+                return;
+            }
+
+            var removed = EmptyDirectoryCleaner.CleanUpwards(
+                Path.GetDirectoryName(operation.TargetPath), root);
+
+            if (removed > 0)
+                _logger.LogDebug("清理了 {Count} 个空目录（限于部署根 {Root}）", removed, root);
         }
 
         private async Task SaveTransactionLogAsync(DeploymentTransaction transaction)
@@ -470,7 +495,9 @@ namespace UEModManager.Services
 
                 var logPath = Path.Combine(transaction.BackupDirectory, "transaction.json");
                 var json = JsonSerializer.Serialize(transaction, JsonOptions);
-                await File.WriteAllTextAsync(logPath, json);
+                // transaction.json 是崩溃恢复的唯一依据，必须原子写：
+                // 非原子写在断电/被杀时会留下截断的 json，恢复扫描既读不出状态也拿不到备份映射。
+                await AtomicFileWriter.WriteAllTextAsync(logPath, json);
             }
             catch (Exception ex)
             {
@@ -483,24 +510,6 @@ namespace UEModManager.Services
                 }
                 _logger.LogError(ex, "保存事务日志失败 — 事务 {Id} 状态降级为 LogPersistenceFailed",
                     transaction.Id);
-            }
-        }
-
-        private static void CleanEmptyDirectories(string? directory)
-        {
-            while (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-            {
-                if (Directory.GetFileSystemEntries(directory).Length > 0)
-                    break;
-                try
-                {
-                    Directory.Delete(directory);
-                    directory = Path.GetDirectoryName(directory);
-                }
-                catch
-                {
-                    break;
-                }
             }
         }
     }

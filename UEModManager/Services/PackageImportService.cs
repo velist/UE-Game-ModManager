@@ -121,19 +121,23 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<PackageImportResult> ImportPluginAsync(string filePath, string pluginTargetPath)
         {
+            // 供补偿清理使用：包键在下面才确定，失败时据此判断能否删除残留目录
+            string? pluginName = null;
+            var directoryPreexisted = false;
+
             try
             {
                 if (!File.Exists(filePath) && !Directory.Exists(filePath))
                     return new PackageImportResult { Success = false, ErrorMessage = "路径不存在" };
 
                 var isDirectory = Directory.Exists(filePath) && !File.Exists(filePath);
-                var pluginName = isDirectory
+                var rawName = isDirectory
                     ? new DirectoryInfo(filePath).Name
                     : IOPath.GetFileNameWithoutExtension(filePath);
 
-                // 唯一化
-                if (_repository.Exists(pluginName))
-                    pluginName = $"{pluginName}_{DateTime.Now:yyyyMMdd_HHmmss}";
+                // 唯一化（索引 + 磁盘目录一起查）
+                pluginName = EnsureUniquePackageKey(rawName);
+                directoryPreexisted = _objectStore.PackageDirectoryExists(pluginName);
 
                 var gameName = _gameConfig.CurrentGameName ?? "Unknown";
                 var package = new Package
@@ -199,63 +203,65 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "导入插件失败: {Path}", filePath);
+                if (pluginName != null)
+                    CleanupPartialImport(pluginName, directoryPreexisted);
                 return new PackageImportResult { Success = false, ErrorMessage = ex.Message };
             }
         }
 
         // ─── 内部导入逻辑 ───
 
-        private async Task<PackageImportResult> ImportDirectFileAsync(string filePath, string? targetRootPath = null)
+        private Task<PackageImportResult> ImportDirectFileAsync(string filePath, string? targetRootPath = null)
         {
-            var fileName = IOPath.GetFileNameWithoutExtension(filePath);
+            var fileName = EnsureUniquePackageKey(IOPath.GetFileNameWithoutExtension(filePath));
 
-            if (_repository.Exists(fileName))
-                fileName = $"{fileName}_{DateTime.Now:yyyyMMdd_HHmmss}";
-
-            var gameName = _gameConfig.CurrentGameName ?? "Unknown";
-            var kind = DetectPackageKind(filePath);
-            var package = new Package
+            return ImportWithCompensationAsync(fileName, async () =>
             {
-                PackageKey = fileName,
-                DisplayName = fileName,
-                Kind = kind,
-                Tags = new List<string> { DetectCategory(fileName) },
-                HostGameName = gameName,
-                ImportSourcePath = filePath,
-                TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
-            };
-
-            var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
-            package.TotalSize = size;
-            package.ContentHash = hash;
-
-            package.Artifacts.Add(new PackageArtifact
-            {
-                PackageId = package.Id,
-                RelativeSourcePath = relPath,
-                RelativeTargetPath = IOPath.GetFileName(filePath),
-                FileName = IOPath.GetFileName(filePath),
-                FileSize = size,
-                FileHash = hash,
-                ArtifactType = KindToArtifactType(kind),
-            });
-
-            // 查找同目录预览图
-            var previewDir = IOPath.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(previewDir))
-            {
-                var preview = FindPreviewInDirectory(previewDir);
-                if (preview != null)
+                var gameName = _gameConfig.CurrentGameName ?? "Unknown";
+                var kind = DetectPackageKind(filePath);
+                var package = new Package
                 {
-                    var storedPreview = _objectStore.StorePreviewImage(fileName, preview);
-                    package.PreviewImagePath = storedPreview;
+                    PackageKey = fileName,
+                    DisplayName = fileName,
+                    Kind = kind,
+                    Tags = new List<string> { DetectCategory(fileName) },
+                    HostGameName = gameName,
+                    ImportSourcePath = filePath,
+                    TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
+                };
+
+                var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
+                package.TotalSize = size;
+                package.ContentHash = hash;
+
+                package.Artifacts.Add(new PackageArtifact
+                {
+                    PackageId = package.Id,
+                    RelativeSourcePath = relPath,
+                    RelativeTargetPath = IOPath.GetFileName(filePath),
+                    FileName = IOPath.GetFileName(filePath),
+                    FileSize = size,
+                    FileHash = hash,
+                    ArtifactType = KindToArtifactType(kind),
+                });
+
+                // 查找同目录预览图
+                var previewDir = IOPath.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(previewDir))
+                {
+                    var preview = FindPreviewInDirectory(previewDir);
+                    if (preview != null)
+                    {
+                        var storedPreview = _objectStore.StorePreviewImage(fileName, preview);
+                        package.PreviewImagePath = storedPreview;
+                    }
                 }
-            }
 
-            await _repository.RegisterPackageAsync(package);
-            PackageImported?.Invoke(package);
+                await _repository.RegisterPackageAsync(package);
+                PackageImported?.Invoke(package);
 
-            return new PackageImportResult { Success = true, Package = package };
+                return new PackageImportResult { Success = true, Package = package };
+            });
         }
 
         private async Task<List<PackageImportResult>> ImportCompressedAsync(string filePath, string? targetRootPath = null)
@@ -332,10 +338,10 @@ namespace UEModManager.Services
             return results;
         }
 
-        private async Task<PackageImportResult> ImportFilesAsPackageAsync(
+        private Task<PackageImportResult> ImportFilesAsPackageAsync(
             string packageName, List<string> files, string tempDir, string sourcePath, string? targetRootPath = null)
         {
-            try
+            return ImportWithCompensationAsync(packageName, async () =>
             {
                 var gameName = _gameConfig.CurrentGameName ?? "Unknown";
                 var kind = DetectPackageKindFromFiles(files);
@@ -389,51 +395,48 @@ namespace UEModManager.Services
                 PackageImported?.Invoke(package);
 
                 return new PackageImportResult { Success = true, Package = package };
-            }
-            catch (Exception ex)
-            {
-                return new PackageImportResult { Success = false, ErrorMessage = ex.Message };
-            }
+            });
         }
 
-        private async Task<PackageImportResult> ImportAsPluginAsync(string filePath, string? targetRootPath = null)
+        private Task<PackageImportResult> ImportAsPluginAsync(string filePath, string? targetRootPath = null)
         {
-            var fileName = IOPath.GetFileNameWithoutExtension(filePath);
-            if (_repository.Exists(fileName))
-                fileName = $"{fileName}_{DateTime.Now:yyyyMMdd_HHmmss}";
+            var fileName = EnsureUniquePackageKey(IOPath.GetFileNameWithoutExtension(filePath));
 
-            var gameName = _gameConfig.CurrentGameName ?? "Unknown";
-            var kind = DetectPackageKind(filePath);
-            var package = new Package
+            return ImportWithCompensationAsync(fileName, async () =>
             {
-                PackageKey = fileName,
-                DisplayName = fileName,
-                Kind = kind,
-                Tags = new List<string> { DetectCategory(fileName) },
-                HostGameName = gameName,
-                ImportSourcePath = filePath,
-                TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
-            };
+                var gameName = _gameConfig.CurrentGameName ?? "Unknown";
+                var kind = DetectPackageKind(filePath);
+                var package = new Package
+                {
+                    PackageKey = fileName,
+                    DisplayName = fileName,
+                    Kind = kind,
+                    Tags = new List<string> { DetectCategory(fileName) },
+                    HostGameName = gameName,
+                    ImportSourcePath = filePath,
+                    TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
+                };
 
-            var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
-            package.TotalSize = size;
-            package.ContentHash = hash;
+                var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
+                package.TotalSize = size;
+                package.ContentHash = hash;
 
-            package.Artifacts.Add(new PackageArtifact
-            {
-                PackageId = package.Id,
-                RelativeSourcePath = relPath,
-                RelativeTargetPath = IOPath.GetFileName(filePath),
-                FileName = IOPath.GetFileName(filePath),
-                FileSize = size,
-                FileHash = hash,
-                ArtifactType = DetectArtifactType(filePath),
+                package.Artifacts.Add(new PackageArtifact
+                {
+                    PackageId = package.Id,
+                    RelativeSourcePath = relPath,
+                    RelativeTargetPath = IOPath.GetFileName(filePath),
+                    FileName = IOPath.GetFileName(filePath),
+                    FileSize = size,
+                    FileHash = hash,
+                    ArtifactType = DetectArtifactType(filePath),
+                });
+
+                await _repository.RegisterPackageAsync(package);
+                PackageImported?.Invoke(package);
+
+                return new PackageImportResult { Success = true, Package = package };
             });
-
-            await _repository.RegisterPackageAsync(package);
-            PackageImported?.Invoke(package);
-
-            return new PackageImportResult { Success = true, Package = package };
         }
 
         private static string? NormalizeTargetRootPath(string? targetRootPath)
@@ -496,7 +499,7 @@ namespace UEModManager.Services
         {
             var uniqueName = packageName;
             var suffix = 1;
-            while (_repository.Exists(uniqueName) || usedPackageNames.Contains(uniqueName))
+            while (IsPackageKeyTaken(uniqueName) || usedPackageNames.Contains(uniqueName))
             {
                 suffix++;
                 uniqueName = $"{packageName}_{suffix}";
@@ -504,6 +507,75 @@ namespace UEModManager.Services
 
             usedPackageNames.Add(uniqueName);
             return uniqueName;
+        }
+
+        /// <summary>
+        /// 包键是否已被占用：索引里有记录，**或**磁盘上已有同名目录。
+        ///
+        /// 只查索引不够：导入中途失败会留下"有 files/、无 manifest、无索引"的孤儿目录，
+        /// 复用该键会让 StoreFileAsync 的 File.Copy(overwrite:true) 把残留文件混进新包。
+        /// 另外仓库根是跨游戏共享的，而索引是按游戏分的，只查索引还会撞上别的游戏的包目录。
+        /// </summary>
+        private bool IsPackageKeyTaken(string packageKey)
+            => _repository.Exists(packageKey) || _objectStore.PackageDirectoryExists(packageKey);
+
+        /// <summary>用时间戳后缀避开已被占用的包键（同一秒内再撞则继续加序号）。</summary>
+        private string EnsureUniquePackageKey(string packageKey)
+        {
+            if (!IsPackageKeyTaken(packageKey)) return packageKey;
+
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var candidate = $"{packageKey}_{stamp}";
+            var suffix = 1;
+            while (IsPackageKeyTaken(candidate))
+                candidate = $"{packageKey}_{stamp}_{++suffix}";
+
+            return candidate;
+        }
+
+        /// <summary>
+        /// 包装一次"逐文件落盘 → 注册"的导入，失败时补偿删除本次创建的包目录。
+        ///
+        /// 不补偿的话，磁盘上会留下没有 manifest、没有索引记录的孤儿目录：
+        /// ObjectStore 没有任何启动期 GC，CheckIntegrityAsync 又只从索引出发查，
+        /// 这些目录既不会被发现也不会被回收，只会在下次同名导入时把残留文件混进新包。
+        /// </summary>
+        private async Task<PackageImportResult> ImportWithCompensationAsync(
+            string packageKey, Func<Task<PackageImportResult>> importAsync)
+        {
+            var directoryPreexisted = _objectStore.PackageDirectoryExists(packageKey);
+
+            try
+            {
+                return await importAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "导入失败: {Package}", packageKey);
+                CleanupPartialImport(packageKey, directoryPreexisted);
+                return new PackageImportResult { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        /// <summary>只删本次导入自己创建、且最终没能登记成功的包目录。</summary>
+        private void CleanupPartialImport(string packageKey, bool directoryPreexisted)
+        {
+            if (_repository.Exists(packageKey))
+            {
+                // 已经进了索引，说明失败发生在注册之后（如事件回调）：删目录只会制造索引与磁盘不一致
+                _logger.LogWarning("包 {Package} 已登记在索引中，跳过残留清理", packageKey);
+                return;
+            }
+
+            if (directoryPreexisted)
+            {
+                // 目录在本次导入前就存在，可能是别的包/别的游戏的数据，不能替用户做主删除
+                _logger.LogWarning("包目录 {Package} 在本次导入前已存在，跳过残留清理", packageKey);
+                return;
+            }
+
+            if (_objectStore.DeletePackage(packageKey))
+                _logger.LogInformation("已清理导入失败残留的包目录: {Package}", packageKey);
         }
 
         // ─── 辅助方法 ───
