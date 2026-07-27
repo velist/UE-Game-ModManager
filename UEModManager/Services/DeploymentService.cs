@@ -17,6 +17,9 @@ namespace UEModManager.Services
     /// </summary>
     public class DeploymentService
     {
+        /// <summary>执行循环中每隔多少个操作把进度落盘一次。</summary>
+        private const int ExecutionLogFlushInterval = 25;
+
         private readonly ILogger<DeploymentService> _logger;
         private readonly Dictionary<DeploymentBackendType, IDeploymentBackend> _backends;
         private readonly OverwriteStore _overwriteStore;
@@ -126,14 +129,27 @@ namespace UEModManager.Services
                 // 阶段 1: 备份所有需要备份的目标文件
                 await BackupTargetFilesAsync(plan, backupDir);
 
+                // 阶段 1.5: 备份已完成，此刻每个操作的 BackupPath 都已确定。
+                // 必须在开始动游戏文件之前把这份"备份 → 目标"映射落盘：
+                // 否则进程在下面的循环中被杀，磁盘上就只剩一个空的 ExecutedOperations，
+                // 备份目录里的文件将无法对应回目标路径，崩溃恢复没有任何可回滚的信息。
+                transaction.PlannedOperations = plan.Operations.ToList();
+                await SaveTransactionLogAsync(transaction);
+
                 // 阶段 2: 逐个执行操作
-                foreach (var operation in plan.Operations)
+                for (var i = 0; i < plan.Operations.Count; i++)
                 {
+                    var operation = plan.Operations[i];
                     transaction.ExecutedOperations.Add(operation);
                     await ExecuteOperationAsync(operation, backend, backupDir);
                     operation.IsExecuted = true;
                     transaction.CompletedOperations++;
                     ProgressChanged?.Invoke(transaction);
+
+                    // 节流落盘执行进度：崩溃恢复靠 PlannedOperations 已能完整回滚，
+                    // 这里只是让恢复界面能显示"崩溃时进行到哪一步"，故无需每步都写。
+                    if ((i + 1) % ExecutionLogFlushInterval == 0)
+                        await SaveTransactionLogAsync(transaction);
                 }
 
                 // 提交
@@ -193,21 +209,36 @@ namespace UEModManager.Services
         /// 回滚事务：从备份恢复受影响的文件。
         /// 中途单步失败不再吞异常 — 累计到 RollbackFailures，最终 Status 标记为 PartiallyRolledBack
         /// 让 CrashRecoveryScanner 强制人工核查，避免"伪回滚成功"。
+        ///
+        /// 返回 <see cref="RollbackOutcome"/> 而非 void：调用方（尤其是崩溃恢复）
+        /// 必须能区分"回滚成功"与"因状态不可回滚而什么都没做"。
         /// </summary>
-        public async Task RollbackAsync(DeploymentTransaction transaction)
+        public async Task<RollbackOutcome> RollbackAsync(DeploymentTransaction transaction)
         {
             if (!transaction.CanRollback)
             {
-                _logger.LogWarning("事务 {Id} 状态为 {Status}，不可回滚",
-                    transaction.Id, transaction.Status);
-                return;
+                var reason = $"事务状态为 {transaction.Status}，不可回滚";
+                _logger.LogWarning("事务 {Id} {Reason}", transaction.Id, reason);
+                return RollbackOutcome.Skipped(reason);
             }
 
-            _logger.LogInformation("开始回滚事务: {Id}", transaction.Id);
+            // 崩溃场景下 ExecutedOperations 可能为空，此时回落到备份阶段落盘的完整计划。
+            var operations = transaction.RollbackSource;
+            if (operations.Count == 0)
+            {
+                const string reason = "事务既无执行记录也无计划快照，无可回滚的信息";
+                _logger.LogError("事务 {Id} {Reason}", transaction.Id, reason);
+                return RollbackOutcome.Skipped(reason);
+            }
+
+            _logger.LogInformation("开始回滚事务: {Id}（{Count} 个操作，来源={Source}）",
+                transaction.Id,
+                operations.Count,
+                transaction.ExecutedOperations.Count > 0 ? "执行记录" : "计划快照");
             transaction.RollbackFailures.Clear();
 
             // 按执行顺序的逆序回滚
-            foreach (var op in transaction.ExecutedOperations.AsEnumerable().Reverse())
+            foreach (var op in operations.AsEnumerable().Reverse())
             {
                 try
                 {
@@ -280,11 +311,11 @@ namespace UEModManager.Services
                 _logger.LogError(
                     "事务部分回滚 — {Count} 个操作未恢复，需人工核查: {Id}",
                     transaction.RollbackFailures.Count, transaction.Id);
+                return RollbackOutcome.Partial(transaction.RollbackFailures.ToList());
             }
-            else
-            {
-                _logger.LogInformation("事务已回滚: {Id}", transaction.Id);
-            }
+
+            _logger.LogInformation("事务已回滚: {Id}", transaction.Id);
+            return RollbackOutcome.Complete();
         }
 
         /// <summary>

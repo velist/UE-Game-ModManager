@@ -35,6 +35,19 @@ namespace UEModManager.Models
         /// <summary>已执行的操作列表（用于回滚）。</summary>
         public List<DeploymentOperation> ExecutedOperations { get; set; } = [];
 
+        /// <summary>
+        /// 计划内的全部操作（含备份路径映射），在备份阶段结束、执行开始之前一次性落盘。
+        ///
+        /// 存在的理由：执行循环只改内存中的 <see cref="ExecutedOperations"/>，
+        /// 进程若在循环中被杀/断电，磁盘上的 ExecutedOperations 是空数组，
+        /// "备份文件 → 目标路径"的映射随内存一起丢失，备份目录里的文件就成了无主数据。
+        /// 有了这份快照，崩溃恢复即使拿不到执行进度也能完整回滚。
+        ///
+        /// 对未真正执行的操作做回滚是幂等的：Add 的目标文件不存在会被跳过，
+        /// Remove/Replace 从备份恢复得到的就是原文件本身。
+        /// </summary>
+        public List<DeploymentOperation> PlannedOperations { get; set; } = [];
+
         /// <summary>创建时间。</summary>
         public DateTime CreatedAt { get; init; } = DateTime.Now;
 
@@ -79,11 +92,49 @@ namespace UEModManager.Models
             ? (double)CompletedOperations / TotalOperations * 100
             : 0;
 
-        /// <summary>是否可回滚。</summary>
+        /// <summary>
+        /// 是否可回滚。
+        /// 包含 InProgress：崩溃留下的事务正是停在这个状态，若不允许回滚，
+        /// CrashRecoveryScanner 判定的 RollbackRecommended 会永远无法执行，
+        /// 事务卡在 InProgress 每次启动重复弹窗。
+        /// </summary>
         [JsonIgnore]
         public bool CanRollback => Status is DeploymentStatus.Committed
                                           or DeploymentStatus.Failed
+                                          or DeploymentStatus.InProgress
                                           or DeploymentStatus.PartiallyRolledBack;
+
+        /// <summary>
+        /// 回滚时应遍历的操作集合：优先用执行记录，
+        /// 崩溃导致执行记录为空时回落到备份阶段落盘的完整计划。
+        /// </summary>
+        [JsonIgnore]
+        public IReadOnlyList<DeploymentOperation> RollbackSource
+            => ExecutedOperations.Count > 0 ? ExecutedOperations : PlannedOperations;
+    }
+
+    /// <summary>
+    /// 一次回滚的真实结果。
+    /// RollbackAsync 曾是 void，调用方无从区分"回滚成功"与"因状态不可回滚而直接返回"，
+    /// 于是崩溃恢复会在什么都没做的情况下向用户报告"已回滚"。
+    /// </summary>
+    public sealed record RollbackOutcome(
+        bool Attempted,
+        bool Succeeded,
+        IReadOnlyList<RollbackFailure> Failures,
+        string? SkipReason = null)
+    {
+        /// <summary>未执行回滚（状态不允许）。</summary>
+        public static RollbackOutcome Skipped(string reason)
+            => new(Attempted: false, Succeeded: false, Failures: [], SkipReason: reason);
+
+        /// <summary>回滚已执行且全部成功。</summary>
+        public static RollbackOutcome Complete()
+            => new(Attempted: true, Succeeded: true, Failures: []);
+
+        /// <summary>回滚已执行但部分操作失败。</summary>
+        public static RollbackOutcome Partial(IReadOnlyList<RollbackFailure> failures)
+            => new(Attempted: true, Succeeded: false, Failures: failures);
     }
 
     /// <summary>

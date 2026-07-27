@@ -79,7 +79,20 @@ namespace UEModManager.Services
                 switch (action)
                 {
                     case RecoveryAction.RollbackRecommended:
-                        await _deploymentService.RollbackAsync(tx);
+                        var outcome = await _deploymentService.RollbackAsync(tx);
+                        if (!outcome.Attempted)
+                        {
+                            _logger.LogError(
+                                "[Recovery] 事务 {Id} 未能回滚：{Reason}", transactionId, outcome.SkipReason);
+                            return false;
+                        }
+                        if (!outcome.Succeeded)
+                        {
+                            _logger.LogError(
+                                "[Recovery] 事务 {Id} 仅部分回滚，{Count} 个文件需人工核查",
+                                transactionId, outcome.Failures.Count);
+                            return false;
+                        }
                         _logger.LogInformation("[Recovery] 事务 {Id} 已回滚", transactionId);
                         return true;
 
