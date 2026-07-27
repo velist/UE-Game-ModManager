@@ -1,6 +1,6 @@
 # 编写自定义部署后端 / Deployment Backend
 
-**适用场景：** 你想加一种新的"把仓库文件呈现到游戏目录"的方式（除现有 Copy/HardLink/Symlink）。
+**适用场景：** 你想加一种新的"把仓库文件呈现到游戏目录"的方式（除现有 Copy/HardLink）。
 例如：进程级 VFS、WinFsp 挂载、Junction、Mirror Copy 等。
 
 ---
@@ -10,10 +10,14 @@
 `IDeploymentBackend` 是部署后端的统一接口。每种后端封装"如何把单个文件从仓库部署到游戏目录"。
 DeploymentService 选择后端 → 按部署计划逐项调用。
 
-3 种现有后端：
+2 种现有后端（`UEModManager/Services/Backends/`）：
 - **`CopyBackend`**：直接复制文件（最安全、最慢、最占空间）
-- **`HardLinkBackend`**：硬链接（同卷限制，跨卷自动降级 Copy）
-- **`SymlinkBackend`**：符号链接（需管理员或开发者模式）
+- **`HardLinkBackend`**：硬链接（同卷限制，跨卷/已存在自动降级 Copy）
+
+> **Symlink 后端已于 v2.0.5 下线**（普通用户需开发者模式或管理员权限，实际不可用），
+> `SymlinkBackend.cs` 已从仓库中删除。`DeploymentBackendType.Symlink` 枚举值仅保留用于
+> 反序列化旧事务/旧配置，运行时经 `DeploymentService.GetBackend` 自动降级为 Copy。
+> 不要按它写新代码。
 
 ---
 
@@ -22,10 +26,10 @@ DeploymentService 选择后端 → 按部署计划逐项调用。
 ```csharp
 public interface IDeploymentBackend
 {
-    DeploymentBackendType BackendType { get; }       // 你的后端类型枚举
-    string DisplayName { get; }                       // UI 展示用
+    DeploymentBackendType Type { get; }       // 你的后端类型枚举（注意成员名是 Type，不是 BackendType）
+    string DisplayName { get; }               // UI 展示用
 
-    /// <summary>当前环境是否能用此后端（如 Symlink 检查权限）。</summary>
+    /// <summary>当前环境是否能用此后端（如 HardLink 检查操作系统/卷）。</summary>
     Task<bool> CanUseAsync();
 
     /// <summary>从源文件部署到目标位置（覆盖已存在）。</summary>
@@ -73,10 +77,11 @@ namespace UEModManager.Services.Backends
 
         public MyBackend(ILogger<MyBackend> logger) => _logger = logger;
 
-        public DeploymentBackendType BackendType => DeploymentBackendType.Copy;
-        // ⚠ 当前枚举只有 Copy/HardLink/Symlink 三个值。
-        //   如果你的后端是新类型，需要先在 Models/PackageKind.cs 加枚举值，
-        //   再在 UI 文案中加对应翻译。
+        public DeploymentBackendType Type => DeploymentBackendType.Copy;
+        // ⚠ 当前枚举只有 Copy/HardLink/Symlink 三个值，且 Symlink 已下线（保留仅为兼容旧数据）。
+        //   如果你的后端是新类型，需要先在 UEModManager.Core/Models/PackageKind.cs 加枚举值
+        //   （该文件同时存放 PackageKind / DeploymentBackendType / DeploymentOperationType /
+        //   DeploymentStatus，文件名只反映其中第一个类型），再在 UI 文案中加对应翻译。
 
         public string DisplayName => "我的部署方式";
 
@@ -122,40 +127,54 @@ namespace UEModManager.Services.Backends
 ```csharp
 services.AddSingleton<CopyBackend>();
 services.AddSingleton<HardLinkBackend>();
-services.AddSingleton<SymlinkBackend>();
 services.AddSingleton<MyBackend>();             // ← 新增
 services.AddSingleton<DeploymentPlanner>();
 services.AddSingleton<DeploymentService>();
 ```
 
-`DeploymentService` 内部根据 `Profile.BackendType` 选具体后端。如果你引入了新的 `BackendType` 枚举值，
-需要更新 `DeploymentService` 内部选择逻辑（搜索 `switch` 表达式）。
+光注册还不够：`DeploymentService` 的构造函数是**显式接收**各后端实例、在内部装配成
+`Dictionary<DeploymentBackendType, IDeploymentBackend>` 的（不是 `switch` 表达式），
+所以新后端还要加到该构造函数的参数列表与字典里。字典查不到的类型统一降级为 Copy
+（`DeploymentService.GetBackend`）。
+
+---
+
+## 后端是怎么被选中的（注意：这是全局设置，不是每方案设置）
+
+```
+UiPreferences.LoadDeployBackend()  ← 用户在「设置」里选的全局后端
+        ↓
+DeploymentPlanner 写进 DeploymentPlan.BackendType
+        ↓
+DeploymentService.ExecuteAsync：plan.BackendType
+        ↓ CanUseAsync() == false 时降级为 Copy
+GetBackend(backendType) → 真正执行部署的后端实例
+```
+
+> ⚠ `InstanceProfile.BackendType` 字段**当前不生效**。它只在克隆方案
+> （`ProfileService.CloneProfileAsync`）和导出 lock 文件（`ProfileLockBuilder`）时被复制，
+> 没有任何代码在部署时读它，导入 lock 文件时也不会还原它。
+> 也就是说"每个方案可以选不同后端"目前是个**幻影功能**：实际生效的永远是全局设置。
+> 新增后端时不要指望通过 `Profile.BackendType` 让它生效。
 
 ---
 
 ## CanUseAsync 的写法
 
-如果你的后端依赖系统能力，应该在 `CanUseAsync` 检查并返回 false 让 DeploymentService 自动 fallback：
+如果你的后端依赖系统能力，应该在 `CanUseAsync` 检查并返回 false：
+`DeploymentService.ExecuteAsync` 在执行前会先调它，返回 false 时记一条 warning 并整单降级为 Copy。
 
 ```csharp
 public Task<bool> CanUseAsync()
 {
-    // 例：Symlink 需要管理员或开发者模式
-    try
-    {
-        var probe = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        File.CreateSymbolicLink(probe, Path.GetTempPath());
-        File.Delete(probe);
-        return Task.FromResult(true);
-    }
-    catch
-    {
-        return Task.FromResult(false);
-    }
+    // 例：某后端只在 Windows 上可用
+    return Task.FromResult(RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
 }
 ```
 
-参见 `SymlinkBackend.cs` 实际实现。
+参见 `HardLinkBackend.cs` 实际实现（`CopyBackend` 则恒返回 true，作为最终兜底）。
+注意降级是**整单级别**的：不要指望"单个文件失败时自动换后端"，
+单文件的容错要在你自己的 `DeployFileAsync` 里做（`HardLinkBackend` 遇到跨卷错误码时改用 `File.Copy` 就是这种写法）。
 
 ---
 
@@ -192,7 +211,8 @@ public class MyBackendTests : IDisposable
 }
 ```
 
-放在 `UEModManager.Tests/Backends/` 项目（如果有）—— Core.Tests 不适合放 IO 测试。
+放在 `UEModManager.Tests/`（主程序测试项目，已按 `Services/` 等子目录组织）——
+Core.Tests 只放纯函数测试，不适合放 IO 测试。
 
 ---
 

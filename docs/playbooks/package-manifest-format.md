@@ -8,7 +8,7 @@
 
 ```
 %APPDATA%/UEModManager/Repository/
-└── {packageKey}/                        # 每个包一个独立目录，名字 = PackageKey（大小写敏感）
+└── {packageKey}/                        # 每个包一个独立目录，名字 = PackageKey
     ├── manifest.json                    # 包元数据 + 文件清单（必需）
     ├── files/                           # 实际文件（按 RelativeSourcePath 组织）
     │   ├── foo.pak
@@ -21,6 +21,11 @@
 **注意：**
 - 仓库根可由用户在设置中改（默认 `%APPDATA%/UEModManager/Repository/`）
 - 主项目通过 `ObjectStore.RepositoryRoot` 暴露当前根
+- `packageKey` 必须是**单段目录名**：应用在拼接包目录时会走 `PathSanitizer.SanitizeSegment`
+  （`ObjectStore.GetPackageDirectory`），含路径分隔符、`.`/`..`、非法文件名字符或以空格/点结尾的
+  键会**直接抛异常**，不是"尽量兼容"
+- 应用内按 key 查包时用 `OrdinalIgnoreCase`（`PackageRepository.GetByKey`），
+  即 `MyMod` 与 `mymod` 会被当作同一个包 —— 不要靠大小写区分两个包
 
 ---
 
@@ -73,7 +78,7 @@
 | `contentHash` | ⚠ | 推荐填，整合包导入时校验 |
 | `totalSize` | ✅ | 字节数（应用启动时统计用） |
 | `hostGameName` | ✅ | 该包属于哪款游戏（多游戏隔离） |
-| `pluginTargetPath` | 仅 Plugin | 部署到 `gameRoot/{pluginTargetPath}/{packageKey}/` |
+| `pluginTargetPath` | 非 Mod 包 | 部署到 `gameRoot/{pluginTargetPath}/{packageKey}/`，Plugin 与 Config 都用它 |
 | `artifacts` | ✅ | 文件清单 |
 
 ---
@@ -100,21 +105,25 @@
 
 ## 部署路径计算
 
-应用计算 artifact 在游戏目录中的位置：
+应用计算 artifact 在游戏目录中的位置。**判据是 `kind` 是否为 Mod，而不是"是不是 Plugin"：**
 
-**Mod / Config 包：**
+**Mod 包（`kind = 0`）：**
 ```
 {游戏 MOD 根}/{packageKey}/{relativeTargetPath}
 ```
 
-**Plugin 包：**
+**非 Mod 包（Plugin `kind = 1` 与 Config `kind = 2`）：**
 ```
 {游戏根目录}/{pluginTargetPath}/{packageKey}/{relativeTargetPath}
 ```
+其中 `pluginTargetPath` 在模型里叫 `TargetRootPath`（`Package.PluginTargetPath` 只是它的别名属性），
+取值优先用方案条目上的覆盖值（`ProfilePackageEntry.TargetRootPath`），没有才回落到包级值。
+Config 包同样落在这条路径上——它**不会**被放进 MOD 根目录。
 
-参见 `DeploymentPlanner.ComputeTargetPath` / `ConflictDetector.ComputeTargetPath`。
+唯一权威实现：`UEModManager.Core/Services/DeploymentPlanning/DeploymentTargetPathBuilder.ComputeTargetPath`
+（`DeploymentPlanner` 与 `TogglePlanBuilder` 都调它）。
 **所有包都自带一层 `{packageKey}` 子目录隔离**，因此外部工具生成 `relativeTargetPath` 时
-不应自己加包名前缀。
+不应自己加包名前缀。所有拼接段都会过 `PathSanitizer.SanitizeRelative`，写绝对路径或 `../` 无效。
 
 ---
 
@@ -212,7 +221,8 @@ build_repo_package(
 
 ## 反模式
 
-- ❌ 把 `relativeTargetPath` 写成绝对路径或包含 `{packageKey}` 子目录 —— 应用会自动加
-- ❌ `packageKey` 含特殊字符（如 `/`、`?`、`*`）—— 文件夹名兼容性问题
-- ❌ 多个包用同一 `packageKey` —— 应用按 key 唯一性管理，会冲突
+- ❌ 把 `relativeTargetPath` 写成绝对路径或包含 `{packageKey}` 子目录 —— 应用会自动加，
+  且拼接前会做路径清洗，绝对路径 / `../` 会被剥掉
+- ❌ `packageKey` 含 `/`、`\`、`?`、`*` 等字符，或以空格/点结尾 —— 会被 `PathSanitizer.SanitizeSegment` 拒绝并抛异常
+- ❌ 多个包用同一 `packageKey`（含只有大小写不同的 key）—— 应用按 key 忽略大小写唯一管理，会冲突
 - ❌ 改 `manifestVersion` 但没添加新字段处理逻辑 —— 当前版本只支持 v1
