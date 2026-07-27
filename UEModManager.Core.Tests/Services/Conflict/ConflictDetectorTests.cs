@@ -9,7 +9,7 @@ namespace UEModManager.Core.Tests.Services.Conflict;
 /// 行为：在"每包独立子目录"的部署模型下，仍能检测**加载顺序冲突**——
 /// 即多个包声明同名 RelativeTargetPath，引擎按加载顺序会有覆盖的情况。
 /// 关键是 <see cref="ConflictDetector.ComputeLoadConflictKey"/> 用"无 PackageKey 子目录"的规范化路径作 dict key，
-/// 与 <see cref="ConflictDetector.ComputeTargetPath"/>（含 PackageKey 子目录，用于实际部署）解耦。
+/// 与实际部署路径（DeploymentTargetPathBuilder.ComputeTargetPath，含 PackageKey 子目录）解耦。
 ///
 /// 设计来源：docs/findings/2026-04-28-conflict-detector-noop-by-design.md（已修复）。
 /// </summary>
@@ -213,41 +213,6 @@ public class ConflictDetectorTests
 
         var entry = Assert.Single(ConflictDetector.CollectOwners(profile, packages, ModPath, GamePath));
         Assert.EndsWith("real.pak", entry.Key);
-    }
-
-    // ─── ComputeTargetPath（实际部署路径，含 PackageKey）───
-
-    [Fact]
-    public void ComputeTargetPath_Mod_PutsUnderPackageKeySubdir()
-    {
-        var pkg = MakeMod("foo", "FOO", ("file.pak", "h"));
-        var entry = new ProfilePackageEntry { PackageKey = "foo" };
-
-        var result = ConflictDetector.ComputeTargetPath(
-            pkg.Artifacts[0], pkg, entry, ModPath, GamePath);
-
-        Assert.Contains(Path.Combine("Mods", "foo", "file.pak"), result);
-    }
-
-    [Fact]
-    public void ComputeTargetPath_Plugin_PutsUnderGamePluginPackageKeySubdir()
-    {
-        var pkg = new Package
-        {
-            PackageKey = "myplugin", DisplayName = "MyPlugin",
-            HostGameName = "demo", Kind = PackageKind.Plugin,
-            PluginTargetPath = "Plugins",
-            Artifacts =
-            [
-                new() { RelativeSourcePath = "x.dll", RelativeTargetPath = "x.dll", ArtifactType = ArtifactType.PluginFile, FileHash = "h" }
-            ]
-        };
-        var entry = new ProfilePackageEntry { PackageKey = "myplugin" };
-
-        var result = ConflictDetector.ComputeTargetPath(
-            pkg.Artifacts[0], pkg, entry, ModPath, GamePath);
-
-        Assert.Contains(Path.Combine("Plugins", "myplugin", "x.dll"), result);
     }
 
     // ─── ComputeLoadConflictKey（冲突归一化路径，无 PackageKey）───
