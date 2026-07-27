@@ -381,7 +381,9 @@ namespace UEModManager.Services
 
         private static async Task AddDirectoryToZipAsync(ZipArchive archive, string sourceDir, string entryRoot)
         {
-            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+            // 惰性枚举：一个包可能有上千个文件，没必要先把全部路径物化。
+            // 目标 zip 在仓库之外（导出路径由用户选择），不会枚举到正在写入的自身。
+            foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(sourceDir, file).Replace('\\', '/');
                 var entryName = $"{entryRoot}/{rel}";

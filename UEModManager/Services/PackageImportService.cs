@@ -154,7 +154,7 @@ namespace UEModManager.Services
                 // 收集文件
                 List<string> files;
                 if (isDirectory)
-                    files = Directory.GetFiles(filePath, "*.*", SearchOption.AllDirectories).ToList();
+                    files = Directory.EnumerateFiles(filePath, "*.*", SearchOption.AllDirectories).ToList();
                 else
                     files = new List<string> { filePath };
 
@@ -286,18 +286,18 @@ namespace UEModManager.Services
                 ProcessNestedArchives(tempDir);
                 CleanupArchives(tempDir);
 
-                // 收集 MOD 文件
-                var modFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories)
+                // 收集 MOD 文件（惰性枚举 + 过滤，避免先把整棵解压树的路径物化一遍）
+                var modFiles = Directory.EnumerateFiles(tempDir, "*.*", SearchOption.AllDirectories)
                     .Where(f => IsModFile(f)).ToList();
 
                 if (modFiles.Count == 0)
                 {
                     // 可能是纯插件/配置文件
-                    var allFiles = Directory.GetFiles(tempDir, "*.*", SearchOption.AllDirectories);
-                    if (allFiles.Length > 0)
+                    var allFiles = Directory.EnumerateFiles(tempDir, "*.*", SearchOption.AllDirectories).ToList();
+                    if (allFiles.Count > 0)
                     {
                         var packageName = EnsureUniquePackageName(archiveName, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                        var result = await ImportFilesAsPackageAsync(packageName, allFiles.ToList(), tempDir, filePath, targetRootPath);
+                        var result = await ImportFilesAsPackageAsync(packageName, allFiles, tempDir, filePath, targetRootPath);
                         results.Add(result);
                     }
                     else
@@ -593,7 +593,7 @@ namespace UEModManager.Services
         private static string? FindPreviewInDirectory(string directory)
         {
             if (!Directory.Exists(directory)) return null;
-            var files = Directory.GetFiles(directory, "*.*", SearchOption.TopDirectoryOnly);
+            var files = Directory.EnumerateFiles(directory, "*.*", SearchOption.TopDirectoryOnly);
             return PreviewImageSelector.Select(files);
         }
     }

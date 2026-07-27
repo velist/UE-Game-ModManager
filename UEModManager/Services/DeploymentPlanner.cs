@@ -194,13 +194,13 @@ namespace UEModManager.Services
             // 扫描 MOD 目录
             if (Directory.Exists(modPath))
             {
-                foreach (var dir in Directory.GetDirectories(modPath))
+                foreach (var dir in Directory.EnumerateDirectories(modPath))
                 {
                     var dirName = new DirectoryInfo(dir).Name;
                     var entry = profile.Packages.FirstOrDefault(p => p.PackageKey == dirName);
                     var package = entry != null ? _packageRepository.GetByKey(entry.PackageKey) : null;
 
-                    foreach (var file in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
+                    foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories))
                     {
                         // 跳过预览图
                         if (Path.GetFileName(file).StartsWith("preview", StringComparison.OrdinalIgnoreCase))
@@ -233,7 +233,7 @@ namespace UEModManager.Services
                 if (!Directory.Exists(packageDir))
                     continue;
 
-                foreach (var file in Directory.GetFiles(packageDir, "*.*", SearchOption.AllDirectories))
+                foreach (var file in Directory.EnumerateFiles(packageDir, "*.*", SearchOption.AllDirectories))
                 {
                     var relativePath = Path.GetRelativePath(
                         Path.Combine(gamePath, targetRootPath), file);

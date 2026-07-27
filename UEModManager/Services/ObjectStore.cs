@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services.Security;
@@ -139,7 +140,8 @@ namespace UEModManager.Services
                 var ext = Path.GetExtension(sourceImagePath);
                 var previewPath = Path.Combine(packageDir, $"preview{ext}");
 
-                // 删除旧预览图
+                // 删除旧预览图。这里必须保持 GetFiles（先物化）：
+                // 边枚举边删同一目录会让枚举器抛异常。
                 foreach (var old in Directory.GetFiles(packageDir, "preview*"))
                     try { File.Delete(old); } catch { }
 
@@ -161,7 +163,7 @@ namespace UEModManager.Services
             var packageDir = GetPackageDirectory(packageKey);
             if (!Directory.Exists(packageDir)) return null;
 
-            return Directory.GetFiles(packageDir, "preview*")
+            return Directory.EnumerateFiles(packageDir, "preview*")
                 .FirstOrDefault();
         }
 
@@ -172,7 +174,8 @@ namespace UEModManager.Services
         {
             var filesDir = GetPackageFilesDirectory(packageKey);
             if (!Directory.Exists(filesDir)) return new List<string>();
-            return Directory.GetFiles(filesDir, "*.*", SearchOption.AllDirectories).ToList();
+            // EnumerateFiles：GetFiles 会先物化成 string[]，再 ToList 又复制一遍
+            return Directory.EnumerateFiles(filesDir, "*.*", SearchOption.AllDirectories).ToList();
         }
 
         /// <summary>
@@ -244,7 +247,7 @@ namespace UEModManager.Services
 
             try
             {
-                return Directory.GetDirectories(_repositoryRoot)
+                return Directory.EnumerateDirectories(_repositoryRoot)
                     .Select(Path.GetFileName)
                     .Where(name => !string.IsNullOrEmpty(name))
                     .Select(name => name!)
@@ -268,16 +271,45 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 计算多个文件的组合内容哈希。
-        /// 对所有文件哈希排序后再哈希，确保结果稳定。
+        /// 组合内容哈希的并发读取上限。
+        ///
+        /// SHA-256 本身在现代 CPU 上远快于磁盘，这里的瓶颈是读文件：
+        /// NVMe 需要几路并发才能压满队列深度，而机械盘并发一高就变成来回寻道，反而更慢。
+        /// 取一个对两种介质都不吃亏的保守值，并且不超过逻辑核数。
         /// </summary>
+        private static readonly int HashConcurrency = Math.Min(4, Environment.ProcessorCount);
+
+        /// <summary>
+        /// 计算多个文件的组合内容哈希。
+        /// 按路径排序后依次拼接各文件哈希，再整体哈希一次，保证结果与文件枚举顺序无关。
+        /// </summary>
+        /// <remarks>
+        /// 文件哈希并发计算（上限 <see cref="HashConcurrency"/>），但结果**先并发算、后按排序位置回填**，
+        /// 与串行版本逐字节一致——含多个 GB 级 .pak 的包，串行总耗时是所有文件读取时间之和。
+        /// 排序沿用默认字符串比较器（非 Ordinal）：改比较器会改变拼接顺序，
+        /// 进而改变已入库包的 ContentHash，使重复包检测失效。
+        /// </remarks>
         public static async Task<string> ComputeContentHashAsync(IEnumerable<string> filePaths)
         {
-            var hashes = new List<string>();
-            foreach (var path in filePaths.OrderBy(p => p))
-            {
-                hashes.Add(await ComputeFileHashAsync(path));
-            }
+            if (filePaths == null) throw new ArgumentNullException(nameof(filePaths));
+
+            var ordered = filePaths.OrderBy(p => p).ToList();
+            var hashes = new string[ordered.Count];
+
+            var nextIndex = -1;
+            var workers = Enumerable
+                .Range(0, Math.Min(HashConcurrency, ordered.Count))
+                .Select(_ => Task.Run(async () =>
+                {
+                    int index;
+                    while ((index = Interlocked.Increment(ref nextIndex)) < ordered.Count)
+                    {
+                        hashes[index] = await ComputeFileHashAsync(ordered[index]);
+                    }
+                }));
+
+            await Task.WhenAll(workers);
+
             var combined = string.Join("|", hashes);
             var bytes = System.Text.Encoding.UTF8.GetBytes(combined);
             var hash = SHA256.HashData(bytes);
@@ -292,8 +324,11 @@ namespace UEModManager.Services
             if (!Directory.Exists(_repositoryRoot)) return 0;
             try
             {
-                return Directory.GetFiles(_repositoryRoot, "*.*", SearchOption.AllDirectories)
-                    .Sum(f => { try { return new FileInfo(f).Length; } catch { return 0L; } });
+                // DirectoryInfo.EnumerateFiles：既不物化整棵树的路径字符串，
+                // 枚举出的 FileInfo 也已带 Length，省掉逐文件再 stat 一次
+                return new DirectoryInfo(_repositoryRoot)
+                    .EnumerateFiles("*.*", SearchOption.AllDirectories)
+                    .Sum(f => f.Length);
             }
             catch { return 0; }
         }
@@ -304,7 +339,7 @@ namespace UEModManager.Services
         public List<string> GetAllPackageKeys()
         {
             if (!Directory.Exists(_repositoryRoot)) return new List<string>();
-            return Directory.GetDirectories(_repositoryRoot)
+            return Directory.EnumerateDirectories(_repositoryRoot)
                 .Select(d => new DirectoryInfo(d).Name)
                 .Where(name => File.Exists(Path.Combine(_repositoryRoot, name, "manifest.json")))
                 .ToList();
