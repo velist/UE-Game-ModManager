@@ -10,7 +10,6 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgBaseBrush}"
         Style="{StaticResource CyberDarkWindow}"
-        PreviewMouseDown="MainWindow_PreviewMouseDown"
         SourceInitialized="Window_SourceInitialized">
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
@@ -320,6 +319,7 @@
 
                                     <!-- 分类列表 -->
                                     <ListBox x:Name="CategoryList" Background="Transparent" BorderThickness="0"
+                                             ItemsSource="{Binding Categories.Categories}"
                                              SelectionMode="Single"
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
@@ -330,8 +330,7 @@
                                              AllowDrop="True"
                                              DragEnter="CategoryList_DragEnter"
                                              DragOver="CategoryList_DragOver"
-                                             Drop="CategoryList_Drop"
-                                             ContextMenuOpening="CategoryList_ContextMenuOpening">
+                                             Drop="CategoryList_Drop">
                                         <ListBox.ItemContainerStyle>
                                             <Style TargetType="ListBoxItem">
                                                 <Setter Property="Background" Value="Transparent"/>
@@ -384,7 +383,7 @@
                                             </Style>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ContextMenu>
-                                            <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="CategoryContextMenu_Opened">
+                                            <ContextMenu Style="{StaticResource CyberContextMenu}">
                                                 <MenuItem x:Name="CtxMenuRename" Header="重命名" Click="RenameCategoryMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem x:Name="CtxMenuDelete" Header="删除" Click="DeleteCategoryMenuItem_Click" Style="{StaticResource CyberMenuItemDanger}"/>
                                             </ContextMenu>
@@ -703,10 +702,10 @@
                 </Border>
 
                 <!-- ═ ModGrid / ModList ═ -->
-                <Grid x:Name="ModContentArea" Margin="26,8,26,16"
-                      PreviewMouseDown="MainContentArea_PreviewMouseDown">
+                <Grid x:Name="ModContentArea" Margin="26,8,26,16">
                         <!-- 卡片视图 -->
                         <ListBox x:Name="ModsCardView" Visibility="Visible"
+                                 ItemsSource="{Binding ModList.Mods}"
                                  Background="Transparent" BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -717,8 +716,7 @@
                                  VirtualizingPanel.CacheLength="1,1"
                                  VirtualizingPanel.CacheLengthUnit="Page"
                                  SelectionMode="Single"
-                                 SizeChanged="ModsCardView_SizeChanged"
-                                 PreviewMouseDown="MainContentArea_PreviewMouseDown">
+                                 SizeChanged="ModsCardView_SizeChanged">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <vwp:VirtualizingWrapPanel Orientation="Horizontal"
@@ -753,7 +751,7 @@
                                             <SolidColorBrush Color="#27272A" Opacity="0.6"/>
                                         </Border.BorderBrush>
                                         <Border.ContextMenu>
-                                            <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="ModContextMenu_Opened">
+                                            <ContextMenu Style="{StaticResource CyberContextMenu}">
                                                 <MenuItem Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <Separator Style="{StaticResource CyberMenuSeparator}"/>
@@ -960,6 +958,7 @@
                                     Background="{StaticResource CyberBorderBrush}"/>
 
                             <ListView x:Name="ModsListView" Background="Transparent" BorderThickness="0"
+                                      ItemsSource="{Binding ModList.Mods}"
                                       Margin="0,40,0,0"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -971,7 +970,7 @@
                                       MouseDoubleClick="ModsListView_MouseDoubleClick"
                                       SelectionMode="Extended">
                             <ListView.ContextMenu>
-                                <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="ModContextMenu_Opened">
+                                <ContextMenu Style="{StaticResource CyberContextMenu}">
                                     <MenuItem Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <MenuItem Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <Separator Style="{StaticResource CyberMenuSeparator}"/>

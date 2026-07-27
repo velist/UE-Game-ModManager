@@ -65,7 +65,6 @@ namespace UEModManager
         private readonly HealthCheckService? _healthCheck;
 
         // ── UI 状态 ──
-        private DispatcherTimer? _statsTimer = null;
         private DispatcherTimer? _searchDebounceTimer;
         private bool _isDragging;
         private Point _startPoint;
@@ -183,10 +182,8 @@ namespace UEModManager
                 // 初始化 MOD 和分类
                 await _vm.InitializeAsync();
 
-                // 绑定数据源
-                CategoryList.ItemsSource = _vm.Categories.Categories;
-                ModsCardView.ItemsSource = _vm.ModList.Mods;
-                ModsListView.ItemsSource = _vm.ModList.Mods;
+                // 数据源在 XAML 中绑定（ItemsSource="{Binding ModList.Mods}" 等），
+                // 集合是 ObservableCollection 且实例从不替换，这里无需再手工接线
 
                 // 更新 UI
                 UpdateNavCounts();
@@ -304,9 +301,7 @@ namespace UEModManager
 
         private void Cleanup()
         {
-            _statsTimer?.Stop();
             _searchDebounceTimer?.Stop();
-            DisposeTrayIcon();
 
             // 静态事件是 GC root，必须显式退订，否则窗口连同整棵视觉树永远无法回收
             LanguageManager.LanguageChanged -= OnLanguageChanged;
@@ -363,7 +358,6 @@ namespace UEModManager
             return IntPtr.Zero;
         }
 
-        private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e) { }
 
         // ═════════════════════════════════════════
         //  认证 & 用户状态
@@ -681,9 +675,6 @@ namespace UEModManager
                 try
                 {
                     await _vm.InitializeAsync();
-                    ModsCardView.ItemsSource = _vm.ModList.Mods;
-                    ModsListView.ItemsSource = _vm.ModList.Mods;
-                    CategoryList.ItemsSource = _vm.Categories.Categories;
                     UpdateNavCounts();
                     UpdateModCountText();
 
@@ -763,15 +754,31 @@ namespace UEModManager
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _searchDebounceTimer?.Stop();
-            _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-            _searchDebounceTimer.Tick += (_, _) =>
-            {
-                _searchDebounceTimer.Stop();
-                _vm.ModList.SearchText = SearchBox.Text;
-                UpdateModCountText();
-            };
+            // 只重置计时，不再每次击键 new 一个 timer。
+            // 原实现的 Tick 闭包读的是字段 _searchDebounceTimer 而不是它自己那个实例，
+            // 于是某个旧 timer 若抢先触发，它 Stop 掉的是**新** timer ——
+            // 表现为"搜索偶发不生效"。Cleanup 里也只 Stop 得到最后一个实例，其余全泄漏。
+            EnsureSearchDebounceTimer();
+            _searchDebounceTimer!.Stop();
             _searchDebounceTimer.Start();
+        }
+
+        /// <summary>
+        /// 惰性创建唯一的搜索防抖计时器，Tick 只订阅一次。
+        /// </summary>
+        private void EnsureSearchDebounceTimer()
+        {
+            if (_searchDebounceTimer != null) return;
+
+            _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _searchDebounceTimer.Tick += OnSearchDebounceTick;
+        }
+
+        private void OnSearchDebounceTick(object? sender, EventArgs e)
+        {
+            _searchDebounceTimer?.Stop();
+            _vm.ModList.SearchText = SearchBox.Text;
+            UpdateModCountText();
         }
 
         // ═════════════════════════════════════════
@@ -804,7 +811,6 @@ namespace UEModManager
             }, _logger, "新增分类");
         }
 
-        private void CategoryContextMenu_Opened(object sender, RoutedEventArgs e) { }
 
         private void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
@@ -828,7 +834,6 @@ namespace UEModManager
                 }
             }, _logger, "删除分类");
 
-        private void CategoryList_ContextMenuOpening(object sender, ContextMenuEventArgs e) { }
 
         // ── 分类拖拽 ──
 
@@ -1042,7 +1047,6 @@ namespace UEModManager
 
         // ── 右键菜单事件 ──
 
-        private void ModContextMenu_Opened(object sender, RoutedEventArgs e) { }
 
         private void EnableModMenuItem_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
@@ -1293,7 +1297,6 @@ namespace UEModManager
                 OpenModDetailWindow(mod);
         }
 
-        private void MainContentArea_PreviewMouseDown(object sender, MouseButtonEventArgs e) { }
 
         // ── 卡片悬停遮罩动画 ──
 
@@ -1416,8 +1419,8 @@ namespace UEModManager
         private void OpenConflictPanel()
             => SafeEvent.Run(this, async () =>
             {
-                // 此前这里 catch 后"回退到旧版冲突检测"，而回退目标 ConflictCheckButton_Click
-                // 已在重构中被掏空成空方法 —— 分析失败时用户得不到任何反馈。
+                // 此前这里 catch 后"回退到旧版冲突检测"，而回退目标已在重构中被掏空成
+                // 空方法 —— 分析失败时用户得不到任何反馈（那个空方法已随死代码清理删除）。
                 // 现改由 SafeEvent 统一记日志 + 弹窗。
                 var result = await _vm.ConflictAnalysis.AnalyzeAsync();
                 var win = new Views.ConflictResultWindow(_vm.ConflictAnalysis, result.Conflicts) { Owner = this };
@@ -1593,10 +1596,11 @@ namespace UEModManager
         {
             try
             {
-                ModsCardView.ItemsSource = null;
-                ModsCardView.ItemsSource = _vm.ModList.Mods;
-                ModsListView.ItemsSource = null;
-                ModsListView.ItemsSource = _vm.ModList.Mods;
+                // 这里曾经是 ItemsSource = null 再重新赋值的"拔插"。
+                // ModList.Mods 是 ObservableCollection 且实例从不替换，增删改本就会
+                // 经 INotifyCollectionChanged 自动反映到界面，拔插不增加任何正确性，
+                // 却会强制重建全部容器 —— 滚动位置归零、选中项丢失、悬停动画被打断。
+                // 现在数据源在 XAML 绑定，这里只负责刷新那些不参与绑定的统计文字。
                 UpdateNavCounts();
                 UpdateModCountText();
                 UpdateEmptyState();
@@ -1753,18 +1757,10 @@ namespace UEModManager
         //  辅助方法
         // ═════════════════════════════════════════
 
-        private static string NormalizeGameName(string? name)
-        {
-            if (string.IsNullOrEmpty(name)) return "";
-            return name.Replace("（", "(").Replace("）", ")").Replace("·", "·").Trim();
-        }
-
         // 窗口命令处理
         private void OnMinimizeWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
         private void OnMaximizeWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
         private void OnRestoreWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.RestoreWindow(this);
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.CloseWindow(this);
-        private void ConflictCheckButton_Click(object sender, RoutedEventArgs e) { }
-        private void DisposeTrayIcon() { }
     }
 }
