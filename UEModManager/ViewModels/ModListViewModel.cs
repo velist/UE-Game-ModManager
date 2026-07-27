@@ -150,11 +150,12 @@ namespace UEModManager.ViewModels
             // 搜索过滤
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var lower = search.ToLower();
+                // 用 OrdinalIgnoreCase 比较，不再为每个 MOD 分配 3 个 ToLower() 字符串；
+                // 顺带避开 ToLower() 的文化敏感问题（如土耳其语的 i/İ）。
                 filtered = filtered.Where(m =>
-                    m.Name.ToLower().Contains(lower) ||
-                    m.RealName.ToLower().Contains(lower) ||
-                    m.Description.ToLower().Contains(lower));
+                    m.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    m.RealName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    m.Description.Contains(search, StringComparison.OrdinalIgnoreCase));
             }
 
             var result = ApplySortInternal(filtered, SortMode).ToList();

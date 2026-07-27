@@ -317,11 +317,14 @@ namespace UEModManager.Services
                 // 2. 自动检测
                 if (string.IsNullOrEmpty(exePath))
                 {
-                    var detected = AutoDetectExecutable(Config.GamePath, Config.GameName ?? "");
+                    // 用完整路径启动：主程序常在 {模块}/Binaries/Win64 下，
+                    // 而 ExecutableName 全项目按"纯文件名"存储（GamePathDialog 也如此），
+                    // 直接 Combine(GamePath, 文件名) 会指向一个不存在的路径。
+                    var detected = AutoDetectExecutablePath(Config.GamePath, Config.GameName ?? "");
                     if (!string.IsNullOrEmpty(detected))
                     {
-                        exePath = Path.Combine(Config.GamePath, detected);
-                        Config.ExecutableName = detected;
+                        exePath = detected;
+                        Config.ExecutableName = Path.GetFileName(detected);
                         SaveConfigSync();
                     }
                 }
@@ -350,86 +353,223 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 自动检测游戏可执行文件。
+        /// 自动检测游戏可执行文件，返回文件名（不含目录）。
         /// </summary>
         public string? AutoDetectExecutable(string gamePath, string gameName)
+            => Path.GetFileName(AutoDetectExecutablePath(gamePath, gameName));
+
+        /// <summary>
+        /// 自动检测游戏可执行文件，返回完整路径；找不到返回 null。
+        ///
+        /// 先按目录约定探测（游戏根目录顶层、UE 的 {模块}/Binaries/Win64 等），命中即返回；
+        /// 只有约定路径给不出确定答案时才退回全盘递归。3A 游戏目录动辄十万级文件，
+        /// 冷缓存下一次 AllDirectories 枚举是数秒级操作，而这条路径在"启动游戏"时是同步的。
+        /// </summary>
+        public string? AutoDetectExecutablePath(string gamePath, string gameName)
         {
             try
             {
                 if (string.IsNullOrEmpty(gamePath) || !Directory.Exists(gamePath))
                     return null;
 
-                var exeFiles = Directory.GetFiles(gamePath, "*.exe", SearchOption.AllDirectories);
-                if (exeFiles.Length == 0)
-                    return null;
-
-                // 排除辅助工具
-                var excludeKeywords = new[] { "unins", "setup", "launcher", "updater", "installer", "redist", "vcredist", "directx" };
-                var validExes = exeFiles.Where(exe =>
+                // 1) 约定路径。只在"名称匹配命中"或"只有唯一候选"时采信：
+                //    候选集不完整，此时用体积回退去猜的代价是启动错误的程序。
+                var probed = EnumerateConventionalExecutables(gamePath);
+                var fromProbe = SelectExecutable(probed, gameName, allowLargestFallback: false);
+                if (fromProbe != null)
                 {
-                    var fn = Path.GetFileName(exe).ToLower();
-                    if (fn.Contains("crashreporter") && !gameName.Contains("无主之地") && !gameName.Contains("Borderlands"))
-                        return false;
-                    return !excludeKeywords.Any(kw => fn.Contains(kw));
-                }).ToArray();
-
-                if (validExes.Length == 0) return null;
-                if (validExes.Length == 1) return Path.GetFileName(validExes[0]);
-
-                // 按游戏名称匹配
-                string? match = null;
-                if (gameName != null && gameName.StartsWith("剑星"))
-                {
-                    match = validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("sb-win64-shipping"))
-                        ?? validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("stellarblade"));
-                }
-                else if (gameName != null && gameName.StartsWith("黑神话"))
-                {
-                    match = validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("b1-win64-shipping"))
-                        ?? validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("wukong"));
-                }
-                else if (gameName == "光与影：33号远征队")
-                {
-                    match = validExes.FirstOrDefault(e =>
-                    {
-                        var fn = Path.GetFileNameWithoutExtension(e).ToLowerInvariant();
-                        return fn.Contains("expedition33steam-win64-shipping")
-                            || fn.Contains("expedition33")
-                            || fn.Contains("sandfall-win64-shipping")
-                            || fn.Contains("sandfall");
-                    });
-                }
-                else if (gameName != null && (gameName.Contains("明末") || gameName.Contains("渊虚之羽")))
-                {
-                    match = validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("project_plague-win64-shipping"))
-                        ?? validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("wuchang"));
-                }
-                else if (gameName != null && (gameName.Contains("无主之地") || gameName.Contains("Borderlands")))
-                {
-                    match = validExes.FirstOrDefault(e => Path.GetFileName(e).ToLower().Contains("borderlands"));
+                    _logger.LogDebug("按目录约定检测到可执行文件: {Path}", fromProbe);
+                    return fromProbe;
                 }
 
-                if (match == null)
-                {
-                    match = validExes.FirstOrDefault(e =>
-                    {
-                        var fn = Path.GetFileNameWithoutExtension(e).ToLower();
-                        var gn = (gameName ?? "").Split('(')[0].Trim().ToLower()
-                            .Replace("：", "").Replace("·", "").Replace(" ", "");
-                        return fn.Contains(gn) || gn.Contains(fn);
-                    });
-                }
-
-                if (match != null) return Path.GetFileName(match);
-
-                // 回退：选择最大的 exe
-                return Path.GetFileName(validExes.OrderByDescending(e => new FileInfo(e).Length).First());
+                // 2) 兜底全盘递归：惰性枚举 + 数量上限，不再一次性物化整棵目录树；
+                //    IgnoreInaccessible 让个别无权限子目录不再使整次检测失败。
+                var all = Directory
+                    .EnumerateFiles(gamePath, "*.exe", RecursiveExeScanOptions)
+                    .Take(MaxScannedExecutables);
+                return SelectExecutable(all, gameName, allowLargestFallback: true);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "自动检测游戏可执行文件失败");
                 return null;
             }
+        }
+
+        /// <summary>兜底全盘扫描的候选数量上限，避免超大目录把内存和耗时拖到无界。</summary>
+        private const int MaxScannedExecutables = 4000;
+
+        private static readonly EnumerationOptions RecursiveExeScanOptions = new()
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            // 默认会跳过隐藏/系统文件，而旧实现（SearchOption 重载）不跳过，保持一致
+            AttributesToSkip = FileAttributes.None
+        };
+
+        private static readonly string[] AuxiliaryExecutableKeywords =
+            { "unins", "setup", "launcher", "updater", "installer", "redist", "vcredist", "directx" };
+
+        /// <summary>
+        /// 按目录约定收集候选 exe：游戏根目录顶层 + `{根}/Binaries/Win*`
+        /// + 下探一层的 `{模块}/Binaries/Win*`（UE 布局）+ `{模块}/bin`（部分非 UE 游戏）。
+        /// 只枚举这些目录的顶层，代价与游戏目录规模无关。
+        /// </summary>
+        private List<string> EnumerateConventionalExecutables(string gamePath)
+        {
+            var directories = new List<string> { gamePath };
+            AddBinariesDirectories(gamePath, directories);
+
+            foreach (var sub in EnumerateDirectoriesSafe(gamePath))
+            {
+                AddBinariesDirectories(sub, directories);
+
+                var bin = Path.Combine(sub, "bin");
+                if (Directory.Exists(bin)) directories.Add(bin);
+            }
+
+            var executables = new List<string>();
+            foreach (var dir in directories)
+            {
+                try
+                {
+                    executables.AddRange(Directory.GetFiles(dir, "*.exe", SearchOption.TopDirectoryOnly));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "读取候选目录失败，跳过: {Path}", dir);
+                }
+            }
+
+            return executables;
+        }
+
+        private void AddBinariesDirectories(string root, List<string> directories)
+        {
+            var binaries = Path.Combine(root, "Binaries");
+            if (!Directory.Exists(binaries)) return;
+
+            // Win64 / Win32 / WinGDK
+            directories.AddRange(EnumerateDirectoriesSafe(binaries, "Win*"));
+        }
+
+        private string[] EnumerateDirectoriesSafe(string path, string pattern = "*")
+        {
+            try
+            {
+                return Directory.GetDirectories(path, pattern, SearchOption.TopDirectoryOnly);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "枚举子目录失败，跳过: {Path}", path);
+                return Array.Empty<string>();
+            }
+        }
+
+        /// <summary>
+        /// 从候选 exe 中挑出游戏主程序：排除安装/更新/卸载等辅助工具 → 按游戏名匹配 →
+        /// （允许时）回退到体积最大的一个。纯逻辑，可单测。
+        /// </summary>
+        /// <param name="candidates">候选 exe 的完整路径。</param>
+        /// <param name="gameName">游戏名，用于按已知命名规则匹配。</param>
+        /// <param name="allowLargestFallback">名称匹配不中时是否允许"取体积最大者"的回退。</param>
+        /// <param name="fileSizeProvider">取文件大小的方式，默认读磁盘（测试可注入）。</param>
+        /// <returns>选中的 exe 完整路径；没有合适候选时返回 null。</returns>
+        public static string? SelectExecutable(
+            IEnumerable<string> candidates,
+            string? gameName,
+            bool allowLargestFallback,
+            Func<string, long>? fileSizeProvider = null)
+        {
+            var validExes = candidates
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(exe => !IsAuxiliaryExecutable(exe, gameName))
+                .ToArray();
+
+            if (validExes.Length == 0) return null;
+            if (validExes.Length == 1) return validExes[0];
+
+            var match = MatchByKnownGame(validExes, gameName)
+                ?? MatchByNormalizedGameName(validExes, gameName);
+            if (match != null) return match;
+
+            if (!allowLargestFallback) return null;
+
+            var sizeOf = fileSizeProvider ?? (p => new FileInfo(p).Length);
+            return validExes.OrderByDescending(sizeOf).First();
+        }
+
+        /// <summary>是否是安装/卸载/更新器一类的辅助程序（不是游戏本体）。</summary>
+        private static bool IsAuxiliaryExecutable(string exePath, string? gameName)
+        {
+            var fileName = Path.GetFileName(exePath);
+
+            // 无主之地的主程序本身带 CrashReporter 字样，单独放行
+            if (fileName.Contains("crashreporter", StringComparison.OrdinalIgnoreCase)
+                && !IsBorderlands(gameName))
+            {
+                return true;
+            }
+
+            return AuxiliaryExecutableKeywords.Any(kw => fileName.Contains(kw, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsBorderlands(string? gameName)
+            => gameName != null
+                && (gameName.Contains("无主之地")
+                    || gameName.Contains("Borderlands", StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>按已知游戏的可执行文件命名规则匹配，token 按优先级排列。</summary>
+        private static string? MatchByKnownGame(IReadOnlyList<string> validExes, string? gameName)
+        {
+            if (string.IsNullOrEmpty(gameName)) return null;
+
+            if (gameName.StartsWith("剑星"))
+                return FindByFileNameToken(validExes, "sb-win64-shipping", "stellarblade");
+
+            if (gameName.StartsWith("黑神话"))
+                return FindByFileNameToken(validExes, "b1-win64-shipping", "wukong");
+
+            if (gameName == "光与影：33号远征队")
+                return FindByFileNameToken(validExes,
+                    "expedition33steam-win64-shipping", "expedition33", "sandfall-win64-shipping", "sandfall");
+
+            if (gameName.Contains("明末") || gameName.Contains("渊虚之羽"))
+                return FindByFileNameToken(validExes, "project_plague-win64-shipping", "wuchang");
+
+            if (IsBorderlands(gameName))
+                return FindByFileNameToken(validExes, "borderlands");
+
+            return null;
+        }
+
+        private static string? FindByFileNameToken(IReadOnlyList<string> validExes, params string[] tokens)
+        {
+            foreach (var token in tokens)
+            {
+                var hit = validExes.FirstOrDefault(e =>
+                    Path.GetFileName(e).Contains(token, StringComparison.OrdinalIgnoreCase));
+                if (hit != null) return hit;
+            }
+            return null;
+        }
+
+        /// <summary>通用回退匹配：把游戏名归一化后与文件名互相包含比对。</summary>
+        private static string? MatchByNormalizedGameName(IReadOnlyList<string> validExes, string? gameName)
+        {
+            var normalized = (gameName ?? string.Empty).Split('(')[0].Trim()
+                .Replace("：", "").Replace("·", "").Replace(" ", "")
+                .ToLowerInvariant();
+
+            // 游戏名为空时不能走"互相包含"：任何文件名都 Contains("")，
+            // 那等于按目录枚举顺序随便挑一个。
+            if (normalized.Length == 0) return null;
+
+            return validExes.FirstOrDefault(e =>
+            {
+                var fn = Path.GetFileNameWithoutExtension(e).ToLowerInvariant();
+                return fn.Contains(normalized) || normalized.Contains(fn);
+            });
         }
 
         // ─── 引擎类型 ───

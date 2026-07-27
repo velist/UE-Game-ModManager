@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 
 namespace UEModManager.Views
@@ -46,7 +48,11 @@ namespace UEModManager.Views
                 FullPathPreview.Text = "";
         }
 
-        private void UpdateFileList()
+        /// <summary>
+        /// 刷新已选文件列表。目录大小是递归 IO（大插件目录可能几万个文件），
+        /// 必须放到后台线程：这里是选择文件/文件夹后的同步 UI 路径，原来会直接冻结窗口。
+        /// </summary>
+        private async Task UpdateFileListAsync()
         {
             if (_selectedPaths.Count == 0)
             {
@@ -55,35 +61,42 @@ namespace UEModManager.Views
                 return;
             }
 
-            var items = _selectedPaths.Select(p =>
-            {
-                bool isDir = Directory.Exists(p) && !File.Exists(p);
-                long size = 0;
-                if (isDir)
-                {
-                    try { size = Directory.GetFiles(p, "*.*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length); }
-                    catch { }
-                }
-                else if (File.Exists(p))
-                {
-                    size = new FileInfo(p).Length;
-                }
-                return new FileListItem
-                {
-                    Name = isDir ? $"[文件夹] {Path.GetFileName(p)}" : Path.GetFileName(p),
-                    SizeText = UEModManager.Core.Utils.FileSizeFormatter.Format(size)
-                };
-            }).ToList();
-
-            FileListItems.ItemsSource = items;
-
             var isEn = LanguageManager.IsEnglish;
             FileCountText.Text = isEn
                 ? $"{_selectedPaths.Count} item(s) selected"
                 : $"已选择 {_selectedPaths.Count} 个文件";
-
             FileListPanel.Visibility = Visibility.Visible;
             ImportBtn.IsEnabled = true;
+
+            var paths = _selectedPaths.ToArray();
+            var items = await Task.Run(() => paths.Select(BuildFileListItem).ToList());
+
+            FileListItems.ItemsSource = items;
+        }
+
+        private static FileListItem BuildFileListItem(string path)
+        {
+            bool isDir = Directory.Exists(path) && !File.Exists(path);
+            long size = 0;
+
+            if (isDir)
+            {
+                // EnumerateFiles + FileInfo.Length：GetFiles(...).Sum(f => new FileInfo(f).Length)
+                // 会先物化整个路径数组，再对每个文件多做一次 stat。
+                try { size = new DirectoryInfo(path).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length); }
+                catch (Exception ex) { Console.WriteLine($"[PluginImportDialog] 统计目录大小失败 {path}: {ex.Message}"); }
+            }
+            else if (File.Exists(path))
+            {
+                try { size = new FileInfo(path).Length; }
+                catch (Exception ex) { Console.WriteLine($"[PluginImportDialog] 读取文件大小失败 {path}: {ex.Message}"); }
+            }
+
+            return new FileListItem
+            {
+                Name = isDir ? $"[文件夹] {Path.GetFileName(path)}" : Path.GetFileName(path),
+                SizeText = UEModManager.Core.Utils.FileSizeFormatter.Format(size)
+            };
         }
 
         private void SelectFiles_Click(object sender, MouseButtonEventArgs e)
@@ -98,7 +111,7 @@ namespace UEModManager.Views
             {
                 _selectedPaths.Clear();
                 _selectedPaths.AddRange(dlg.FileNames);
-                UpdateFileList();
+                SafeEvent.Run(this, UpdateFileListAsync, null, "刷新插件导入文件列表");
             }
         }
 
@@ -113,7 +126,7 @@ namespace UEModManager.Views
             {
                 _selectedPaths.Clear();
                 _selectedPaths.Add(dlg.SelectedPath);
-                UpdateFileList();
+                SafeEvent.Run(this, UpdateFileListAsync, null, "刷新插件导入文件列表");
             }
         }
 

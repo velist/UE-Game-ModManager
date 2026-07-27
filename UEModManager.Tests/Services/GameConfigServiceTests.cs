@@ -107,6 +107,138 @@ public sealed class GameConfigServiceTests : IDisposable
         Assert.NotNull(provider.GetRequiredService<GameConfigService>());
     }
 
+    // ─── SelectExecutable（纯逻辑：排除辅助程序 + 按游戏名匹配 + 体积回退）───
+
+    [Fact]
+    public void SelectExecutable_ExcludesUninstallerAndLauncher()
+    {
+        var candidates = new[]
+        {
+            @"C:\Game\unins000.exe",
+            @"C:\Game\launcher.exe",
+            @"C:\Game\vcredist_x64.exe",
+            @"C:\Game\StellarBlade.exe"
+        };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "剑星", allowLargestFallback: true, _ => 1);
+
+        Assert.Equal(@"C:\Game\StellarBlade.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_AllCandidatesAreAuxiliary_ReturnsNull()
+    {
+        var candidates = new[] { @"C:\Game\unins000.exe", @"C:\Game\setup.exe" };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "剑星", allowLargestFallback: true, _ => 1);
+
+        Assert.Null(picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_CrashReporter_ExcludedExceptForBorderlands()
+    {
+        var candidates = new[] { @"C:\Game\CrashReporter.exe", @"C:\Game\Wukong.exe" };
+
+        Assert.Equal(@"C:\Game\Wukong.exe",
+            GameConfigService.SelectExecutable(candidates, "黑神话·悟空", allowLargestFallback: false));
+
+        // 无主之地的主程序本身带 CrashReporter 字样，不能被排除
+        var borderlands = new[] { @"C:\Game\Borderlands4CrashReporter.exe" };
+        Assert.Equal(@"C:\Game\Borderlands4CrashReporter.exe",
+            GameConfigService.SelectExecutable(borderlands, "无主之地4", allowLargestFallback: false));
+    }
+
+    [Fact]
+    public void SelectExecutable_KnownGame_PrefersShippingBinaryOverGenericName()
+    {
+        var candidates = new[]
+        {
+            @"C:\Game\StellarBlade.exe",
+            @"C:\Game\SB\Binaries\Win64\SB-Win64-Shipping.exe"
+        };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "剑星 (CNS)", allowLargestFallback: false);
+
+        Assert.Equal(@"C:\Game\SB\Binaries\Win64\SB-Win64-Shipping.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_Expedition33_DoesNotPickUnrelatedRootExecutable()
+    {
+        var candidates = new[]
+        {
+            @"C:\Game\enshrouded.exe",
+            @"C:\Game\Sandfall\Binaries\Win64\Expedition33Steam-Win64-Shipping.exe"
+        };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "光与影：33号远征队", allowLargestFallback: false);
+
+        Assert.Equal(@"C:\Game\Sandfall\Binaries\Win64\Expedition33Steam-Win64-Shipping.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_SingleCandidate_ReturnedWithoutFallback()
+    {
+        var candidates = new[] { @"C:\Game\SomeGame.exe" };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "完全不匹配的游戏名", allowLargestFallback: false);
+
+        Assert.Equal(@"C:\Game\SomeGame.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_NoNameMatch_WithoutFallback_ReturnsNull()
+    {
+        // 按目录约定探测时候选集不完整，猜错的代价是启动错误的程序，所以宁可返回 null 让上层继续扫描
+        var candidates = new[] { @"C:\Game\a.exe", @"C:\Game\b.exe" };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "完全不匹配的游戏名", allowLargestFallback: false);
+
+        Assert.Null(picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_NoNameMatch_WithFallback_PicksLargest()
+    {
+        var candidates = new[] { @"C:\Game\a.exe", @"C:\Game\b.exe" };
+        var sizes = new Dictionary<string, long> { [@"C:\Game\a.exe"] = 10, [@"C:\Game\b.exe"] = 999 };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "完全不匹配的游戏名", allowLargestFallback: true, p => sizes[p]);
+
+        Assert.Equal(@"C:\Game\b.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_EmptyGameName_DoesNotPickArbitraryFirst()
+    {
+        // 归一化后的游戏名为空时，"互相包含"对任何文件名都成立，
+        // 那等于按目录枚举顺序随便挑一个——必须走体积回退而不是取第一个
+        var candidates = new[] { @"C:\Game\aaa.exe", @"C:\Game\bbb.exe" };
+        var sizes = new Dictionary<string, long> { [@"C:\Game\aaa.exe"] = 1, [@"C:\Game\bbb.exe"] = 500 };
+
+        Assert.Null(GameConfigService.SelectExecutable(candidates, "", allowLargestFallback: false));
+        Assert.Equal(@"C:\Game\bbb.exe",
+            GameConfigService.SelectExecutable(candidates, "", allowLargestFallback: true, p => sizes[p]));
+    }
+
+    [Fact]
+    public void SelectExecutable_DuplicatePaths_DeduplicatedIgnoringCase()
+    {
+        // 约定路径探测可能把同一个文件收集两次，去重后只剩一个候选就应直接采信
+        var candidates = new[] { @"C:\Game\Game.exe", @"c:\game\GAME.EXE" };
+
+        var picked = GameConfigService.SelectExecutable(candidates, "完全不匹配的游戏名", allowLargestFallback: false);
+
+        Assert.Equal(@"C:\Game\Game.exe", picked);
+    }
+
+    [Fact]
+    public void SelectExecutable_NoCandidates_ReturnsNull()
+    {
+        Assert.Null(GameConfigService.SelectExecutable([], "剑星", allowLargestFallback: true));
+    }
+
     private string CreateConfigFile(string content)
     {
         Directory.CreateDirectory(_gameRoot);
