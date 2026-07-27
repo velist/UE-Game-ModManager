@@ -61,21 +61,23 @@ namespace UEModManager.Services
 
         /// <summary>
         /// 获取包在仓库中的目录路径。
+        /// packageKey 可能来自整合包内的清单（不可信），故一律按单段目录名校验，
+        /// 防止 "..\\..\\Startup" 之类的键把后续的写入/递归删除带出仓库根。
         /// </summary>
         public string GetPackageDirectory(string packageKey)
-            => Path.Combine(_repositoryRoot, packageKey);
+            => Path.Combine(_repositoryRoot, PathSanitizer.SanitizeSegment(packageKey, nameof(packageKey)));
 
         /// <summary>
         /// 获取包的文件存储目录。
         /// </summary>
         public string GetPackageFilesDirectory(string packageKey)
-            => Path.Combine(_repositoryRoot, packageKey, "files");
+            => Path.Combine(GetPackageDirectory(packageKey), "files");
 
         /// <summary>
         /// 获取包的 manifest 路径。
         /// </summary>
         public string GetManifestPath(string packageKey)
-            => Path.Combine(_repositoryRoot, packageKey, "manifest.json");
+            => Path.Combine(GetPackageDirectory(packageKey), "manifest.json");
 
         /// <summary>
         /// 存储文件到包仓库。
@@ -196,11 +198,20 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查包是否存在于仓库中。
+        /// 检查包是否存在于仓库中。非法的 packageKey 视为不存在（谓词不抛异常）。
         /// </summary>
         public bool PackageExists(string packageKey)
-            => Directory.Exists(GetPackageDirectory(packageKey))
-               && File.Exists(GetManifestPath(packageKey));
+        {
+            try
+            {
+                return Directory.Exists(GetPackageDirectory(packageKey))
+                       && File.Exists(GetManifestPath(packageKey));
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
 
         /// <summary>
         /// 计算文件的 SHA-256 哈希（前 16 字符）。

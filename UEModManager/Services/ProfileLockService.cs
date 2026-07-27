@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Lock;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services
 {
@@ -294,20 +295,44 @@ namespace UEModManager.Services
                 {
                     if (localKeys.Contains(pkg.PackageKey)) continue;
 
+                    // PackageKey 来自整合包内的 profile.lock.json（完全不可信），
+                    // 非法键直接跳过该包，不能让它参与任何路径拼接。
+                    string pkgDir;
+                    try
+                    {
+                        pkgDir = _packageRepo.Store.GetPackageDirectory(pkg.PackageKey);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "[Lock] Rejected unsafe package key in bundle: {Key}", pkg.PackageKey);
+                        continue;
+                    }
+
                     var prefix = $"{BundlePackagesPrefix}{pkg.PackageKey}/";
                     var bundled = archive.Entries
                         .Where(e => e.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                         .ToList();
                     if (bundled.Count == 0) continue;
 
-                    var pkgDir = _packageRepo.Store.GetPackageDirectory(pkg.PackageKey);
                     Directory.CreateDirectory(pkgDir);
 
                     foreach (var entry in bundled)
                     {
                         var rel = entry.FullName[prefix.Length..];
                         if (string.IsNullOrWhiteSpace(rel)) continue;
-                        var outPath = Path.Combine(pkgDir, rel);
+
+                        // zip 条目名同样不可信：SafeCombine 会拒绝 .. 上跳与绝对路径，
+                        // 并二次校验结果确实落在 pkgDir 内。
+                        string outPath;
+                        try
+                        {
+                            outPath = PathSanitizer.SafeCombine(pkgDir, rel);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            _logger.LogWarning(ex, "[Lock] Rejected unsafe bundle entry: {Entry}", entry.FullName);
+                            continue;
+                        }
 
                         // 目录条目（FullName 以 / 结尾）跳过
                         if (entry.FullName.EndsWith('/'))

@@ -146,7 +146,21 @@ namespace UEModManager.Services
 
                 foreach (var artifact in package.Artifacts.Where(a => a.ArtifactType != ArtifactType.PreviewImage))
                 {
-                    var sourcePath = Path.Combine(_objectStore.RepositoryRoot, artifact.RelativeSourcePath);
+                    // RelativeSourcePath 可能来自整合包内的 manifest.json（不可信）。
+                    // Path.Combine 遇到绝对路径会直接返回该绝对路径，会把仓库外的任意文件
+                    // 部署进游戏目录，故此处与目标路径一样必须走 SafeCombine。
+                    string sourcePath;
+                    try
+                    {
+                        sourcePath = PathSanitizer.SafeCombine(_objectStore.RepositoryRoot, artifact.RelativeSourcePath);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "跳过越界的仓库源路径: {Path} (包 {Key})",
+                            artifact.RelativeSourcePath, entry.PackageKey);
+                        continue;
+                    }
+
                     if (!File.Exists(sourcePath))
                     {
                         _logger.LogWarning("仓库文件不存在: {Path}", sourcePath);
