@@ -3,12 +3,29 @@
 const __name = (fn) => fn;
 
 // src/index.ts
+// [安全] 允许跨域访问本 API 的浏览器来源白名单。
+// 桌面客户端是原生 HTTP 调用，不受 CORS 约束，不需要出现在这里；
+// Worker 自托管的 /reset-password 页面与本 Worker 同源，同样不需要。
+// 原实现对**所有**响应（含返回 access_token/refresh_token 的登录响应）发 `*`，
+// 等于允许任意网页跨域调用登录接口并读取令牌，已收紧为白名单。
+const ALLOWED_ORIGINS = [
+  "https://modmanger.com",
+  "https://www.modmanger.com"
+];
+function corsHeaders(request) {
+  const headers = new Headers();
+  const origin = request?.headers?.get("origin");
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers.set("access-control-allow-origin", origin);
+    headers.set("access-control-allow-headers", "content-type, authorization, apikey");
+    headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
+    headers.set("vary", "Origin");
+  }
+  return headers;
+}
 function json(data, init = {}) {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("access-control-allow-origin", "*");
-  headers.set("access-control-allow-headers", "content-type, authorization, apikey");
-  headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 function bad(code, message, extra) {
@@ -125,41 +142,25 @@ ${en}
 }
 var index_default = {
   async fetch(request, env) {
+    // CORS 统一在边界处按白名单附加，业务分支不再各自设置跨域头。
+    const resp = await handleRequest(request, env);
+    const extra = corsHeaders(request);
+    if (![...extra.keys()].length) return resp;
+    const merged = new Headers(resp.headers);
+    for (const [k, v] of extra) merged.set(k, v);
+    return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: merged });
+  }
+};
+async function handleRequest(request, env) {
+  {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/v1/")) url.pathname = url.pathname.substring(3);
     else if (url.pathname === "/v1") url.pathname = "/";
     if (request.method === "OPTIONS") return json({ ok: true });
-    if (url.pathname === "/test/env" && request.method === "GET") {
-      const safe = /* @__PURE__ */ __name((v) => v ? v.length : 0, "safe");
-      return json({
-        supabaseUrlLen: safe(env.SUPABASE_URL),
-        anonKeyLen: safe(env.SUPABASE_ANON_KEY),
-        serviceKeyLen: safe(env.SUPABASE_SERVICE_KEY),
-        brevoKeyLen: safe(env.BREVO_API_KEY),
-        fromSet: !!env.BREVO_FROM,
-        fromNameSet: !!env.BREVO_FROM_NAME
-      });
-    }
-    if (url.pathname === "/test/generate" && request.method === "GET") {
-      const email = url.searchParams.get("email") || "test@example.com";
-      const redirect = url.searchParams.get("redirect") || void 0;
-      try {
-        const r = await generateSupabaseLinkOrOtp(env, email, "recovery", redirect);
-        return json({ ok: r.ok, status: r.status, link: r.link, data: r.data, redirect_used: redirect });
-      } catch (e) {
-        return json({ ok: false, error: String(e), stack: e.stack }, { status: 500 });
-      }
-    }
-    if (url.pathname === "/test/brevo" && request.method === "GET") {
-      try {
-        const headers = new Headers({ "api-key": env.BREVO_API_KEY });
-        const resp = await fetch("https://api.brevo.com/v3/account", { headers });
-        const text = await resp.text();
-        return json({ code: resp.status, data: text });
-      } catch (e) {
-        return json({ code: 502, message: String(e) }, { status: 502 });
-      }
-    }
+    // [安全] /test/env、/test/generate、/test/brevo 三个调试端点已于 2026-07-26 移除。
+    // /test/generate 曾以 SERVICE_KEY 生成任意邮箱的 recovery 链接并直接回传，构成未认证的任意账户接管；
+    // /test/brevo 泄露第三方账户信息并可被刷配额；/test/env 泄露密钥配置指纹。
+    // 如需恢复联调能力，务必：仅在非生产环境注册 + 要求 Authorization 头 + 绝不回传 link/otp/stack。
     if (url.pathname === "/health") {
       return json({ ok: true, time: (/* @__PURE__ */ new Date()).toISOString() });
     }
@@ -417,7 +418,9 @@ var index_default = {
       });
     }
     if (url.pathname === "/app/update" && request.method === "GET") {
-      const latest = await env.RATE_LIMIT.get("config:latest") || "1.7.37";
+      // 回退默认值必须与当前发布版本保持同步（UEModManager.csproj 的 AssemblyVersion）。
+      // 此前硬编码为 1.7.37，会在 KV 未配置时告诉 2.0.5 的客户端"最新版是 1.7.37"。
+      const latest = await env.RATE_LIMIT.get("config:latest") || "2.0.5";
       const mandatory = await env.RATE_LIMIT.get("config:mandatory") === "true";
       const notes = await env.RATE_LIMIT.get("config:notes") || "";
       return json({ code: 200, data: { latest, mandatory, notes } });
@@ -433,7 +436,8 @@ var index_default = {
         const res = await forwardSupabase(env, "/auth/v1/token?grant_type=password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
         return json({ code: res.status, data: res.data }, { status: res.status });
       } catch (e) {
-        return json({ code: 502, message: String(e) }, { status: 502 });
+        console.error("[auth/password] upstream error:", String(e));
+        return json({ code: 502, message: "认证服务暂时不可用，请稍后重试" }, { status: 502 });
       }
     }
     if (url.pathname === "/api/auth/login" && request.method === "POST") {
@@ -481,9 +485,11 @@ var index_default = {
           }, { status: 401 });
         }
       } catch (e) {
+        // [\u5B89\u5168] \u4E0D\u628A\u4E0A\u6E38\u5F02\u5E38\u7EC6\u8282\u56DE\u4F20\u5BA2\u6237\u7AEF\uFF0C\u53EA\u8FDB\u670D\u52A1\u7AEF\u65E5\u5FD7\u3002
+        console.error("[api/auth/login] upstream error:", String(e));
         return json({
           success: false,
-          message: "\u767B\u5F55\u5931\u8D25: " + String(e)
+          message: "\u767B\u5F55\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5"
         }, { status: 500 });
       }
     }
@@ -520,7 +526,10 @@ var index_default = {
       }
       try {
         const gen = await generateSupabaseLinkOrOtp(env, email, type === "magiclink" ? "magiclink" : "email", redirect_to);
-        if (!gen.ok) return json({ code: 502, message: "generate_link_failed", data: gen.data }, { status: 502 });
+        if (!gen.ok) {
+          console.error("[auth/otp/send] generate_link failed:", gen.status, JSON.stringify(gen.data));
+          return json({ code: 502, message: "generate_link_failed" }, { status: 502 });
+        }
         let subject = "UEModManager \u767B\u5F55";
         let cn = "", en = "";
         if (type === "magiclink" && gen.link) {
@@ -537,10 +546,16 @@ var index_default = {
         }
         const mail = buildBilingualMail("\u767B\u5F55\u9A8C\u8BC1", "Sign-in Verification", cn, en);
         const sent = await sendBrevoMail(env, email, subject, mail.html, mail.text);
-        if (!sent.ok) return json({ code: 200, data: { link: gen.link, note: "brevo_failed" }, channelUsed: "link_only" });
+        if (!sent.ok) {
+          // [\u5B89\u5168] \u4E0E /auth/reset \u540C\u7406\uFF1A\u53D1\u4FE1\u5931\u8D25\u65F6**\u7EDD\u4E0D**\u628A magic link / OTP \u56DE\u4F20\u7ED9\u8BF7\u6C42\u65B9\u3002
+          // \u539F\u5B9E\u73B0\u4F1A\u628A type=magiclink \u751F\u6210\u7684\u767B\u5F55\u94FE\u63A5\u76F4\u63A5\u8FD4\u56DE\uFF0C\u7B49\u540C\u4E8E\u4EFB\u610F\u8D26\u6237\u63A5\u7BA1\u3002
+          console.error("[auth/otp/send] brevo send failed, link withheld");
+          return json({ code: 502, message: "\u9A8C\u8BC1\u7801\u53D1\u9001\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }, { status: 502 });
+        }
         return json({ code: 200, data: { ok: true }, channelUsed: "brevo" });
       } catch (e) {
-        return json({ code: 502, message: String(e), channelUsed: "brevo_exception" }, { status: 502 });
+        console.error("[auth/otp/send] error:", String(e));
+        return json({ code: 502, message: "\u9A8C\u8BC1\u7801\u53D1\u9001\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }, { status: 502 });
       }
     }
     if (url.pathname === "/auth/reset" && request.method === "POST") {
@@ -569,12 +584,10 @@ var index_default = {
         if (resp.ok) return json({ code: 200, data, channelUsed: "supabase" });
       } catch (e) {
       }
-      let recoveryLink;
       let layer2Error;
       try {
         const gen = await generateSupabaseLinkOrOtp(env, email, "recovery", redirect_to);
         if (gen.ok && gen.link) {
-          recoveryLink = gen.link;
           try {
             const cn = `\u70B9\u51FB\u4E0B\u65B9\u94FE\u63A5\u91CD\u7F6E\u5BC6\u7801\uFF1A<br/><a href="${gen.link}">${gen.link}</a>`;
             const en = `Click to reset your password:<br/><a href="${gen.link}">${gen.link}</a>`;
@@ -585,29 +598,24 @@ var index_default = {
             }
           } catch (brevoErr) {
           }
-          return json({ code: 200, data: { link: gen.link, note: "brevo_failed" }, channelUsed: "link_only" });
+          // [安全] 邮件发送失败时**绝不**把 recovery link 回传给请求方：
+          // 重置链接的唯一安全前提是"只有邮箱所有者能看到它"，回传即等于任意账户接管。
+          console.error("[auth/reset] brevo send failed, link withheld");
+          return json({ code: 502, message: "邮件发送失败，请稍后重试" }, { status: 502 });
         } else {
-          layer2Error = `gen.ok=${gen.ok}, status=${gen.status}, data=${JSON.stringify(gen.data)}`;
+          layer2Error = `gen.ok=${gen.ok}, status=${gen.status}`;
         }
       } catch (e) {
         layer2Error = String(e);
       }
-      let layer3Error;
-      try {
-        const gen3 = await generateSupabaseLinkOrOtp(env, email, "recovery", redirect_to);
-        if (gen3.ok && gen3.link) {
-          return json({ code: 200, data: { link: gen3.link, note: "final_fallback" }, channelUsed: "link_only" });
-        } else {
-          layer3Error = `gen3.ok=${gen3.ok}, status=${gen3.status}, data=${JSON.stringify(gen3.data)}`;
-        }
-      } catch (finalErr) {
-        layer3Error = String(finalErr);
-      }
+      // [安全] 原第三层"final_fallback"会无条件把 recovery link 放进响应体，已移除。
+      // 它本身也无意义：只是用完全相同的参数重试一次 generate_link。
+      // 内部错误细节只进服务端日志，不回传给调用方（避免泄露 Supabase 响应结构）。
+      console.error("[auth/reset] unable to generate recovery link:", layer2Error);
       return json({
         code: 500,
-        message: "unable_to_generate_recovery_link",
-        channelUsed: "failed",
-        debug: { layer2: layer2Error, layer3: layer3Error }
+        message: "无法发送重置邮件，请稍后重试",
+        channelUsed: "failed"
       }, { status: 500 });
     }
     if (url.pathname === "/logs" && request.method === "POST") {
@@ -646,12 +654,16 @@ var index_default = {
       const rl2 = await rateLimit(env, `mail_em:${to.toLowerCase()}`, 6, 300);
       if (!rl2.allowed) return bad(429, "rate limited for this address");
       const sent = await sendBrevoMail(env, to, subject, html, text || "");
-      if (!sent.ok) return json({ code: 502, message: "send_failed", brevoStatus: sent.status, data: sent.data }, { status: 502 });
+      if (!sent.ok) {
+        // [安全] 不回传 Brevo 原始错误体（含账户/配额等内部信息）。
+        console.error("[email/send] brevo failed:", sent.status, JSON.stringify(sent.data));
+        return json({ code: 502, message: "send_failed", brevoStatus: sent.status }, { status: 502 });
+      }
       return json({ code: 200, data: { ok: true }, channelUsed: "brevo" });
     }
     return bad(404, "not found");
   }
-};
+}
 export {
   index_default as default
 };
