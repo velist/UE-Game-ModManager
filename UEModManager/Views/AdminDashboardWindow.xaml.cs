@@ -638,27 +638,19 @@ namespace UEModManager.Views
 
 
 
-        private async void RefreshDataButton_Click(object sender, RoutedEventArgs e)
+        private void RefreshDataButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 手动刷新数据");
+                await LoadDashboardDataAsync();
+            }, _logger, "刷新管理面板数据");
 
-        {
-
-            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 手动刷新数据");
-
-            await LoadDashboardDataAsync();
-
-        }
-
-
-
-        private async void UserManagementButton_Click(object sender, RoutedEventArgs e)
-
-        {
-
-            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 打开用户管理");
-
-            await LoadUsersAsync();
-
-        }
+        private void UserManagementButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 打开用户管理");
+                await LoadUsersAsync();
+            }, _logger, "加载用户管理");
 
 
 

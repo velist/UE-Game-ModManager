@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 using UEModManager.ViewModels;
 
@@ -232,26 +233,29 @@ namespace UEModManager.Views
             });
         }
 
-        private async void LaunchButton_Click(object sender, MouseButtonEventArgs e)
+        private void LaunchButton_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            if (_vm.IsLaunching) return;
-
-            ProgressText.Text = "正在启动...";
-            var session = await _vm.LaunchGameAsync();
-
-            if (session != null)
+            SafeEvent.Run(this, async () =>
             {
-                RebuildCheckList();
-                UpdateUI();
+                if (_vm.IsLaunching) return;
 
-                if (session.Success)
+                ProgressText.Text = "正在启动...";
+                var session = await _vm.LaunchGameAsync();
+
+                if (session != null)
                 {
-                    // 启动成功后短暂显示状态，然后关闭窗口
-                    await System.Threading.Tasks.Task.Delay(1500);
-                    Close();
+                    RebuildCheckList();
+                    UpdateUI();
+
+                    if (session.Success)
+                    {
+                        // 启动成功后短暂显示状态，然后关闭窗口
+                        await System.Threading.Tasks.Task.Delay(1500);
+                        Close();
+                    }
                 }
-            }
+            }, null, "启动游戏");
         }
 
         private void ShowHistory_Click(object sender, MouseButtonEventArgs e)

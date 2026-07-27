@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 
 namespace UEModManager.Views
@@ -112,50 +113,54 @@ namespace UEModManager.Views
             ToggleBtn.Content = _mod.IsEnabled ? "禁用MOD" : "启用MOD";
         }
 
-        private async void ToggleBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var changed = _onToggle == null || await _onToggle(_mod);
-            if (!changed) return;
+        private void ToggleBtn_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var changed = _onToggle == null || await _onToggle(_mod);
+                if (!changed) return;
 
-            ModChanged = true;
-            UpdateStatusBadge();
-            UpdateToggleButton();
-        }
+                ModChanged = true;
+                UpdateStatusBadge();
+                UpdateToggleButton();
+            }, null, "切换 MOD 启用状态");
 
-        private async void ChangePreviewBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var changed = _onChangePreview == null || await _onChangePreview(_mod);
-            if (!changed) return;
+        private void ChangePreviewBtn_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var changed = _onChangePreview == null || await _onChangePreview(_mod);
+                if (!changed) return;
 
-            ModChanged = true;
-            UpdatePreviewImage();
-        }
+                ModChanged = true;
+                UpdatePreviewImage();
+            }, null, "更换 MOD 预览图");
 
-        private async void RenameBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", _mod.Name);
-            if (string.IsNullOrWhiteSpace(newName) || newName == _mod.Name) return;
+        private void RenameBtn_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", _mod.Name);
+                if (string.IsNullOrWhiteSpace(newName) || newName == _mod.Name) return;
 
-            var changed = _onRename == null || await _onRename(_mod, newName);
-            if (!changed) return;
+                var changed = _onRename == null || await _onRename(_mod, newName);
+                if (!changed) return;
 
-            ModNameText.Text = _mod.Name;
-            ModChanged = true;
-        }
+                ModNameText.Text = _mod.Name;
+                ModChanged = true;
+            }, null, "重命名 MOD");
 
-        private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var r = CyberMessageBox.Show(this, $"确认删除 '{_mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。",
-                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (r != MessageBoxResult.Yes) return;
+        private void DeleteBtn_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var r = CyberMessageBox.Show(this, $"确认删除 '{_mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。",
+                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
 
-            var changed = _onDelete == null || await _onDelete(_mod);
-            if (!changed) return;
+                var changed = _onDelete == null || await _onDelete(_mod);
+                if (!changed) return;
 
-            ModChanged = true;
-            DialogResult = true;
-            Close();
-        }
+                ModChanged = true;
+                DialogResult = true;
+                Close();
+            }, null, "删除 MOD");
 
         private void CloseBtn_Click(object sender, MouseButtonEventArgs e)
         {

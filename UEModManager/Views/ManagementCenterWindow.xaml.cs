@@ -49,11 +49,12 @@ namespace UEModManager.Views
             Close();
         }
 
-        private async void OnLoaded(object sender, RoutedEventArgs e)
-        {
-            SwitchTab(0);
-            await LoadModLibAsync();
-        }
+        private void OnLoaded(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                SwitchTab(0);
+                await LoadModLibAsync();
+            }, null, "加载管理中心");
 
         // ─── Tab 切换 ───
 

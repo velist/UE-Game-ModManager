@@ -112,10 +112,48 @@ namespace UEModManager
             try { Console.WriteLine($"[FATAL] AppDomain Unhandled: {((Exception)e.ExceptionObject)}"); } catch { }
         }
 
+        /// <summary>
+        /// 进程级致命异常：继续运行只会让状态更坏，一律不拦截，让 WPF 走默认崩溃并落转储。
+        /// （StackOverflowException 无法被托管代码捕获，列出仅作说明。）
+        /// </summary>
+        private static bool IsUnrecoverable(Exception ex)
+            => ex is OutOfMemoryException
+                or StackOverflowException
+                or System.Runtime.InteropServices.SEHException
+                or AccessViolationException;
+
+        /// <summary>同一时刻只允许一个致命错误对话框，避免异常风暴把用户淹没在弹窗里。</summary>
+        private bool _isShowingFatalDialog;
+
         private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
             try { Console.WriteLine($"[FATAL] Dispatcher Unhandled: {e.Exception}"); } catch { }
-            e.Handled = true; // 阻止WPF默认崩溃
+
+            if (IsUnrecoverable(e.Exception))
+            {
+                // 不设 Handled：让进程崩溃，保留可分析的转储
+                return;
+            }
+
+            // UI 线程的异常绝大多数来自 async void 事件处理器。此前这里无条件 Handled=true
+            // 且只写日志，结果是"点了没反应，日志里也没有"——必须让用户看见失败。
+            if (!_isShowingFatalDialog)
+            {
+                _isShowingFatalDialog = true;
+                try
+                {
+                    MessageBox.Show(
+                        $"操作失败：{e.Exception.Message}\n\n" +
+                        $"详细信息已写入日志：\n{_logFilePath}",
+                        "UEModManager 发生错误",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+                catch { /* 弹窗本身失败时不能再抛，否则递归 */ }
+                finally { _isShowingFatalDialog = false; }
+            }
+
+            e.Handled = true;
         }
 
         private void TaskScheduler_UnobservedTaskException(object? sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
@@ -145,14 +183,28 @@ namespace UEModManager
             catch { /* 如果失败，不阻断启动 */ }
         }
 
-        protected override async void OnExit(ExitEventArgs e)
+        /// <summary>
+        /// 退出清理。必须是同步的：WPF 不会 await 派生的 OnExit，
+        /// async void 版本会在第一个 await 处让出，随后 _host.Dispose() 与 base.OnExit()
+        /// 能否执行取决于与进程终止的竞速——SQLite 上下文可能不被确定性释放、
+        /// 日志 writer 可能来不及 flush。
+        /// </summary>
+        protected override void OnExit(ExitEventArgs e)
         {
-            if (_host != null)
+            try
             {
-                await _host.StopAsync();
-                _host.Dispose();
+                _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             }
-            base.OnExit(e);
+            catch (Exception ex)
+            {
+                try { Console.WriteLine($"[App] 停止 Host 失败: {ex}"); } catch { }
+            }
+            finally
+            {
+                _host?.Dispose();
+                try { Console.Out.Flush(); } catch { }
+                base.OnExit(e);
+            }
         }
 
         private IHostBuilder CreateHostBuilder()

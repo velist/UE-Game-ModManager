@@ -83,7 +83,6 @@ namespace UEModManager
 #endif
             try
             {
-                RedirectConsoleOutput();
                 InitializeComponent();
                 Console.WriteLine("MainWindow: InitializeComponent 完成");
 
@@ -740,35 +739,40 @@ namespace UEModManager
             }
         }
 
-        private async void AddCategory_Click(object sender, MouseButtonEventArgs e)
+        private void AddCategory_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            var name = CyberInputDialog.Show(this, "新增分类", "请输入分类名称:");
-            if (!string.IsNullOrWhiteSpace(name))
-                await _vm.Categories.AddCategoryAsync(name.Trim());
+            SafeEvent.Run(this, async () =>
+            {
+                var name = CyberInputDialog.Show(this, "新增分类", "请输入分类名称:");
+                if (!string.IsNullOrWhiteSpace(name))
+                    await _vm.Categories.AddCategoryAsync(name.Trim());
+            }, _logger, "新增分类");
         }
 
         private void CategoryContextMenu_Opened(object sender, RoutedEventArgs e) { }
 
-        private async void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+        private void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                var newName = CyberInputDialog.Show(this, "重命名分类", "请输入新名称:", cat.DisplayText);
-                if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
-                    await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
-            }
-        }
+                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                {
+                    var newName = CyberInputDialog.Show(this, "重命名分类", "请输入新名称:", cat.DisplayText);
+                    if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
+                        await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
+                }
+            }, _logger, "重命名分类");
 
-        private async void DeleteCategoryMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+        private void DeleteCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                var r = CyberMessageBox.Show(this, $"确认删除分类 '{cat.DisplayText}'？", "确认", MessageBoxButton.YesNo);
-                if (r == MessageBoxResult.Yes)
-                    await _vm.Categories.DeleteCategoryAsync(cat);
-            }
-        }
+                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                {
+                    var r = CyberMessageBox.Show(this, $"确认删除分类 '{cat.DisplayText}'？", "确认", MessageBoxButton.YesNo);
+                    if (r == MessageBoxResult.Yes)
+                        await _vm.Categories.DeleteCategoryAsync(cat);
+                }
+            }, _logger, "删除分类");
 
         private void CategoryList_ContextMenuOpening(object sender, ContextMenuEventArgs e) { }
 
@@ -871,13 +875,13 @@ namespace UEModManager
             }
         }
 
-        private async void ModToggle_MouseDown(object sender, MouseButtonEventArgs e)
+        private void ModToggle_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod == null) return;
 
-            await ToggleModFromUiAsync(mod, !mod.IsEnabled);
+            SafeEvent.Run(this, () => ToggleModFromUiAsync(mod, !mod.IsEnabled), _logger, "切换 MOD 启用状态");
         }
 
         // ── MOD 导入 (v2.0: ImportDialog → ImportConfirmDialog) ──
@@ -979,40 +983,45 @@ namespace UEModManager
 
         private void ModContextMenu_Opened(object sender, RoutedEventArgs e) { }
 
-        private async void EnableModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null && !mod.IsEnabled)
-                await ToggleModFromUiAsync(mod, true);
-        }
+        private void EnableModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null && !mod.IsEnabled)
+                    await ToggleModFromUiAsync(mod, true);
+            }, _logger, "启用 MOD");
 
-        private async void DisableModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null && mod.IsEnabled)
-                await ToggleModFromUiAsync(mod, false);
-        }
+        private void DisableModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null && mod.IsEnabled)
+                    await ToggleModFromUiAsync(mod, false);
+            }, _logger, "禁用 MOD");
 
-        private async void RenameModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await RenameModFromUiAsync(mod);
-        }
+        private void RenameModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await RenameModFromUiAsync(mod);
+            }, _logger, "重命名 MOD");
 
-        private async void ChangePreviewMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await ChangePreviewFromUiAsync(mod);
-        }
+        private void ChangePreviewMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await ChangePreviewFromUiAsync(mod);
+            }, _logger, "更换 MOD 预览图");
 
-        private async void DeleteModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await DeleteModFromUiAsync(mod);
-        }
+        private void DeleteModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await DeleteModFromUiAsync(mod);
+            }, _logger, "删除 MOD");
 
         private ModInfo? GetModFromContextMenu(object sender)
         {
@@ -1254,20 +1263,20 @@ namespace UEModManager
 
         // ── 悬停遮罩上的直接操作按钮 ──
 
-        private async void ChangePreviewDirect_MouseDown(object sender, MouseButtonEventArgs e)
+        private void ChangePreviewDirect_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-                await ChangePreviewFromUiAsync(mod);
+                SafeEvent.Run(this, () => ChangePreviewFromUiAsync(mod), _logger, "更换 MOD 预览图");
         }
 
-        private async void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
+        private void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-                await DeleteModFromUiAsync(mod);
+                SafeEvent.Run(this, () => DeleteModFromUiAsync(mod), _logger, "删除 MOD");
         }
 
         private void ModMore_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1305,21 +1314,16 @@ namespace UEModManager
         }
 
         /// <summary>v2.0 冲突面板：使用 ConflictAnalyzer 分析结果。</summary>
-        private async void OpenConflictPanel()
-        {
-            try
+        private void OpenConflictPanel()
+            => SafeEvent.Run(this, async () =>
             {
+                // 此前这里 catch 后"回退到旧版冲突检测"，而回退目标 ConflictCheckButton_Click
+                // 已在重构中被掏空成空方法 —— 分析失败时用户得不到任何反馈。
+                // 现改由 SafeEvent 统一记日志 + 弹窗。
                 var result = await _vm.ConflictAnalysis.AnalyzeAsync();
                 var win = new Views.ConflictResultWindow(_vm.ConflictAnalysis, result.Conflicts) { Owner = this };
                 win.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Conflict] v2.0 冲突分析失败: {ex.Message}");
-                // 回退到旧版冲突检测
-                ConflictCheckButton_Click(null, new RoutedEventArgs());
-            }
-        }
+            }, _logger, "冲突检测");
 
         /// <summary>打开管理中心窗口。</summary>
         private void ManagementCenter_Click(object sender, MouseButtonEventArgs e)
@@ -1632,18 +1636,6 @@ namespace UEModManager
         //  控制台输出重定向
         // ═════════════════════════════════════════
 
-        private void RedirectConsoleOutput()
-        {
-            try
-            {
-                var logPath = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "console.log");
-                var fs = new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-                var writer = new StreamWriter(fs) { AutoFlush = true };
-                Console.SetOut(writer);
-                Console.SetError(writer);
-            }
-            catch { }
-        }
 
         // ═════════════════════════════════════════
         //  辅助方法

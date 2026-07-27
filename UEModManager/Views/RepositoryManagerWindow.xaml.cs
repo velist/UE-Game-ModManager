@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -194,33 +195,34 @@ namespace UEModManager.Views
             }
         }
 
-        private async void CleanupOrphans_Click(object sender, RoutedEventArgs e)
-        {
-            // 收集引用 keys
-            var referencedKeys = _profileService.GetProfiles()
-                .SelectMany(p => p.Packages.Select(e2 => e2.PackageKey));
-            var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
-            if (orphans.Count == 0)
+        private void CleanupOrphans_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                CyberMessageBox.Show(this, "没有未使用的 MOD 文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var totalSize = orphans.Sum(p => p.TotalSize);
-            var result = CyberMessageBox.Show(this,
-                $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize)}）。\n此操作不可撤销，确认继续？",
-                "清理未使用文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                var allProfiles = _profileService.GetProfiles();
-                foreach (var pkg in orphans)
+                // 收集引用 keys
+                var referencedKeys = _profileService.GetProfiles()
+                    .SelectMany(p => p.Packages.Select(e2 => e2.PackageKey));
+                var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
+                if (orphans.Count == 0)
                 {
-                    await _packageRepo.DeletePackageAsync(pkg.PackageKey, allProfiles, force: false);
+                    CyberMessageBox.Show(this, "没有未使用的 MOD 文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
                 }
-                RefreshUI();
-            }
-        }
+
+                var totalSize = orphans.Sum(p => p.TotalSize);
+                var result = CyberMessageBox.Show(this,
+                    $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize)}）。\n此操作不可撤销，确认继续？",
+                    "清理未使用文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    var allProfiles = _profileService.GetProfiles();
+                    foreach (var pkg in orphans)
+                    {
+                        await _packageRepo.DeletePackageAsync(pkg.PackageKey, allProfiles, force: false);
+                    }
+                    RefreshUI();
+                }
+            }, null, "清理未使用的 MOD 文件");
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
     }

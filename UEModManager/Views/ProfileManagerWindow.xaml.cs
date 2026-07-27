@@ -70,24 +70,25 @@ namespace UEModManager.Views
             }, _logger, "Clone profile");
         }
 
-        private async void DeleteProfile_Click(object sender, RoutedEventArgs e)
-        {
-            if (_vm.SelectedProfile == null) return;
-            if (_vm.Profiles.Count <= 1)
+        private void DeleteProfile_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                MessageBox.Show("不能删除最后一个方案", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                if (_vm.SelectedProfile == null) return;
+                if (_vm.Profiles.Count <= 1)
+                {
+                    MessageBox.Show("不能删除最后一个方案", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
 
-            var result = MessageBox.Show($"确定删除方案「{_vm.SelectedProfile.Name}」吗？",
-                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
-            {
-                await _vm.DeleteProfileCommand.ExecuteAsync(null);
-                RenderProfileCards();
-                ShowSelectedProfile();
-            }
-        }
+                var result = MessageBox.Show($"确定删除方案「{_vm.SelectedProfile.Name}」吗？",
+                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    await _vm.DeleteProfileCommand.ExecuteAsync(null);
+                    RenderProfileCards();
+                    ShowSelectedProfile();
+                }
+            }, _logger, "删除方案");
 
         private void RenameProfile_Click(object sender, RoutedEventArgs e)
         {
