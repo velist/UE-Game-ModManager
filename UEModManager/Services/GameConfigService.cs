@@ -22,6 +22,12 @@ namespace UEModManager.Services
         private readonly ILogger<GameConfigService> _logger;
         private readonly string _configFilePath;
 
+        /// <summary>
+        /// 磁盘状态未知：config.json 存在但读取失败（被占用/权限），内存里的 Config 只是默认值。
+        /// 此时任何一次保存都会全量覆盖，故覆盖前先备份原文件。
+        /// </summary>
+        private bool _diskStateUnknown;
+
         public AppConfig Config { get; private set; } = new();
 
         // ─── 便捷属性 ───
@@ -75,9 +81,18 @@ namespace UEModManager.Services
         public event Action? ConfigChanged;
 
         public GameConfigService(ILogger<GameConfigService> logger)
+            : this(logger, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json"))
+        {
+        }
+
+        /// <summary>
+        /// 指定配置文件路径的构造函数（测试用）。DI 走上面的单参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。
+        /// </summary>
+        public GameConfigService(ILogger<GameConfigService> logger, string configFilePath)
         {
             _logger = logger;
-            _configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+            _configFilePath = configFilePath;
         }
 
         // ─── 配置加载/保存 ───
@@ -89,6 +104,7 @@ namespace UEModManager.Services
         {
             return Task.Run(() =>
             {
+                string json;
                 try
                 {
                     if (!File.Exists(_configFilePath))
@@ -97,27 +113,49 @@ namespace UEModManager.Services
                         return;
                     }
 
-                    var json = File.ReadAllText(_configFilePath);
-                    var config = JsonSerializer.Deserialize<AppConfig>(json);
-                    if (config == null) return;
-
-                    Config = config;
-
-                    // 修复旧版本备份路径
-                    if (!string.IsNullOrEmpty(Config.BackupPath) && Config.BackupPath.Contains("net6.0-windows"))
-                    {
-                        Config.BackupPath = Config.BackupPath.Replace("net6.0-windows", "net8.0-windows");
-                        SaveConfigSync();
-                        _logger.LogInformation("已自动修正备份路径");
-                    }
-
-                    _logger.LogInformation("配置加载成功: 游戏={Game}, 路径={Path}",
-                        Config.GameName, Config.GamePath);
+                    json = File.ReadAllText(_configFilePath);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "加载配置失败");
+                    // 读盘失败时磁盘上的配置很可能仍然完好：标记状态未知，
+                    // 由 SaveConfigSync 在覆盖前补一次备份，避免游戏路径被默认值抹掉。
+                    _diskStateUnknown = true;
+                    _logger.LogError(ex, "读取配置文件失败，本次使用默认设置");
+                    return;
                 }
+
+                AppConfig? config;
+                try
+                {
+                    config = JsonSerializer.Deserialize<AppConfig>(json);
+                }
+                catch (Exception ex)
+                {
+                    // 解析失败若只是"保持默认值"，之后任意一次保存（切换游戏、设图标……）
+                    // 都会用空配置覆盖原文件，游戏路径/MOD 路径/自定义游戏列表全部丢失。
+                    // 与 ProfileService.LoadProfilesAsync 对齐：先备份，再按默认配置继续。
+                    BackupBrokenConfigFile("解析配置失败", ex);
+                    return;
+                }
+
+                if (config == null)
+                {
+                    BackupBrokenConfigFile("配置文件反序列化结果为空", null);
+                    return;
+                }
+
+                Config = config;
+
+                // 修复旧版本备份路径
+                if (!string.IsNullOrEmpty(Config.BackupPath) && Config.BackupPath.Contains("net6.0-windows"))
+                {
+                    Config.BackupPath = Config.BackupPath.Replace("net6.0-windows", "net8.0-windows");
+                    SaveConfigSync();
+                    _logger.LogInformation("已自动修正备份路径");
+                }
+
+                _logger.LogInformation("配置加载成功: 游戏={Game}, 路径={Path}",
+                    Config.GameName, Config.GamePath);
             });
         }
 
@@ -133,6 +171,12 @@ namespace UEModManager.Services
         {
             try
             {
+                if (_diskStateUnknown)
+                {
+                    BackupBrokenConfigFile("即将用内存配置覆盖一个此前读取失败的 config.json", null);
+                    _diskStateUnknown = false;
+                }
+
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
                 AtomicFileWriter.WriteAllText(_configFilePath, json);
                 _logger.LogInformation("配置已保存");
@@ -140,6 +184,26 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "保存配置失败");
+            }
+        }
+
+        /// <summary>
+        /// 备份不可用（损坏或读不出）的 config.json，命名与 ProfileService.BackupCorruptProfileFile 对齐。
+        /// </summary>
+        private void BackupBrokenConfigFile(string reason, Exception? cause)
+        {
+            if (!File.Exists(_configFilePath)) return;
+
+            try
+            {
+                var backupPath = $"{_configFilePath}.corrupt-{DateTime.Now:yyyyMMddHHmmss}.bak";
+                File.Copy(_configFilePath, backupPath, overwrite: false);
+                _logger.LogError(cause, "{Reason}，已备份原文件: {BackupPath}", reason, backupPath);
+            }
+            catch (Exception backupException)
+            {
+                _logger.LogError(cause, "{Reason}，且原文件备份失败: {Path}", reason, _configFilePath);
+                _logger.LogError(backupException, "损坏的 config.json 备份失败");
             }
         }
 
