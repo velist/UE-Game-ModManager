@@ -3,81 +3,18 @@
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
 
     <!-- ════════════════════════════════════════════════════════════
-         Cyber Dark Theme - UEModManager
+         Cyber Dark Theme — 控件样式层
          基于 Pencil 原型设计系统
-         色彩方案: 纯黑底 + 青色(Cyan)强调
+
+         本文件**只放 Style / ControlTemplate**，一切颜色、圆角、字体都通过
+         {StaticResource} 引用 CyberDarkTheme.xaml 里的设计令牌。
+         不要在这里定义 Color / SolidColorBrush / CornerRadius / FontFamily —
+         那会重新制造"两份事实来源"，正是本次重构要消灭的东西。
+
+         合并顺序见 App.xaml：CyberDarkTheme.xaml 在前，本文件在后，
+         所以这里的 {StaticResource} 能解析到前者定义的令牌。
          ════════════════════════════════════════════════════════════ -->
 
-    <!-- ── 颜色资源 ── -->
-    <Color x:Key="BgBaseColor">#030303</Color>
-    <Color x:Key="SurfaceColor">#0f0f11</Color>
-    <Color x:Key="SurfaceHoverColor">#1a1a1d</Color>
-    <Color x:Key="TitlebarColor">#0a0a0c</Color>
-
-    <Color x:Key="PrimaryColor">#06b6d4</Color>
-    <Color x:Key="PrimaryHoverColor">#0891b2</Color>
-    <Color x:Key="PrimaryLightColor">#22d3ee</Color>
-    <Color x:Key="PrimaryGlowColor">#06b6d440</Color>
-
-    <Color x:Key="BorderColor">#27272a</Color>
-    <Color x:Key="BorderLightColor">#3f3f46</Color>
-    <Color x:Key="OverlayColor">#CC000000</Color>
-
-    <Color x:Key="Text100Color">#f4f4f5</Color>
-    <Color x:Key="Text200Color">#e4e4e7</Color>
-    <Color x:Key="Text300Color">#d4d4d8</Color>
-    <Color x:Key="Text400Color">#a1a1aa</Color>
-    <Color x:Key="Text500Color">#71717a</Color>
-    <Color x:Key="Text600Color">#52525b</Color>
-    <Color x:Key="Text700Color">#3f3f46</Color>
-
-    <Color x:Key="StatusGreenColor">#22c55e</Color>
-    <Color x:Key="StatusOrangeColor">#f97316</Color>
-    <Color x:Key="StatusRedColor">#ef4444</Color>
-    <Color x:Key="CloseHoverColor">#dc2626</Color>
-    <Color x:Key="ClosePressedColor">#b91c1c</Color>
-
-    <!-- ── 画刷资源 ── -->
-    <SolidColorBrush x:Key="BgBaseBrush" Color="{StaticResource BgBaseColor}"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
-    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHoverColor}"/>
-    <SolidColorBrush x:Key="TitlebarBrush" Color="{StaticResource TitlebarColor}"/>
-
-    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
-    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}"/>
-    <SolidColorBrush x:Key="PrimaryLightBrush" Color="{StaticResource PrimaryLightColor}"/>
-    <SolidColorBrush x:Key="PrimaryGlowBrush" Color="{StaticResource PrimaryGlowColor}"/>
-
-    <SolidColorBrush x:Key="CyberBorderBrush" Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
-    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}"/>
-
-    <SolidColorBrush x:Key="Text100Brush" Color="{StaticResource Text100Color}"/>
-    <SolidColorBrush x:Key="Text200Brush" Color="{StaticResource Text200Color}"/>
-    <SolidColorBrush x:Key="Text300Brush" Color="{StaticResource Text300Color}"/>
-    <SolidColorBrush x:Key="Text400Brush" Color="{StaticResource Text400Color}"/>
-    <SolidColorBrush x:Key="Text500Brush" Color="{StaticResource Text500Color}"/>
-    <SolidColorBrush x:Key="Text600Brush" Color="{StaticResource Text600Color}"/>
-    <SolidColorBrush x:Key="Text700Brush" Color="{StaticResource Text700Color}"/>
-
-    <SolidColorBrush x:Key="StatusGreenBrush" Color="{StaticResource StatusGreenColor}"/>
-    <SolidColorBrush x:Key="StatusOrangeBrush" Color="{StaticResource StatusOrangeColor}"/>
-    <SolidColorBrush x:Key="StatusRedBrush" Color="{StaticResource StatusRedColor}"/>
-    <SolidColorBrush x:Key="CloseHoverBrush" Color="{StaticResource CloseHoverColor}"/>
-    <SolidColorBrush x:Key="ClosePressedBrush" Color="{StaticResource ClosePressedColor}"/>
-
-    <!-- ── 圆角 ── -->
-    <CornerRadius x:Key="RadiusSm">8</CornerRadius>
-    <CornerRadius x:Key="RadiusMd">12</CornerRadius>
-    <CornerRadius x:Key="RadiusLg">16</CornerRadius>
-    <CornerRadius x:Key="RadiusXl">20</CornerRadius>
-
-    <!-- ── 字体 ──
-         嵌入思源黑体 SC（Adobe SIL OFL 1.1）— Regular 字形覆盖所有中文显示。
-         WPF 在缺字形时自动回退到系统字体（Segoe UI / 微软雅黑）处理拉丁字符。
-         FontWeight=Medium/Bold 时 WPF 自动从 Medium/Bold 字形匹配。
-         资源 key 沿用 InterFont 名以保持向后兼容（22 处 XAML 引用无需修改）。 -->
-    <FontFamily x:Key="InterFont">pack://application:,,,/Fonts/#Source Han Sans SC, Microsoft YaHei UI, Segoe UI</FontFamily>
 
     <!-- ════════════════════════════════════════════════════════════
          窗口控制按钮样式 (最小化/最大化/关闭)
@@ -836,21 +773,6 @@
          Phase 4 补强 — 来自 Pencil 原型的组件样式
          ════════════════════════════════════════════════════════════ -->
 
-    <!-- ── 补充颜色/画刷 ── -->
-    <Color x:Key="DropdownBgColor">#0f0f11</Color>
-    <Color x:Key="DropdownBorderColor">#3f3f46</Color>
-    <Color x:Key="ItemHoverColor">#1a1a1d</Color>
-    <Color x:Key="ItemActiveColor">#1a1a1d</Color>
-    <Color x:Key="ItemActiveBorderColor">#27272a80</Color>
-    <Color x:Key="DividerColor">#27272a99</Color>
-
-    <SolidColorBrush x:Key="DropdownBgBrush" Color="{StaticResource DropdownBgColor}"/>
-    <SolidColorBrush x:Key="DropdownBorderBrush" Color="{StaticResource DropdownBorderColor}"/>
-    <SolidColorBrush x:Key="ItemHoverBrush" Color="{StaticResource ItemHoverColor}"/>
-    <SolidColorBrush x:Key="ItemActiveBrush" Color="{StaticResource ItemActiveColor}"/>
-    <SolidColorBrush x:Key="ItemActiveBorderBrush" Color="{StaticResource ItemActiveBorderColor}"/>
-    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}"/>
-
     <!-- ── ToolTip ── -->
     <Style x:Key="CyberToolTip" TargetType="{x:Type ToolTip}">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -1390,5 +1312,35 @@
 
     <!-- ── 全局默认 ToolTip 覆盖 ── -->
     <Style TargetType="{x:Type ToolTip}" BasedOn="{StaticResource CyberToolTip}"/>
+
+
+    <!-- ── v2.0 管理中心 Tab（原先误放在令牌文件里，随本次分层迁入） ── -->
+    <Style x:Key="ManagementTabStyle" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Padding" Value="0,8,0,10"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 
 </ResourceDictionary>

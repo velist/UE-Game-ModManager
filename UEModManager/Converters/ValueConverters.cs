@@ -10,6 +10,43 @@ using UEModManager.Models;
 
 namespace UEModManager.Converters
 {
+    /// <summary>
+    /// 从主题资源解析画刷，解析不到时回落到给定颜色。
+    ///
+    /// 存在的理由：本文件此前硬编码了 26 个 SolidColorBrush，与
+    /// Themes/CyberDarkTheme.xaml 的设计令牌各自演化，已经漂移——
+    /// 同为"配置/替换"语义色，XAML 是一种橙、这里是另一种橙。
+    /// 现在统一从主题取，令牌就真的是唯一事实来源。
+    ///
+    /// 两点必须成立：
+    /// - **不能抛异常**。设计期（XAML 设计器）和测试宿主里 Application.Current 为 null。
+    /// - **延迟解析**。静态构造若早于 App.xaml 合并主题字典执行，会把回落值缓存一辈子；
+    ///   用 Lazy 推迟到第一次真正取用，那时资源一定已就位（Lazy 默认线程安全）。
+    /// </summary>
+    internal static class ThemeBrush
+    {
+        /// <summary>声明一个延迟解析的主题画刷。</summary>
+        public static Lazy<SolidColorBrush> Lazy(string resourceKey, Color fallback)
+            => new(() => Resolve(resourceKey, fallback));
+
+        private static SolidColorBrush Resolve(string resourceKey, Color fallback)
+        {
+            try
+            {
+                if (Application.Current?.TryFindResource(resourceKey) is SolidColorBrush brush)
+                    return brush;
+            }
+            catch
+            {
+                // 设计期或资源尚未加载 —— 走回落，绝不让转换器把界面搞崩
+            }
+
+            var fallbackBrush = new SolidColorBrush(fallback);
+            fallbackBrush.Freeze();
+            return fallbackBrush;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════
     //  v2.0 Package / Deploy / Conflict 转换器
     // ═══════════════════════════════════════════════════════
@@ -17,22 +54,20 @@ namespace UEModManager.Converters
     /// <summary>PackageKind → 前景色画刷 (MOD=青/Plugin=紫/Config=橙)</summary>
     public class PackageKindToBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush ModBrush = new(Color.FromRgb(0x06, 0xb6, 0xd4));
-        private static readonly SolidColorBrush PluginBrush = new(Color.FromRgb(0xa8, 0x55, 0xf7));
-        private static readonly SolidColorBrush ConfigBrush = new(Color.FromRgb(0xf5, 0x9e, 0x0b));
-
-        static PackageKindToBrushConverter()
-        {
-            ModBrush.Freeze(); PluginBrush.Freeze(); ConfigBrush.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> ModBrush =
+            ThemeBrush.Lazy("PrimaryBrush", Color.FromRgb(0x06, 0xb6, 0xd4));
+        private static readonly Lazy<SolidColorBrush> PluginBrush =
+            ThemeBrush.Lazy("PluginPurpleBrush", Color.FromRgb(0xa8, 0x55, 0xf7));
+        private static readonly Lazy<SolidColorBrush> ConfigBrush =
+            ThemeBrush.Lazy("ConfigAmberBrush", Color.FromRgb(0xf5, 0x9e, 0x0b));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
             value is PackageKind kind ? kind switch
             {
-                PackageKind.Plugin => PluginBrush,
-                PackageKind.Config => ConfigBrush,
-                _ => ModBrush
-            } : ModBrush;
+                PackageKind.Plugin => PluginBrush.Value,
+                PackageKind.Config => ConfigBrush.Value,
+                _ => ModBrush.Value
+            } : ModBrush.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -41,22 +76,20 @@ namespace UEModManager.Converters
     /// <summary>PackageKind → 背景色画刷（20%透明度）</summary>
     public class PackageKindToBgBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush ModBg = new(Color.FromArgb(0x20, 0x06, 0xb6, 0xd4));
-        private static readonly SolidColorBrush PluginBg = new(Color.FromArgb(0x20, 0xa8, 0x55, 0xf7));
-        private static readonly SolidColorBrush ConfigBg = new(Color.FromArgb(0x20, 0xf5, 0x9e, 0x0b));
-
-        static PackageKindToBgBrushConverter()
-        {
-            ModBg.Freeze(); PluginBg.Freeze(); ConfigBg.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> ModBg =
+            ThemeBrush.Lazy("ModCyanBgBrush", Color.FromArgb(0x20, 0x06, 0xb6, 0xd4));
+        private static readonly Lazy<SolidColorBrush> PluginBg =
+            ThemeBrush.Lazy("PluginPurpleBgBrush", Color.FromArgb(0x20, 0xa8, 0x55, 0xf7));
+        private static readonly Lazy<SolidColorBrush> ConfigBg =
+            ThemeBrush.Lazy("ConfigAmberBgBrush", Color.FromArgb(0x20, 0xf5, 0x9e, 0x0b));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
             value is PackageKind kind ? kind switch
             {
-                PackageKind.Plugin => PluginBg,
-                PackageKind.Config => ConfigBg,
-                _ => ModBg
-            } : ModBg;
+                PackageKind.Plugin => PluginBg.Value,
+                PackageKind.Config => ConfigBg.Value,
+                _ => ModBg.Value
+            } : ModBg.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -80,22 +113,20 @@ namespace UEModManager.Converters
     /// <summary>PackageKind → 类型圆点色（用于卡片左上角小圆点）</summary>
     public class PackageKindToDotBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush Cyan = new(Color.FromRgb(0x06, 0xb6, 0xd4));
-        private static readonly SolidColorBrush Purple = new(Color.FromRgb(0xa8, 0x55, 0xf7));
-        private static readonly SolidColorBrush Amber = new(Color.FromRgb(0xf5, 0x9e, 0x0b));
-
-        static PackageKindToDotBrushConverter()
-        {
-            Cyan.Freeze(); Purple.Freeze(); Amber.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> Cyan =
+            ThemeBrush.Lazy("PrimaryBrush", Color.FromRgb(0x06, 0xb6, 0xd4));
+        private static readonly Lazy<SolidColorBrush> Purple =
+            ThemeBrush.Lazy("PluginPurpleBrush", Color.FromRgb(0xa8, 0x55, 0xf7));
+        private static readonly Lazy<SolidColorBrush> Amber =
+            ThemeBrush.Lazy("ConfigAmberBrush", Color.FromRgb(0xf5, 0x9e, 0x0b));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
             value is PackageKind kind ? kind switch
             {
-                PackageKind.Plugin => Purple,
-                PackageKind.Config => Amber,
-                _ => Cyan
-            } : Cyan;
+                PackageKind.Plugin => Purple.Value,
+                PackageKind.Config => Amber.Value,
+                _ => Cyan.Value
+            } : Cyan.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -104,22 +135,23 @@ namespace UEModManager.Converters
     /// <summary>DeploymentOperationType → 前景色画刷 (Add=绿/Replace=橙/Remove=红)</summary>
     public class DeployOpTypeToBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush AddBrush = new(Color.FromRgb(0x22, 0xc5, 0x5e));
-        private static readonly SolidColorBrush ReplaceBrush = new(Color.FromRgb(0xf5, 0x9e, 0x0b));
-        private static readonly SolidColorBrush RemoveBrush = new(Color.FromRgb(0xef, 0x44, 0x44));
-
-        static DeployOpTypeToBrushConverter()
-        {
-            AddBrush.Freeze(); ReplaceBrush.Freeze(); RemoveBrush.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> AddBrush =
+            ThemeBrush.Lazy("StatusGreenBrush", Color.FromRgb(0x22, 0xc5, 0x5e));
+        // 注意：这里用的是 ConfigAmberBrush(#f59e0b) 而不是 StatusOrangeBrush(#f97316)。
+        // 两者取值不同，选前者是为了保持现有观感不变；"替换操作该用哪种橙"属于
+        // 视觉决策，需产品确认后再统一，届时只改这一行。
+        private static readonly Lazy<SolidColorBrush> ReplaceBrush =
+            ThemeBrush.Lazy("ConfigAmberBrush", Color.FromRgb(0xf5, 0x9e, 0x0b));
+        private static readonly Lazy<SolidColorBrush> RemoveBrush =
+            ThemeBrush.Lazy("StatusRedBrush", Color.FromRgb(0xef, 0x44, 0x44));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
             value is DeploymentOperationType t ? t switch
             {
-                DeploymentOperationType.Replace => ReplaceBrush,
-                DeploymentOperationType.Remove => RemoveBrush,
-                _ => AddBrush
-            } : AddBrush;
+                DeploymentOperationType.Replace => ReplaceBrush.Value,
+                DeploymentOperationType.Remove => RemoveBrush.Value,
+                _ => AddBrush.Value
+            } : AddBrush.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -143,16 +175,13 @@ namespace UEModManager.Converters
     /// <summary>bool (IsWinner) → 胜者(绿)/败者(红)画刷</summary>
     public class WinnerLoserBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush WinnerBrush = new(Color.FromRgb(0x22, 0xc5, 0x5e));
-        private static readonly SolidColorBrush LoserBrush = new(Color.FromRgb(0xef, 0x44, 0x44));
-
-        static WinnerLoserBrushConverter()
-        {
-            WinnerBrush.Freeze(); LoserBrush.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> WinnerBrush =
+            ThemeBrush.Lazy("StatusGreenBrush", Color.FromRgb(0x22, 0xc5, 0x5e));
+        private static readonly Lazy<SolidColorBrush> LoserBrush =
+            ThemeBrush.Lazy("StatusRedBrush", Color.FromRgb(0xef, 0x44, 0x44));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            value is bool isWinner && isWinner ? WinnerBrush : LoserBrush;
+            value is bool isWinner && isWinner ? WinnerBrush.Value : LoserBrush.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -161,16 +190,13 @@ namespace UEModManager.Converters
     /// <summary>bool (IsWinner) → 胜者/败者背景画刷（半透明）</summary>
     public class WinnerLoserBgBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush WinnerBg = new(Color.FromArgb(0x18, 0x22, 0xc5, 0x5e));
-        private static readonly SolidColorBrush LoserBg = new(Color.FromArgb(0x18, 0xef, 0x44, 0x44));
-
-        static WinnerLoserBgBrushConverter()
-        {
-            WinnerBg.Freeze(); LoserBg.Freeze();
-        }
+        private static readonly Lazy<SolidColorBrush> WinnerBg =
+            ThemeBrush.Lazy("WinnerGreenBgBrush", Color.FromArgb(0x18, 0x22, 0xc5, 0x5e));
+        private static readonly Lazy<SolidColorBrush> LoserBg =
+            ThemeBrush.Lazy("LoserRedBgBrush", Color.FromArgb(0x18, 0xef, 0x44, 0x44));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            value is bool isWinner && isWinner ? WinnerBg : LoserBg;
+            value is bool isWinner && isWinner ? WinnerBg.Value : LoserBg.Value;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
@@ -399,12 +425,14 @@ namespace UEModManager.Converters
 
     public class BoolToEnabledColorConverter : IValueConverter
     {
-        private static readonly SolidColorBrush EnabledBrush = new(Color.FromRgb(0x22, 0xc5, 0x5e));
-        private static readonly SolidColorBrush DisabledBrush = new(Color.FromRgb(0x71, 0x71, 0x7a));
+        private static readonly Lazy<SolidColorBrush> EnabledBrush =
+            ThemeBrush.Lazy("StatusGreenBrush", Color.FromRgb(0x22, 0xc5, 0x5e));
+        private static readonly Lazy<SolidColorBrush> DisabledBrush =
+            ThemeBrush.Lazy("Text500Brush", Color.FromRgb(0x71, 0x71, 0x7a));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return value is bool b && b ? EnabledBrush : DisabledBrush;
+            return value is bool b && b ? EnabledBrush.Value : DisabledBrush.Value;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -416,16 +444,29 @@ namespace UEModManager.Converters
     /// <summary>GeneratedArtifactType → 前景色画刷。</summary>
     public class GeneratedTypeToBrushConverter : IValueConverter
     {
+        // 原先每次 Convert 都 new 一个未冻结的画刷：既是第 N 份色值来源，
+        // 也让每个绑定项在每次刷新时多分配一个对象。改为一次解析、长期复用。
+        private static readonly Lazy<SolidColorBrush> Snapshot =
+            ThemeBrush.Lazy("PrimaryBrush", Color.FromRgb(0x06, 0xb6, 0xd4));
+        private static readonly Lazy<SolidColorBrush> MergedConfig =
+            ThemeBrush.Lazy("ConfigAmberBrush", Color.FromRgb(0xf5, 0x9e, 0x0b));
+        private static readonly Lazy<SolidColorBrush> ToolOutput =
+            ThemeBrush.Lazy("PluginPurpleBrush", Color.FromRgb(0xa8, 0x55, 0xf7));
+        private static readonly Lazy<SolidColorBrush> Cache =
+            ThemeBrush.Lazy("Text500Brush", Color.FromRgb(0x71, 0x71, 0x7a));
+        private static readonly Lazy<SolidColorBrush> UserFix =
+            ThemeBrush.Lazy("StatusGreenBrush", Color.FromRgb(0x22, 0xc5, 0x5e));
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not GeneratedArtifactType type) return Brushes.Gray;
             return type switch
             {
-                GeneratedArtifactType.DeploymentSnapshot => new SolidColorBrush(Color.FromRgb(0x06, 0xb6, 0xd4)),
-                GeneratedArtifactType.MergedConfig => new SolidColorBrush(Color.FromRgb(0xf5, 0x9e, 0x0b)),
-                GeneratedArtifactType.ToolOutput => new SolidColorBrush(Color.FromRgb(0xa8, 0x55, 0xf7)),
-                GeneratedArtifactType.Cache => new SolidColorBrush(Color.FromRgb(0x71, 0x71, 0x7a)),
-                GeneratedArtifactType.UserFix => new SolidColorBrush(Color.FromRgb(0x22, 0xc5, 0x5e)),
+                GeneratedArtifactType.DeploymentSnapshot => Snapshot.Value,
+                GeneratedArtifactType.MergedConfig => MergedConfig.Value,
+                GeneratedArtifactType.ToolOutput => ToolOutput.Value,
+                GeneratedArtifactType.Cache => Cache.Value,
+                GeneratedArtifactType.UserFix => UserFix.Value,
                 _ => Brushes.Gray
             };
         }
@@ -436,14 +477,21 @@ namespace UEModManager.Converters
     /// <summary>GeneratedArtifactStatus → 状态色画刷。</summary>
     public class GeneratedStatusToBrushConverter : IValueConverter
     {
+        private static readonly Lazy<SolidColorBrush> Active =
+            ThemeBrush.Lazy("StatusGreenBrush", Color.FromRgb(0x22, 0xc5, 0x5e));
+        private static readonly Lazy<SolidColorBrush> Stale =
+            ThemeBrush.Lazy("ConfigAmberBrush", Color.FromRgb(0xf5, 0x9e, 0x0b));
+        private static readonly Lazy<SolidColorBrush> Promoted =
+            ThemeBrush.Lazy("PrimaryBrush", Color.FromRgb(0x06, 0xb6, 0xd4));
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not GeneratedArtifactStatus status) return Brushes.Gray;
             return status switch
             {
-                GeneratedArtifactStatus.Active => new SolidColorBrush(Color.FromRgb(0x22, 0xc5, 0x5e)),
-                GeneratedArtifactStatus.Stale => new SolidColorBrush(Color.FromRgb(0xf5, 0x9e, 0x0b)),
-                GeneratedArtifactStatus.Promoted => new SolidColorBrush(Color.FromRgb(0x06, 0xb6, 0xd4)),
+                GeneratedArtifactStatus.Active => Active.Value,
+                GeneratedArtifactStatus.Stale => Stale.Value,
+                GeneratedArtifactStatus.Promoted => Promoted.Value,
                 _ => Brushes.Gray
             };
         }

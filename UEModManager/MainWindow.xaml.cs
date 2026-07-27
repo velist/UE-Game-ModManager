@@ -131,7 +131,15 @@ namespace UEModManager
                     LanguageManager.LanguageChanged += OnLanguageChanged;
                     ApplyLocalization();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 不上抛：本地化失败不该拦住主窗口启动。但必须留痕——
+                    // ApplyLocalization 里任一具名控件被重命名就会 NullReferenceException，
+                    // 原先被吞掉后界面文案静默停在 XAML 默认值，没人知道发生过什么。
+                    // 此时 _logger 已就位，但日志系统本身可能还没配好，故两条通道都写。
+                    _logger?.LogError(ex, "[UI] 初始化本地化失败，界面文案将停留在默认值");
+                    Console.WriteLine($"[MainWindow] 初始化本地化失败: {ex}");
+                }
 
                 // 背景
                 try
@@ -140,7 +148,13 @@ namespace UEModManager
                     BackgroundManager.BackgroundChanged += OnBackgroundChanged;
                     ApplyBackground(BackgroundManager.Settings);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 同上：背景加载失败不拦启动，但不能静默——
+                    // 用户设过的背景图突然不见了，日志里得能查到原因
+                    _logger?.LogError(ex, "[UI] 初始化背景失败，将使用默认背景");
+                    Console.WriteLine($"[MainWindow] 初始化背景失败: {ex}");
+                }
 
                 Console.WriteLine("MainWindow 初始化完成");
             }
@@ -338,7 +352,13 @@ namespace UEModManager
                     Marshal.StructureToPtr(mmi, lParam, true);
                     handled = true;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 结构上就该吞：这是 Win32 消息回调，异常不能穿过非托管边界，
+                    // 且失败只意味着最大化尺寸回落到系统默认，不影响功能。
+                    // 但留一条调试痕迹，免得排查窗口尺寸异常时完全无从下手。
+                    Debug.WriteLine($"[MainWindow] WM_GETMINMAXINFO 处理失败: {ex.Message}");
+                }
             }
             return IntPtr.Zero;
         }
@@ -392,14 +412,34 @@ namespace UEModManager
                                 new AccountSettingsWindow { Owner = this }.ShowDialog();
                                 UpdateUserStatusDisplay();
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                // 窗口构造 / XAML 解析 / DI 解析失败原先全部静默，
+                                // 用户点了"账户设置"什么都不发生且日志里毫无痕迹
+                                _logger?.LogError(ex, "[UI] 打开账户设置窗口失败");
+                                CyberMessageBox.Show(this, $"打开账户设置失败：{ex.Message}",
+                                    "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
                         };
                         menu.Items.Add(accountItem);
 
                         if (_localAuthService.CurrentUser?.IsAdmin == true)
                         {
                             var adminItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Admin Panel" : "管理面板", Style = FindResource("CyberMenuItem") as Style };
-                            adminItem.Click += (_, _) => { try { new AdminDashboardWindow { Owner = this }.ShowDialog(); } catch { } };
+                            adminItem.Click += (_, _) =>
+                            {
+                                try
+                                {
+                                    new AdminDashboardWindow { Owner = this }.ShowDialog();
+                                }
+                                catch (Exception ex)
+                                {
+                                    // 管理员入口原先静默失败，"后台打不开"没有任何线索可查
+                                    _logger?.LogError(ex, "[UI] 打开管理面板失败");
+                                    CyberMessageBox.Show(this, $"打开管理面板失败：{ex.Message}",
+                                        "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                                }
+                            };
                             menu.Items.Add(adminItem);
                         }
 
@@ -1414,7 +1454,16 @@ namespace UEModManager
                 UpdateNavCounts();
                 UpdateModCountText();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 刷新失败若继续静默，列表会停在旧状态且用户毫不知情，
+                // 之后的操作全都基于已失效的 ModInfo 引用 —— 这正是"幽灵 MOD"类
+                // 难复现故障的来源。必须让用户知道界面已经不可信。
+                _logger?.LogError(ex, "[UI] 管理中心操作后刷新列表失败");
+                CyberMessageBox.Show(this,
+                    $"MOD 列表刷新失败，当前显示的内容可能已过期，建议重新打开本窗口。\n{ex.Message}",
+                    "刷新失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void LaunchGame_Click(object sender, MouseButtonEventArgs e)
@@ -1463,8 +1512,10 @@ namespace UEModManager
                     CurrentGameIconPlaceholder.Visibility = Visibility.Visible;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // 有明确回退（隐藏图标、显示占位符），结构不动；留一条调试痕迹
+                Debug.WriteLine($"[MainWindow] 加载游戏图标失败: {ex.Message}");
                 CurrentGameIcon.Visibility = Visibility.Collapsed;
                 CurrentGameIconPlaceholder.Visibility = Visibility.Visible;
             }
@@ -1672,8 +1723,10 @@ namespace UEModManager
                             BgSolidLayer.Opacity = bg.Opacity;
                             BgSolidLayer.Visibility = Visibility.Visible;
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            // 有明确回退（回落到默认底色），结构不动；留一条调试痕迹
+                            Debug.WriteLine($"[MainWindow] 背景纯色解析失败，回落默认: {ex.Message}");
                             BgSolidLayer.Background = new SolidColorBrush(Color.FromRgb(3, 3, 3));
                             BgSolidLayer.Visibility = Visibility.Visible;
                         }
