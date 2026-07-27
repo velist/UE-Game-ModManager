@@ -26,7 +26,14 @@ namespace UEModManager.Services
                 ? "https://api.modmanger.com"
                 : apiBaseUrl.TrimEnd('/');
 
-            _httpClient = new HttpClient
+            // 本服务注册为单例，HttpClient 会与进程同寿。默认的连接池不会主动淘汰连接，
+            // 导致 DNS 结果被永久缓存 —— Cloudflare 侧 IP 变更后客户端无法自愈，
+            // 只能靠用户重启应用。PooledConnectionLifetime 强制定期重建连接以刷新 DNS。
+            var handler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            };
+            _httpClient = new HttpClient(handler)
             {
                 BaseAddress = new Uri(baseUrl + "/"),
                 Timeout = TimeSpan.FromSeconds(15)
