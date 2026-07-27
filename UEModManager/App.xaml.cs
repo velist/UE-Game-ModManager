@@ -263,8 +263,15 @@ namespace UEModManager
                     services.AddSingleton<DataMigrationService>();
 
                     // v2.0 Phase 3: 部署服务
-                    services.AddSingleton<CopyBackend>();
-                    services.AddSingleton<HardLinkBackend>();
+                    //
+                    // 部署后端按接口注册，由 DI 汇集成 IEnumerable<IDeploymentBackend>
+                    // 注入 DeploymentService。新增一种部署方式只需在此加一行，
+                    // 不必再改 DeploymentService 的构造函数签名。
+                    // 同一 DeploymentBackendType 若注册多次，后注册的覆盖先注册的，
+                    // 因此自定义实现放在内置实现之后即可替换内置行为。
+                    // 注意：后端仍需编译进本项目，没有插件式动态加载。
+                    services.AddSingleton<IDeploymentBackend, CopyBackend>();
+                    services.AddSingleton<IDeploymentBackend, HardLinkBackend>();
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
 

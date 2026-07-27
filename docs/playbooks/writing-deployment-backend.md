@@ -51,11 +51,14 @@ public interface IDeploymentBackend
 其中 `SampleMirrorBackend` 演示一种"镜像复制 + 来源记号"模式：部署时在目标文件旁
 额外写一个 `{文件名}.uemm-source` 记号文件记录源路径，移除时一并清理。
 
-第三方贡献者可以从该目录复制起步：
+可以从该目录复制起步，在独立项目里开发与单测：
 
 ```bash
 dotnet build samples/UEModManager.SampleBackend/UEModManager.SampleBackend.csproj
 ```
+
+要让它真正生效，还需在主项目里加项目引用并注册（见下方「注册到 DI」），
+然后重新编译主程序——**没有插件式动态加载**。
 
 ---
 
@@ -125,17 +128,41 @@ namespace UEModManager.Services.Backends
 `UEModManager/App.xaml.cs`：
 
 ```csharp
-services.AddSingleton<CopyBackend>();
-services.AddSingleton<HardLinkBackend>();
-services.AddSingleton<MyBackend>();             // ← 新增
+services.AddSingleton<IDeploymentBackend, CopyBackend>();
+services.AddSingleton<IDeploymentBackend, HardLinkBackend>();
+services.AddSingleton<IDeploymentBackend, MyBackend>();   // ← 新增，只需这一行
 services.AddSingleton<DeploymentPlanner>();
 services.AddSingleton<DeploymentService>();
 ```
 
-光注册还不够：`DeploymentService` 的构造函数是**显式接收**各后端实例、在内部装配成
-`Dictionary<DeploymentBackendType, IDeploymentBackend>` 的（不是 `switch` 表达式），
-所以新后端还要加到该构造函数的参数列表与字典里。字典查不到的类型统一降级为 Copy
-（`DeploymentService.GetBackend`）。
+`DeploymentService` 注入的是 `IEnumerable<IDeploymentBackend>`，由 DI 自动汇集，
+再经 `DeploymentBackendRegistry.Build` 整理成按类型索引的字典。
+**新增后端只需在此加一行，不必再改 `DeploymentService` 的构造函数。**
+
+两条规则：
+
+- **同类型后注册者覆盖先注册者。** 内置后端在上面先注册，所以你的实现只要写在后面，
+  就能替换掉同类型的内置行为（会记一条 warning 说明谁覆盖了谁）。
+  `samples/UEModManager.SampleBackend` 里的 `SampleMirrorBackend` 声明的正是
+  `DeploymentBackendType.Copy`，靠的就是这条规则。
+- **必须存在 Copy 后端。** 它是所有降级路径的兜底目标；缺失时
+  `DeploymentBackendRegistry.Build` 会在装配阶段直接抛 `InvalidOperationException`，
+  而不是等到用户点部署时炸出一个 `KeyNotFoundException`。
+
+字典查不到的类型统一降级为 Copy（`DeploymentService.GetBackend`）。
+
+> ### ⚠ 这不是插件系统
+>
+> 改成 `IEnumerable` 之后，**新增后端仍然需要把代码编译进主项目并重新发版**。
+> 全项目没有任何 `Assembly.Load` / `AssemblyLoadContext` / MEF，
+> 不存在"把 dll 丢进某个目录就能被加载"的机制，也没有计划提供。
+>
+> 这次改动带来的区别只有一个：从"改两处（注册 + `DeploymentService` 构造函数）"
+> 变成"改一处（注册）"。
+>
+> `samples/UEModManager.SampleBackend` 的意义是**证明接口可以被主项目之外的代码实现**
+> （它只引用 Core，不依赖 WPF），便于你在独立项目里开发和单测；
+> 真正启用时仍需在主项目里加项目引用与上面那行注册，然后重新编译主程序。
 
 ---
 

@@ -22,7 +22,7 @@ namespace UEModManager.Services
         private const int ExecutionLogFlushInterval = 25;
 
         private readonly ILogger<DeploymentService> _logger;
-        private readonly Dictionary<DeploymentBackendType, IDeploymentBackend> _backends;
+        private readonly IReadOnlyDictionary<DeploymentBackendType, IDeploymentBackend> _backends;
         private readonly OverwriteStore _overwriteStore;
         private readonly string _backupRootPath;
 
@@ -38,10 +38,18 @@ namespace UEModManager.Services
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
+        /// <param name="backends">
+        /// 由 DI 汇集的全部部署后端。此前这里是写死的 <c>CopyBackend</c> + <c>HardLinkBackend</c>
+        /// 两个具体类型，导致新增后端必须改本类的构造函数签名——接口是真的，扩展点是假的。
+        /// 改为 <see cref="IEnumerable{T}"/> 后，新增后端只需在 <c>App.xaml.cs</c> 注册一处。
+        /// <para>
+        /// 注意这**不是**插件式加载：后端仍需编译进主项目，全项目没有任何
+        /// <c>Assembly.Load</c>/<c>AssemblyLoadContext</c>。区别只是从"改两处"变成"改一处"。
+        /// </para>
+        /// </param>
         public DeploymentService(
             ILogger<DeploymentService> logger,
-            CopyBackend copyBackend,
-            HardLinkBackend hardLinkBackend,
+            IEnumerable<IDeploymentBackend> backends,
             OverwriteStore overwriteStore)
         {
             _logger = logger;
@@ -49,11 +57,11 @@ namespace UEModManager.Services
 
             // Symlink 后端已下线：普通用户需开发者模式/管理员权限，实际不可用。
             // 旧数据中的 Symlink 计划经 GetBackend 自动降级为 Copy。
-            _backends = new Dictionary<DeploymentBackendType, IDeploymentBackend>
-            {
-                [DeploymentBackendType.Copy] = copyBackend,
-                [DeploymentBackendType.HardLink] = hardLinkBackend
-            };
+            _backends = DeploymentBackendRegistry.Build(
+                backends, message => _logger.LogWarning("{Message}", message));
+
+            _logger.LogInformation("已装配 {Count} 个部署后端: {Types}",
+                _backends.Count, string.Join(", ", _backends.Values.Select(b => b.DisplayName)));
 
             _backupRootPath = Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory, "Data", "Backups");
@@ -138,6 +146,12 @@ namespace UEModManager.Services
                 await SaveTransactionLogAsync(transaction);
 
                 // 阶段 2: 逐个执行操作
+                //
+                // 进度事件经闸门节流：订阅方 DeployPreviewDialog.OnDeployProgress 里是
+                // Dispatcher.Invoke（同步阻塞marshal到 UI 线程），每个操作发一次的话，
+                // 上万文件的整合包会产生上万次跨线程同步调用，UI 反而被进度更新拖垮。
+                var progressGate = new ProgressEmitGate(plan.Operations.Count, DateTime.Now);
+
                 for (var i = 0; i < plan.Operations.Count; i++)
                 {
                     var operation = plan.Operations[i];
@@ -145,7 +159,9 @@ namespace UEModManager.Services
                     await ExecuteOperationAsync(operation, backend, backupDir);
                     operation.IsExecuted = true;
                     transaction.CompletedOperations++;
-                    ProgressChanged?.Invoke(transaction);
+
+                    if (progressGate.ShouldEmit(transaction.CompletedOperations, DateTime.Now))
+                        ProgressChanged?.Invoke(transaction);
 
                     // 节流落盘执行进度：崩溃恢复靠 PlannedOperations 已能完整回滚，
                     // 这里只是让恢复界面能显示"崩溃时进行到哪一步"，故无需每步都写。
@@ -195,6 +211,8 @@ namespace UEModManager.Services
             {
                 // 保存事务日志
                 await SaveTransactionLogAsync(transaction);
+                // 终态事件不经闸门节流：这一发承载的是 Committed/Failed 的最终状态，
+                // 与循环里的进度更新不是一回事，任何情况下都必须送达。
                 ProgressChanged?.Invoke(transaction);
 
                 if (transaction.Status == DeploymentStatus.Committed)
