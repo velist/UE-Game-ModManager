@@ -139,7 +139,11 @@ namespace UEModManager.Services
                         IsEnabled = p.IsEnabled,
                         Priority = p.Priority,
                         Kind = p.Kind,
-                        PluginTargetPath = p.PluginTargetPath
+                        // 直接拷规范字段 TargetRootPath，而非旧别名 PluginTargetPath。
+                        // 两者当前指向同一个后备字段（InstanceProfile.cs 的 PluginTargetPath
+                        // 是 TargetRootPath 的 get/set 转发），所以行为不变；但一旦将来
+                        // 别名被拆开或移除，写规范字段才不会静默丢掉 entry 级覆盖。
+                        TargetRootPath = p.TargetRootPath
                     })
                     .ToList()
             };

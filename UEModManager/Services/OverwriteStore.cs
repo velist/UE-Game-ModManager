@@ -73,9 +73,17 @@ namespace UEModManager.Services
         public IReadOnlyList<GeneratedArtifact> GetByStatus(GeneratedArtifactStatus status)
             => _artifacts.Where(a => a.Status == status).ToList();
 
-        /// <summary>按来源包筛选。</summary>
+        /// <summary>
+        /// 按来源包筛选。包 key 比较用 <see cref="StringComparison.OrdinalIgnoreCase"/>，
+        /// 与 <c>PackageRepository.GetByKey</c> 保持一致——两处口径不同会让大小写不同的 key 查不到。
+        /// </summary>
         public IReadOnlyList<GeneratedArtifact> GetBySourcePackage(string packageKey)
-            => _artifacts.Where(a => a.SourcePackageKey == packageKey).ToList();
+            => _artifacts.Where(a => IsSamePackage(a, packageKey)).ToList();
+
+        /// <summary>包 key 归一化比较。null 的 SourcePackageKey 永不匹配。</summary>
+        private static bool IsSamePackage(GeneratedArtifact artifact, string packageKey)
+            => artifact.SourcePackageKey != null
+               && string.Equals(artifact.SourcePackageKey, packageKey, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>获取活跃生成物数量。</summary>
         public int ActiveCount => _artifacts.Count(a => a.Status == GeneratedArtifactStatus.Active);
@@ -199,10 +207,10 @@ namespace UEModManager.Services
             return stale.Count;
         }
 
-        /// <summary>清理某个包的所有生成物。</summary>
+        /// <summary>清理某个包的所有生成物。包 key 比较忽略大小写，避免留下孤儿生成物文件。</summary>
         public async Task CleanupByPackageAsync(string packageKey)
         {
-            var toRemove = _artifacts.Where(a => a.SourcePackageKey == packageKey).ToList();
+            var toRemove = _artifacts.Where(a => IsSamePackage(a, packageKey)).ToList();
             foreach (var artifact in toRemove)
             {
                 var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
@@ -316,15 +324,40 @@ namespace UEModManager.Services
         private async Task LoadIndexAsync()
         {
             var path = GetIndexPath();
-            if (File.Exists(path))
+            if (!File.Exists(path))
+            {
+                _artifacts = [];
+                return;
+            }
+
+            // 索引损坏不能让整个初始化中断：LoadIndexAsync 由 SetCurrentGameAsync 调用，
+            // 抛出会冒泡到游戏切换/启动初始化链路，直接卡死主流程。
+            // 与 ProfileService / GameConfigService / UiPreferences 对齐：备份损坏文件 + 记日志 + 空集合继续。
+            try
             {
                 var json = await File.ReadAllTextAsync(path);
                 _artifacts = JsonConvert.DeserializeObject<List<GeneratedArtifact>>(json) ?? [];
                 _logger.LogInformation("Loaded {Count} overwrite artifacts for {Game}", _artifacts.Count, _currentGame);
             }
-            else
+            catch (Exception ex)
             {
+                BackupCorruptIndexFile(path, ex);
                 _artifacts = [];
+            }
+        }
+
+        private void BackupCorruptIndexFile(string filePath, Exception loadException)
+        {
+            try
+            {
+                var backupPath = $"{filePath}.corrupt-{DateTime.Now:yyyyMMddHHmmss}.bak";
+                File.Copy(filePath, backupPath, overwrite: false);
+                _logger.LogError(loadException, "加载生成物索引失败，已备份损坏文件: {BackupPath}", backupPath);
+            }
+            catch (Exception backupException)
+            {
+                _logger.LogError(loadException, "加载生成物索引失败，且损坏文件备份失败: {Path}", filePath);
+                _logger.LogError(backupException, "损坏生成物索引备份失败");
             }
         }
 

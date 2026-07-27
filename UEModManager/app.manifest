@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <!--
+    本清单是"当前 apphost 内嵌的默认清单 + longPathAware"，刻意保持最小差异。
+
+    加它的原因：.NET 8 本身不做 MAX_PATH 的托管层校验，路径超长时是 Win32 API 直接返回错误，
+    而 Win32 只有在进程清单声明 longPathAware 时才接受 >260 字符的路径。仅改注册表不生效。
+    导入链路里 gamePath/TargetRootPath/packageKey/relativePath 四段拼接 + 嵌套解压目录逐层
+    追加 _extracted，很容易越过 260；越界后 ExtractCompressedFile 的 catch 只记一条 Error
+    就返回 false，表现为导入静默失败。
+
+    ⚠️ longPathAware 是必要条件而非充分条件：还需要机器上
+       HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1（Win10 1607+）。
+       两者缺一仍会抛 PathTooLongException。
+
+    刻意**不**写入以下两节，避免改变既有行为：
+    - dpiAware / dpiAwareness：当前 apphost 内嵌清单中并无这两项，WPF on .NET 的 DPI 感知
+      由框架在启动时自行设置（默认 PerMonitorV2）。一旦在清单里写死，就会反过来覆盖框架的
+      默认值，可能改变多显示器/缩放下的渲染行为。保持不写 = 保持现状。
+    - compatibility/supportedOS：同样是现清单没有的。加了会影响 OS 版本上报路径，而
+      LocalAuthService.GetDeviceFingerprint 把 Environment.OSVersion 拌进设备指纹哈希，
+      不值得为一个与长路径无关的小节去冒动指纹的风险。
+  -->
+
+  <!-- 与当前 apphost 内嵌值逐字一致。应用清单的 assemblyIdentity 对非 SxS 程序是惰性的，
+       保持原值以确保零差异。 -->
+  <assemblyIdentity version="1.0.0.0" name="MyApplication.app"/>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!-- 保持 asInvoker：不要求提权，与现状一致 -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+</assembly>

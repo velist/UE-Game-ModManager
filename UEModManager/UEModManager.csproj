@@ -9,6 +9,9 @@
     <AssemblyVersion>2.0.5.0</AssemblyVersion>
     <FileVersion>2.0.5.0</FileVersion>
     <ApplicationIcon>mnlogo.ico</ApplicationIcon>
+    <!-- 开启 longPathAware（详见 app.manifest 内的说明）。清单内容刻意与 apphost 默认
+         清单保持最小差异，未引入 dpiAware / supportedOS。 -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- 避免 wpftmp 项目重复特性，引入手写 AssemblyInfo 保证版本匹配 -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
