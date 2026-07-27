@@ -869,18 +869,19 @@ namespace UEModManager.Services
 
         /// <summary>
         /// 按文件名前缀分组 MOD 文件。
+        /// CNS 合并逻辑已迁到 Core 的 <see cref="CnsGroupMerger"/>（现役导入链路同样调用它）。
         /// </summary>
         public Dictionary<string, List<string>> GroupModFilesByPrefix(List<string> modFiles)
         {
-            var result = ModFileGrouper.GroupByBaseName(modFiles).ToDictionary(
+            var grouped = ModFileGrouper.GroupByBaseName(modFiles);
+
+            if (CurrentGameType == GameType.StellarBladeCNS)
+                grouped = CnsGroupMerger.Merge(grouped);
+
+            return grouped.ToDictionary(
                 kv => kv.Key,
                 kv => kv.Value,
                 StringComparer.OrdinalIgnoreCase);
-
-            if (CurrentGameType == GameType.StellarBladeCNS)
-                result = MergeCNSRelatedGroups(result);
-
-            return result;
         }
 
         private string? DetermineGroupContainerBaseName(List<string> groupFiles)
@@ -953,72 +954,12 @@ namespace UEModManager.Services
             return existingKw.Intersect(backupKw).Any();
         }
 
-        private static List<string> ExtractCNSKeywords(string name)
-        {
-            var lower = name.ToLower()
-                .Replace("dekcns-", "").Replace(".dekcns", "")
-                .Replace("_p", "").Replace("-p", "");
-            return lower.Split(new[] { '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(p => p.Length >= 3).ToList();
-        }
-
-        private Dictionary<string, List<string>> MergeCNSRelatedGroups(Dictionary<string, List<string>> groups)
-        {
-            var result = new Dictionary<string, List<string>>(groups);
-            var processed = new HashSet<string>();
-
-            foreach (var group in groups)
-            {
-                if (processed.Contains(group.Key)) continue;
-                var jsonFiles = group.Value.Where(f => IOPath.GetExtension(f).Equals(".json", StringComparison.OrdinalIgnoreCase)).ToList();
-                if (jsonFiles.Count == 0) continue;
-
-                var jsonName = IOPath.GetFileNameWithoutExtension(jsonFiles[0]);
-                if (!jsonName.Contains("dekcns", StringComparison.OrdinalIgnoreCase) &&
-                    !jsonName.Contains("cns", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var jsonKw = ExtractCNSKeywords(jsonName);
-                string? bestMatch = null;
-                int bestScore = 0;
-
-                foreach (var other in groups)
-                {
-                    if (other.Key == group.Key || processed.Contains(other.Key)) continue;
-                    if (!other.Value.Any(f => IOPath.GetExtension(f).Equals(".pak", StringComparison.OrdinalIgnoreCase)))
-                        continue;
-
-                    var pakName = IOPath.GetFileNameWithoutExtension(
-                        other.Value.First(f => IOPath.GetExtension(f).Equals(".pak", StringComparison.OrdinalIgnoreCase)));
-                    var pakKw = ExtractCNSKeywords(pakName);
-                    int score = 0;
-                    foreach (var j in jsonKw)
-                    {
-                        foreach (var p in pakKw)
-                        {
-                            if (j == p) score += 3;
-                            else if (j.Contains(p) || p.Contains(j)) score += 2;
-                        }
-                    }
-
-                    if (score > bestScore && score >= 2)
-                    {
-                        bestScore = score;
-                        bestMatch = other.Key;
-                    }
-                }
-
-                if (bestMatch != null)
-                {
-                    result[group.Key].AddRange(groups[bestMatch]);
-                    result.Remove(bestMatch);
-                    processed.Add(bestMatch);
-                    processed.Add(group.Key);
-                }
-            }
-
-            return result;
-        }
+        /// <summary>
+        /// CNS 关键词提取。实现已迁到 Core 的 <see cref="CnsGroupMerger.ExtractKeywords"/>，
+        /// 此处仅保留调用点，避免同一份领域知识存在两份实现。
+        /// </summary>
+        private static IReadOnlyList<string> ExtractCNSKeywords(string name)
+            => CnsGroupMerger.ExtractKeywords(name);
 
         // ─── 工具 ───
 

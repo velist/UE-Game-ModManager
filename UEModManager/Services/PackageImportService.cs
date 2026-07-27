@@ -483,9 +483,16 @@ namespace UEModManager.Services
 
         // ─── 文件分组（委托 Core ModFileGrouper） ───
 
-        private static Dictionary<string, List<string>> GroupModFilesByPrefix(List<string> modFiles)
+        private Dictionary<string, List<string>> GroupModFilesByPrefix(List<string> modFiles)
         {
             var grouped = ModFileGrouper.GroupByBaseName(modFiles);
+
+            // 剑星 CNS 模式：外观 .pak 与 CNS 配置 .json 文件名不同源
+            // （DekCNS-Nier2B.json 配 Nier2B_P.pak），按基础名分组会拆成两个包，
+            // 用户只启用其中一个则配置不生效。这里把它们合回一个包。
+            if (_gameConfig.CurrentGameType == GameType.StellarBladeCNS)
+                grouped = CnsGroupMerger.Merge(grouped);
+
             return grouped.ToDictionary(
                 kv => kv.Key,
                 kv => kv.Value,
