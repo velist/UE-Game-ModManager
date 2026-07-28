@@ -130,9 +130,11 @@ namespace UEModManager.Services
         /// 所以风险比方案设想的小得多；但备份两项是游戏文件的副本，体积仍可观，
         /// 目标盘满时会走到"该项失败"分支——数据完整留在旧位置不会丢，
         /// 只是每次启动重试一遍。可接受，但真机 D4 要确认它确实只是失败而不是留下半份。</item>
-        /// <item><b>失败提示尚未接到界面。</b>本类已把状态做成 UI 可消费的形式
-        /// （<see cref="LastOutcome"/> + <see cref="DataMigrationOutcome.ShouldNotifyUser"/>），
-        /// 但还没有任何 UI 读它。开关翻开后失败对用户仍是静默的，接线要一并完成。</item>
+        /// <item><b>失败提示已接到界面</b>（<c>d14bdae</c>）：
+        /// <c>MainWindow.NotifyDataMigrationIfNeeded</c> 在启动流程里读
+        /// <see cref="LastOutcome"/> 与 <see cref="DataMigrationOutcome.ShouldNotifyUser"/>，
+        /// 失败时弹一次告知框。方案 §七 要求的是<b>非模态</b>提示条，当前用的是一次性对话框，
+        /// 偏离理由写在那个方法的注释里。真机验证时确认它确实弹得出来即可，不阻塞开关。</item>
         /// </list>
         /// </para>
         ///
