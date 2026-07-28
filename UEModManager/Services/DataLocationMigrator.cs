@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Services.Paths;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -18,7 +19,8 @@ namespace UEModManager.Services
         string Summary);
 
     /// <summary>
-    /// 数据目录搬迁器。职责只有编排：探测磁盘 → 交 Core 规划 → 交执行器落地 → 打版本标记。
+    /// 数据目录搬迁器。职责只有编排：探测磁盘 → 交 Core 规划 → 交执行器落地 →
+    /// 改写配置里指向旧位置的绝对路径 → 打版本标记。
     ///
     /// <para>
     /// 判定逻辑在 Core 的 <see cref="DataRelocationPlanner"/>（纯函数，74 个单测），
@@ -47,6 +49,8 @@ namespace UEModManager.Services
         /// 因此本阶段只做两件事：把计划完整算出来<b>写进日志</b>（可在真实用户机器上验证
         /// 探测与判定是否符合预期），以及<b>执行原地登记</b>——后者只写配置值，
         /// 要么与当前行为完全等价，要么写的是还没有读取方的新键，零风险。
+        /// 配置路径改写（<see cref="RewriteConfigPaths"/>）以墓碑为判据，
+        /// 本开关关着时不会有任何墓碑，因而同样是彻底的空操作。
         /// </para>
         ///
         /// <para>
@@ -113,6 +117,11 @@ namespace UEModManager.Services
                 if (TryExecute(step)) executed++;
                 else failed++;
             }
+
+            // 目录搬完了，config.json 里指向旧位置的绝对路径必须跟着改。
+            // 放在整个循环之后是必须的：config.json 自己就是"主配置"那一项，
+            // 得等它落到新位置，才能读新位置的那份来改写。
+            if (!RewriteConfigPaths()) failed++;
 
             // 只有既无失败、也无推迟项时，本布局版本才算彻底完成。
             // 推迟项在开关打开后仍要处理，提前打版本标记会让它们被永久跳过。
@@ -232,5 +241,87 @@ namespace UEModManager.Services
 
         private static bool IsFileItem(RelocationStep step)
             => Path.HasExtension(step.LegacyPath) && !Directory.Exists(step.LegacyPath);
+
+        // ─── 配置里的绝对路径改写 ───
+
+        /// <summary>
+        /// 把 <c>config.json</c> 里指向旧位置的绝对路径改写到新位置。
+        ///
+        /// <para>
+        /// 搬迁器只搬目录，不改配置——而 <c>BackupPath</c> 与 <c>GameIcons</c> 存的是绝对路径。
+        /// 不改的话，老用户升级后备份继续写进已被清空、只剩墓碑的旧目录，
+        /// 全部自定义游戏图标当场失效。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>判据是墓碑，不是"本次执行成功"。</b>墓碑代表"复制与校验都已完成"
+        /// （见 <see cref="DataRelocationPlanner"/>），这正是"数据确实已经在新位置"的唯一证据：
+        /// 本次搬成的、上次搬完只差删源的、上次搬完这次直接跳过的，三种情况一视同仁；
+        /// 而搬迁失败、或 <see cref="RelocationExecutionEnabled"/> 仍为 false 根本没搬时，
+        /// 墓碑不存在，对应的路径一个字都不会动。
+        /// </para>
+        ///
+        /// <para>
+        /// 返回 false 表示改写失败。失败只计入 failed（从而不打版本标记，下次启动重试），
+        /// 绝不抛出：配置没改好顶多是备份路径不对，启动不了则彻底不可用。
+        /// </para>
+        /// </summary>
+        private bool RewriteConfigPaths()
+        {
+            try
+            {
+                var modBackupsRule = RuleIfRelocated(
+                    AppPaths.Legacy.ModBackupsDirectory, AppPaths.ModBackupsDirectory);
+                var dataRule = RuleIfRelocated(
+                    AppPaths.Legacy.DataDirectory, AppPaths.DataDirectory);
+
+                if (modBackupsRule is null && dataRule is null) return true;
+
+                var configFile = ResolveConfigFileToRewrite();
+                if (configFile is null)
+                {
+                    _logger.LogInformation("[DataMigration] 未找到 config.json，无需改写配置中的路径");
+                    return true;
+                }
+
+                var result = AppConfigPathRewriter.Rewrite(
+                    File.ReadAllText(configFile), modBackupsRule, dataRule);
+
+                // 无改动就不写盘：重复启动时 config.json 的修改时间都不该被扰动
+                if (!result.Changed) return true;
+
+                AtomicFileWriter.WriteAllText(configFile, result.Json);
+                foreach (var entry in result.ChangedEntries)
+                {
+                    _logger.LogInformation("[DataMigration] 配置路径已改写 {Entry}", entry);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[DataMigration] 改写配置中的绝对路径失败，配置暂时仍指向旧位置");
+                return false;
+            }
+        }
+
+        /// <summary>该项已留下墓碑（数据确已在新位置）时给出改写规则，否则返回 null 表示"不许改"。</summary>
+        private static PathRebaseRule? RuleIfRelocated(string legacyRoot, string targetRoot)
+            => DataRelocationExecutor.FileExists(
+                    DataRelocationExecutor.GetTombstonePath(legacyRoot, isFile: false))
+                ? new PathRebaseRule(legacyRoot, targetRoot)
+                : null;
+
+        /// <summary>
+        /// 定位要改写的 config.json：优先新位置——那是应用真正会去读的一份。
+        /// 主配置那一项自己搬失败时它还在旧位置，就改旧的那份，等它搬过来时新值会一并带过去。
+        /// </summary>
+        private static string? ResolveConfigFileToRewrite()
+        {
+            if (DataRelocationExecutor.FileExists(AppPaths.ConfigFile)) return AppPaths.ConfigFile;
+            return DataRelocationExecutor.FileExists(AppPaths.Legacy.ConfigFile)
+                ? AppPaths.Legacy.ConfigFile
+                : null;
+        }
     }
 }
