@@ -872,13 +872,16 @@ namespace UEModManager
             var draggedCat = (CategoryItem)e.Data.GetData(typeof(CategoryItem));
             var items = _vm.Categories.Categories;
             var target = GetCategoryItemAtPosition(e.GetPosition(CategoryList));
-            if (target != null && target != draggedCat)
-            {
-                var oldIdx = items.IndexOf(draggedCat);
-                var newIdx = items.IndexOf(target);
-                if (oldIdx >= 0 && newIdx >= 0)
-                    items.Move(oldIdx, newIdx);
-            }
+            if (target == null || target == draggedCat) return;
+
+            var newIdx = items.IndexOf(target);
+            if (newIdx < 0 || items.IndexOf(draggedCat) < 0) return;
+
+            // 走服务而不是直接 items.Move：直接移动只改内存，用户排好的顺序重启就没了。
+            // 服务那边落盘失败会把顺序移回原位并上抛，这里用 SafeEvent.Run 接住弹窗——
+            // 否则失败的表现是"拖完看着好好的，下次启动又乱了"。
+            SafeEvent.Run(this, () => _vm.Categories.ReorderCategoryAsync(draggedCat, newIdx),
+                _logger, "调整分类顺序");
         }
 
         private CategoryItem? GetCategoryItemAtPosition(Point pos)

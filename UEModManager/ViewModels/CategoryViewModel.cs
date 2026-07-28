@@ -98,5 +98,16 @@ namespace UEModManager.ViewModels
         {
             await _categoryService.RenameCategoryAsync(category, newName);
         }
+
+        /// <summary>
+        /// 调整分类顺序（侧边栏拖拽排序）。
+        ///
+        /// 必须走服务而不是直接 <c>Categories.Move</c>：后者只改内存，重启后顺序原样弹回来。
+        /// 落盘失败时服务会把顺序移回原位并上抛，由 View 的 SafeEvent.Run 弹给用户。
+        /// </summary>
+        public async Task ReorderCategoryAsync(CategoryItem category, int newIndex)
+        {
+            await _categoryService.ReorderCategoryAsync(category, newIndex);
+        }
     }
 }

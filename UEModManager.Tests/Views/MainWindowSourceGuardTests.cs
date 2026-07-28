@@ -32,6 +32,38 @@ public class MainWindowSourceGuardTests
     }
 
     [Fact]
+    public void 每条切换游戏的路径都带上了分类服务()
+    {
+        // 分类文件按游戏名分片。少调一次 SetCurrentGameAsync，当前游戏名就恒为空：
+        // 所有游戏的分类挤进同一份文件，加载路径永不触发，用户新建的分类重启即消失。
+        // 这正是它当初被漏掉的方式——MVVM 重构时其他几个服务都接上了，唯独它没有。
+        var source = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
+
+        var profileCalls = Regex.Matches(source, @"_profileService\.SetCurrentGameAsync").Count;
+        var categoryCalls = Regex.Matches(source, @"_categoryService\.SetCurrentGameAsync").Count;
+
+        Assert.True(categoryCalls >= profileCalls,
+            $"_profileService.SetCurrentGameAsync 被调用 {profileCalls} 次，"
+            + $"_categoryService 只有 {categoryCalls} 次——有切换游戏的路径漏了分类服务");
+    }
+
+    [Fact]
+    public void 分类拖拽排序落盘而不是只改内存()
+    {
+        // 直接 Categories.Move 只改内存，用户排好的顺序重启就弹回去了；
+        // 且落盘失败必须被 SafeEvent.Run 接住弹窗，否则又是一次静默失败。
+        var source = ReadMainWindow("MainWindow.xaml.cs");
+
+        var handler = Regex.Match(source,
+            @"private void CategoryList_Drop\(.*?\n        \}", RegexOptions.Singleline);
+
+        Assert.True(handler.Success, "找不到 CategoryList_Drop");
+        Assert.Contains("ReorderCategoryAsync", handler.Value);
+        Assert.Contains("SafeEvent.Run", handler.Value);
+        Assert.DoesNotContain("items.Move(", handler.Value);
+    }
+
+    [Fact]
     public void code_behind_不再手工赋值列表控件的ItemsSource()
     {
         var source = ReadMainWindow("MainWindow.xaml.cs");
