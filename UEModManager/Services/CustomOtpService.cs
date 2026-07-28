@@ -10,6 +10,16 @@ namespace UEModManager.Services
     /// 自定义OTP验证码服务
     /// 使用MailerSend/Brevo发送验证码，不依赖Supabase邮件功能
     /// </summary>
+    /// <remarks>
+    /// 定位待产品决策，改动前先看审计结论：
+    /// - 本服务的验证码**全程在客户端内存里比对**（_otpStore 是本地 ConcurrentDictionary），
+    ///   服务端不参与校验，因此它只能挡住"手滑输错"，挡不住任何有本地调试能力的人。
+    ///   见 .claude/audit_reports/2026-07-26-security-workers.md 的 S-12。
+    /// - 云端用户体系整体存废尚未拍板，评估结论倾向删除，见
+    ///   .claude/audit_reports/2026-07-27-auth-removal-assessment.md。
+    /// 在决策落地前，这里只做等价的安全性修补（如 S-11 的随机数），
+    /// **不要在此基础上重构 OTP 流程**——很可能整块都要删掉，重构是白做。
+    /// </remarks>
     public class CustomOtpService
     {
         private readonly ILogger<CustomOtpService> _logger;
@@ -147,14 +157,18 @@ namespace UEModManager.Services
         /// <summary>
         /// 生成6位数字验证码
         /// </summary>
+        /// <remarks>
+        /// 原实现是"取 4 字节密码学随机数再 % 1000000"。熵源本身没问题，问题出在取模：
+        /// 2^32 不是 1000000 的整数倍（4294967296 = 4294 × 1000000 + 967296），
+        /// 落在 000000–967295 区间的验证码出现概率比 967296–999999 高约 0.023%。
+        /// 单看偏差很小，但验证码只有 10 分钟 / 5 次尝试的保护，任何可被统计出来的
+        /// 分布倾斜都会削弱暴力猜测的成本模型。GetInt32 内部用拒绝采样消除了这段偏差，
+        /// 且不需要自己管 RandomNumberGenerator 实例的生命周期。
+        /// 对应审计项 S-11（.claude/audit_reports/2026-07-26-security-workers.md）。
+        /// </remarks>
         private static string GenerateOtp()
         {
-            var bytes = new byte[4];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(bytes);
-            }
-            var number = BitConverter.ToUInt32(bytes, 0) % 1000000;
+            var number = RandomNumberGenerator.GetInt32(0, 1000000);
             return number.ToString("D6");
         }
 
