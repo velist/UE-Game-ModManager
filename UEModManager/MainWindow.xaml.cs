@@ -62,6 +62,7 @@ namespace UEModManager
         private readonly ILogger<MainWindow>? _logger;
         private readonly GameConfigService _gameConfig;
         private readonly CrashRecoveryService? _crashRecovery;
+        private readonly DataLocationMigrator? _dataMigrator;
         private readonly HealthCheckService? _healthCheck;
 
         // ── UI 状态 ──
@@ -96,6 +97,7 @@ namespace UEModManager
                 _localAuthService = sp.GetService<LocalAuthService>();
                 _logger = sp.GetService<ILogger<MainWindow>>();
                 _crashRecovery = sp.GetService<CrashRecoveryService>();
+                _dataMigrator = sp.GetService<DataLocationMigrator>();
                 _healthCheck = sp.GetService<HealthCheckService>();
 
                 // 订阅认证事件
@@ -192,6 +194,9 @@ namespace UEModManager
                 // Phase 11: 启动时检查未完成事务（崩溃恢复）
                 await CheckForCrashesAsync();
 
+                // 数据目录搬迁没做完时告知用户（软件仍在用旧位置，功能不受影响）
+                NotifyDataMigrationIfNeeded();
+
                 // Phase 11: 启动时健康检查（结果写入日志）
                 await LogHealthReportAsync();
             }
@@ -199,6 +204,40 @@ namespace UEModManager
             {
                 Console.WriteLine($"初始化失败: {ex}");
                 _logger?.LogError(ex, "MainWindow 初始化失败");
+            }
+        }
+
+        /// <summary>
+        /// 数据目录搬迁未彻底完成时告知用户一次。
+        ///
+        /// <para>
+        /// 判据必须是 <c>ShouldNotifyUser</c> 而不是 <c>Completed</c>：后者的语义是
+        /// "可以打数据布局版本标记了"，有推迟项时也是 false。搬迁总开关关着的当下，
+        /// 每台老用户机器都有推迟项——照 <c>Completed</c> 提示等于给全体用户天天报警，
+        /// 报的还是一件根本没开始做的事。
+        /// </para>
+        ///
+        /// <para>
+        /// 迁移方案要求这里是"非模态提示"，本实现用的是一次性对话框，是有意偏离：
+        /// 项目没有非模态提示基础设施，而主界面有 1:1 原型约束，新增常驻提示条要动布局。
+        /// 对话框在主窗口显示之后弹出，点掉即继续，并不阻断任何功能——方案那句话的实质
+        /// 诉求（迁移失败绝不拦人）仍然满足。真要做成提示条时，改这一处即可。
+        /// </para>
+        /// </summary>
+        private void NotifyDataMigrationIfNeeded()
+        {
+            try
+            {
+                var outcome = _dataMigrator?.LastOutcome;
+                if (outcome?.ShouldNotifyUser != true) return;
+
+                CyberMessageBox.Show(this, outcome.UserMessage, "数据目录",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                // 提示失败不能反过来影响启动——数据本身还在旧位置好好待着
+                _logger?.LogError(ex, "[DataMigration] 提示用户失败");
             }
         }
 
