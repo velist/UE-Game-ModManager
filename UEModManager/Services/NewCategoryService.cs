@@ -356,7 +356,7 @@ namespace UEModManager.Services
         }
 
         /// <summary>系统分类的固定顺序，与侧边栏三个导航项一致。</summary>
-        private static readonly string[] SystemOrder = { "全部", "已启用", "已禁用" };
+        private static readonly IReadOnlyList<string> SystemOrder = ModCategoryAssignment.SystemCategoryNames;
 
         /// <summary>
         /// 落盘当前分类列表。

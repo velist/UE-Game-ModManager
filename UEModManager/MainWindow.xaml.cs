@@ -1136,10 +1136,51 @@ namespace UEModManager
                     await DeleteModFromUiAsync(mod);
             }, _logger, "删除 MOD");
 
+        private void MoveToCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                // 子项由 ItemsSource 生成，每一项的 DataContext 就是它代表的分类。
+                if (sender is not MenuItem { DataContext: CategoryItem category }) return;
+
+                var mod = GetModFromContextMenu(sender);
+                if (mod == null) return;
+
+                var result = await _vm.MoveModToCategoryAsync(mod, category.Name);
+                if (!result.Success)
+                {
+                    ShowOperationFailure(result, "移动到分类失败");
+                    return;
+                }
+
+                UpdateNavCounts();
+                UpdateModCountText();
+            }, _logger, "移动 MOD 到分类");
+
         private ModInfo? GetModFromContextMenu(object sender)
         {
-            if (sender is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement fe)
-                return fe.DataContext as ModInfo ?? fe.Tag as ModInfo;
+            // 一路往上找 ContextMenu，而不是只看一层 Parent：子菜单项（"移动到分类"下面的
+            // 每个分类）的 Parent 是它的父 MenuItem，只看一层就永远找不到 ContextMenu。
+            var current = sender as DependencyObject;
+            while (current != null)
+            {
+                if (current is ContextMenu cm)
+                {
+                    // 卡片模式：PlacementTarget 是卡片 Border，DataContext 就是这个 MOD。
+                    if (cm.PlacementTarget is FrameworkElement fe
+                        && (fe.DataContext as ModInfo ?? fe.Tag as ModInfo) is { } fromTarget)
+                        return fromTarget;
+
+                    // 列表模式：菜单挂在 ListView 上，PlacementTarget 给不出具体某一行，
+                    // 只能回落到选中项（右键会先选中该行）。此前这里直接返回 null，
+                    // 列表模式下整个右键菜单点了都没反应。
+                    break;
+                }
+
+                current = current is FrameworkElement f && f.Parent != null
+                    ? f.Parent
+                    : LogicalTreeHelper.GetParent(current);
+            }
+
             return _vm.ModList.SelectedMod;
         }
 
