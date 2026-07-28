@@ -252,8 +252,7 @@ namespace UEModManager.Services
                     var preview = FindPreviewInDirectory(previewDir);
                     if (preview != null)
                     {
-                        var storedPreview = _objectStore.StorePreviewImage(fileName, preview);
-                        package.PreviewImagePath = storedPreview;
+                        package.PreviewImagePath = TryStorePreviewImage(fileName, preview);
                     }
                 }
 
@@ -387,8 +386,7 @@ namespace UEModManager.Services
                 var preview = FindPreviewInDirectory(modFileDir) ?? FindPreviewInDirectory(tempDir);
                 if (preview != null)
                 {
-                    var storedPreview = _objectStore.StorePreviewImage(packageName, preview);
-                    package.PreviewImagePath = storedPreview;
+                    package.PreviewImagePath = TryStorePreviewImage(packageName, preview);
                 }
 
                 await _repository.RegisterPackageAsync(package);
@@ -595,6 +593,26 @@ namespace UEModManager.Services
             if (!Directory.Exists(directory)) return null;
             var files = Directory.EnumerateFiles(directory, "*.*", SearchOption.TopDirectoryOnly);
             return PreviewImageSelector.Select(files);
+        }
+
+        /// <summary>
+        /// 存预览图，失败只记 Warning 并返回 null。
+        ///
+        /// <see cref="ObjectStore.StorePreviewImage"/> 现在会把写失败抛出来，但在导入路径上
+        /// 不能让它中止整包导入：MOD 文件本体可能已经全部落盘，为了一张缩略图回滚
+        /// 是拿主要功能给次要功能陪葬。包会以"没有预览图"的形态正常入库。
+        /// </summary>
+        private string? TryStorePreviewImage(string packageKey, string sourceImagePath)
+        {
+            try
+            {
+                return _objectStore.StorePreviewImage(packageKey, sourceImagePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "存储预览图失败，包将以无预览图的形态导入: {Package}", packageKey);
+                return null;
+            }
         }
     }
 }

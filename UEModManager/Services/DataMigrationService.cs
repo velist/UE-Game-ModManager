@@ -182,8 +182,7 @@ namespace UEModManager.Services
                             // 迁移预览图
                             if (!string.IsNullOrEmpty(mod.PreviewImagePath) && File.Exists(mod.PreviewImagePath))
                             {
-                                var storedPreview = _objectStore.StorePreviewImage(mod.RealName, mod.PreviewImagePath);
-                                package.PreviewImagePath = storedPreview;
+                                package.PreviewImagePath = TryStorePreviewImage(mod.RealName, mod.PreviewImagePath);
                             }
                             else
                             {
@@ -192,8 +191,7 @@ namespace UEModManager.Services
                                     .FirstOrDefault();
                                 if (preview != null)
                                 {
-                                    var storedPreview = _objectStore.StorePreviewImage(mod.RealName, preview);
-                                    package.PreviewImagePath = storedPreview;
+                                    package.PreviewImagePath = TryStorePreviewImage(mod.RealName, preview);
                                 }
                             }
                         }
@@ -268,6 +266,26 @@ namespace UEModManager.Services
 
         private static ArtifactType DetectArtifactType(string filePath, bool isPlugin)
             => ArtifactTypeDetector.DetectForMigration(filePath, isPlugin);
+
+        /// <summary>
+        /// 存预览图，失败只记 Warning 并返回 null。
+        ///
+        /// <see cref="ObjectStore.StorePreviewImage"/> 现在会把写失败抛出来，但一次
+        /// v1.x→v2 迁移动辄涉及几十个包，不能因为某个包的缩略图写不进去就让整轮迁移中断，
+        /// 让用户的 MOD 卡在半旧半新的状态。缺预览图的包照常迁移完成。
+        /// </summary>
+        private string? TryStorePreviewImage(string packageKey, string sourceImagePath)
+        {
+            try
+            {
+                return _objectStore.StorePreviewImage(packageKey, sourceImagePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "迁移预览图失败，该包将没有预览图: {Package}", packageKey);
+                return null;
+            }
+        }
 
         private void ReportProgress(MigrationStep step, string detail)
         {

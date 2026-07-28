@@ -37,10 +37,20 @@ namespace UEModManager.Services
         public event Action? PackagesChanged;
 
         public PackageRepository(ILogger<PackageRepository> logger, ObjectStore objectStore)
+            : this(logger, objectStore, Infrastructure.AppPaths.DataDirectory)
+        {
+        }
+
+        /// <summary>
+        /// 指定索引目录的构造函数（测试用）。DI 走上面的双参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。理由同 <see cref="OverwriteStore"/>：
+        /// 索引目录归口 AppPaths 之后，测试若不注入位置就会写进开发者真实的 %LOCALAPPDATA%。
+        /// </summary>
+        public PackageRepository(ILogger<PackageRepository> logger, ObjectStore objectStore, string dataDirectory)
         {
             _logger = logger;
             _objectStore = objectStore;
-            _dataDirectory = Infrastructure.AppPaths.DataDirectory;
+            _dataDirectory = dataDirectory;
         }
 
         /// <summary>ObjectStore 实例。</summary>
@@ -223,7 +233,8 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 更新包的预览图。
+        /// 更新包的预览图。返回落盘后的路径；包不在索引中时返回 null。
+        /// 预览图或索引写失败会上抛——这是用户显式发起的操作，必须看得见失败。
         /// </summary>
         public async Task<string?> UpdatePreviewImageAsync(string packageKey, string imagePath)
         {
@@ -234,12 +245,9 @@ namespace UEModManager.Services
                 if (package == null) return null;
 
                 var storedPath = _objectStore.StorePreviewImage(packageKey, imagePath);
-                if (storedPath != null)
-                {
-                    package.PreviewImagePath = storedPath;
-                    package.LastModified = DateTime.Now;
-                    await SaveIndexAsync().ConfigureAwait(false);
-                }
+                package.PreviewImagePath = storedPath;
+                package.LastModified = DateTime.Now;
+                await SaveIndexAsync().ConfigureAwait(false);
                 return storedPath;
             }
             finally { _gate.Release(); }
@@ -270,6 +278,7 @@ namespace UEModManager.Services
         /// <param name="allProfiles">所有 Profile（用于引用计数）。传 null 表示跳过检查（仅供测试）。</param>
         /// <param name="force">true = 即使被引用也强制删除（必须先自行回滚部署）。</param>
         /// <returns>(成功否, 决策详情)。Decision=ActivelyDeployed 且 force=false 时返回 (false, plan)。</returns>
+        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足）。此时索引未被改动。</exception>
         public async Task<(bool Success, PackageDeletionPlan? Plan)> DeletePackageAsync(
             string packageKey,
             IEnumerable<InstanceProfile>? allProfiles,
@@ -300,8 +309,14 @@ namespace UEModManager.Services
                     }
                 }
 
+                // 先删仓库文件、再动索引。反过来的话文件删不掉（被游戏占用/权限不足）
+                // 就会留下"索引里没有、磁盘上还在几十 GB"的孤儿目录，而且用户重试也删不掉了
+                // ——包已经不在索引里，界面上根本找不到它。
+                if (!_objectStore.DeletePackage(packageKey))
+                    throw new IOException(
+                        $"无法删除包「{packageKey}」的仓库文件，文件可能被游戏占用或权限不足。索引未改动，可稍后重试。");
+
                 _packages = _packages.Where(p => !ReferenceEquals(p, package)).ToList();
-                _objectStore.DeletePackage(packageKey);
                 await SaveIndexAsync().ConfigureAwait(false);
 
                 _logger.LogInformation(
@@ -412,34 +427,78 @@ namespace UEModManager.Services
 
         private async Task<List<Package>> LoadIndexAsync()
         {
+            var path = GetIndexPath();
             try
             {
-                var path = GetIndexPath();
                 if (!File.Exists(path)) return new List<Package>();
                 var json = await File.ReadAllTextAsync(path);
                 return JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "加载包索引失败");
+                // 读失败回落空列表：包索引读不出来不该让整个初始化中断，
+                // 否则用户连界面都进不去，比暂时看不到 MOD 列表更糟。
+                // 但空列表接下来会被任意一次保存全量覆盖，原索引就此消失——
+                // 故先备份原文件，与 ProfileService.BackupCorruptProfileFile /
+                // GameConfigService.BackupBrokenConfigFile 的处理一致。
+                _logger.LogError(ex, "加载包索引失败: {Path}", path);
+                BackupUnusableIndexFile(path, ex);
                 return new List<Package>();
             }
         }
 
-        private async Task SaveIndexAsync()
+        /// <summary>
+        /// 备份读不出来的包索引，命名与 ProfileService / GameConfigService 对齐。
+        /// </summary>
+        private void BackupUnusableIndexFile(string path, Exception cause)
         {
+            if (!File.Exists(path)) return;
+
             try
             {
-                var path = GetIndexPath();
+                var backupPath = $"{path}.corrupt-{DateTime.Now:yyyyMMddHHmmss}.bak";
+                File.Copy(path, backupPath, overwrite: false);
+                _logger.LogWarning(cause, "已备份无法读取的包索引: {BackupPath}", backupPath);
+            }
+            catch (Exception backupException)
+            {
+                // 备份失败无处可退，至少留痕：此刻原文件仍在原地，直到下一次保存才会被覆盖。
+                _logger.LogError(backupException, "备份无法读取的包索引失败: {Path}", path);
+            }
+        }
+
+        /// <summary>
+        /// 落盘包索引。
+        ///
+        /// 写失败必须上抛：索引丢了等于所有 MOD 的登记信息丢了（仓库里的文件还在，
+        /// 界面上却什么都不剩）。此前这里把异常吞掉，用户导入/删除后看到界面正常刷新，
+        /// 重启后包凭空消失。语义与 ModDataService / ProfileService 统一为 log + throw，
+        /// 由调用链上的 SafeEvent.Run 或 MainViewModel 的 OperationResult 呈现。
+        ///
+        /// 失败时**不**回滚内存里的 <c>_packages</c>：仓库文件已经真实写进去了，
+        /// 从内存抹掉只会让用户在本次会话里既看不到也删不掉它。保留内存状态 + 明确报错，
+        /// 用户修好目录后下一次操作仍会把完整索引写下去。
+        /// </summary>
+        private async Task SaveIndexAsync()
+        {
+            var path = GetIndexPath();
+            try
+            {
                 var json = JsonSerializer.Serialize(_packages, new JsonSerializerOptions { WriteIndented = true });
                 await AtomicFileWriter.WriteAllTextAsync(path, json);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "保存包索引失败");
+                _logger.LogError(ex, "保存包索引失败: {Path}", path);
+                throw;
             }
         }
 
+        /// <summary>
+        /// 写包的 manifest.json。写失败上抛，理由同 <see cref="SaveIndexAsync"/>：
+        /// manifest 是仓库的自描述来源，缺了它 <see cref="CheckIntegrityAsync"/>
+        /// 会把这个包判成"导入残留目录"。
+        /// </summary>
         private async Task WriteManifestAsync(Package package)
         {
             try
@@ -457,6 +516,7 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "写入 manifest 失败: {Key}", package.PackageKey);
+                throw;
             }
         }
     }

@@ -27,9 +27,23 @@ namespace UEModManager.Services
         private string _repositoryRoot;
 
         public ObjectStore(ILogger<ObjectStore> logger)
+            : this(logger, Infrastructure.AppPaths.RepositoryRoot)
+        {
+        }
+
+        /// <summary>
+        /// 指定仓库根的构造函数（测试用）。DI 走上面的单参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。
+        ///
+        /// <para>
+        /// 不能用 <see cref="SetRepositoryRoot"/> 代替：那个方法会把路径写进
+        /// <see cref="UiPreferences"/>，跑一次测试就会改掉开发者真实的仓库位置偏好。
+        /// </para>
+        /// </summary>
+        public ObjectStore(ILogger<ObjectStore> logger, string repositoryRoot)
         {
             _logger = logger;
-            _repositoryRoot = Infrastructure.AppPaths.RepositoryRoot;
+            _repositoryRoot = repositoryRoot;
         }
 
         /// <summary>仓库根目录。</summary>
@@ -124,9 +138,14 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 存储预览图到包仓库。
+        /// 存储预览图到包仓库，返回落盘后的完整路径。
+        ///
+        /// 写失败上抛而不再返回 null：调用方拿到 null 只知道"没成"，不知道是图片源文件
+        /// 读不了、还是仓库目录不可写，于是 MainViewModel 只能给出一句猜测性的
+        /// "请确认图片文件仍然存在且可读取"，把磁盘满/权限不足指到了错误的方向。
+        /// 允许预览图失败但不允许整体失败的调用方（导入、数据迁移）自行 catch。
         /// </summary>
-        public string? StorePreviewImage(string packageKey, string sourceImagePath)
+        public string StorePreviewImage(string packageKey, string sourceImagePath)
         {
             try
             {
@@ -140,7 +159,15 @@ namespace UEModManager.Services
                 // 删除旧预览图。这里必须保持 GetFiles（先物化）：
                 // 边枚举边删同一目录会让枚举器抛异常。
                 foreach (var old in Directory.GetFiles(packageDir, "preview*"))
-                    try { File.Delete(old); } catch { }
+                {
+                    try { File.Delete(old); }
+                    catch (Exception ex)
+                    {
+                        // 删不掉旧图不阻断写新图：同扩展名会被下面的 Copy(overwrite) 直接覆盖，
+                        // 不同扩展名则最多留下一张用不到的旧图，不值得让整个操作失败。
+                        _logger.LogWarning(ex, "删除旧预览图失败: {Path}", old);
+                    }
+                }
 
                 File.Copy(sourceImagePath, previewPath, true);
                 return previewPath;
@@ -148,7 +175,7 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "存储预览图失败: {Package}", packageKey);
-                return null;
+                throw;
             }
         }
 
@@ -314,7 +341,8 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 获取仓库总占用大小。
+        /// 获取仓库总占用大小。纯统计用途，失败回落 0（只是界面上少一个数字），
+        /// 但仍要留痕，否则"仓库大小永远显示 0"完全无从排查。
         /// </summary>
         public long GetTotalSize()
         {
@@ -327,7 +355,11 @@ namespace UEModManager.Services
                     .EnumerateFiles("*.*", SearchOption.AllDirectories)
                     .Sum(f => f.Length);
             }
-            catch { return 0; }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "统计仓库大小失败: {Root}", _repositoryRoot);
+                return 0;
+            }
         }
 
         /// <summary>
