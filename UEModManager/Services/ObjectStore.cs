@@ -54,8 +54,11 @@ namespace UEModManager.Services
         /// </summary>
         public void SetRepositoryRoot(string path)
         {
-            _repositoryRoot = path;
+            // 顺序是先落盘、再改内存：反过来的话写盘失败时本服务已经指向新目录，
+            // 用户看到错误提示，但这次会话里 MOD 会全部"消失"（读的是一个空的新仓库），
+            // 重启后又回到旧目录。与 BackgroundManager.Apply 同一条判据。
             UiPreferences.SaveRepositoryRoot(path);
+            _repositoryRoot = path;
             _logger.LogInformation("仓库路径设置为: {Path}", path);
         }
 
