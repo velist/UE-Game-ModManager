@@ -290,6 +290,10 @@ namespace UEModManager.ViewModels
                     await _conflictAnalyzer.SetCurrentGameAsync(CurrentGameName);
                     await _overwriteStore.SetCurrentGameAsync(CurrentGameName);
 
+                    // 分类：数据文件按游戏名分片，漏掉这一步分类就永远不会从磁盘读回来
+                    LoadingMessage = "加载分类...";
+                    await _categoryService.SetCurrentGameAsync(CurrentGameName);
+
                     // v2.0: 检查并执行数据迁移
                     if (_dataMigrationService.NeedsMigration(CurrentGameName))
                     {
@@ -343,6 +347,9 @@ namespace UEModManager.ViewModels
             // v2.0: 冲突分析器
             await _conflictAnalyzer.SetCurrentGameAsync(gameName);
             await _overwriteStore.SetCurrentGameAsync(gameName);
+
+            // 分类同样按游戏名分片，和上面几个服务一起切，别再落下
+            await _categoryService.SetCurrentGameAsync(gameName);
 
             // v2.0: 数据迁移（如需要）
             if (_dataMigrationService.NeedsMigration(gameName))

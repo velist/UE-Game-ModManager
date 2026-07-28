@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
+using UEModManager.Services.Categories;
 
 namespace UEModManager.Services
 {
@@ -53,6 +54,11 @@ namespace UEModManager.Services
 
         /// <summary>
         /// 切换当前游戏并加载对应的分类数据。
+        ///
+        /// 必须在每一条"当前游戏变了"的路径上调用（<see cref="ViewModels.MainViewModel.InitializeAsync"/>
+        /// 与 <c>SwitchGameAsync</c>）。漏掉它的后果不是"少加载一次"：<c>_currentGame</c> 恒为空，
+        /// 所有游戏的分类会挤进同一份没有游戏名前缀的文件，而 <see cref="LoadCategoriesAsync"/>
+        /// 从不触发——用户新建的分类只活在当前这次运行里，重启就没了。
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
@@ -240,7 +246,8 @@ namespace UEModManager.Services
 
         // ─── 内部方法 ───
 
-        private string GetFilePath() => Path.Combine(_dataDirectory, $"{_currentGame}_categories.json");
+        private string GetFilePath()
+            => Path.Combine(_dataDirectory, CategoryStoreLayout.FileNameFor(_currentGame));
 
         private async Task LoadCategoriesAsync()
         {
@@ -248,35 +255,32 @@ namespace UEModManager.Services
 
             try
             {
-                var filePath = GetFilePath();
+                var ownFileName = CategoryStoreLayout.FileNameFor(_currentGame);
+                var loaded = await TryLoadFromCandidatesAsync(ownFileName);
 
-                if (File.Exists(filePath))
+                if (loaded == null)
                 {
-                    var json = await File.ReadAllTextAsync(filePath);
-                    var saved = JsonSerializer.Deserialize<List<CategoryItem>>(json);
-                    if (saved != null && saved.Count > 0)
-                    {
-                        foreach (var cat in saved)
-                            Categories.Add(cat);
-                        _logger.LogInformation("加载了 {Count} 个分类", saved.Count);
-                        return;
-                    }
-                }
-
-                // 尝试从其他游戏迁移
-                var migrated = await TryMigrateFromOtherGamesAsync();
-                if (migrated != null && migrated.Count > 3)
-                {
-                    foreach (var cat in migrated)
-                        Categories.Add(cat);
+                    InitializeDefaults();
                     await TrySaveDuringLoadAsync();
-                    _logger.LogInformation("从其他游戏迁移了 {Count} 个分类", migrated.Count);
                     return;
                 }
 
-                // 初始化默认分类
-                InitializeDefaults();
+                foreach (var cat in NormalizeForDisplay(loaded.Value.Items))
+                    Categories.Add(cat);
+
+                var isOwnFile = string.Equals(loaded.Value.FileName, ownFileName, StringComparison.OrdinalIgnoreCase);
+                if (isOwnFile)
+                {
+                    _logger.LogInformation("加载了 {Count} 个分类: {File}", Categories.Count, loaded.Value.FileName);
+                    return;
+                }
+
+                // 继承来的数据得在本游戏名下再落一份，否则每次启动都要重新继承一遍，
+                // 而且用户在本游戏里的后续改动无处可存。源文件保留不删：另一个游戏
+                // 首次切过去时还要靠它，删掉就成了单向的、不可逆的搬家。
                 await TrySaveDuringLoadAsync();
+                _logger.LogInformation("从 {File} 继承了 {Count} 个分类到 {Game}",
+                    loaded.Value.FileName, Categories.Count, _currentGame);
             }
             catch (Exception ex)
             {
@@ -310,10 +314,49 @@ namespace UEModManager.Services
         private void InitializeDefaults()
         {
             Categories.Clear();
-            Categories.Add(new CategoryItem { Name = "全部", FullPath = "全部", SortOrder = 0 });
-            Categories.Add(new CategoryItem { Name = "已启用", FullPath = "已启用", SortOrder = 1 });
-            Categories.Add(new CategoryItem { Name = "已禁用", FullPath = "已禁用", SortOrder = 2 });
+            foreach (var cat in NormalizeForDisplay(new List<CategoryItem>()))
+                Categories.Add(cat);
         }
+
+        /// <summary>
+        /// 归一化一份加载进来的分类：补齐三个系统分类、把它们钉在最前面并标记为隐藏，
+        /// 其余自定义分类保持文件里的先后顺序，最后按位置重排 SortOrder。
+        ///
+        /// 系统分类必须留在集合里：侧边栏"全部/已启用/已禁用"三个导航项的点击处理
+        /// （<c>MainWindow.NavItem_Click</c>）是按 Name 到这个集合里查筛选目标的，
+        /// 查不到就整个筛选失效。但它们又不能出现在下方的"分类目录"列表里——
+        /// 那会把同样三行再画一遍，所以统一置 IsHidden（列表模板有对应的折叠触发器）。
+        /// v1.x 时期存下来的文件里这三条是 IsHidden=false 的，这里一并纠正。
+        /// </summary>
+        private static List<CategoryItem> NormalizeForDisplay(List<CategoryItem> loaded)
+        {
+            var result = new List<CategoryItem>();
+
+            foreach (var name in SystemOrder)
+            {
+                var item = loaded.FirstOrDefault(c => c.Name == name)
+                           ?? new CategoryItem { Name = name };
+                item.FullPath = name;
+                item.IsCustom = false;
+                item.IsHidden = true;
+                result.Add(item);
+            }
+
+            foreach (var cat in loaded)
+            {
+                if (CategoryItem.SystemNames.Contains(cat.Name)) continue;
+                if (string.IsNullOrEmpty(cat.FullPath)) cat.FullPath = cat.Name;
+                result.Add(cat);
+            }
+
+            for (int i = 0; i < result.Count; i++)
+                result[i].SortOrder = i;
+
+            return result;
+        }
+
+        /// <summary>系统分类的固定顺序，与侧边栏三个导航项一致。</summary>
+        private static readonly string[] SystemOrder = { "全部", "已启用", "已禁用" };
 
         /// <summary>
         /// 落盘当前分类列表。
@@ -358,37 +401,56 @@ namespace UEModManager.Services
             }
         }
 
-        private async Task<List<CategoryItem>?> TryMigrateFromOtherGamesAsync()
+        /// <summary>
+        /// 按 <see cref="CategoryStoreLayout.ResolveLoadOrder"/> 的优先级找出第一份可用的分类数据。
+        /// 全都读不出来时返回 null，由调用方回落到默认分类。
+        ///
+        /// 采纳标准对"自己的文件"和"别人的文件"是不同的：
+        /// 本游戏自己的文件只要能解析出内容就照单全收——哪怕里面只剩三个系统分类，
+        /// 那也是用户在这个游戏下把自定义分类删干净的结果，不能再去别处捞回来；
+        /// 遗留共用文件和其他游戏的文件则必须含有至少一个自定义分类才值得继承，
+        /// 否则继承的是一份空内容，还不如直接走默认。
+        /// （旧实现用的门槛是"条数 &gt; 3"，对只有 1~3 个自定义分类的老用户就是直接丢弃。）
+        /// </summary>
+        private async Task<(List<CategoryItem> Items, string FileName)?> TryLoadFromCandidatesAsync(string ownFileName)
         {
+            List<string> existing;
             try
             {
                 if (!Directory.Exists(_dataDirectory))
                     return null;
 
-                var files = Directory.GetFiles(_dataDirectory, "*_categories.json")
-                    .Where(f => !Path.GetFileName(f).StartsWith(_currentGame))
-                    .OrderByDescending(f => new FileInfo(f).LastWriteTime);
-
-                foreach (var file in files)
-                {
-                    try
-                    {
-                        var json = await File.ReadAllTextAsync(file);
-                        var cats = JsonSerializer.Deserialize<List<CategoryItem>>(json);
-                        if (cats != null && cats.Count > 3)
-                            return cats;
-                    }
-                    catch (Exception ex)
-                    {
-                        // 单个文件读不出来就换下一个；这里是纯读取的机会主义迁移，
-                        // 失败不影响功能，但完全无声会让"为什么没迁移过来"无从排查。
-                        _logger.LogWarning(ex, "读取候选分类文件失败，跳过: {File}", file);
-                    }
-                }
+                existing = Directory.GetFiles(_dataDirectory, "*" + CategoryStoreLayout.FileSuffix)
+                    .OrderByDescending(f => new FileInfo(f).LastWriteTime)
+                    .Select(Path.GetFileName)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .ToList()!;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "枚举其他游戏的分类文件失败，跳过迁移");
+                _logger.LogWarning(ex, "枚举分类数据文件失败，跳过加载");
+                return null;
+            }
+
+            foreach (var fileName in CategoryStoreLayout.ResolveLoadOrder(_currentGame, existing))
+            {
+                var isOwnFile = string.Equals(fileName, ownFileName, StringComparison.OrdinalIgnoreCase);
+                try
+                {
+                    var json = await File.ReadAllTextAsync(Path.Combine(_dataDirectory, fileName));
+                    var cats = JsonSerializer.Deserialize<List<CategoryItem>>(json);
+                    if (cats == null || cats.Count == 0)
+                        continue;
+                    if (!isOwnFile && !cats.Any(c => !CategoryItem.SystemNames.Contains(c.Name)))
+                        continue;
+
+                    return (cats, fileName);
+                }
+                catch (Exception ex)
+                {
+                    // 单个文件读不出来就换下一个；完全无声会让"为什么分类没回来"无从排查。
+                    _logger.LogWarning(ex, "读取候选分类文件失败，跳过: {File}", fileName);
+                }
             }
 
             return null;
