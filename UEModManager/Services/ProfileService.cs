@@ -79,9 +79,27 @@ namespace UEModManager.Services
         };
 
         public ProfileService(ILogger<ProfileService> logger)
+            : this(logger, AppPaths.DataDirectory)
+        {
+        }
+
+        /// <summary>
+        /// 指定数据目录的构造函数（测试用）。DI 走上面的单参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。与 <see cref="NewCategoryService"/> /
+        /// <see cref="GameConfigService"/> / <see cref="OverwriteStore"/> 的处理一致：
+        /// 数据目录归口 AppPaths 之后，测试若不注入位置就会写进开发者真实的 %LOCALAPPDATA%。
+        ///
+        /// <para>
+        /// 本类此前漏了这个重载，三个 ProfileService 测试类因此一直在往真实
+        /// <c>%LOCALAPPDATA%\UEModManager\Data</c> 里写 <c>UEMM*_profiles.json</c>，
+        /// 而它们的 Dispose 删的是早已不再使用的"测试宿主进程目录\Data"——
+        /// 于是每跑一次测试就在开发者的真实数据目录里多留一批孤儿文件，永不清理。
+        /// </para>
+        /// </summary>
+        public ProfileService(ILogger<ProfileService> logger, string dataDirectory)
         {
             _logger = logger;
-            _dataDir = AppPaths.DataDirectory;
+            _dataDir = dataDirectory;
             AppPaths.TryEnsureDirectory(_dataDir);
         }
 

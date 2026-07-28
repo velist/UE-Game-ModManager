@@ -17,14 +17,17 @@ namespace UEModManager.Tests.Services;
 /// </summary>
 public sealed class ProfileServiceConcurrencyTests : IDisposable
 {
+    // 每个用例类一份独立临时目录。此处曾经写的是"测试宿主进程目录\Data"，
+    // 而 ProfileService 的数据目录早已归口到 AppPaths —— 于是测试实际写的是开发者真实的
+    // %LOCALAPPDATA%\UEModManager\Data，Dispose 又删不到，每跑一次就留下一批孤儿文件。
     private readonly string _dataDir =
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+        Path.Combine(Path.GetTempPath(), "uemm_profile_" + Guid.NewGuid().ToString("N")[..8]);
 
     private readonly List<string> _gameNames = [];
 
     private async Task<ProfileService> CreateServiceAsync(int packageCount)
     {
-        var service = new ProfileService(NullLogger<ProfileService>.Instance);
+        var service = new ProfileService(NullLogger<ProfileService>.Instance, _dataDir);
         await service.SetCurrentGameAsync(NewGameName());
 
         var entries = new List<ProfilePackageEntry>();
@@ -51,7 +54,7 @@ public sealed class ProfileServiceConcurrencyTests : IDisposable
         Assert.All(service.CurrentProfile!.Packages, p => Assert.True(p.IsEnabled));
 
         // 落盘内容同样一个不落：无锁时两个写入方可能各自序列化再反序写回，后写的把先写的覆盖掉
-        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance);
+        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance, _dataDir);
         await reloaded.SetCurrentGameAsync(_gameNames[^1]);
         Assert.Equal(count, reloaded.CurrentProfile!.Packages.Count);
         Assert.All(reloaded.CurrentProfile!.Packages, p => Assert.True(p.IsEnabled));
@@ -72,7 +75,7 @@ public sealed class ProfileServiceConcurrencyTests : IDisposable
         // 无锁时 _profiles.Add 会并发写同一个 List，轻则丢条目重则抛异常
         Assert.Equal(initial + count, service.GetProfiles().Count);
 
-        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance);
+        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance, _dataDir);
         await reloaded.SetCurrentGameAsync(_gameNames[^1]);
         Assert.Equal(initial + count, reloaded.GetProfiles().Count);
     }
@@ -126,7 +129,7 @@ public sealed class ProfileServiceConcurrencyTests : IDisposable
         })).ToArray();
         await Task.WhenAll(tasks);
 
-        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance);
+        var reloaded = new ProfileService(NullLogger<ProfileService>.Instance, _dataDir);
         await reloaded.SetCurrentGameAsync(_gameNames[^1]);
         Assert.All(reloaded.CurrentProfile!.Packages, p => Assert.True(p.IsEnabled));
     }
@@ -140,9 +143,7 @@ public sealed class ProfileServiceConcurrencyTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var game in _gameNames)
-        {
-            try { File.Delete(Path.Combine(_dataDir, $"{game}_profiles.json")); } catch { }
-        }
+        try { if (Directory.Exists(_dataDir)) Directory.Delete(_dataDir, recursive: true); }
+        catch { /* 临时目录清理失败不影响测试结论 */ }
     }
 }

@@ -193,7 +193,7 @@ namespace UEModManager.Services
         /// 追加旧位置（exe 旁）的同类文件，zip 内统一挂在 <c>legacy/</c> 下。
         ///
         /// 为什么新旧都采而不是只采新位置：搬迁动作至今没有真正执行
-        /// （<c>DataLocationMigrator.RelocationExecutionEnabled</c> 仍为 false），
+        /// （<c>DataLocationMigrator.ProductionRelocationExecutionEnabled</c> 仍为 false），
         /// 老用户机器上的数据实际还全在安装目录里；就算开关打开了，搬迁也可能中途失败、
         /// 或因空间不足降级为原地保留。诊断包的全部价值就在这些"没按预期发生"的时刻，
         /// 只采新位置恰恰会在最需要证据的场景下交出一个空包。
