@@ -100,7 +100,9 @@ namespace UEModManager.Services
         /// <item>搬完后的绝对路径改写已就位（<see cref="RewriteConfigPaths"/>）；</item>
         /// <item>诊断包同时采集新旧两处，搬迁失败时仍有证据；</item>
         /// <item>安装脚本不再删 <c>{app}\Data\Backups</c>，清理脚本与 INFO_AFTER 指向新位置；</item>
-        /// <item>保存类操作的失败语义统一为 log + throw，不再有静默丢数据的通道。</item>
+        /// <item>保存类操作的失败语义统一为 log + throw，不再有静默丢数据的通道；</item>
+        /// <item>搬移前做磁盘空间预检（<see cref="PassesSpacePrecheck"/> + Core 的
+        /// <see cref="DiskSpacePrecheck"/>）：目标盘装不下时该项一个字节都不写。</item>
         /// </list>
         /// 唯一还在写安装目录的是头像（<c>Views/AccountSettingsWindow.xaml.cs</c>），
         /// 它<b>不在本迁移器的探测项里</b>，原因见
@@ -119,17 +121,23 @@ namespace UEModManager.Services
         /// </para>
         ///
         /// <para>
+        /// <b>目标盘空间不足怎么办，也定了（2026-07-28）</b>，同样不再是阻塞项。
+        /// 复制开始前先估源体积、查目标卷可用空间，不足就<b>跳过该项</b>并把差多少字节写进日志；
+        /// 该项计为失败，于是不打版本标记、下次启动自动重试，提示也对用户可见。
+        /// 刻意<b>没有</b>照方案 §三② 做成"降级为原地登记"，理由见
+        /// <see cref="DiskSpacePrecheck"/> 的类注释（搬移类四项没有读取方会去读旧位置，
+        /// 且登记安装目录等于把数据永久钉在会被卸载清空的地方）。
+        /// </para>
+        ///
+        /// <para>
         /// <b>翻开之前还差的事：</b>
         /// <list type="number">
         /// <item><b>D0–D5 测试矩阵尚未在真机跑过。</b>见迁移方案 §七。文件系统层面的部分
         /// 已在 <c>DataLocationMigratorTests</c> 里自动化（D0/D1/D2/D5、新旧冲突合并、幂等、
-        /// 两项备份解耦、失败时不改配置），真机只剩 GUI 相关的几项：应用能启动到主界面、
-        /// 界面显示正确、D3（安装目录不可写）、D4（目标盘空间不足）。</item>
-        /// <item><b>没有磁盘空间预检。</b>方案 §三② 要求空间不足时降级为原地登记，
-        /// 目前没实现。几十 GB 的仓库/生成物已经是 <c>RegisterInPlace</c>、根本不复制，
-        /// 所以风险比方案设想的小得多；但备份两项是游戏文件的副本，体积仍可观，
-        /// 目标盘满时会走到"该项失败"分支——数据完整留在旧位置不会丢，
-        /// 只是每次启动重试一遍。可接受，但真机 D4 要确认它确实只是失败而不是留下半份。</item>
+        /// 两项备份解耦、失败时不改配置，以及 D3 的目标/旧位置不可写与 D4 的空间不足），
+        /// 真机只剩 GUI 相关的几项：应用能启动到主界面、界面显示正确、
+        /// 真实只读安装目录（ACL 层面，而非测试里用同名文件模拟的不可写）、
+        /// 真实小容量卷上的 D4。</item>
         /// <item><b>失败提示已接到界面</b>（<c>d14bdae</c>）：
         /// <c>MainWindow.NotifyDataMigrationIfNeeded</c> 在启动流程里读
         /// <see cref="LastOutcome"/> 与 <see cref="DataMigrationOutcome.ShouldNotifyUser"/>，
@@ -155,6 +163,7 @@ namespace UEModManager.Services
 
         private readonly ILogger<DataLocationMigrator> _logger;
         private readonly DataRelocationExecutor _executor;
+        private readonly IFreeSpaceProbe _freeSpace;
 
         /// <summary>
         /// 注入的运行环境；<c>null</c> 表示走生产环境。
@@ -187,14 +196,22 @@ namespace UEModManager.Services
         /// （复制中 / 校验后写墓碑前 / 删源中），验证中断后重启能自愈。
         /// 这三种中断没法靠真实文件操作稳定复现。
         /// </param>
+        /// <param name="freeSpace">
+        /// 传入自定义空间探针是为了驱动 D4（目标盘空间不足）。真实地造一个满盘需要
+        /// VHD 或小容量卷，跨机器不可复现、还会留残留；把"可用空间"做成可注入的，
+        /// D4 就退化成一个普通的返回值替身。<c>null</c> 表示走真实的
+        /// <see cref="DriveInfo.AvailableFreeSpace"/>。
+        /// </param>
         internal DataLocationMigrator(
             ILogger<DataLocationMigrator> logger,
             DataMigrationEnvironment? environment,
-            DataRelocationExecutor? executor = null)
+            DataRelocationExecutor? executor = null,
+            IFreeSpaceProbe? freeSpace = null)
         {
             _logger = logger;
             _environment = environment;
             _executor = executor ?? new DataRelocationExecutor(logger);
+            _freeSpace = freeSpace ?? DriveFreeSpaceProbe.Instance;
         }
 
         /// <summary>
@@ -285,6 +302,15 @@ namespace UEModManager.Services
                     _logger.LogInformation(
                         "[DataMigration] 计划（本阶段不执行）{Name}: {Action} — {Reason}｜{From} → {To}",
                         step.Name, step.Action, step.Reason, step.LegacyPath, step.TargetPath);
+                    continue;
+                }
+
+                // 空间预检：目标盘装不下就一个字节都不要往那边写。
+                // 与上面那道推迟闸门形态一致（都是"本项不执行"），只是计入 failed 而不是
+                // deferred —— 空间是可恢复的条件，计失败才能不打版本标记、下次启动自动重试。
+                if (RequiresSpacePrecheck(step.Action) && !PassesSpacePrecheck(env, step))
+                {
+                    failed++;
                     continue;
                 }
 
@@ -441,6 +467,86 @@ namespace UEModManager.Services
         private static bool IsFileItem(RelocationStep step)
             => Path.HasExtension(step.LegacyPath) && !Directory.Exists(step.LegacyPath);
 
+        // ─── 磁盘空间预检 ───
+
+        /// <summary>
+        /// 哪些动作需要预检：<b>只有真的会往目标写数据的那两种</b>。
+        /// <see cref="RelocationAction.ResumeCleanup"/> 只删源（净释放空间）、
+        /// <see cref="RelocationAction.AdoptTargetKeepLegacy"/> 只在旧位置写一张几 KB 的说明、
+        /// <see cref="RelocationAction.RegisterInPlace"/> 只写一个配置值——
+        /// 给它们查一遍盘不但白花钱，还会把"源体积估不出来"这类噪音引到根本不复制的项上。
+        /// 顺带一说，这也是几十 GB 的仓库与生成物从来不进预检的原因：它们是原地登记项。
+        /// </summary>
+        private static bool RequiresSpacePrecheck(RelocationAction action)
+            => action is RelocationAction.Copy or RelocationAction.PurgeTargetThenCopy;
+
+        /// <summary>
+        /// 复制开始<b>之前</b>判一次目标盘装不装得下。判定逻辑与余量取舍都在 Core 的
+        /// <see cref="DiskSpacePrecheck"/>（纯函数、有单测），本方法只负责两件 IO：
+        /// 估源体积、查目标卷可用空间。
+        ///
+        /// <para>
+        /// 空间不足时的处置是<b>跳过该项</b>而不是方案 §三② 写的"降级为原地登记"，
+        /// 完整理由在 <see cref="DiskSpacePrecheck"/> 的类注释里：搬移类四项的读取方
+        /// 已经全部指向写死的新位置，登记旧位置没有读取方，而且等于把用户数据永久钉在
+        /// 卸载会清空的安装目录里。
+        /// </para>
+        /// </summary>
+        /// <returns>true 表示可以开始复制。</returns>
+        private bool PassesSpacePrecheck(DataMigrationEnvironment env, RelocationStep step)
+        {
+            var isFile = IsFileItem(step);
+            var excluded = ExcludedChildrenOf(env, step.Name);
+
+            var required = DataRelocationExecutor.TryEstimateBytes(step.LegacyPath, isFile, excluded);
+            if (required is null)
+            {
+                // 连源体积都枚举不出来（权限/占用）。照常尝试复制：预检不该比它保护的操作
+                // 更容易失败，否则它自己就成了一个新的"永远搬不了"的原因。
+                _logger.LogWarning(
+                    "[DataMigration] {Name} 源体积无法估算，跳过空间预检直接尝试搬移：{Path}",
+                    step.Name, step.LegacyPath);
+                return true;
+            }
+
+            var check = DiskSpacePrecheck.Evaluate(required.Value, AvailableAtTarget(step, isFile, excluded));
+            if (!check.IsBlocking)
+            {
+                _logger.LogInformation("[DataMigration] {Name} 空间预检：{Check}", step.Name, check);
+                return true;
+            }
+
+            _logger.LogError(
+                "[DataMigration] {Name} 空间不足，本项不搬移，数据完整留在旧位置 {Path}｜{Check}" +
+                "｜目标位置一个字节都没写，腾出空间后下次启动会自动重试",
+                step.Name, step.LegacyPath, check);
+            return false;
+        }
+
+        /// <summary>
+        /// 目标卷此刻能给出多少空间。
+        ///
+        /// <para>
+        /// <see cref="RelocationAction.PurgeTargetThenCopy"/> 时要把目标残留的体积<b>加回去</b>：
+        /// 清空目标正是这个动作的第一步，那部分空间马上就会被释放。不加的话有一个能稳定复现的
+        /// 死锁：上次复制到 90% 时断电，目标盘剩余空间刚好卡在阈值下方，于是每次启动都判"不足"，
+        /// 而那 90% 的残留只要执行下去就会被清掉——用户看到的是"盘上明明有我自己的垃圾却永远搬不了"。
+        /// 代价是这条罕见路径上多一次目录枚举，只在它身上花。
+        /// </para>
+        /// </summary>
+        private long? AvailableAtTarget(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string> excluded)
+        {
+            var available = _freeSpace.TryGetAvailableFreeBytes(step.TargetPath);
+            if (available is null || step.Action != RelocationAction.PurgeTargetThenCopy)
+            {
+                return available;
+            }
+
+            var reclaimable = DataRelocationExecutor.TryEstimateBytes(step.TargetPath, isFile, excluded);
+            return reclaimable is null ? available : available + reclaimable;
+        }
+
         // ─── 配置里的绝对路径改写 ───
 
         /// <summary>
@@ -543,6 +649,64 @@ namespace UEModManager.Services
             return DataRelocationExecutor.FileExists(env.Paths.LegacyConfigFile)
                 ? env.Paths.LegacyConfigFile
                 : null;
+        }
+    }
+
+    /// <summary>
+    /// 查询某个路径所在卷的可用空间。
+    ///
+    /// <para>
+    /// 抽出接口的唯一目的是<b>让 D4（目标盘空间不足）能被自动化</b>。真实地造一个满盘要么
+    /// 挂 VHD、要么找一个小容量卷，跨机器不可复现、需要额外权限、跑完还留残留；
+    /// 而把"可用空间"变成一个返回值，D4 就退化成普通的替身注入。
+    /// 判定逻辑本来就在 Core 的 <see cref="DiskSpacePrecheck"/> 里，这里只剩一次
+    /// <see cref="DriveInfo"/> 查询——正好是"IO 留主项目、判定下沉 Core"的分界线。
+    /// </para>
+    /// </summary>
+    internal interface IFreeSpaceProbe
+    {
+        /// <summary>
+        /// 返回 <paramref name="path"/> 所在卷的可用字节数；查不出来时返回 <c>null</c>
+        /// （调用方据此按"未知"放行，见 <see cref="DiskSpaceDecision.Unknown"/>）。
+        /// </summary>
+        long? TryGetAvailableFreeBytes(string path);
+    }
+
+    /// <summary>
+    /// <see cref="IFreeSpaceProbe"/> 的生产实现。
+    ///
+    /// <para>
+    /// 用 <see cref="DriveInfo.AvailableFreeSpace"/> 而不是 <c>TotalFreeSpace</c>：前者算的是
+    /// <b>当前用户</b>还能用多少，会把磁盘配额算进去。目标位置是 <c>%LOCALAPPDATA%</c>，
+    /// 域环境里给用户配额的机器不算罕见，按总剩余判会得出一个用户根本用不上的数字。
+    /// </para>
+    ///
+    /// <para>
+    /// 目标目录此刻通常还不存在（正要往里搬东西），所以取的是路径的<b>卷根</b>而不是路径本身。
+    /// UNC 路径拿不到卷根、卷未就绪（拔掉的移动盘）也一样——这些都返回 <c>null</c> 走"未知"放行，
+    /// 不能因为查不到就拒绝搬迁。无状态，故用单例。
+    /// </para>
+    /// </summary>
+    internal sealed class DriveFreeSpaceProbe : IFreeSpaceProbe
+    {
+        internal static readonly DriveFreeSpaceProbe Instance = new();
+
+        private DriveFreeSpaceProbe() { }
+
+        public long? TryGetAvailableFreeBytes(string path)
+        {
+            try
+            {
+                var root = Path.GetPathRoot(Path.GetFullPath(path));
+                if (string.IsNullOrEmpty(root)) return null;
+
+                var drive = new DriveInfo(root);
+                return drive.IsReady ? drive.AvailableFreeSpace : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 

@@ -556,4 +556,89 @@ public sealed class DataRelocationExecutorTests : IDisposable
         Assert.Contains("没有丢失", text);
         Assert.Contains(_target, text);
     }
+
+    // ─── 体积估算（喂给搬移前的空间预检） ───
+
+    [Fact]
+    public void EstimateBytes_SumsNestedFiles()
+    {
+        WriteLegacy("a.json", new string('x', 100));
+        WriteLegacy(Path.Combine("sub", "b.json"), new string('y', 250));
+        WriteLegacy(Path.Combine("sub", "deep", "c.json"), new string('z', 7));
+
+        Assert.Equal(357, DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false));
+    }
+
+    [Fact]
+    public void EstimateBytes_MatchesWhatCopyActuallyWrites()
+    {
+        // 估算与复制必须是同一个口径。分成两套判断的话，哪天排除清单或元数据的语义变了，
+        // 预检会安静地按另一个口径算，得出一个谁都对不上的数字。
+        WriteLegacy("a.json", new string('x', 100));
+        WriteLegacy(Path.Combine("sub", "b.json"), new string('y', 250));
+        File.WriteAllText(
+            DataRelocationExecutor.GetSupersededMarkerPath(_legacy, isFile: false), "跳过标记");
+
+        var estimated = DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false);
+        DataRelocationExecutor.CopyDirectory(_legacy, _target);
+        var actual = Directory.GetFiles(_target, "*", SearchOption.AllDirectories)
+            .Sum(f => new FileInfo(f).Length);
+
+        Assert.Equal(actual, estimated);
+    }
+
+    [Fact]
+    public void EstimateBytes_IgnoresMigratorMetadata()
+    {
+        // 墓碑/跳过标记/进行中标记都不会被复制，算进去只会虚报需求
+        WriteLegacy("a.json", new string('x', 100));
+        File.WriteAllText(
+            DataRelocationExecutor.GetTombstonePath(_legacy, isFile: false), new string('m', 9999));
+        File.WriteAllText(
+            DataRelocationExecutor.GetInProgressMarkerPath(_legacy, isFile: false), new string('m', 9999));
+
+        Assert.Equal(100, DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false));
+    }
+
+    [Fact]
+    public void EstimateBytes_IgnoresExcludedTopLevelChild()
+    {
+        // 部署事务备份住在数据索引的 Backups 子目录下，却是独立的一项。
+        // 把它算进数据索引的需求会让两项互相拖累：一个大备份能把另一项拦下来。
+        WriteLegacy("a.json", new string('x', 100));
+        WriteLegacy(Path.Combine("Backups", "big.pak"), new string('b', 5000));
+
+        Assert.Equal(100,
+            DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false, new[] { "Backups" }));
+        Assert.Equal(5100, DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false));
+    }
+
+    [Fact]
+    public void EstimateBytes_ExclusionOnlyAppliesToTopLevel()
+    {
+        // 与 CopyDirectory 一致：排除的是具名的一项数据，不是所有同名子目录
+        WriteLegacy(Path.Combine("sub", "Backups", "inner.pak"), new string('b', 33));
+
+        Assert.Equal(33,
+            DataRelocationExecutor.TryEstimateBytes(_legacy, isFile: false, new[] { "Backups" }));
+    }
+
+    [Fact]
+    public void EstimateBytes_MissingPathIsZeroNotUnknown()
+    {
+        // 源不存在 = 没东西要复制，需求就是 0。返回 null（未知）会让预检整个失去意义。
+        Assert.Equal(0,
+            DataRelocationExecutor.TryEstimateBytes(Path.Combine(_root, "根本不存在"), isFile: false));
+        Assert.Equal(0,
+            DataRelocationExecutor.TryEstimateBytes(Path.Combine(_root, "不存在.json"), isFile: true));
+    }
+
+    [Fact]
+    public void EstimateBytes_SingleFile()
+    {
+        var file = Path.Combine(_root, "config.json");
+        File.WriteAllText(file, new string('c', 4096));
+
+        Assert.Equal(4096, DataRelocationExecutor.TryEstimateBytes(file, isFile: true));
+    }
 }

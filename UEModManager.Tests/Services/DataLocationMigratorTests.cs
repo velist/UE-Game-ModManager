@@ -74,14 +74,17 @@ public sealed class DataLocationMigratorTests : IDisposable
         LegacyOverwritesRoot: Path.Combine(_roaming, "Overwrites"));
 
     private DataLocationMigrator CreateMigrator(
-        bool relocationEnabled = true, DataRelocationExecutor? executor = null)
+        bool relocationEnabled = true, DataRelocationExecutor? executor = null,
+        IFreeSpaceProbe? freeSpace = null)
         => new(NullLogger<DataLocationMigrator>.Instance,
             new DataMigrationEnvironment(BuildPaths(), _prefs, relocationEnabled),
-            executor);
+            executor, freeSpace);
 
     private DataMigrationOutcome Run(
-        bool relocationEnabled = true, DataRelocationExecutor? executor = null)
-        => CreateMigrator(relocationEnabled, executor).RunAsync().GetAwaiter().GetResult();
+        bool relocationEnabled = true, DataRelocationExecutor? executor = null,
+        IFreeSpaceProbe? freeSpace = null)
+        => CreateMigrator(relocationEnabled, executor, freeSpace)
+            .RunAsync().GetAwaiter().GetResult();
 
     // ─── 形态构造 ───
 
@@ -235,6 +238,28 @@ public sealed class DataLocationMigratorTests : IDisposable
             ? Directory.GetFiles(_root, "*", SearchOption.AllDirectories)
                 .Where(DataRelocationExecutor.IsTombstone).OrderBy(x => x).ToList()
             : Array.Empty<string>();
+
+    /// <summary>某个目录下的数据文件相对路径（滤掉搬迁器元数据），用于"两处内容是否一致"的断言。</summary>
+    private static IReadOnlyList<string> DataFileNames(string root)
+        => Directory.Exists(root)
+            ? Directory.GetFiles(root, "*", SearchOption.AllDirectories)
+                .Where(f => !DataRelocationExecutor.IsMigratorMetadata(f))
+                .Select(f => Path.GetRelativePath(root, f))
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()
+            : Array.Empty<string>();
+
+    // ─── 空间预检里"哪个目标"的判别 ───
+    //
+    // 临时根目录名形如 uemm_mig_<十六进制>，不含字母 d/m 组成的这些词，
+    // 因此按路径片段区分目标是稳的。
+
+    private const long Abundant = 1024L * 1024 * 1024 * 1024;   // 1 TiB，随便什么都装得下
+
+    private static bool IsModBackupTarget(string path)
+        => path.EndsWith(Path.Combine("Backups", "Mods"), StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDataIndexTarget(string path)
+        => path.EndsWith(Path.Combine("local", "Data"), StringComparison.OrdinalIgnoreCase);
 
     // ─── 生产默认值守卫 ───
 
@@ -963,6 +988,306 @@ public sealed class DataLocationMigratorTests : IDisposable
         AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
     }
 
+    // ─── D3 装在不可写目录 ───
+
+    /// <summary>
+    /// <b>制造"不可写"的手法：在目录该在的位置放一个同名文件。</b>
+    /// 之后任何 <c>Directory.CreateDirectory</c> 都抛 <c>IOException</c>——不动权限、
+    /// 不需要管理员、跑完不留残留、跨机器稳定复现（与
+    /// <c>SaveFailureReportingTests</c> 用的是同一招）。真正改 ACL 的那种只读目录留给真机。
+    ///
+    /// <para>
+    /// 这一条打的是 D3 里最要命的形态：<b>目标</b>整个不可写（<c>%LOCALAPPDATA%</c> 被组策略
+    /// 锁死、被同步盘占用）。验收点三条：应用不崩、数据一个字节不丢、失败对用户可见。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void D3_目标位置不可写时全部搬移失败_旧数据一个字节不少()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        File.WriteAllText(_local, "我是文件，不是目录");
+        var legacyBefore = SnapshotTree(_install);
+
+        // 显式给足空间：否则这条用例会跟着开发机的剩余空间浮动，
+        // 失败原因也分不清是"写不进去"还是"装不下"。
+        var outcome = Run(freeSpace: FakeFreeSpace.Abundant);
+
+        // 四项搬移全失败，两项原地登记照常（它们只写配置值，不碰目标目录）
+        Assert.Equal(4, outcome.Failed);
+        Assert.Equal(2, outcome.Executed);
+        Assert.False(outcome.Completed);
+        Assert.Equal(0, _prefs.DataLayoutVersion);      // 不打标记 = 修好之后下次启动重试
+
+        // 失败对用户可见——这正是 355589a 那轮修掉的"UI 静默失败通道"的同类
+        Assert.Equal(DataMigrationStatus.PartiallyFailed, outcome.Status);
+        Assert.True(outcome.ShouldNotifyUser);
+        Assert.False(string.IsNullOrWhiteSpace(outcome.UserMessage));
+
+        // 数据完整留在旧位置，连墓碑都没留下
+        AssertTreeUnchanged(legacyBefore, SnapshotTree(_install));
+        Assert.Empty(AllTombstones());
+    }
+
+    /// <summary>
+    /// D3 的另一半：<b>源</b>不可写。安装目录只读时复制读得出来、校验也过得了，
+    /// 卡在"往旧位置写墓碑"这一步——把墓碑该在的位置换成同名<b>目录</b>即可稳定复现。
+    ///
+    /// <para>
+    /// 这个形态的危险之处在于：目标已经有一份完整副本，旧位置却没有任何记号。
+    /// 外观上它与"复制到一半断电"完全一样，只能靠目标侧的进行中标记区分。
+    /// 判错的后果是第二次启动把那份完整副本当成真实数据认掉（<c>AdoptTargetKeepLegacy</c>），
+    /// 或者反过来在残留上继续追加。这里连跑两次，钉死"既不重复也不丢"。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void D3_安装目录写不下墓碑时_数据不丢且第二次启动不产生重复()
+    {
+        SeedTypicalLegacyUser();
+        Directory.CreateDirectory(
+            DataRelocationExecutor.GetTombstonePath(Path.Combine(_install, "Data"), isFile: false));
+        var legacyDataBefore = SnapshotDataOnly(Path.Combine(_install, "Data"));
+
+        var first = Run(freeSpace: FakeFreeSpace.Abundant);
+
+        Assert.Equal(1, first.Failed);
+        Assert.True(first.ShouldNotifyUser);
+        Assert.Equal(0, _prefs.DataLayoutVersion);
+        // 墓碑没写下 → 删源一步都没做 → 旧位置仍是唯一可信副本
+        AssertTreeUnchanged(legacyDataBefore, SnapshotDataOnly(Path.Combine(_install, "Data")));
+
+        var second = Run(freeSpace: FakeFreeSpace.Abundant);
+
+        // 安装目录还是写不进去，所以还是失败——但绝不能因此毁掉或复制出第二份数据
+        Assert.Equal(1, second.Failed);
+        AssertTreeUnchanged(legacyDataBefore, SnapshotDataOnly(Path.Combine(_install, "Data")));
+        Assert.Equal(
+            DataFileNames(Path.Combine(_install, "Data")),
+            DataFileNames(Path.Combine(_local, "Data")));
+    }
+
+    /// <summary>
+    /// D3 里最常见的真实形态：旧文件被别人占着删不掉（杀软扫描、同步盘、游戏进程）。
+    /// 用 <c>FileShare.Read</c> 持有一个句柄即可——允许 <c>File.Copy</c> 读走内容，
+    /// 但挡住 <c>File.Delete</c>，进程一退就干净。
+    ///
+    /// <para>
+    /// 与 <c>D5_删源中途中断</c> 测的是同一条恢复路径，区别在于这里的
+    /// <c>IOException</c> 是操作系统真的抛出来的，而不是注入的——它验证的是
+    /// "真实失败也确实落在那条路径上"，而不只是"注入失败被正确处理"。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void D3_旧文件被占用删不掉时_墓碑仍在且下次启动续做删源()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        using (new FileStream(LegacyData("wukong_mods.json"),
+                   FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var blocked = Run(freeSpace: FakeFreeSpace.Abundant);
+
+            Assert.Equal(1, blocked.Failed);
+            Assert.True(blocked.ShouldNotifyUser);
+            Assert.Equal(0, _prefs.DataLayoutVersion);
+            // 复制与校验都过了，墓碑已写下——数据两处都完整，一个字节都没丢
+            Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+            AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+            Assert.True(File.Exists(LegacyData("wukong_mods.json")));
+        }
+
+        var healed = Run(freeSpace: FakeFreeSpace.Abundant);
+
+        // 占用解除后续做删源，而不是把已经搬好的那份重新复制一遍
+        Assert.Equal(0, healed.Failed);
+        Assert.True(healed.Completed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data")));
+    }
+
+    // ─── D4 目标盘空间不足 ───
+
+    /// <summary>
+    /// <b>D4 的核心验收：空间不足时不产生半份数据。</b>
+    ///
+    /// <para>
+    /// 没有预检的话，复制会一路写到撞满盘才抛：目标里躺着一堆残留 + 一张进行中标记，
+    /// 而磁盘已经满得连墓碑都写不下；下次启动清空重来、再撞一次。数据始终不丢，
+    /// 但用户的目标盘被反复填满又清空，每次启动白折腾几分钟。预检把这件事变成
+    /// "目标位置一个字节都没写过"。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void D4_目标盘空间不足时该项不搬移且不产生半份数据()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var legacyBefore = SnapshotTree(_install);
+
+        var outcome = Run(freeSpace: FakeFreeSpace.Full);
+
+        Assert.Equal(4, outcome.Failed);            // 四项搬移全被拦下
+        Assert.Equal(2, outcome.Executed);          // 两项原地登记不受影响：它们从不复制
+        Assert.False(outcome.Completed);
+        Assert.Equal(0, _prefs.DataLayoutVersion);  // 不打标记 = 腾出空间后下次启动自动重试
+
+        // 计为失败而不是推迟，正是为了让提示对用户可见（推迟是不提示的正常状态）
+        Assert.True(outcome.ShouldNotifyUser);
+
+        // 关键：目标位置一个字节都没写过——没有半份数据，也没有进行中标记
+        Assert.False(Directory.Exists(_local));
+        Assert.Empty(AllTombstones());
+        AssertTreeUnchanged(legacyBefore, SnapshotTree(_install));
+    }
+
+    [Fact]
+    public void D4_只有装不下的那一项被拦下_其余照常搬迁()
+    {
+        SeedTypicalLegacyUser();
+        var modBackupsBefore = SnapshotDataOnly(Path.Combine(_install, "Backups"));
+        var originalBackupPath = Path.Combine(_install, "Backups", "悟空_备份");
+
+        // 只有 MOD 备份的目标盘满。判定的粒度是单项，不是整体停摆。
+        var outcome = Run(freeSpace: new FakeFreeSpace(
+            path => IsModBackupTarget(path) ? 0L : Abundant));
+
+        Assert.Equal(1, outcome.Failed);
+        Assert.Equal(4, outcome.Executed);          // 主配置 + 数据索引 + 两项原地登记
+
+        // 被拦下的那项：旧数据一个字节没动，目标位置压根没被创建
+        AssertTreeUnchanged(modBackupsBefore, SnapshotDataOnly(Path.Combine(_install, "Backups")));
+        Assert.False(Directory.Exists(Path.Combine(_local, "Backups", "Mods")));
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Backups")));
+
+        // 没搬成就绝不能改配置里的绝对路径——改了会让备份写进一个空目录
+        var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_local, "config.json"))).RootElement;
+        Assert.Equal(originalBackupPath, config.GetProperty("BackupPath").GetString());
+
+        // 其余项照常到位
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+    }
+
+    /// <summary>
+    /// 判据必须<b>留余量</b>：剩余空间正好等于源体积时复制仍会失败（簇对齐、目录项、
+    /// NTFS 元数据都要地方）。余量的取值与理由在 Core 的 <c>DiskSpacePrecheck</c> 里，
+    /// 这一条只负责证明它确实被接到了搬迁链路上，而不是算完就扔。
+    /// </summary>
+    [Fact]
+    public void D4_可用空间正好等于源体积时仍然拦下()
+    {
+        SeedTypicalLegacyUser();
+        var exact = DataRelocationExecutor.TryEstimateBytes(
+            Path.Combine(_install, "Backups"), isFile: false)!.Value;
+
+        var outcome = Run(freeSpace: new FakeFreeSpace(
+            path => IsModBackupTarget(path) ? exact : Abundant));
+
+        Assert.Equal(1, outcome.Failed);
+        Assert.False(Directory.Exists(Path.Combine(_local, "Backups", "Mods")));
+    }
+
+    [Fact]
+    public void D4_腾出空间后下次启动自动搬成且不留残留()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        var blocked = Run(freeSpace: FakeFreeSpace.Full);
+        Assert.Equal(3, blocked.Failed);            // 主配置 / 数据索引 / MOD 备份
+
+        var healed = Run(freeSpace: FakeFreeSpace.Abundant);
+
+        Assert.Equal(0, healed.Failed);
+        Assert.True(healed.Completed);
+        Assert.Equal(DataRelocationPlanner.CurrentLayoutVersion, _prefs.DataLayoutVersion);
+        // 上一轮什么都没写，所以这一轮就是一次干干净净的全新搬移
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+    }
+
+    /// <summary>
+    /// <b>目标里的残留占的空间要算作"马上会被释放"。</b>
+    ///
+    /// <para>
+    /// 不算的话有一个能稳定复现的死锁：上次复制到九成时断电，目标盘剩余空间刚好卡在阈值下方，
+    /// 于是每次启动都判"不足"——而那份残留只要执行下去（<c>PurgeTargetThenCopy</c> 的第一步
+    /// 就是清空目标）就会被清掉。用户看到的会是"盘上明明躺着我自己的垃圾，软件却永远搬不了，
+    /// 还说我空间不够"。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void D4_目标残留占用的空间算作马上会被释放()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        // 上次复制到一半断电：目标里躺着一份 4 KiB 的残留 + 进行中标记
+        const int leftover = 4096;
+        Write(Path.Combine(_local, "Data", "上次中断的孤儿.json"), new string('x', leftover));
+        Write(DataRelocationExecutor.GetInProgressMarkerPath(
+            Path.Combine(_local, "Data"), isFile: false), "in-progress");
+
+        var required = DataRelocationExecutor.TryEstimateBytes(
+            Path.Combine(_install, "Data"), isFile: false)!.Value;
+        // 单看盘上的空间差 4 KiB 就够，加上马上要被清掉的残留刚好够
+        var tight = DiskSpacePrecheck.RequiredWithHeadroom(required) - leftover;
+
+        var outcome = Run(freeSpace: new FakeFreeSpace(
+            path => IsDataIndexTarget(path) ? tight : Abundant));
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.True(outcome.Completed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.False(File.Exists(Path.Combine(_local, "Data", "上次中断的孤儿.json")));
+    }
+
+    /// <summary>
+    /// 查不出目标卷可用空间（UNC / 映射盘 / 未就绪卷）时<b>放行</b>。
+    /// 预检的职责是拦住注定失败的复制，不是给搬迁加一道新的准入闸门——
+    /// "查不到就拒绝"会让这些用户永远搬不了，而他们的盘八成是够的。
+    /// </summary>
+    [Fact]
+    public void D4_查不出目标卷可用空间时照常搬迁()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        var outcome = Run(freeSpace: new FakeFreeSpace(_ => (long?)null));
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.True(outcome.Completed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+    }
+
+    /// <summary>
+    /// 不往目标写数据的动作一律不查盘：跳过（新位置赢）只在旧位置写一张几 KB 的说明，
+    /// 原地登记只写一个配置值。<b>几十 GB 的仓库与生成物正是靠这一条彻底不参与空间预检</b>
+    /// ——方案 §三② 当初要给它们留降级出口，是因为那时它们还在搬移类里。
+    /// </summary>
+    [Fact]
+    public void D4_不复制的项从不参与空间预检()
+    {
+        SeedTypicalLegacyUser();
+        // 新位置已有应用写入的真实数据 → 主配置与数据索引都走"新位置赢"，不复制
+        Write(Path.Combine(_local, "Data", "wukong_mods.json"), """[{"Name":"新位置的真实数据"}]""");
+        Write(Path.Combine(_local, "config.json"), """{"GamePath":"E:\\Games\\Wukong"}""");
+        var probe = FakeFreeSpace.Full;
+
+        var outcome = Run(freeSpace: probe);
+
+        // 满盘也只拦得住真正要复制的 MOD 备份那一项
+        Assert.Equal(1, outcome.Failed);
+        Assert.True(SupersededMarkerExists(Path.Combine(_install, "Data")));
+        Assert.Equal(Path.Combine(_roaming, "Repository"), _prefs.RepositoryRoot);
+        Assert.Equal(Path.Combine(_roaming, "Overwrites"), _prefs.OverwritesRoot);
+
+        // 原地登记项压根不该出现在查询里
+        Assert.DoesNotContain(probe.QueriedPaths,
+            p => p.Contains("Repository", StringComparison.OrdinalIgnoreCase)
+                 || p.Contains("Overwrites", StringComparison.OrdinalIgnoreCase));
+    }
+
     // ─── 替身 ───
 
     private enum FaultStage
@@ -1053,6 +1378,36 @@ public sealed class DataLocationMigratorTests : IDisposable
                 File.Copy(first, Path.Combine(step.TargetPath, Path.GetFileName(first)), overwrite: true);
             }
             File.WriteAllText(Path.Combine(step.TargetPath, "上次中断的孤儿.json"), "{}");
+        }
+    }
+
+    /// <summary>
+    /// <see cref="IFreeSpaceProbe"/> 的替身：把"目标卷还剩多少空间"变成一个返回值。
+    ///
+    /// <para>
+    /// 这是 D4 能被自动化的全部原因。真实地造一个满盘要么挂 VHD、要么找一个小容量卷，
+    /// 跨机器不可复现、需要额外权限、跑完还留残留；而空间判定本身早已下沉成 Core 的纯函数，
+    /// 这一侧只剩一次 <c>DriveInfo</c> 查询——把它换掉，D4 就退化成普通的替身注入。
+    /// </para>
+    ///
+    /// <para>
+    /// 顺带记下被查过的路径：用来断言"原地登记项与跳过项压根不查盘"。
+    /// </para>
+    /// </summary>
+    private sealed class FakeFreeSpace(Func<string, long?> bytes) : IFreeSpaceProbe
+    {
+        /// <summary>随便什么都装得下。用于把"空间"这个变量从一条用例里彻底摘掉。</summary>
+        public static FakeFreeSpace Abundant => new(_ => DataLocationMigratorTests.Abundant);
+
+        /// <summary>一个字节都没有。</summary>
+        public static FakeFreeSpace Full => new(_ => 0L);
+
+        public List<string> QueriedPaths { get; } = new();
+
+        public long? TryGetAvailableFreeBytes(string path)
+        {
+            QueriedPaths.Add(path);
+            return bytes(path);
         }
     }
 

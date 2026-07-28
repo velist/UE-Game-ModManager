@@ -174,6 +174,66 @@ namespace UEModManager.Services
             catch { return false; }
         }
 
+        /// <summary>
+        /// 估算某项数据的净体积，供搬移前的磁盘空间预检使用。返回 <c>null</c> 表示估不出来
+        /// （权限、占用、路径不可达），此时调用方应当放行而不是拒绝搬移。
+        ///
+        /// <para>
+        /// <b>口径必须与 <see cref="CopyDirectory"/> 逐条对齐</b>：跳过搬迁器自己的元数据、
+        /// 跳过被排除的顶层子目录。放在本类而不是迁移器里，就是为了让"算多少"与"复制多少"
+        /// 这两件事共用同一套判断——分开写的话，哪天排除清单的语义变了，
+        /// 预检会安静地按另一个口径算，得出一个谁都对不上的数字。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>代价：一次目录枚举，且文件长度不额外花钱。</b>用
+        /// <see cref="DirectoryInfo.EnumerateFiles(string, SearchOption)"/> 而不是
+        /// <c>Directory.GetFiles</c> + <c>new FileInfo(f).Length</c>：前者的
+        /// <see cref="FileInfo.Length"/> 直接取自枚举时已经拿到的目录项，后者要为每个文件
+        /// 再打一次 stat，几万个文件就是几万次多余的系统调用。被排除的顶层子目录
+        /// 一个条目都不枚举（先过滤目录再往下递归），而不是枚举完再滤掉。
+        /// 相对于紧接着要发生的整目录复制（O(字节)），这一遍枚举（O(文件数)）可以忽略。
+        /// </para>
+        /// </summary>
+        public static long? TryEstimateBytes(string path, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
+        {
+            try
+            {
+                if (isFile)
+                {
+                    var file = new FileInfo(path);
+                    return file.Exists ? file.Length : 0;
+                }
+
+                var root = new DirectoryInfo(path);
+                if (!root.Exists) return 0;
+
+                long total = 0;
+                foreach (var file in root.EnumerateFiles())
+                {
+                    if (!IsMigratorMetadata(file.FullName)) total += file.Length;
+                }
+
+                foreach (var child in root.EnumerateDirectories())
+                {
+                    if (IsExcluded(child.FullName, excludedChildDirectories)) continue;
+                    foreach (var file in child.EnumerateFiles("*", SearchOption.AllDirectories))
+                    {
+                        if (!IsMigratorMetadata(file.FullName)) total += file.Length;
+                    }
+                }
+
+                return total;
+            }
+            catch
+            {
+                // 估不出来就让调用方放行：预检不该比它保护的复制更容易失败，
+                // 否则它自己会变成一个新的"永远搬不了"的原因。
+                return null;
+            }
+        }
+
         /// <summary>执行一步。调用方负责捕获异常——本方法失败即表示该项数据仍完整留在旧位置。</summary>
         /// <param name="excludedChildDirectories">
         /// 源目录下需原样留下、不参与本步搬移的**顶层子目录名**。
