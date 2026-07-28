@@ -44,6 +44,15 @@ namespace UEModManager.Infrastructure
 
         private static AppDataLayout Layout => new(LocalRoot, RoamingRoot, LoadOverrides());
 
+        /// <summary>
+        /// 不带用户覆盖的布局。**定位 <see cref="UiConfigFile"/> 必须走这里**：
+        /// 用户覆盖本身就是从 ui_config.json 里读出来的，若定位这个文件时再去读一遍覆盖，
+        /// <see cref="LoadOverrides"/> → <see cref="UiPreferences"/> → 定位配置文件
+        /// 会无限递归，直接 StackOverflow 把进程带走（这类异常 catch 不住）。
+        /// 三个可覆盖根之外的路径都不依赖覆盖，走这里只是少读一次配置。
+        /// </summary>
+        private static AppDataLayout PlainLayout => new(LocalRoot, RoamingRoot);
+
         private static IReadOnlyDictionary<DataRoot, string> LoadOverrides()
         {
             var overrides = new Dictionary<DataRoot, string>();
@@ -100,11 +109,20 @@ namespace UEModManager.Infrastructure
 
         // ─── 漫游数据 ───
 
-        /// <summary>UI 偏好文件。</summary>
-        public static string UiConfigFile => Layout.UiConfigFile;
+        /// <summary>
+        /// UI 偏好文件。<see cref="UiPreferences"/> 反过来消费本属性定位自己的配置文件，
+        /// 故这里只能用 <see cref="PlainLayout"/>，不能用 <see cref="Layout"/>。
+        /// </summary>
+        public static string UiConfigFile => PlainLayout.UiConfigFile;
 
         /// <summary>用户头像目录。</summary>
         public static string AvatarsDirectory => Layout.AvatarsDirectory;
+
+        /// <summary>用户自选背景图的副本目录。</summary>
+        public static string BackgroundsDirectory => Layout.BackgroundsDirectory;
+
+        /// <summary>DPAPI 加密的密钥文件目录（磁盘上仍叫 <c>config</c>，原因见布局类注释）。</summary>
+        public static string SecretsDirectory => Layout.SecretsDirectory;
 
         /// <summary>本地 SQLite 库。认证体系删除时会随之调整，暂留在漫游根以免与在途改动冲突。</summary>
         public static string LocalDatabaseFile => Path.Combine(RoamingRoot, "local.db");

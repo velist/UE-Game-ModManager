@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -209,9 +210,7 @@ namespace UEModManager.Views
             {
                 try
                 {
-                    var bgDir = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        "UEModManager", "Backgrounds");
+                    var bgDir = AppPaths.BackgroundsDirectory;
                     Directory.CreateDirectory(bgDir);
 
                     // 唯一文件名 — 避开 File.Copy 同名覆盖竞争 + WPF BitmapImage URI 缓存
@@ -390,13 +389,9 @@ namespace UEModManager.Views
 
         private void LoadDeploySettings()
         {
-            // 加载仓库路径
-            if (_objectStore != null)
-                RepoPathTextBox.Text = _objectStore.RepositoryRoot;
-            else
-                RepoPathTextBox.Text = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "UEModManager", "Repository");
+            // 加载仓库路径。回退值走 AppPaths：此前这里自己拼了一份默认位置，
+            // 用户把仓库设到别的盘时显示的仍是默认路径，与实际读写的目录对不上。
+            RepoPathTextBox.Text = _objectStore?.RepositoryRoot ?? AppPaths.RepositoryRoot;
 
             // 加载仓库统计
             UpdateRepoStats();

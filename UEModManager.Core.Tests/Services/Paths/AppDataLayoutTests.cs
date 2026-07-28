@@ -32,6 +32,24 @@ public class AppDataLayoutTests
 
         Assert.StartsWith(Roaming, layout.UiConfigFile);
         Assert.StartsWith(Roaming, layout.AvatarsDirectory);
+        Assert.StartsWith(Roaming, layout.BackgroundsDirectory);
+        Assert.StartsWith(Roaming, layout.SecretsDirectory);
+    }
+
+    [Fact]
+    public void SecretsDirectory_KeepsHistoricalFolderName()
+    {
+        // 属性名叫 Secrets，磁盘上必须仍是 config —— 改名会让老用户已加密的密钥文件失联
+        Assert.Equal(Path.Combine(Roaming, "config"), Layout().SecretsDirectory);
+    }
+
+    [Fact]
+    public void BackgroundsDirectory_SharesRootWithUiConfig()
+    {
+        var layout = Layout();
+
+        // 背景图副本与记录它的 ui_config.json 必须同层，否则换机器后配置指向的图片留在原机
+        Assert.Equal(Path.GetDirectoryName(layout.UiConfigFile), Path.GetDirectoryName(layout.BackgroundsDirectory));
     }
 
     [Fact]

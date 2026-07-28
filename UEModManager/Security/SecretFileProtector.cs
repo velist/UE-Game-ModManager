@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using UEModManager.Infrastructure;
 
 namespace UEModManager.Security
 {
@@ -15,11 +16,14 @@ namespace UEModManager.Security
     {
         private static readonly byte[] s_entropy = Encoding.UTF8.GetBytes("UEMM::SecretEntropy::v1");
 
+        /// <summary>
+        /// 密钥文件目录。路径归口 <see cref="AppPaths.SecretsDirectory"/>，磁盘位置不变
+        /// （仍是 <c>%APPDATA%\UEModManager\config</c>）——搬走会让老用户已加密的文件失联。
+        /// </summary>
         public static string GetConfigDir()
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var dir = Path.Combine(appData, "UEModManager", "config");
-            Directory.CreateDirectory(dir);
+            var dir = AppPaths.SecretsDirectory;
+            AppPaths.TryEnsureDirectory(dir);
             return dir;
         }
 
