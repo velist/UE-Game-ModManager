@@ -150,7 +150,56 @@ namespace UEModManager.Infrastructure
             /// <summary>旧的部署事务备份：<c>{安装目录}\Data\Backups</c>。</summary>
             public static string DeploymentBackupsDirectory => Path.Combine(DataDirectory, "Backups");
 
-            /// <summary>旧的头像目录：<c>{安装目录}\UserData\Avatars</c>。</summary>
+            /// <summary>
+            /// 旧的头像目录：<c>{安装目录}\UserData\Avatars</c>。
+            ///
+            /// <para>
+            /// <b>它故意不在 <c>DataLocationMigrator.BuildProbes()</c> 的探测项里，别去补一个。</b>
+            /// 保留这个声明只是为了把"旧头像在哪"这件事写在唯一一处，供将来的
+            /// <c>LocalProfileMigrator</c>（认证删除方案步骤 1.1）取用。
+            /// </para>
+            ///
+            /// <para>
+            /// 不搬的三条理由，按分量排序：
+            /// <list type="number">
+            /// <item><b>搬了会当场把头像搞没。</b>头像的绝对路径存在 SQLite 的
+            /// <c>Users.Avatar</c> 列里（<c>Models/LocalModels.cs</c>），不在 <c>config.json</c> 里，
+            /// 因此 <see cref="AppConfigPathRewriter"/> 那套改写完全够不着它。搬完删源之后
+            /// 数据库仍指向一个已被删除的文件——把"数据留在了不理想的位置"变成"头像立刻不显示"，
+            /// 严格更糟。而搬迁器跑在建库<b>之前</b>（<c>App.ShowAuthenticationWindow</c>：
+            /// 先迁移，再 <c>EnsureDatabaseCreatedAsync</c>），这是"任何服务读写数据之前完成"
+            /// 的硬要求，它在那个时点根本读不到 <c>Users</c> 表。</item>
+            /// <item><b>搬完立刻会被写回去。</b>唯一的读写方
+            /// <c>Views/AccountSettingsWindow.xaml.cs</c> 把
+            /// <c>BaseDirectory\UserData\Avatars</c> 硬编码在里面，不走本类；
+            /// 用户下次换头像又会把旧目录建回来。而旧位置此时已有墓碑，
+            /// 搬迁器下次启动直接跳过——新写的那张头像永远留在安装目录，
+            /// 两处各存一份且谁也不知道哪份算数。该文件因认证体系待拍板处于冻结状态，
+            /// 改不了它，也就补不上这个洞。</item>
+            /// <item><b>这件事已经有主，而且做法不同。</b>迁移方案 §四.1 把头像划归认证删除方案
+            /// 的 <c>LocalProfileMigrator</c>：它在建库<b>之后</b>跑，读 <c>Users.Avatar</c>、
+            /// 复制到 <see cref="AppPaths.AvatarsDirectory"/>、把新路径写进
+            /// <c>ui_config.json</c> 的 <c>ProfileAvatarPath</c>——指针和文件一起动，
+            /// 这是唯一能做对的顺序。评估结论倾向整体删除云端用户体系，那样
+            /// <c>Users</c> 表本身都不复存在，现在搬一遍纯属白做。</item>
+            /// </list>
+            /// </para>
+            ///
+            /// <para>
+            /// 丢失风险也没有想象中大：<c>Setup/UEModManager.iss</c> 的 <c>[UninstallDelete]</c>
+            /// 已整段移除，卸载不会碰这个目录；会删它的只有用户主动运行的
+            /// "彻底清理UEModManager用户数据.bat"，那本来就是"我要全清掉"的入口。
+            /// 真正的风险只剩"用户卸载后手动删掉残留的安装目录"。
+            /// </para>
+            ///
+            /// <para>
+            /// <b>什么时候该补探测项：</b>产品负责人决定<b>保留</b>账号体系（即认证删除方案被否决）
+            /// —— 方案 §四.4 明确写了这种情况下头像迁移回归本方案。但即便那时，也不能简单加一条
+            /// <c>DirectoryProbe</c> 了事：必须先解冻 <c>AccountSettingsWindow</c> 让它改走
+            /// <see cref="AppPaths.AvatarsDirectory"/>，再补一个能改写 <c>Users.Avatar</c> 的
+            /// 数据库侧改写器，缺任何一个都会踩中上面第 1、2 条。
+            /// </para>
+            /// </summary>
             public static string AvatarsDirectory => Path.Combine(InstallDirectory, "UserData", "Avatars");
 
             /// <summary>旧的包实体仓库默认位置：<c>%APPDATA%\UEModManager\Repository</c>。</summary>

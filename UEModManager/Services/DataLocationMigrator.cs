@@ -9,14 +9,41 @@ using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
-    /// <summary>迁移执行结果。</summary>
+    /// <summary>
+    /// 迁移执行结果。
+    ///
+    /// <para>
+    /// <b>UI 侧请只看 <see cref="Status"/> / <see cref="ShouldNotifyUser"/> / <see cref="UserMessage"/></b>，
+    /// 不要自己拿 <see cref="Completed"/> 或三个计数去判断。<see cref="Completed"/> 的语义是
+    /// "本布局版本可以打版本标记了"，推迟项也会让它变 false——而推迟是搬移开关关闭时的
+    /// 正常状态，照着它提示会让全体用户每次启动都收到一条毫无意义的告警。
+    /// 判定规则连同理由都在 Core 的 <see cref="DataMigrationStatusClassifier"/> 里，有单测。
+    /// </para>
+    /// </summary>
+    /// <param name="Completed">本次是否既无失败也无推迟（决定是否打版本标记）。</param>
+    /// <param name="Executed">成功执行的项数。</param>
+    /// <param name="Skipped">规划为无需动作的项数。</param>
+    /// <param name="Deferred">因搬移开关关闭而推迟的项数。</param>
+    /// <param name="Failed">失败的项数。</param>
+    /// <param name="Summary">供日志使用的一行摘要。</param>
     public sealed record DataMigrationOutcome(
         bool Completed,
         int Executed,
         int Skipped,
         int Deferred,
         int Failed,
-        string Summary);
+        string Summary)
+    {
+        /// <summary>整体状态。</summary>
+        public DataMigrationStatus Status
+            => DataMigrationStatusClassifier.Classify(Executed, Deferred, Failed);
+
+        /// <summary>是否该给用户一条非模态提示。</summary>
+        public bool ShouldNotifyUser => DataMigrationStatusClassifier.ShouldNotifyUser(Status);
+
+        /// <summary>用户可见文案；不需要提示时为 <c>null</c>。</summary>
+        public string? UserMessage => DataMigrationStatusClassifier.BuildUserMessage(Status);
+    }
 
     /// <summary>
     /// 数据目录搬迁器。职责只有编排：探测磁盘 → 交 Core 规划 → 交执行器落地 →
@@ -38,24 +65,56 @@ namespace UEModManager.Services
         /// 搬移类动作（Copy / PurgeTargetThenCopy / ResumeCleanup）的执行开关。
         ///
         /// <para>
-        /// <b>当前为 false，且在下述条件全部满足前不得改为 true。</b>
-        /// <c>{安装目录}\Data</c> 目前有 12 个读取方，其中 <c>ProfileService</c>、
-        /// <c>PackageRepository</c>、<c>OverwriteStore</c>、<c>DeploymentService</c>
-        /// 尚未切到 <see cref="AppPaths"/>。在它们切换之前把数据搬走，这四个服务会读到空目录
-        /// —— 用户的方案、包索引、生成物索引与部署备份会当场"消失"。
+        /// <b>代码侧的前置条件已全部满足（核实于 2026-07-28），此开关之所以还是 false，
+        /// 只差真机验证。</b>此前这里写着"<c>{安装目录}\Data</c> 的 12 个读取方中
+        /// <c>ProfileService</c> / <c>PackageRepository</c> / <c>OverwriteStore</c> /
+        /// <c>DeploymentService</c> 尚未切到 <see cref="AppPaths"/>"——那四个已在
+        /// <c>c6523fc</c> 与 <c>7c58a43</c> 里切完，注释是旧的，别再按它判断。
         /// </para>
         ///
         /// <para>
-        /// 因此本阶段只做两件事：把计划完整算出来<b>写进日志</b>（可在真实用户机器上验证
-        /// 探测与判定是否符合预期），以及<b>执行原地登记</b>——后者只写配置值，
+        /// 已满足的部分（可用 <c>grep -rn "BaseDirectory" --include=*.cs</c> 自行复核，
+        /// 运行期写安装目录的调用点已归零）：
+        /// <list type="number">
+        /// <item>全部 12 个 <c>Data</c> 读取方走 <see cref="AppPaths"/>；</item>
+        /// <item>两个 MOD 备份根合一，主窗口与两个路径选择器都取
+        /// <see cref="AppPaths.ModBackupsDirectory"/>；</item>
+        /// <item>日志、XAML 错误日志改写 <see cref="AppPaths.LogsDirectory"/>
+        /// （新目录建不出来时才退回安装目录）；</item>
+        /// <item>搬完后的绝对路径改写已就位（<see cref="RewriteConfigPaths"/>）；</item>
+        /// <item>诊断包同时采集新旧两处，搬迁失败时仍有证据；</item>
+        /// <item>安装脚本不再删 <c>{app}\Data\Backups</c>，清理脚本与 INFO_AFTER 指向新位置；</item>
+        /// <item>保存类操作的失败语义统一为 log + throw，不再有静默丢数据的通道。</item>
+        /// </list>
+        /// 唯一还在写安装目录的是头像（<c>Views/AccountSettingsWindow.xaml.cs</c>），
+        /// 它<b>不在本迁移器的探测项里</b>，原因见
+        /// <see cref="AppPaths.Legacy.AvatarsDirectory"/> 的注释——与本开关无关。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>翻开之前还差的事：</b>
+        /// <list type="number">
+        /// <item><b>D0–D5 测试矩阵尚未在真机跑过。</b>见迁移方案 §七。其中 D5（复制中途
+        /// 强杀进程后重启）必须在不同阶段反复中断三次以上——幂等性只跑一次启动测不出来；
+        /// D2（用户自定义过仓库位置）是"绝不能动用户的选择"那条的唯一验证；
+        /// 每种形态都要连启两次，验证第二次不重复执行。</item>
+        /// <item><b>没有磁盘空间预检。</b>方案 §三② 要求空间不足时降级为原地登记，
+        /// 目前没实现。几十 GB 的仓库/生成物已经是 <c>RegisterInPlace</c>、根本不复制，
+        /// 所以风险比方案设想的小得多；但备份两项是游戏文件的副本，体积仍可观，
+        /// 目标盘满时会走到"该项失败"分支——数据完整留在旧位置不会丢，
+        /// 只是每次启动重试一遍。可接受，但真机 D4 要确认它确实只是失败而不是留下半份。</item>
+        /// <item><b>失败提示尚未接到界面。</b>本类已把状态做成 UI 可消费的形式
+        /// （<see cref="LastOutcome"/> + <see cref="DataMigrationOutcome.ShouldNotifyUser"/>），
+        /// 但还没有任何 UI 读它。开关翻开后失败对用户仍是静默的，接线要一并完成。</item>
+        /// </list>
+        /// </para>
+        ///
+        /// <para>
+        /// 开关关着时本类只做两件事：把计划完整算出来<b>写进日志</b>（可在真实用户机器上
+        /// 验证探测与判定是否符合预期），以及<b>执行原地登记</b>——后者只写配置值，
         /// 要么与当前行为完全等价，要么写的是还没有读取方的新键，零风险。
         /// 配置路径改写（<see cref="RewriteConfigPaths"/>）以墓碑为判据，
         /// 本开关关着时不会有任何墓碑，因而同样是彻底的空操作。
-        /// </para>
-        ///
-        /// <para>
-        /// 翻开此开关时必须同时完成：全部读取方切到 <see cref="AppPaths"/>，
-        /// 且跑通迁移方案里的 D0–D5 测试矩阵。
         /// </para>
         /// </summary>
         private const bool RelocationExecutionEnabled = false;
@@ -74,19 +133,46 @@ namespace UEModManager.Services
             _executor = new DataRelocationExecutor(logger);
         }
 
+        /// <summary>
+        /// 最近一次 <see cref="RunAsync"/> 的结果；从未跑过时为 <c>null</c>。
+        ///
+        /// <para>
+        /// 存在的理由只有一个：<b>让"迁移没做完"这件事对 UI 可见</b>。此前迁移结果只进
+        /// <c>Console.WriteLine</c>，失败对用户是彻底静默的——数据分处新旧两地、每次启动
+        /// 都在重试，用户界面上什么都看不出来，直到某天他去翻日志。这正是
+        /// <c>355589a</c> 那轮修掉的"UI 静默失败通道"的同类。
+        /// </para>
+        ///
+        /// <para>
+        /// 本类是 DI 单例，迁移在主窗口创建之前就跑完了（见 <c>App.ShowAuthenticationWindow</c>），
+        /// 因此 UI 侧任何时候读到的都是最终值，不存在竞态。用实例属性而不是静态字段，
+        /// 是为了让它跟着容器的生命周期走，测试里也能各测各的。
+        /// </para>
+        ///
+        /// <para>
+        /// 消费方式：取 <see cref="DataMigrationOutcome.ShouldNotifyUser"/> 决定要不要提示，
+        /// 取 <see cref="DataMigrationOutcome.UserMessage"/> 拿文案。<b>不要</b>用
+        /// <see cref="DataMigrationOutcome.Completed"/> 当判据，理由见该记录的注释。
+        /// </para>
+        /// </summary>
+        public DataMigrationOutcome? LastOutcome { get; private set; }
+
         /// <summary>执行一次迁移。绝不抛异常——失败时应用沿用旧位置继续运行。</summary>
         public Task<DataMigrationOutcome> RunAsync()
         {
+            DataMigrationOutcome outcome;
             try
             {
-                return Task.FromResult(Run());
+                outcome = Run();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[DataMigration] 迁移过程异常，沿用旧数据位置继续运行");
-                return Task.FromResult(
-                    new DataMigrationOutcome(false, 0, 0, 0, 1, "迁移异常，已沿用旧位置"));
+                outcome = new DataMigrationOutcome(false, 0, 0, 0, 1, "迁移异常，已沿用旧位置");
             }
+
+            LastOutcome = outcome;
+            return Task.FromResult(outcome);
         }
 
         private DataMigrationOutcome Run()
@@ -133,8 +219,20 @@ namespace UEModManager.Services
             }
 
             var summary = $"执行 {executed}，跳过 {skipped}，推迟 {deferred}，失败 {failed}";
-            _logger.LogInformation("[DataMigration] {Summary}", summary);
-            return new DataMigrationOutcome(completed, executed, skipped, deferred, failed, summary);
+            var outcome = new DataMigrationOutcome(completed, executed, skipped, deferred, failed, summary);
+
+            // 状态一并进日志：排障时最先要区分的就是"推迟"（开关没开，正常）
+            // 与"失败"（真出事了），只看四个计数每次都得重新推一遍。
+            if (outcome.ShouldNotifyUser)
+            {
+                _logger.LogWarning("[DataMigration] {Status}｜{Summary}", outcome.Status, summary);
+            }
+            else
+            {
+                _logger.LogInformation("[DataMigration] {Status}｜{Summary}", outcome.Status, summary);
+            }
+
+            return outcome;
         }
 
         // ─── 探测 ───
