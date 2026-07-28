@@ -32,6 +32,131 @@ public class MainWindowSourceGuardTests
     }
 
     [Fact]
+    public void ModSelected只有一个订阅者()
+    {
+        // 事故原型：MainViewModel 和 MainWindow 各订阅一次 ModList.ModSelected，
+        // 且对 mod == null 的处理相反（VM"只开不关"，View"没选中就关"）。
+        // 谁生效完全取决于订阅顺序——调一下构造顺序，"详情面板关不掉"就会冒出来，
+        // 而这种偶发抽风事后根本查不出条件。语义唯一交给 VM。
+        var vm = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+
+        var vmSubscriptions = Regex.Matches(vm, @"ModList\.ModSelected\s*\+=").Count;
+        Assert.True(vmSubscriptions == 1,
+            $"MainViewModel 应恰好订阅一次 ModList.ModSelected，实际 {vmSubscriptions} 次");
+
+        // code-behind 侧一个订阅/退订都不许有（只匹配代码，注释里提到名字不算）
+        var viewSubscriptions = Regex.Matches(view, @"ModSelected\s*[+\-]=").Count;
+        Assert.True(viewSubscriptions == 0,
+            $"MainWindow.xaml.cs 里还有 {viewSubscriptions} 处 ModSelected 订阅——两份语义相反的逻辑会靠订阅顺序决胜负");
+
+        // 保留下来的必须是"没有选中项就收起面板"那一份，
+        // 否则删除 MOD 后面板会停在一个已经不存在的 MOD 上
+        Assert.Contains("IsDetailPanelOpen = mod != null;", vm);
+    }
+
+    [Fact]
+    public void 方案选择器的文字只由绑定驱动()
+    {
+        // 事故原型：VM 写 CurrentProfileName/CurrentProfileSummary（当时没人绑定，纯空转），
+        // MainWindow 另写一份 ProfileSelectorName.Text，连字符串模板都逐字重复。
+        // 改 VM 不生效，是 MVVM 迁移最容易踩的坑。
+        var xaml = ReadMainWindow("MainWindow.xaml");
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+
+        Assert.Contains("Text=\"{Binding CurrentProfileName}\"", xaml);
+        Assert.Contains("Text=\"{Binding CurrentProfileSummary}\"", xaml);
+
+        // x:Name 已去掉，code-behind 再想直接写 Text 会编译不过；
+        // 这里连名字出现都拦住，防止有人把 x:Name 加回来
+        Assert.DoesNotContain("ProfileSelectorName", xaml);
+        Assert.DoesNotContain("ProfileSelectorSummary", xaml);
+        Assert.DoesNotContain("ProfileSelectorName", view);
+        Assert.DoesNotContain("ProfileSelectorSummary", view);
+
+        // 绑定路径必须在 VM 上真实存在
+        var vmType = typeof(UEModManager.ViewModels.MainViewModel);
+        foreach (var name in new[] { "CurrentProfileName", "CurrentProfileSummary" })
+        {
+            var prop = vmType.GetProperty(name);
+            Assert.True(prop != null, $"MainViewModel.{name} 不存在，方案选择器会一直显示 XAML 默认值");
+            Assert.True(prop!.GetMethod?.IsPublic == true, $"{name} 必须是 public，否则绑定取不到");
+        }
+    }
+
+    [Fact]
+    public void 方案改名后侧栏文字会跟着刷新()
+    {
+        // ProfileService.RenameProfileAsync 只发 ProfileListChanged、不发 ProfileChanged。
+        // 只在 ProfileChanged 里刷新显示，就是"改完名字侧栏还显示旧名"。
+        var vm = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
+
+        var handler = Regex.Match(vm,
+            @"private void OnProfileListChanged\(\).*?\n        \}", RegexOptions.Singleline);
+
+        Assert.True(handler.Success, "找不到 OnProfileListChanged");
+        Assert.Contains("RefreshProfileDisplay", handler.Value);
+    }
+
+    [Fact]
+    public void 冲突分析失败必须弹给用户而不是静默()
+    {
+        // 事故原型：catch 里"回退到旧版冲突检测"，而回退目标已被重构掏空成空方法，
+        // 分析失败后界面毫无反馈。用户会把"没检查成功"读成"没有冲突"——
+        // 对一个以冲突处理为核心能力的软件，这比直接报错危险得多。
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+        var vm = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
+
+        var handler = Regex.Match(view,
+            @"private void OpenConflictPanel\(\).*?, _logger, ""冲突检测""\);", RegexOptions.Singleline);
+
+        Assert.True(handler.Success, "找不到走 SafeEvent.Run 的 OpenConflictPanel");
+        Assert.Contains("AnalyzeAsync()", handler.Value);
+        Assert.DoesNotMatch(@"\bcatch\s*\(", handler.Value);
+
+        // VM 侧也不许再有"catch 后 return null"的第二条冲突分析入口：
+        // 失败与"零冲突"在返回值上分不出来，接上按钮就等于把静默失效再造一遍
+        Assert.DoesNotMatch(@"Task<ConflictAnalysisResult\?>\s+AnalyzeConflictsAsync", vm);
+    }
+
+    [Fact]
+    public void 启动中心的冲突预检失败不会被显示成检查通过()
+    {
+        // BuildPreCheckSteps 把第 3 步预置成绿色的"无文件冲突"，
+        // RunConflictPreCheckAsync 抛异常时若只记日志，清单就一直停在那个绿勾上。
+        var launchVm = File.ReadAllText(Path.Combine(
+            RepoRoot(), "UEModManager", "ViewModels", "LaunchViewModel.cs"));
+        var launchWindow = File.ReadAllText(Path.Combine(
+            RepoRoot(), "UEModManager", "Views", "LaunchCenterWindow.xaml.cs"));
+
+        var handler = Regex.Match(launchVm,
+            @"public async Task RunConflictPreCheckAsync\(\).*?\n        \}", RegexOptions.Singleline);
+
+        Assert.True(handler.Success, "找不到 RunConflictPreCheckAsync");
+        Assert.Contains("ConflictPreCheckError", handler.Value);
+        Assert.Contains("StepItemStatus.Warning", handler.Value);
+
+        // 界面必须监听这个属性重画清单，否则 VM 改了也没人看
+        Assert.Contains("nameof(LaunchViewModel.ConflictPreCheckError)", launchWindow);
+    }
+
+    [Fact]
+    public void 动态菜单项的点击处理器没有裸async_void()
+    {
+        // 动态 new 出来的 MenuItem 没有 XAML 事件属性可查，是最容易漏掉 SafeEvent.Run 的地方。
+        // 裸 async void 抛出去只能落到全局 DispatcherUnhandledException：能弹窗，
+        // 但不带操作上下文，日志里看不出是"添加新游戏"还是"退出登录"失败了。
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+
+        Assert.DoesNotContain(".Click += async", view);
+
+        var addItem = Regex.Match(view,
+            @"addItem\.Click \+=.*?, _logger, ""添加新游戏""\);", RegexOptions.Singleline);
+        Assert.True(addItem.Success, "「添加新游戏」的点击处理器必须包进 SafeEvent.Run");
+        Assert.Contains("SafeEvent.Run", addItem.Value);
+    }
+
+    [Fact]
     public void 每条切换游戏的路径都带上了分类服务()
     {
         // 分类文件按游戏名分片。少调一次 SetCurrentGameAsync，当前游戏名就恒为空：

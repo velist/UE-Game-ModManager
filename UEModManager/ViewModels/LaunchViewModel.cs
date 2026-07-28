@@ -54,6 +54,16 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private int _conflictCount;
 
+        /// <summary>
+        /// 冲突预检的失败原因；非空表示"冲突数未知"。
+        ///
+        /// 不能只靠 <see cref="ConflictCount"/>：预检失败时它停在 0，
+        /// 而 0 在界面上被渲染成绿色的"无文件冲突"——"没检查成功"被显示成"检查通过"，
+        /// 比直接报错危险得多。界面另外监听这个属性来重画检查清单。
+        /// </summary>
+        [ObservableProperty]
+        private string _conflictPreCheckError = string.Empty;
+
         public LaunchViewModel(
             LaunchOrchestrator launcher,
             ProfileService profileService,
@@ -83,6 +93,7 @@ namespace UEModManager.ViewModels
 
             // 冲突统计
             ConflictCount = 0;
+            ConflictPreCheckError = string.Empty;
 
             // 上次启动信息
             var last = _launcher.LastSession;
@@ -175,6 +186,23 @@ namespace UEModManager.ViewModels
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "冲突预检失败");
+
+                // 只记日志是不够的：BuildPreCheckSteps 把第 3 步预置成了绿色的
+                // "无文件冲突 / 所有文件无冲突"，预检抛异常后它会一直停在那儿，
+                // 用户看到的是"冲突检查通过"。冲突数未知必须显式降级成警告——
+                // 但不用 Failed，冲突分析只是启动前的提示，不该把游戏拦下来。
+                if (Steps.Count >= 3)
+                {
+                    Steps[2] = new LaunchStepItem
+                    {
+                        DisplayName = "冲突预检未完成",
+                        Message = $"无法确认是否存在文件冲突：{ex.Message}",
+                        Status = StepItemStatus.Warning
+                    };
+                }
+
+                // 放在最后：属性变更会触发界面重画清单，此时 Steps[2] 必须已经更新
+                ConflictPreCheckError = ex.Message;
             }
         }
 

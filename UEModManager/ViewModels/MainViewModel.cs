@@ -11,7 +11,6 @@ using UEModManager.Converters;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Categories;
-using UEModManager.Services.Conflict;
 
 namespace UEModManager.ViewModels
 {
@@ -199,12 +198,7 @@ namespace UEModManager.ViewModels
             Categories = new CategoryViewModel(categoryService, logger);
 
             // 连接子 ViewModel 事件
-            ModList.ModSelected += mod =>
-            {
-                ModDetail.CurrentMod = mod;
-                if (mod != null)
-                    IsDetailPanelOpen = true;
-            };
+            ModList.ModSelected += OnModListSelectionChanged;
 
             ModList.ModsChanged += () =>
             {
@@ -222,16 +216,56 @@ namespace UEModManager.ViewModels
             _profileService.ProfileListChanged += OnProfileListChanged;
         }
 
+        // ─── 选中项事件处理 ───
+
+        /// <summary>
+        /// MOD 列表选中项变化时同步详情面板。
+        ///
+        /// 这份逻辑曾经有两套：这里一套（<c>if (mod != null) IsDetailPanelOpen = true;</c>，
+        /// 只开不关），MainWindow 里另有一套（<c>IsDetailPanelOpen = mod != null;</c>，会关）。
+        /// 两个 handler 挂在同一个事件上、对 <c>mod == null</c> 的处理相反，真正生效的是
+        /// 后订阅的那个——正确性靠订阅顺序维系，谁动一下构造顺序就会冒出
+        /// "详情面板关不掉"或"详情面板不弹"这类说不清条件的抽风。
+        ///
+        /// 保留的是"没有选中项就没有详情可显示"这一份：
+        /// <see cref="ModDetailViewModel.DeleteAsync"/> 自己也是 <c>CurrentMod = null</c>
+        /// 之后立刻发 <c>CloseRequested</c>；删除 / 批量卸载后 code-behind 会把
+        /// <c>SelectedMod</c> 置空，此时面板必须收起，否则会停在一个已经不存在的 MOD 上。
+        /// </summary>
+        private void OnModListSelectionChanged(ModInfo? mod)
+        {
+            ModDetail.CurrentMod = mod;
+            IsDetailPanelOpen = mod != null;
+        }
+
         // ─── Profile 事件处理 ───
 
-        private void OnProfileChanged(InstanceProfile? profile)
+        /// <summary>
+        /// 把当前方案的名称与摘要刷进可绑定属性——侧栏方案选择器的两行文字绑的就是这两个。
+        ///
+        /// 这份显示逻辑此前有两套实现：本类写属性（当时 XAML 无人绑定，纯空转），
+        /// MainWindow 另有一套直接写 <c>ProfileSelectorName.Text</c>，连字符串模板都逐字重复。
+        /// 现在 XAML 绑定到属性，这里是唯一实现（那两个 TextBlock 的 x:Name 也一并去掉，
+        /// 让 code-behind 想写回去都编译不过）。
+        ///
+        /// 读 <c>CurrentProfile</c> 而不读事件参数：<c>ProfileListChanged</c> 不带参数，
+        /// 而"重命名当前方案"只发 <c>ProfileListChanged</c>（见 ProfileService.RenameProfileAsync），
+        /// 漏掉它就是改完名字侧栏还显示旧名。
+        /// </summary>
+        public void RefreshProfileDisplay()
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                var profile = _profileService.CurrentProfile;
                 CurrentProfileName = profile?.Name ?? "未选择";
-                UpdateProfileSummary();
+                CurrentProfileSummary = profile == null
+                    ? string.Empty
+                    : $"{profile.EnabledCount}/{profile.TotalCount} 已启用";
             });
         }
+
+        /// <summary>事件参数刻意不用，一律读 CurrentProfile —— 理由见 RefreshProfileDisplay。</summary>
+        private void OnProfileChanged(InstanceProfile? profile) => RefreshProfileDisplay();
 
         private void OnProfileListChanged()
         {
@@ -241,17 +275,9 @@ namespace UEModManager.ViewModels
                 foreach (var p in _profileService.GetProfiles())
                     Profiles.Add(p);
             });
-        }
 
-        private void UpdateProfileSummary()
-        {
-            var profile = _profileService.CurrentProfile;
-            if (profile == null)
-            {
-                CurrentProfileSummary = string.Empty;
-                return;
-            }
-            CurrentProfileSummary = $"{profile.EnabledCount}/{profile.TotalCount} 已启用";
+            // 方案改名后名称和"X/Y 已启用"都可能变，列表变更同样要刷一次显示
+            RefreshProfileDisplay();
         }
 
         // ─── 初始化 ───
@@ -274,8 +300,8 @@ namespace UEModManager.ViewModels
                     // 加载 Profile
                     LoadingMessage = "加载方案...";
                     await _profileService.SetCurrentGameAsync(CurrentGameName);
+                    // OnProfileListChanged 内部已经带上了 RefreshProfileDisplay
                     OnProfileListChanged();
-                    OnProfileChanged(_profileService.CurrentProfile);
 
                     // v2.0: 初始化包仓库
                     LoadingMessage = "加载包仓库...";
@@ -332,7 +358,6 @@ namespace UEModManager.ViewModels
             // 加载目标游戏的 Profile
             await _profileService.SetCurrentGameAsync(gameName);
             OnProfileListChanged();
-            OnProfileChanged(_profileService.CurrentProfile);
 
             // v2.0: 加载包仓库
             await _packageRepository.SetCurrentGameAsync(gameName);
@@ -399,7 +424,7 @@ namespace UEModManager.ViewModels
                     Categories.UpdateCounts(AllMods);
                 });
 
-                UpdateProfileSummary();
+                RefreshProfileDisplay();
                 await _modData.SaveModsAsync(AllMods);
                 UpdateStatusBar();
                 _logger.LogInformation("仓库刷新完成: {Count} 个", packages.Count);
@@ -784,26 +809,12 @@ namespace UEModManager.ViewModels
         }
 
         // ─── 冲突分析（v2.0 Phase 4） ───
-
-        /// <summary>
-        /// 执行冲突分析，返回分析结果。
-        /// </summary>
-        public async Task<ConflictAnalysisResult?> AnalyzeConflictsAsync()
-        {
-            using var loading = BeginLoading("分析冲突...");
-            try
-            {
-
-                var result = await _conflictAnalyzer.AnalyzeAsync();
-                _logger.LogInformation("冲突分析完成: {Count} 个冲突", result.TotalConflicts);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "冲突分析失败");
-                return null;
-            }
-        }
+        //
+        // 这里曾有一个零引用的 AnalyzeConflictsAsync：catch 之后 return null，
+        // 失败只进日志。冲突分析失败和"没有冲突"在返回值上几乎分不出来，
+        // 任何人给按钮接上它，就等于把"冲突检测静默失效"再造一遍。
+        // 唯一入口是 MainWindow.OpenConflictPanel —— 它直接调 ConflictAnalysis.AnalyzeAsync()
+        // 并由 SafeEvent.Run 统一记日志 + 弹窗，异常必须能上抛，故不在此处包一层。
 
         // ─── 内部方法 ───
 

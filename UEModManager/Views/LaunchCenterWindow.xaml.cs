@@ -229,6 +229,11 @@ namespace UEModManager.Views
                     case nameof(LaunchViewModel.ConflictCount):
                         RebuildCheckList();
                         break;
+                    // 预检失败同样要重画：失败时 ConflictCount 停在 0 不会触发上面那条，
+                    // 清单就会一直显示预置的"无文件冲突"
+                    case nameof(LaunchViewModel.ConflictPreCheckError):
+                        RebuildCheckList();
+                        break;
                 }
             });
         }
