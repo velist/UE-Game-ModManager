@@ -378,15 +378,32 @@ namespace UEModManager
 
                 // 数据目录搬迁：必须在任何服务读写数据之前完成。
                 // 迁移器自身不抛异常——失败时沿用旧位置继续，绝不阻断启动。
+                //
+                // 结果留在 DataLocationMigrator.LastOutcome 上供 UI 取用：迁移失败时数据
+                // 分处新旧两地、每次启动都在重试，而用户界面上一点痕迹都没有，只能靠翻日志
+                // 才发现——这正是 355589a 那轮修掉的"UI 静默失败通道"。
+                //
+                // TODO(UI)：主窗口初始化时读
+                //     ServiceProvider.GetRequiredService<DataLocationMigrator>().LastOutcome
+                // 若 outcome?.ShouldNotifyUser == true，用 outcome.UserMessage 弹一条
+                // **非模态**提示（现有的 Snackbar/状态栏通道即可，绝不能用 MessageBox 拦人）。
+                // 判据必须是 ShouldNotifyUser，不能是 Completed —— 搬移开关关着时每台老用户
+                // 机器都有推迟项、Completed 恒为 false，照它提示等于给全体用户天天报一次警。
                 Console.WriteLine("[Startup] DataLocationMigrator");
                 try
                 {
                     var migrator = ServiceProvider.GetRequiredService<DataLocationMigrator>();
                     var outcome = await migrator.RunAsync();
-                    Console.WriteLine($"[Startup] 数据目录迁移: {outcome.Summary}");
+                    Console.WriteLine($"[Startup] 数据目录迁移: {outcome.Status}｜{outcome.Summary}");
+                    if (outcome.ShouldNotifyUser)
+                    {
+                        Console.WriteLine($"[Startup] 数据目录迁移需提示用户: {outcome.UserMessage}");
+                    }
                 }
                 catch (Exception migEx)
                 {
+                    // 只有解析服务本身失败才会走到这里（RunAsync 自己不抛）。
+                    // 此时 LastOutcome 仍是 null，UI 侧按"没有可提示的状态"处理即可。
                     Console.WriteLine($"[Startup] 数据目录迁移异常（沿用旧位置继续）: {migEx}");
                 }
 
