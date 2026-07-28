@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 
@@ -65,11 +66,24 @@ namespace UEModManager.Services
         /// </summary>
         private static bool _diskStateUnknown;
 
+        /// <summary>
+        /// 配置文件位置。路径归口 <see cref="AppPaths.UiConfigFile"/>，与本类此前自己拼的
+        /// <c>%APPDATA%\UEModManager\ui_config.json</c> 是同一个文件；双源时改一处漏一处，
+        /// 应用会静默读写两个不同的配置。
+        ///
+        /// <para>
+        /// 注意这里存在一条受控的环：<see cref="AppPaths"/> 要读本类拿用户自定义的数据根。
+        /// 环之所以不闭合，是因为 <see cref="AppPaths.UiConfigFile"/> 用的是不含用户覆盖的
+        /// 布局，取值只依赖 <c>%APPDATA%</c>，不会再回头读配置。若哪天把它改成读覆盖的版本，
+        /// 这里会立刻变成无限递归。
+        /// </para>
+        /// </summary>
         private static string GetConfigPath()
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UEModManager");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "ui_config.json");
+            var path = AppPaths.UiConfigFile;
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            return path;
         }
 
         // ── 加载 / 保存（全部在 Gate 内调用）──

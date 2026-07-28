@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 
 namespace UEModManager.Data
@@ -138,17 +139,16 @@ namespace UEModManager.Data
         }
 
         /// <summary>
-        /// 获取数据库文件路径
+        /// 获取数据库文件路径。归口 <see cref="AppPaths.LocalDatabaseFile"/>：
+        /// App 注册 DbContext 时走的是 AppPaths，这里此前自己拼一份，
+        /// 一旦库位置调整而漏改其中一处，无参构造的上下文（迁移工具、GetDatabaseInfoAsync）
+        /// 就会指向另一个库——不报错，只是读到一个空库。
         /// </summary>
         private static string GetDatabasePath()
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var appDataDir = Path.Combine(appDataPath, "UEModManager");
-            
-            // 确保目录存在
-            Directory.CreateDirectory(appDataDir);
-            
-            return Path.Combine(appDataDir, "local.db");
+            var dbPath = AppPaths.LocalDatabaseFile;
+            AppPaths.TryEnsureDirectory(Path.GetDirectoryName(dbPath)!);
+            return dbPath;
         }
 
         /// <summary>

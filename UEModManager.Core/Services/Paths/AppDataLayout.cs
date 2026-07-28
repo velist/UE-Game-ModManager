@@ -120,6 +120,24 @@ public sealed class AppDataLayout
     /// <summary>用户头像。</summary>
     public string AvatarsDirectory => Path.Combine(RoamingRoot, "Avatars");
 
+    /// <summary>
+    /// 用户自选背景图的副本。设置窗口把选中的图片复制进来再引用，原图被移动或删除后背景仍然可用。
+    /// 与之配套的文件名记在 <see cref="UiConfigFile"/> 里，二者必须同层：
+    /// 一个漫游一个不漫游的话，换机器后配置指向的图片留在原机，背景直接变空白。
+    /// </summary>
+    public string BackgroundsDirectory => Path.Combine(RoamingRoot, "Backgrounds");
+
+    /// <summary>
+    /// DPAPI 加密后的密钥文件（<c>.enc</c>）及其明文备份。
+    ///
+    /// <para>
+    /// 目录名沿用历史的 <c>config</c> 而非属性名里的 Secrets：这是老版本就在用的位置，
+    /// 改名会让已加密的文件失联，而密文一旦对不上就没有别处能重建。留在漫游层同理，
+    /// 是保持原位，不是重新判定。
+    /// </para>
+    /// </summary>
+    public string SecretsDirectory => Path.Combine(RoamingRoot, "config");
+
     /// <summary>该根是否已被用户自定义。</summary>
     public bool IsOverridden(DataRoot root) => _overrides.ContainsKey(root);
 
