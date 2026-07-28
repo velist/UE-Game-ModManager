@@ -20,7 +20,6 @@ namespace UEModManager.ViewModels
     /// </summary>
     public partial class MainViewModel : ObservableObject, IDisposable
     {
-        private readonly ModManagementService _modService;
         private readonly GameConfigService _gameConfig;
         private readonly ModDataService _modData;
         private readonly NewCategoryService _categoryService;
@@ -39,7 +38,6 @@ namespace UEModManager.ViewModels
 
         // ─── 服务访问器（供 code-behind 使用） ───
 
-        public ModManagementService ModService => _modService;
         public GameConfigService GameConfig => _gameConfig;
         public ModDataService ModData => _modData;
         public NewCategoryService CategoryService => _categoryService;
@@ -152,7 +150,6 @@ namespace UEModManager.ViewModels
         public ObservableCollection<InstanceProfile> Profiles { get; } = new();
 
         public MainViewModel(
-            ModManagementService modService,
             GameConfigService gameConfig,
             ModDataService modData,
             NewCategoryService categoryService,
@@ -169,7 +166,6 @@ namespace UEModManager.ViewModels
             LaunchOrchestrator launchOrchestrator,
             ILogger<MainViewModel> logger)
         {
-            _modService = modService;
             _gameConfig = gameConfig;
             _modData = modData;
             _categoryService = categoryService;
@@ -186,7 +182,7 @@ namespace UEModManager.ViewModels
             _launchOrchestrator = launchOrchestrator;
             _logger = logger;
 
-            ModList = new ModListViewModel(modService, gameConfig, logger);
+            ModList = new ModListViewModel(logger);
             // ModListViewModel / ModDetailViewModel 的回调契约仍是 Task<bool>，
             // 这里把 OperationResult 降级成 bool 适配。失败原因由 View 层
             // （MainWindow 的 *FromUiAsync）直接从 OperationResult 取，不经过这条通道。
@@ -195,7 +191,7 @@ namespace UEModManager.ViewModels
                 async mod => (await DeletePackageModAsync(mod)).Success,
                 async (mods, enable) => (await ToggleModsAsync(mods, enable)).Success,
                 async mods => (await DeletePackageModsAsync(mods)).Success);
-            ModDetail = new ModDetailViewModel(modService, gameConfig, modData, logger);
+            ModDetail = new ModDetailViewModel(logger);
             ModDetail.ConfigureActions(
                 async (mod, enable) => (await ToggleModAsync(mod, enable)).Success,
                 async (mod, path) => (await ChangePreviewAsync(mod, path)).Success,
@@ -272,8 +268,6 @@ namespace UEModManager.ViewModels
 
                 await _gameConfig.LoadConfigAsync();
                 CurrentGameName = _gameConfig.CurrentGameName;
-                _modService.CurrentGameType = _gameConfig.CurrentGameType;
-                _modService.CurrentEngineType = _gameConfig.CurrentEngineType;
 
                 if (!string.IsNullOrEmpty(CurrentGameName))
                 {
@@ -331,8 +325,6 @@ namespace UEModManager.ViewModels
         public async Task SwitchGameAsync(string gameName)
         {
             CurrentGameName = gameName;
-            _modService.CurrentGameType = _gameConfig.CurrentGameType;
-            _modService.CurrentEngineType = _gameConfig.CurrentEngineType;
 
             // 切换游戏时清空图片缓存
             AsyncImageConverter.ClearCache();

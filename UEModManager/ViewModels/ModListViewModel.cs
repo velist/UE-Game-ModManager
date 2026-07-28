@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
-using UEModManager.Services;
 
 namespace UEModManager.ViewModels
 {
@@ -18,8 +17,6 @@ namespace UEModManager.ViewModels
     /// </summary>
     public partial class ModListViewModel : ObservableObject
     {
-        private readonly ModManagementService _modService;
-        private readonly GameConfigService _gameConfig;
         private readonly ILogger _logger;
         private Func<ModInfo, Task<bool>>? _deleteModAsync;
         private Func<ModInfo, bool, Task<bool>>? _toggleModAsync;
@@ -65,10 +62,8 @@ namespace UEModManager.ViewModels
 
         private CategoryItem? _currentCategory;
 
-        public ModListViewModel(ModManagementService modService, GameConfigService gameConfig, ILogger logger)
+        public ModListViewModel(ILogger logger)
         {
-            _modService = modService;
-            _gameConfig = gameConfig;
             _logger = logger;
         }
 
