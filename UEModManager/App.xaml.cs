@@ -12,6 +12,7 @@ using UEModManager.Services.Backends;
 using UEModManager.ViewModels;
 using UEModManager.Views;
 using UEModManager.Data;
+using UEModManager.Infrastructure;
 
 namespace UEModManager
 {
@@ -165,14 +166,23 @@ namespace UEModManager
         {
             try
             {
-                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                _logFilePath = System.IO.Path.Combine(baseDir, "console.log");
+                // 日志随数据一起移出安装目录：装在 Program Files 下时那里没有写权限，
+                // 且卸载/覆盖安装会连同日志一起抹掉——出问题时最需要的证据反而最先消失。
+                var logDir = AppPaths.LogsDirectory;
+                if (!AppPaths.TryEnsureDirectory(logDir))
+                {
+                    // 新位置不可用时退回安装目录，有日志总比没有强。
+                    logDir = AppDomain.CurrentDomain.BaseDirectory;
+                }
+
+                _logFilePath = System.IO.Path.Combine(logDir, "console.log");
                 // 轮转旧日志
                 if (System.IO.File.Exists(_logFilePath))
                 {
-                    var bak = System.IO.Path.Combine(baseDir, $"console_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+                    var bak = System.IO.Path.Combine(logDir, $"console_{DateTime.Now:yyyyMMdd_HHmmss}.log");
                     System.IO.File.Move(_logFilePath, bak, true);
                 }
+                PruneRotatedLogs(logDir);
                 var sw = new StreamWriter(System.IO.File.Open(_logFilePath, FileMode.Create, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
                 var structured = new UEModManager.Logging.StructuredLogWriter(sw);
                 Console.SetOut(structured);
@@ -180,6 +190,28 @@ namespace UEModManager
                 Console.WriteLine($"[App] 文件日志重定向 -> {_logFilePath}");
             }
             catch { /* 如果失败，不阻断启动 */ }
+        }
+
+        /// <summary>
+        /// 只保留最近 <see cref="MaxRotatedLogs"/> 份轮转日志。
+        /// 此前每次启动都新增一份且从不清理，长期运行的机器上会攒出成百上千个文件。
+        /// </summary>
+        private static void PruneRotatedLogs(string logDir)
+        {
+            const int MaxRotatedLogs = 10;
+            try
+            {
+                var stale = new DirectoryInfo(logDir)
+                    .EnumerateFiles("console_*.log")
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .Skip(MaxRotatedLogs);
+
+                foreach (var file in stale)
+                {
+                    try { file.Delete(); } catch { /* 被占用就留到下次 */ }
+                }
+            }
+            catch { /* 清理是尽力而为，绝不能挡住日志初始化 */ }
         }
 
         /// <summary>
@@ -208,9 +240,7 @@ namespace UEModManager
 
         private IHostBuilder CreateHostBuilder()
         {
-            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            var dataPath = Path.Combine(appDirectory, "Data");
-            Directory.CreateDirectory(dataPath);
+            AppPaths.TryEnsureDirectory(AppPaths.DataDirectory);
 
             return Host.CreateDefaultBuilder()
                 .ConfigureServices((context, services) =>
@@ -218,8 +248,8 @@ namespace UEModManager
                     // 注册本地SQLite数据库
                     services.AddDbContext<LocalDbContext>(options =>
                     {
-                        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                        var dbPath = Path.Combine(appDataPath, "UEModManager", "local.db");
+                        var dbPath = AppPaths.LocalDatabaseFile;
+                        AppPaths.TryEnsureDirectory(Path.GetDirectoryName(dbPath)!);
                         options.UseSqlite($"Data Source={dbPath}");
                     });
 

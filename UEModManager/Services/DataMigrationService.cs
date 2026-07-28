@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Migration;
@@ -40,7 +41,7 @@ namespace UEModManager.Services
             _objectStore = objectStore;
             _modDataService = modDataService;
             _gameConfig = gameConfig;
-            _dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+            _dataDirectory = AppPaths.DataDirectory;
         }
 
         /// <summary>

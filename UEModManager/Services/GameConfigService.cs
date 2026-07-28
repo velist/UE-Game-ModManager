@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Persistence;
@@ -81,7 +82,7 @@ namespace UEModManager.Services
         public event Action? ConfigChanged;
 
         public GameConfigService(ILogger<GameConfigService> logger)
-            : this(logger, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json"))
+            : this(logger, AppPaths.ConfigFile)
         {
         }
 

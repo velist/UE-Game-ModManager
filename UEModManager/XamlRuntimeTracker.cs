@@ -17,7 +17,8 @@ namespace UEModManager
     /// </summary>
     public static class XamlRuntimeTracker
     {
-        private static readonly string LogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "XamlErrorTracking.log");
+        private static readonly string LogPath = Path.Combine(
+            Infrastructure.AppPaths.LogsDirectory, "XamlErrorTracking.log");
         private static readonly object LogLock = new object();
         
         static XamlRuntimeTracker()
@@ -26,8 +27,17 @@ namespace UEModManager
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
             
-            // 清空日志文件
-            File.WriteAllText(LogPath, $"=== XAML Runtime Tracker Started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n\n");
+            // 清空日志文件。静态构造函数里抛异常会变成 TypeInitializationException，
+            // 让整个追踪器彻底不可用——日志目录不存在或不可写都不值得付这个代价。
+            try
+            {
+                Infrastructure.AppPaths.TryEnsureDirectory(Path.GetDirectoryName(LogPath)!);
+                File.WriteAllText(LogPath, $"=== XAML Runtime Tracker Started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n\n");
+            }
+            catch (Exception ex)
+            {
+                try { Console.WriteLine($"[XamlRuntimeTracker] 初始化日志失败: {ex.Message}"); } catch { }
+            }
         }
 
         /// <summary>

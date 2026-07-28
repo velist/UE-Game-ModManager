@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Launch;
 using UEModManager.Services.Persistence;
@@ -54,9 +55,8 @@ namespace UEModManager.Services
             _deployService = deployService;
             _conflictAnalyzer = conflictAnalyzer;
 
-            _sessionLogDir = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "Data", "LaunchSessions");
-            Directory.CreateDirectory(_sessionLogDir);
+            _sessionLogDir = AppPaths.LaunchSessionsDirectory;
+            AppPaths.TryEnsureDirectory(_sessionLogDir);
         }
 
         /// <summary>

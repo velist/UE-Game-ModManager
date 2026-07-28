@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Profile;
@@ -80,8 +81,8 @@ namespace UEModManager.Services
         public ProfileService(ILogger<ProfileService> logger)
         {
             _logger = logger;
-            _dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-            Directory.CreateDirectory(_dataDir);
+            _dataDir = AppPaths.DataDirectory;
+            AppPaths.TryEnsureDirectory(_dataDir);
         }
 
         // ─── 批处理 ───

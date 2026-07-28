@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 
 namespace UEModManager.Services
@@ -24,7 +25,7 @@ namespace UEModManager.Services
         public ModDataService(ILogger<ModDataService> logger)
         {
             _logger = logger;
-            _dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+            _dataDirectory = AppPaths.DataDirectory;
         }
 
         // ─── 游戏切换 ───
