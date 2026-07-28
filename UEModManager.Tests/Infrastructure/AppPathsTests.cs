@@ -1,5 +1,6 @@
 using UEModManager.Infrastructure;
 using UEModManager.Services;
+using UEModManager.Tests.Services;
 
 namespace UEModManager.Tests.Infrastructure;
 
@@ -13,7 +14,12 @@ namespace UEModManager.Tests.Infrastructure;
 ///
 /// 本文件只读取路径与既有配置，不写入任何文件（UiPreferences 定位配置时可能创建
 /// %APPDATA%\UEModManager 目录，这是它固有的行为，不会产生内容）。
+///
+/// 挂 collection 是因为本类会读 UiPreferences 的进程级内存单例，
+/// 而 <see cref="UEModManager.Tests.Services.UiPreferencesFailureTests"/> 会把它的配置路径
+/// 临时重定向到 temp 目录；并行跑会互相串味。
 /// </summary>
+[Collection(UiPreferencesStaticStateCollection.Name)]
 public sealed class AppPathsTests
 {
     [Fact]
