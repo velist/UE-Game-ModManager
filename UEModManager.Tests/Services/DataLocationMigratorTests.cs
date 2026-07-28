@@ -438,6 +438,55 @@ public sealed class DataLocationMigratorTests : IDisposable
         AssertTreeUnchanged(after1, SnapshotTree(_root));
     }
 
+    // ─── 偏好写失败（UiPreferences 改成 log + throw 之后的看门测试） ───
+
+    /// <summary>
+    /// 偏好落盘失败不得阻断启动。
+    ///
+    /// <para>
+    /// <c>UiPreferences</c> 的写入口已统一为 log + throw（用户在设置界面改的东西写不进去
+    /// 必须看得见），生产实现 <c>UiPreferencesDataMigrationAdapter</c> 是直通转发，
+    /// 于是这个异常会顺着 <see cref="IDataMigrationPreferences"/> 进到迁移器里。
+    /// 迁移器的铁律是任何失败都不得阻断启动——原地登记抛出来只该计一次 failed，
+    /// 数据完整留在旧位置，下次启动重来。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void 原地登记时偏好写失败只计失败不阻断()
+    {
+        SeedTypicalLegacyUser();
+        _prefs.ThrowOnSaveRepositoryRoot = true;
+
+        var outcome = Run();
+
+        Assert.Equal(1, outcome.Failed);                 // 仓库那一项
+        Assert.False(outcome.Completed);                 // 有失败就不打版本标记
+        Assert.Equal(0, _prefs.DataLayoutVersion);
+        Assert.Null(_prefs.RepositoryRoot);
+
+        // 其余项照常搬完，且仓库数据一个字节都没动
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+        Assert.True(File.Exists(Path.Combine(_roaming, "Repository", "pkg-1", "body.bin")));
+    }
+
+    /// <summary>
+    /// 版本标记这一句在 <c>DataLocationMigrator.Run</c> 里没有局部 try/catch，
+    /// 抛出去会让所有步骤都成功之后半途中断，用户收到"迁移异常"的误报。
+    /// 这正是 <c>UiPreferences.SaveDataLayoutVersion</c> 保持静默（WriteQuietly）的原因；
+    /// 这里补一道外层保险：万一将来它也改成抛，启动仍然不会断。
+    /// </summary>
+    [Fact]
+    public void 版本标记写失败时迁移器不抛异常()
+    {
+        SeedTypicalLegacyUser();
+        _prefs.ThrowOnSaveDataLayoutVersion = true;
+
+        var outcome = Run();
+
+        Assert.False(outcome.Completed);
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+    }
+
     // ─── D5 中断恢复（关键项） ───
 
     [Fact]
@@ -1027,6 +1076,14 @@ public sealed class DataLocationMigratorTests : IDisposable
         public int RepositoryRootSaveCount { get; private set; }
         public int OverwritesRootSaveCount { get; private set; }
 
+        /// <summary>
+        /// 模拟 <c>UiPreferences</c> 落盘失败（目标不可写：磁盘满 / 权限 / 杀软锁定）。
+        /// 生产实现是直通转发，所以这个异常真的会传到迁移器里。
+        /// </summary>
+        public bool ThrowOnSaveRepositoryRoot { get; set; }
+
+        public bool ThrowOnSaveDataLayoutVersion { get; set; }
+
         public void ResetCounters()
         {
             DataLayoutVersionSaveCount = 0;
@@ -1038,6 +1095,7 @@ public sealed class DataLocationMigratorTests : IDisposable
 
         public void SaveDataLayoutVersion(int version)
         {
+            if (ThrowOnSaveDataLayoutVersion) throw new IOException("模拟：版本标记写不进去");
             DataLayoutVersion = version;
             DataLayoutVersionSaveCount++;
         }
@@ -1046,6 +1104,7 @@ public sealed class DataLocationMigratorTests : IDisposable
 
         public void SaveRepositoryRoot(string? path)
         {
+            if (ThrowOnSaveRepositoryRoot) throw new IOException("模拟：仓库根写不进去");
             RepositoryRoot = path;
             RepositoryRootSaveCount++;
         }

@@ -20,10 +20,18 @@ namespace UEModManager.Services
             _settings = UiPreferences.LoadBackground();
         }
 
+        /// <summary>
+        /// 持久化并应用背景设置。<b>落盘失败会上抛给调用方</b>
+        /// （<c>SettingsWindow.Save_Click</c> 有 try/catch + CyberMessageBox 承接）。
+        ///
+        /// 顺序是先落盘、再改内存、最后派发：反过来的话写盘失败时界面已经换了背景，
+        /// 用户以为设置生效了，重启后又变回去——正是本轮要堵的静默通道。
+        /// 现在失败时内存与界面都保持原状，语义与错误提示一致。
+        /// </summary>
         public static void Apply(BackgroundSettings settings)
         {
-            _settings = settings;
             UiPreferences.SaveBackground(settings);
+            _settings = settings;
             RaiseBackgroundChanged();
         }
 

@@ -18,7 +18,18 @@ namespace UEModManager.Services
     /// - 所有读写都在同一把锁内完成，消除上述竞态；
     /// - 写盘走 AtomicFileWriter，崩溃/断电不会留下截断的 json；
     /// - 任何失败都必须留痕。本类没有注入 ILogger，而 Console 已被 App.SetupFileLogging
-    ///   重定向到结构化日志文件，故统一用 Console 取证（与 Infrastructure/SafeEvent 一致）。
+    ///   重定向到结构化日志文件，故统一用 Console 取证（与 Infrastructure/SafeEvent 一致）；
+    /// - <b>失败语义分两档</b>：用户显式发起的设置变更走 <see cref="Write"/>（log + throw），
+    ///   隐式的顺带落盘走 <see cref="WriteQuietly"/>（只 log）。读取一律不抛，回落默认值后留痕。
+    ///
+    /// <para>
+    /// 为什么写失败必须上抛：这里装的是仓库位置、背景图、语言、部署后端。写失败此前被
+    /// 一个空 catch 吞掉，用户在设置界面改完看到界面正常响应，重启后全部还原——而同一个
+    /// 根因（目标不可写：磁盘满 / 权限 / 杀软锁定 / 同步盘占用）下，改游戏路径、导入 MOD、
+    /// 改方案却会弹错误框（GameConfigService / ModDataService / ProfileService 都是
+    /// log + throw）。分裂的失败语义比全都静默更糟：用户会因为"别处会报错"而信任这里的沉默。
+    /// 本类是最后一处例外，现已并入同一语义。
+    /// </para>
     /// </summary>
     public static class UiPreferences
     {
@@ -50,6 +61,13 @@ namespace UEModManager.Services
             /// 0 表示尚未迁移。用版本号而非布尔，是为了将来再次调整目录结构时能做增量迁移。
             /// </summary>
             public int DataLayoutVersion { get; set; }
+
+            /// <summary>
+            /// 浅拷贝。全部属性都是值类型或 string（不可变），浅拷贝即完整快照。
+            /// <see cref="Write"/> 靠它做到"写盘失败时内存单例保持原值"。
+            /// 将来若加入集合或可变对象属性，这里必须跟着做深拷贝，否则回滚会失效。
+            /// </summary>
+            public UiConfig Clone() => (UiConfig)MemberwiseClone();
         }
 
         private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
@@ -67,6 +85,66 @@ namespace UEModManager.Services
         private static bool _diskStateUnknown;
 
         /// <summary>
+        /// 配置文件位置的测试覆盖。<b>生产恒为 null</b>，取值走 <see cref="AppPaths.UiConfigFile"/>。
+        /// 只由 <see cref="OverrideConfigPathForTests"/> 写，且始终在 <see cref="Gate"/> 内。
+        /// </summary>
+        private static string? _configPathOverride;
+
+        /// <summary>
+        /// 把配置文件重定向到 <paramref name="configFilePath"/> 并清空内存单例，
+        /// 返回的对象 Dispose 时复原（含再清一次缓存，不把临时目录的值留给后续用例）。
+        ///
+        /// <para>
+        /// 没有这个口子，任何一条测试用例都会真的读写开发者本机的
+        /// <c>%APPDATA%\UEModManager\ui_config.json</c>：里面装着仓库根、背景图、语言，
+        /// 跑一次测试就改掉开发者的真实偏好，而"改仓库根"恰恰是本类最危险的一项——
+        /// <c>ObjectStore</c> 会跟着换目录，界面上的 MOD 直接消失。
+        /// 其他服务是靠"指定路径的测试用构造函数"做到隔离的
+        /// （<c>ObjectStore</c> / <c>GameConfigService</c> / <c>OverwriteStore</c>），
+        /// 静态类没有构造函数可用，只能显式开一个作用域式覆盖。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>静态状态没法并行。</b>覆盖期间任何线程读本类都会看到临时路径，因此消费本口子的
+        /// 测试类必须与其它会碰 <see cref="UiPreferences"/> 的测试类放进同一个 xUnit
+        /// collection 串行执行（见 <c>UiPreferencesStaticStateCollection</c>）。
+        /// </para>
+        /// </summary>
+        internal static IDisposable OverrideConfigPathForTests(string configFilePath)
+        {
+            lock (Gate)
+            {
+                var scope = new TestOverrideScope(_configPathOverride);
+                _configPathOverride = configFilePath;
+                ResetStateInsideGate();
+                return scope;
+            }
+        }
+
+        /// <summary>丢弃内存单例，让下一次访问重新读盘。调用方必须已持有 <see cref="Gate"/>。</summary>
+        private static void ResetStateInsideGate()
+        {
+            _cached = null;
+            _diskStateUnknown = false;
+        }
+
+        private sealed class TestOverrideScope : IDisposable
+        {
+            private readonly string? _previous;
+
+            internal TestOverrideScope(string? previous) => _previous = previous;
+
+            public void Dispose()
+            {
+                lock (Gate)
+                {
+                    _configPathOverride = _previous;
+                    ResetStateInsideGate();
+                }
+            }
+        }
+
+        /// <summary>
         /// 配置文件位置。路径归口 <see cref="AppPaths.UiConfigFile"/>，与本类此前自己拼的
         /// <c>%APPDATA%\UEModManager\ui_config.json</c> 是同一个文件；双源时改一处漏一处，
         /// 应用会静默读写两个不同的配置。
@@ -80,7 +158,7 @@ namespace UEModManager.Services
         /// </summary>
         private static string GetConfigPath()
         {
-            var path = AppPaths.UiConfigFile;
+            var path = _configPathOverride ?? AppPaths.UiConfigFile;
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
             return path;
@@ -212,7 +290,15 @@ namespace UEModManager.Services
             }
         }
 
-        // ── 读写入口：偏好读取不允许抛异常（调用点多在窗口构造与启动路径上），失败一律留痕后回落默认值 ──
+        // ── 读写入口 ──
+        //
+        // 读：不允许抛异常（调用点多在窗口构造与启动路径上，AppPaths 解析数据根也要读这里），
+        //     失败一律留痕后回落默认值——启动不了比读到默认配置更糟。
+        // 写：默认 log + throw（Write）。除 SaveDataLayoutVersion 之外的每一项都是用户在
+        //     设置界面上显式改出来的，失败必须让他看见。
+        //
+        // 新增设置项时先问一句"这次保存是谁发起的"：用户点了才发生 → Write；
+        // 加载/迁移路径上顺带回写 → WriteQuietly，并把理由写清楚。
 
         private static T Read<T>(Func<UiConfig, T> selector, T fallback, string operation)
         {
@@ -236,14 +322,44 @@ namespace UEModManager.Services
             {
                 try
                 {
-                    var cfg = GetOrLoadConfig();
-                    mutate(cfg);
-                    SaveConfig(cfg);
+                    // 改在副本上，只有 SaveConfig 成功之后才把副本提升为内存单例
+                    // （SaveConfig 末尾那句 _cached = cfg）。
+                    //
+                    // 不能直接改 _cached 指向的那个实例：那样写盘失败时内存里已经是新值，
+                    // 用户看到错误框，但本次会话仍按一个没落盘的值继续跑（仓库根就是这么
+                    // "半生效"的——ObjectStore 换了目录，MOD 消失，重启后又换回来），
+                    // 而且下一次任何设置保存成功时会把这个失败的改动一起写进去。
+                    // "写失败"的语义必须是"这次改动没生效"。
+                    var draft = GetOrLoadConfig().Clone();
+                    mutate(draft);
+                    SaveConfig(draft);
                 }
                 catch (Exception ex)
                 {
-                    LogFailure($"{operation} 失败，本次设置未能写入磁盘", ex);
+                    LogFailure($"{operation} 失败，本次设置未写入磁盘", ex);
+                    throw;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 顺带保存：记日志、不上抛。
+        ///
+        /// <para>
+        /// 只给"用户没有发起、也没有 UI 能承接错误"的隐式落盘用，语义与
+        /// <c>GameConfigService.TrySaveConfigQuietly</c> 对齐。用户显式发起的保存一律走
+        /// <see cref="Write"/>，失败要看得见。
+        /// </para>
+        /// </summary>
+        private static void WriteQuietly(Action<UiConfig> mutate, string operation)
+        {
+            try
+            {
+                Write(mutate, operation);
+            }
+            catch (Exception ex)
+            {
+                LogFailure($"{operation} 失败，已忽略以免中断当前动作", ex);
             }
         }
 
@@ -367,6 +483,17 @@ namespace UEModManager.Services
             }, null, "读取仓库根目录");
         }
 
+        /// <summary>
+        /// 写入用户自定义的仓库根。<b>失败上抛。</b>
+        ///
+        /// <para>
+        /// 这一项是全部偏好里后果最重的：<c>ObjectStore</c> 与 <c>AppPaths.RepositoryRoot</c>
+        /// 都以它为准，值丢了包实体就"消失"了。两个调用方都接得住异常——
+        /// <c>SettingsWindow.Save_Click</c> 有 try/catch + CyberMessageBox，
+        /// 搬迁器的原地登记跑在 <c>DataLocationMigrator.TryExecute</c> 里（单项失败只计一次
+        /// failed，数据仍完整留在旧位置，启动不受影响）。
+        /// </para>
+        /// </summary>
         public static void SaveRepositoryRoot(string? path)
         {
             Write(cfg => cfg.RepositoryRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存仓库根目录");
@@ -377,6 +504,9 @@ namespace UEModManager.Services
         // 与 RepositoryRoot 同构：非空即表示"用户/迁移器已显式指定过位置"，
         // 数据搬迁规划器据此判定"一步都不能动"。空白值一律归一为 null，
         // 避免配置里留下空字符串把数据根指到当前工作目录。
+        //
+        // 失败语义同样与 RepositoryRoot 一致：写不进去就抛。搬迁器那条路径
+        // （RegisterInPlace ← TryExecute）接得住，只计一次 failed 不阻断启动。
 
         public static string? LoadOverwritesRoot()
         {
@@ -416,12 +546,23 @@ namespace UEModManager.Services
 
         /// <summary>
         /// 写入已迁移到的数据目录布局版本。
-        /// 只增不减：读到失败回落的 0 之后又写回 0，会让下次启动重新探测一遍磁盘，
-        /// 但不会造成数据损坏（规划器以墓碑为准）。
+        ///
+        /// <para>
+        /// <b>本类唯一保持静默的写入口</b>，三条理由：
+        /// <list type="number">
+        /// <item>唯一调用方是 <c>DataLocationMigrator.Run</c>，用户没发起任何操作，
+        /// 迁移跑在主窗口创建之前，压根没有 UI 能承接这个错误。</item>
+        /// <item><c>Run</c> 里这一句没有局部 try/catch，抛出去会让所有搬迁步骤都成功之后
+        /// 半途中断，外层 <c>RunAsync</c> 兜住并报成"迁移异常，已沿用旧数据位置"——
+        /// 一条彻底的误报，而搬迁器的铁律是任何失败都不得阻断启动。</item>
+        /// <item>失败的后果本身可承受：版本标记只增不减，没写上就是下次启动重新探测一遍磁盘，
+        /// 不会造成数据损坏（规划器以墓碑为准）。</item>
+        /// </list>
+        /// </para>
         /// </summary>
         public static void SaveDataLayoutVersion(int version)
         {
-            Write(cfg => cfg.DataLayoutVersion = version, "保存数据布局版本");
+            WriteQuietly(cfg => cfg.DataLayoutVersion = version, "保存数据布局版本");
         }
     }
 }

@@ -78,11 +78,37 @@ namespace UEModManager.Views
             }
         }
 
+        /// <summary>
+        /// 语言是"选中即生效"的即时设置，不经过保存按钮，所以失败处理必须写在这里
+        /// （<c>Save_Click</c> 的 try/catch 兜不到它）。
+        ///
+        /// <para>
+        /// 顺序是先落盘再改界面：反过来的话写盘失败时界面已经切成新语言，用户以为成功了，
+        /// 重启后又变回去。失败时把下拉框拨回当前生效的语言——拨之前必须先摘掉本 handler，
+        /// 否则 <c>SelectedIndex</c> 的赋值会再触发一次本方法（构造函数里初始化下拉框
+        /// 用的是同一个手法）。
+        /// </para>
+        /// </summary>
         private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             bool isEnglish = LanguageComboBox.SelectedIndex == 1;
+
+            try
+            {
+                UiPreferences.SaveEnglish(isEnglish);
+            }
+            catch (Exception ex)
+            {
+                LanguageComboBox.SelectionChanged -= LanguageComboBox_SelectionChanged;
+                LanguageComboBox.SelectedIndex = LanguageManager.IsEnglish ? 1 : 0;
+                LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
+
+                CyberMessageBox.Show(this, $"保存语言设置失败：{ex.Message}", "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             LanguageManager.SetEnglish(isEnglish);
-            UiPreferences.SaveEnglish(isEnglish);
         }
 
         private void TabButton_Click(object sender, RoutedEventArgs e)
@@ -722,6 +748,10 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
+                // 这个 catch 是承重的：上面每一个 UiPreferences.SaveXxx / BackgroundManager.Apply
+                // 落盘失败都会抛到这里。抛之前偏好没被改动，此时窗口保持打开、DialogResult 仍是
+                // null，用户看到失败原因后可以改路径重试。别把它收窄成某个具体异常类型，
+                // 也别在中途 catch 掉——那等于把"设置没保存上"重新变成静默。
                 CyberMessageBox.Show(this, $"保存设置失败: {ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
