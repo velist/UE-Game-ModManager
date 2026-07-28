@@ -14,6 +14,11 @@ namespace UEModManager.Tests.Services;
 /// 而同一个根因下 ModDataService / ProfileService 却会弹错误框——分裂的失败语义
 /// 比全都静默更糟。这些用例把"写不进去就抛"钉死。
 ///
+/// 同时这里也是迁移测试矩阵（方案 §七）<b>第 12 项</b>的落点：
+/// "目标目录只读时，分类/配置保存给出<b>用户可见</b>错误"。可自动化的部分是
+/// "异常确实到得了 UI 边界，且带着能展示给用户的原因"——真正弹出来的那一步
+/// 由 <c>SafeEvent.Run</c>（拼 <c>操作失败：{ex.Message}</c>）负责，留给真机。
+///
 /// 制造写失败的手法：在目标目录该在的位置放一个**同名文件**。
 /// 之后任何 Directory.CreateDirectory 都会抛 IOException，
 /// 且不需要动权限、不留残留，跨机器稳定复现。
@@ -79,6 +84,65 @@ public sealed class SaveFailureReportingTests : IDisposable
         await Assert.ThrowsAnyAsync<Exception>(() => service.RemoveCategoryAsync(乙));
 
         Assert.Equal(new[] { "甲", "乙", "丙" }, service.Categories.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task 分类重命名失败时把旧名字放回去()
+    {
+        // 与新增/删除同理：Categories 直接绑在侧边栏上，只抛不回滚的话，
+        // 用户会同时看到错误框和列表里那个改了一半的新名字，重启后又变回去。
+        var directory = WritableDirectory("categories_rename");
+        var service = new NewCategoryService(NullLogger<NewCategoryService>.Instance, directory);
+        var 甲 = await service.AddCategoryAsync("甲");
+
+        BreakDataFile(directory);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.RenameCategoryAsync(甲, "乙"));
+
+        Assert.Equal("甲", 甲.Name);
+        Assert.Equal("甲", 甲.FullPath);
+    }
+
+    [Fact]
+    public async Task 分类排序失败时把顺序放回去()
+    {
+        var directory = WritableDirectory("categories_reorder");
+        var service = new NewCategoryService(NullLogger<NewCategoryService>.Instance, directory);
+        await service.AddCategoryAsync("甲");
+        await service.AddCategoryAsync("乙");
+        var 丙 = await service.AddCategoryAsync("丙");
+        var orderBefore = service.Categories.Select(c => c.Name).ToArray();
+
+        BreakDataFile(directory);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.ReorderCategoryAsync(丙, 0));
+
+        Assert.Equal(orderBefore, service.Categories.Select(c => c.Name));
+    }
+
+    /// <summary>
+    /// 矩阵第 12 项的"<b>用户可见</b>"那一半。<c>SafeEvent.Run</c> 把异常拼成
+    /// <c>操作失败：{ex.Message}</c> 直接弹给用户，<c>OperationResult.Fail(ex.Message)</c>
+    /// 也走同一个字符串。Message 为空就等于弹一个后半句空白的框——
+    /// 用户知道"出事了"却拿不到任何线索，离静默失败只差一步。
+    /// </summary>
+    [Theory]
+    [InlineData("categories")]
+    [InlineData("config")]
+    public async Task 保存失败的异常带着能展示给用户的原因(string kind)
+    {
+        var blocked = BlockedDirectory("displayable_" + kind);
+
+        Func<Task> save = kind == "categories"
+            ? () => new NewCategoryService(NullLogger<NewCategoryService>.Instance, blocked)
+                .AddCategoryAsync("我的整合包")
+            : () => new GameConfigService(
+                    NullLogger<GameConfigService>.Instance, Path.Combine(blocked, "config.json"))
+                .SaveConfigAsync();
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(save);
+
+        Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
 
     [Fact]
