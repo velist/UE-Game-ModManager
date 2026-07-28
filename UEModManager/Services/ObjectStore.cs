@@ -29,10 +29,7 @@ namespace UEModManager.Services
         public ObjectStore(ILogger<ObjectStore> logger)
         {
             _logger = logger;
-            _repositoryRoot = UiPreferences.LoadRepositoryRoot()
-                ?? Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "UEModManager", "Repository");
+            _repositoryRoot = Infrastructure.AppPaths.RepositoryRoot;
         }
 
         /// <summary>仓库根目录。</summary>

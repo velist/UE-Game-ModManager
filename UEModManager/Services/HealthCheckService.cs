@@ -138,7 +138,7 @@ namespace UEModManager.Services
         {
             try
             {
-                var backupsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Backups");
+                var backupsDir = Infrastructure.AppPaths.DeploymentBackupsDirectory;
                 Directory.CreateDirectory(backupsDir);
                 var probePath = Path.Combine(backupsDir, ".health_probe");
                 File.WriteAllText(probePath, "ok");

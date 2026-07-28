@@ -58,6 +58,8 @@ namespace UEModManager.Services
 
         private const string RepositoryItemName = "包仓库";
         private const string OverwritesItemName = "生成物存储";
+        private const string DataIndexItemName = "数据索引";
+        private const string DeploymentBackupsItemName = "部署事务备份";
 
         private readonly ILogger<DataLocationMigrator> _logger;
         private readonly DataRelocationExecutor _executor;
@@ -132,7 +134,15 @@ namespace UEModManager.Services
         {
             // 搬移类：体积恒定在 MB 级
             FileProbe("主配置", AppPaths.Legacy.ConfigFile, AppPaths.ConfigFile),
-            DirectoryProbe("数据索引", AppPaths.Legacy.DataDirectory, AppPaths.DataDirectory),
+
+            // 部署事务备份必须早于"数据索引"：它物理上是 {安装目录}\Data\Backups，
+            // 即数据索引那一项的子目录，但目标位置完全不同
+            // （{LOCALAPPDATA}\Backups\Deployments，而非 {LOCALAPPDATA}\Data\Backups）。
+            // 顺序只是让日志更好读——真正保证两项不打架的是数据索引那一步的排除清单。
+            DirectoryProbe(DeploymentBackupsItemName,
+                AppPaths.Legacy.DeploymentBackupsDirectory, AppPaths.DeploymentBackupsDirectory),
+            DirectoryProbe(DataIndexItemName, AppPaths.Legacy.DataDirectory, AppPaths.DataDirectory),
+
             DirectoryProbe("MOD 备份", AppPaths.Legacy.ModBackupsDirectory, AppPaths.ModBackupsDirectory),
 
             // 原地登记类：可能几十 GB，且已不在安装目录，卸载不会丢
@@ -142,12 +152,20 @@ namespace UEModManager.Services
                 UiPreferences.LoadOverwritesRoot()),
         };
 
-        // TODO(数据目录迁移 步骤 5)：部署事务备份当前位于 {安装目录}\Data\Backups，
-        // 即"数据索引"这一项的子目录，会被一并搬到 {LOCALAPPDATA}\Data\Backups，
-        // 而目标布局是 {LOCALAPPDATA}\Backups\Deployments（AppPaths.DeploymentBackupsDirectory）。
-        // 打开 RelocationExecutionEnabled 之前必须把它拆成独立一项，否则会变成两跳搬移。
-        // 之所以没有现在就拆：DeploymentService 是其唯一读取方，当前不在可改范围内，
-        // 拆了也没有读取方能配合，反而让探测项与真实行为脱节。
+        /// <summary>
+        /// "数据索引"搬移时必须原样留下的子目录。
+        ///
+        /// <para>
+        /// <c>Data\Backups</c> 是上面那个独立探测项的地盘。不排除的话，数据索引这一步
+        /// 会把它复制到 <c>{LOCALAPPDATA}\Data\Backups</c> 再删源——而 DeploymentService
+        /// 读的是 <c>{LOCALAPPDATA}\Backups\Deployments</c>，部署备份会当场消失，
+        /// 崩溃回滚随之失效。排除后两项彻底解耦：谁先执行都一样，一项失败也不波及另一项。
+        /// </para>
+        /// </summary>
+        private static IReadOnlyCollection<string> ExcludedChildrenOf(string itemName)
+            => itemName == DataIndexItemName
+                ? new[] { Path.GetFileName(AppPaths.Legacy.DeploymentBackupsDirectory) }
+                : Array.Empty<string>();
 
         private static RelocationProbe FileProbe(string name, string legacy, string target)
             => new(name, RelocationKind.Relocate, legacy, target,
@@ -182,7 +200,7 @@ namespace UEModManager.Services
                     return true;
                 }
 
-                _executor.Execute(step, IsFileItem(step));
+                _executor.Execute(step, IsFileItem(step), ExcludedChildrenOf(step.Name));
                 return true;
             }
             catch (Exception ex)

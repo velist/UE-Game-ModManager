@@ -47,16 +47,36 @@ namespace UEModManager.Services
             ILogger<OverwriteStore> logger,
             PackageRepository packageRepo,
             PackageImportService packageImport)
+            : this(logger, packageRepo, packageImport,
+                Infrastructure.AppPaths.DataDirectory, Infrastructure.AppPaths.OverwritesRoot)
+        {
+        }
+
+        /// <summary>
+        /// 指定存储位置的构造函数（测试用）。DI 走上面的三参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。
+        ///
+        /// <para>
+        /// 存在的理由：索引目录曾经隐式等于 <c>{进程目录}\Data</c>，测试正是靠"测试宿主的
+        /// 进程目录天然隔离"才没有互相踩踏。归口到 <c>AppPaths</c> 后那份隔离就没了，
+        /// 跑一次测试会写进开发者真实的 <c>%LOCALAPPDATA%</c>。
+        /// </para>
+        /// </summary>
+        public OverwriteStore(
+            ILogger<OverwriteStore> logger,
+            PackageRepository packageRepo,
+            PackageImportService packageImport,
+            string dataDirectory,
+            string overwriteRoot)
         {
             _logger = logger;
             _packageRepo = packageRepo;
             _packageImport = packageImport;
 
-            _dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-            Directory.CreateDirectory(_dataDirectory);
+            _dataDirectory = dataDirectory;
+            Infrastructure.AppPaths.TryEnsureDirectory(_dataDirectory);
 
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            _overwriteRoot = Path.Combine(appData, "UEModManager", "Overwrites");
+            _overwriteRoot = overwriteRoot;
             Directory.CreateDirectory(_overwriteRoot);
         }
 

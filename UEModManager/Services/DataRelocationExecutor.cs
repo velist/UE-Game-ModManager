@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -80,25 +81,33 @@ namespace UEModManager.Services
         }
 
         /// <summary>执行一步。调用方负责捕获异常——本方法失败即表示该项数据仍完整留在旧位置。</summary>
-        public void Execute(RelocationStep step, bool isFile)
+        /// <param name="excludedChildDirectories">
+        /// 源目录下需原样留下、不参与本步搬移的**顶层子目录名**。
+        /// 用于把嵌套在别人内部、但目标位置完全不同的数据拆成独立一项
+        /// （部署事务备份住在 <c>Data\Backups</c>，目标却是 <c>Backups\Deployments</c>）。
+        /// 排除项不复制、不计入校验、也不删源，因此两项互不干扰：
+        /// 谁先执行都一样，一项失败也不会污染另一项。
+        /// </param>
+        public void Execute(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             switch (step.Action)
             {
                 case RelocationAction.PurgeTargetThenCopy:
                     PurgeTarget(step, isFile);
-                    CopyAndVerify(step, isFile);
+                    CopyAndVerify(step, isFile, excludedChildDirectories);
                     WriteTombstone(step, isFile);
-                    DeleteLegacy(step, isFile);
+                    DeleteLegacy(step, isFile, excludedChildDirectories);
                     break;
 
                 case RelocationAction.Copy:
-                    CopyAndVerify(step, isFile);
+                    CopyAndVerify(step, isFile, excludedChildDirectories);
                     WriteTombstone(step, isFile);
-                    DeleteLegacy(step, isFile);
+                    DeleteLegacy(step, isFile, excludedChildDirectories);
                     break;
 
                 case RelocationAction.ResumeCleanup:
-                    DeleteLegacy(step, isFile);
+                    DeleteLegacy(step, isFile, excludedChildDirectories);
                     break;
 
                 default:
@@ -107,7 +116,8 @@ namespace UEModManager.Services
         }
 
         /// <summary>复制并校验。校验不过直接抛，此时墓碑尚未写下，旧数据仍是唯一可信副本。</summary>
-        public void CopyAndVerify(RelocationStep step, bool isFile)
+        public void CopyAndVerify(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             if (isFile)
             {
@@ -118,16 +128,21 @@ namespace UEModManager.Services
             }
             else
             {
-                CopyDirectory(step.LegacyPath, step.TargetPath);
-                VerifyDirectory(step.LegacyPath, step.TargetPath);
+                CopyDirectory(step.LegacyPath, step.TargetPath, excludedChildDirectories);
+                VerifyDirectory(step.LegacyPath, step.TargetPath, excludedChildDirectories);
             }
 
             _logger?.LogInformation("[DataMigration] {Name} 已复制并校验：{From} → {To}",
                 step.Name, step.LegacyPath, step.TargetPath);
         }
 
-        /// <summary>递归复制目录，跳过墓碑（墓碑属于旧位置，跟到新位置会让下次探测误判）。</summary>
-        public static void CopyDirectory(string source, string target)
+        /// <summary>
+        /// 递归复制目录，跳过墓碑（墓碑属于旧位置，跟到新位置会让下次探测误判）。
+        /// <paramref name="excludedChildDirectories"/> 只对<b>顶层</b>生效——排除的是
+        /// 具名的一项数据，而不是所有同名子目录。
+        /// </summary>
+        public static void CopyDirectory(string source, string target,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             Directory.CreateDirectory(target);
 
@@ -139,6 +154,7 @@ namespace UEModManager.Services
 
             foreach (var dir in Directory.GetDirectories(source))
             {
+                if (IsExcluded(dir, excludedChildDirectories)) continue;
                 CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
             }
         }
@@ -149,10 +165,11 @@ namespace UEModManager.Services
         /// 只比字节数不足以发现"复制了但内容被截断成同样长度"的情况；
         /// JSON 恰好是本次搬移的绝大多数内容，解析一遍代价很低。
         /// </summary>
-        public static void VerifyDirectory(string source, string target)
+        public static void VerifyDirectory(string source, string target,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
-            var sourceFiles = SafeEnumerate(source);
-            var targetFiles = SafeEnumerate(target);
+            var sourceFiles = SafeEnumerate(source, excludedChildDirectories);
+            var targetFiles = SafeEnumerate(target, excludedChildDirectories);
 
             if (sourceFiles.Count != targetFiles.Count)
             {
@@ -210,7 +227,8 @@ namespace UEModManager.Services
         /// 清理旧位置。目录情况下**保留墓碑**：整个删掉的话下次启动会因"旧位置不存在"
         /// 而判定为未迁移过——结论虽然相同，但排障时看不出这里发生过什么。
         /// </summary>
-        public void DeleteLegacy(RelocationStep step, bool isFile)
+        public void DeleteLegacy(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             if (isFile)
             {
@@ -224,6 +242,8 @@ namespace UEModManager.Services
                 }
                 foreach (var dir in Directory.GetDirectories(step.LegacyPath))
                 {
+                    // 排除项没被复制过，删掉就是直接销毁用户数据。
+                    if (IsExcluded(dir, excludedChildDirectories)) continue;
                     Directory.Delete(dir, recursive: true);
                 }
             }
@@ -249,11 +269,38 @@ namespace UEModManager.Services
             }
         }
 
-        private static System.Collections.Generic.List<string> SafeEnumerate(string root)
-            => Directory.Exists(root)
-                ? Directory.GetFiles(root, "*", SearchOption.AllDirectories)
-                    .Where(f => !IsTombstone(f)).ToList()
-                : new System.Collections.Generic.List<string>();
+        /// <summary>该顶层子目录是否被排除在本步搬移之外。</summary>
+        private static bool IsExcluded(string directoryPath,
+            IReadOnlyCollection<string>? excludedChildDirectories)
+        {
+            if (excludedChildDirectories is null || excludedChildDirectories.Count == 0) return false;
+            var name = Path.GetFileName(directoryPath.TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            return excludedChildDirectories.Any(
+                excluded => string.Equals(excluded, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static List<string> SafeEnumerate(
+            string root, IReadOnlyCollection<string>? excludedChildDirectories = null)
+        {
+            if (!Directory.Exists(root)) return new List<string>();
+
+            var files = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
+                .Where(f => !IsTombstone(f));
+
+            if (excludedChildDirectories is { Count: > 0 })
+            {
+                var excludedRoots = Directory.GetDirectories(root)
+                    .Where(dir => IsExcluded(dir, excludedChildDirectories))
+                    .Select(dir => dir + Path.DirectorySeparatorChar)
+                    .ToList();
+
+                files = files.Where(f => !excludedRoots.Any(
+                    prefix => f.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return files.ToList();
+        }
 
         private static void VerifyJsonParsable(string path)
         {

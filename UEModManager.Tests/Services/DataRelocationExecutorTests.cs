@@ -67,7 +67,66 @@ public sealed class DataRelocationExecutorTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_target, DataRelocationExecutor.DirectoryTombstoneName)));
     }
 
+    [Fact]
+    public void CopyDirectory_ExcludedChild_NotCopied()
+    {
+        // Data\Backups 归"部署事务备份"那一项管，目标位置与 Data 完全不同，
+        // 跟着 Data 走会被搬到错误位置。
+        WriteLegacy("a.json", "{}");
+        WriteLegacy(Path.Combine("Backups", "tx.json"), "{}");
+
+        DataRelocationExecutor.CopyDirectory(_legacy, _target, new[] { "Backups" });
+
+        Assert.True(File.Exists(Path.Combine(_target, "a.json")));
+        Assert.False(Directory.Exists(Path.Combine(_target, "Backups")));
+    }
+
+    [Fact]
+    public void CopyDirectory_ExcludesOnlyTopLevel()
+    {
+        // 排除的是具名的一项数据，不是所有同名子目录——
+        // 深层的同名目录只是巧合重名，属于 Data 自己的内容。
+        WriteLegacy(Path.Combine("sub", "Backups", "keep.json"), "{}");
+        WriteLegacy(Path.Combine("Backups", "tx.json"), "{}");
+
+        DataRelocationExecutor.CopyDirectory(_legacy, _target, new[] { "Backups" });
+
+        Assert.True(File.Exists(Path.Combine(_target, "sub", "Backups", "keep.json")));
+        Assert.False(Directory.Exists(Path.Combine(_target, "Backups")));
+    }
+
     // ─── 校验 ───
+
+    [Fact]
+    public void VerifyDirectory_IgnoresExcludedChild()
+    {
+        // 排除项没被复制，若仍计入校验会因"文件数不一致"误判为复制失败，
+        // 让一次本来成功的迁移回滚。
+        WriteLegacy("a.json", """{"x":1}""");
+        WriteLegacy(Path.Combine("Backups", "tx.json"), """{"y":2}""");
+
+        DataRelocationExecutor.CopyDirectory(_legacy, _target, new[] { "Backups" });
+
+        DataRelocationExecutor.VerifyDirectory(_legacy, _target, new[] { "Backups" }); // 不抛即通过
+        Assert.Throws<IOException>(
+            () => DataRelocationExecutor.VerifyDirectory(_legacy, _target));
+    }
+
+    [Fact]
+    public void Execute_Copy_LeavesExcludedChildInPlace()
+    {
+        // 删源这一步最危险：排除项没有副本，删掉就是直接销毁用户数据
+        // （部署事务备份没了 = 崩溃回滚失效）。
+        WriteLegacy("a.json", """{"x":1}""");
+        WriteLegacy(Path.Combine("Backups", "tx.json"), """{"y":2}""");
+
+        _executor.Execute(Step(RelocationAction.Copy), isFile: false, new[] { "Backups" });
+
+        Assert.True(File.Exists(Path.Combine(_target, "a.json")));
+        Assert.False(File.Exists(Path.Combine(_legacy, "a.json")));           // 已搬走
+        Assert.True(File.Exists(Path.Combine(_legacy, "Backups", "tx.json"))); // 原样留下
+        Assert.False(Directory.Exists(Path.Combine(_target, "Backups")));
+    }
 
     [Fact]
     public void VerifyDirectory_IdenticalCopy_Passes()

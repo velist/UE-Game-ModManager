@@ -14,13 +14,26 @@ namespace UEModManager.Tests.Services;
 /// </summary>
 public sealed class OverwriteStoreTests : IDisposable
 {
-    private readonly string _indexDirectory =
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+    private readonly string _root =
+        Path.Combine(Path.GetTempPath(), "uemm_ovr_" + Guid.NewGuid().ToString("N")[..8]);
+
+    private readonly string _indexDirectory;
+    private readonly string _overwriteRoot;
 
     private readonly List<string> _gameNames = [];
 
+    public OverwriteStoreTests()
+    {
+        // 全部落在独立临时目录：此前索引写在"测试宿主的进程目录"下，靠的是那份
+        // 隐式隔离；路径归口到 AppPaths 之后再依赖它，就会写进开发者真实的
+        // %LOCALAPPDATA% 并让并发测试互相踩踏。
+        _indexDirectory = Path.Combine(_root, "Data");
+        _overwriteRoot = Path.Combine(_root, "Overwrites");
+        Directory.CreateDirectory(_indexDirectory);
+    }
+
     private OverwriteStore CreateStore()
-        => new(NullLogger<OverwriteStore>.Instance, null!, null!);
+        => new(NullLogger<OverwriteStore>.Instance, null!, null!, _indexDirectory, _overwriteRoot);
 
     // ─── 包 key 大小写口径（与 PackageRepository.GetByKey 对齐）───
 
@@ -164,20 +177,8 @@ public sealed class OverwriteStoreTests : IDisposable
 
     public void Dispose()
     {
-        // 索引文件写在测试输出目录的 Data/ 下；生成物根目录在 %APPDATA%，
-        // SetCurrentGameAsync 会在那里建一个空的游戏目录，一并清掉。
-        var overwriteRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "UEModManager", "Overwrites");
-
-        foreach (var game in _gameNames)
-        {
-            foreach (var file in FindBackups(game))
-            {
-                try { File.Delete(file); } catch { }
-            }
-            try { File.Delete(IndexPath(game)); } catch { }
-            try { Directory.Delete(Path.Combine(overwriteRoot, game), recursive: true); } catch { }
-        }
+        // 索引与生成物根都在同一个临时目录下，整个删掉即可。
+        try { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
+        catch { /* 临时目录清理失败不影响测试结论 */ }
     }
 }

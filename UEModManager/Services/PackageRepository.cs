@@ -40,7 +40,7 @@ namespace UEModManager.Services
         {
             _logger = logger;
             _objectStore = objectStore;
-            _dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+            _dataDirectory = Infrastructure.AppPaths.DataDirectory;
         }
 
         /// <summary>ObjectStore 实例。</summary>

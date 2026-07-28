@@ -63,8 +63,7 @@ namespace UEModManager.Services
             _logger.LogInformation("已装配 {Count} 个部署后端: {Types}",
                 _backends.Count, string.Join(", ", _backends.Values.Select(b => b.DisplayName)));
 
-            _backupRootPath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "Data", "Backups");
+            _backupRootPath = Infrastructure.AppPaths.DeploymentBackupsDirectory;
         }
 
         /// <summary>
