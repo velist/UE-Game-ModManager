@@ -451,4 +451,109 @@ public sealed class DataRelocationExecutorTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(Path.Combine(_target, "a.txt")));
         Assert.Equal(content, File.ReadAllText(Path.Combine(_target, "a.txt"), Encoding.UTF8));
     }
+
+    // ─── 新位置赢：什么都不搬，只留一张说明 ───
+
+    [Fact]
+    public void Execute_AdoptTargetKeepLegacy_MovesNothingAndDeletesNothing()
+    {
+        WriteLegacy("a.json", """{"旧":1}""");
+        Directory.CreateDirectory(_target);
+        File.WriteAllText(Path.Combine(_target, "b.json"), """{"新":1}""");
+
+        _executor.Execute(Step(RelocationAction.AdoptTargetKeepLegacy), isFile: false);
+
+        // 旧位置一个字节都不能少 —— 这是本策略"零数据丢失"的支点
+        Assert.Equal("""{"旧":1}""", File.ReadAllText(Path.Combine(_legacy, "a.json")));
+        // 新位置也不能被旧数据污染
+        Assert.Equal(new[] { "b.json" },
+            Directory.GetFiles(_target).Select(Path.GetFileName).ToArray());
+        // 只多出一张"已跳过"标记，而不是搬移墓碑
+        Assert.True(File.Exists(
+            Path.Combine(_legacy, DataRelocationExecutor.DirectorySupersededMarkerName)));
+        Assert.False(File.Exists(
+            Path.Combine(_legacy, DataRelocationExecutor.DirectoryTombstoneName)));
+    }
+
+    [Fact]
+    public void Execute_AdoptTargetKeepLegacy_File_LeavesSuffixMarkerNextToLegacyFile()
+    {
+        var legacyFile = Path.Combine(_legacy, "config.json");
+        File.WriteAllText(legacyFile, """{"gamePath":"D:\\Game"}""");
+
+        _executor.Execute(Step(RelocationAction.AdoptTargetKeepLegacy, legacyFile), isFile: true);
+
+        Assert.True(File.Exists(legacyFile));
+        Assert.True(File.Exists(legacyFile + DataRelocationExecutor.FileSupersededMarkerSuffix));
+        Assert.False(File.Exists(legacyFile + DataRelocationExecutor.FileTombstoneSuffix));
+    }
+
+    [Fact]
+    public void SupersededMarker_IsNotATombstone()
+    {
+        // 两者语义相反：墓碑=数据搬走了，跳过标记=数据一个字节都没动。
+        // 把跳过标记误认成墓碑有两个后果：规划器转头去删旧数据；
+        // DataLocationMigrator.RewriteConfigPaths 把 GameIcons 改写到不存在的文件上。
+        var marker = DataRelocationExecutor.GetSupersededMarkerPath(_legacy, isFile: false);
+
+        Assert.True(DataRelocationExecutor.IsSupersededMarker(marker));
+        Assert.False(DataRelocationExecutor.IsTombstone(marker));
+        Assert.True(DataRelocationExecutor.IsMigratorMetadata(marker));
+
+        var tombstone = DataRelocationExecutor.GetTombstonePath(_legacy, isFile: false);
+        Assert.True(DataRelocationExecutor.IsTombstone(tombstone));
+        Assert.False(DataRelocationExecutor.IsSupersededMarker(tombstone));
+    }
+
+    [Fact]
+    public void SupersededMarker_IsNotContentAndIsNotCopied()
+    {
+        // 跳过标记留在旧位置。它不能被算成"旧位置有数据"，也不能跟着后续的搬移被复制过去
+        WriteLegacy("a.json", "{}");
+        _executor.Execute(Step(RelocationAction.AdoptTargetKeepLegacy), isFile: false);
+
+        File.Delete(Path.Combine(_legacy, "a.json"));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(_legacy));
+
+        File.WriteAllText(Path.Combine(_legacy, "a.json"), "{}");
+        _executor.Execute(Step(RelocationAction.Copy), isFile: false);
+
+        Assert.Equal(new[] { "a.json" },
+            Directory.GetFiles(_target).Select(Path.GetFileName).ToArray());
+    }
+
+    [Fact]
+    public void SupersededMarker_TextTellsUserNothingWasMoved()
+    {
+        // 用户在安装目录里看到它时的第一反应是"我的东西被动过了吗"。
+        // 文案必须当场回答：没动、新位置在哪、不需要你做任何事。
+        WriteLegacy("a.json", "{}");
+
+        _executor.Execute(Step(RelocationAction.AdoptTargetKeepLegacy), isFile: false);
+
+        var text = File.ReadAllText(
+            Path.Combine(_legacy, DataRelocationExecutor.DirectorySupersededMarkerName));
+
+        Assert.Contains("没有动这里的数据", text);
+        Assert.Contains("历史副本", text);
+        Assert.Contains(_target, text);          // 新位置写全路径，用户能直接照着去找
+        Assert.Contains(_legacy, text);
+        // 绝不能出现墓碑那套"已经搬走了"的话术，那会让用户以为数据被挪过又留在原地
+        Assert.DoesNotContain("已经被 UEModManager 搬走", text);
+    }
+
+    [Fact]
+    public void Tombstone_TextTellsUserWhereTheDataWent()
+    {
+        WriteLegacy("a.json", "{}");
+
+        _executor.Execute(Step(RelocationAction.Copy), isFile: false);
+
+        var text = File.ReadAllText(
+            Path.Combine(_legacy, DataRelocationExecutor.DirectoryTombstoneName));
+
+        Assert.Contains("已经被 UEModManager 搬走", text);
+        Assert.Contains("没有丢失", text);
+        Assert.Contains(_target, text);
+    }
 }
