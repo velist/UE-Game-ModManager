@@ -17,8 +17,9 @@ namespace UEModManager.Services.Import
     /// <para><b>匹配方式：</b>把两侧文件名切成关键词后互相打分，取分数最高且过阈值的一组合并。
     /// 这是模糊匹配，不是精确规则——CNS 社区的命名没有统一约定，只能靠关键词重合度猜。</para>
     ///
-    /// <para><b>来历：</b>该逻辑原本在 v1.8 的 <c>ModManagementService</c> 里，
-    /// v2.0 导入链路重写时被整条遗漏，属于静默功能回退（用户表现为"CNS MOD 导进来变成两个"）。
+    /// <para><b>来历：</b>该逻辑原本在 v1.8 的 <c>ModManagementService</c>（该类已在 v2.0
+    /// 作为死链路整体删除）里，v2.0 导入链路重写时被整条遗漏，属于静默功能回退
+    /// （用户表现为"CNS MOD 导进来变成两个"）。
     /// 迁到 Core 并补测试，就是为了让这份领域知识不再依赖"有人记得它存在"。</para>
     /// </summary>
     public static class CnsGroupMerger

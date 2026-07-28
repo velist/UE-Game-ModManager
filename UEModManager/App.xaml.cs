@@ -280,7 +280,6 @@ namespace UEModManager
                     services.AddSingleton<CustomOtpService>();
 
                     // 注册新服务层（Phase 1/3 产物）
-                    services.AddSingleton<ModManagementService>();
                     services.AddSingleton<GameConfigService>();
                     services.AddSingleton<NewCategoryService>();
                     services.AddSingleton<ModDataService>();

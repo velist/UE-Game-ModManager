@@ -28,8 +28,7 @@ namespace UEModManager.Services
     }
 
     /// <summary>
-    /// 包导入服务。
-    /// 从 ModManagementService 的导入逻辑抽取而来，整合 ObjectStore 和 PackageRepository。
+    /// 包导入服务。v2.0 唯一的导入入口（v1.x 的 ModManagementService 已删除）。
     /// 负责：解压 → 类型识别 → 文件存储到仓库 → 生成 Package + Artifacts → 注册到 Repository。
     /// </summary>
     public class PackageImportService
@@ -267,6 +266,10 @@ namespace UEModManager.Services
         {
             var results = new List<PackageImportResult>();
             _objectStore.EnsureInitialized();
+            // 临时目录固定挂在仓库根下：解压产物的最终去处就是仓库（ObjectStore.StoreFileAsync），
+            // 放在这里天然与目标同盘，不会出现"临时目录在 D 盘、成品往 E 盘搬"的跨盘复制；
+            // 而仓库根本身是用户可改的（UiPreferences.LoadRepositoryRoot），
+            // 想让几十 GB 的解压不落在系统盘，改仓库位置就够了——不需要另一套选盘策略。
             var tempRoot = IOPath.Combine(_objectStore.RepositoryRoot, ".import-tmp");
             var tempDir = IOPath.Combine(tempRoot, $"uemod_import_{Guid.NewGuid()}");
             var archiveName = IOPath.GetFileNameWithoutExtension(filePath);
@@ -471,7 +474,7 @@ namespace UEModManager.Services
         public static string DetectCategory(string name)
             => ModCategoryClassifier.Classify(name);
 
-        // ─── 解压缩（复用 ModManagementService 逻辑） ───
+        // ─── 解压缩（委托 ArchiveExtractor） ───
         private bool ExtractCompressedFile(string filePath, string extractPath)
             => ArchiveExtractor.ExtractCompressedFile(filePath, extractPath, _logger);
         private void ProcessNestedArchives(string directory)
