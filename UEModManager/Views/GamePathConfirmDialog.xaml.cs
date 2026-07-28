@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Runtime.CompilerServices;
+using UEModManager.Infrastructure;
 
 namespace UEModManager.Views
 {
@@ -225,31 +226,21 @@ namespace UEModManager.Views
         {
             if (UseDefaultBackupPath)
             {
-                // 使用程序安装目录下的Backups子目录作为备份
-                var defaultPath = Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory,
-                    "Backups",
-                    $"{GameName}_备份"
-                );
-                try
+                // 默认备份位置 = MOD 备份根下按游戏分目录。此前指向 {安装目录}\Backups，
+                // 与服务层实际读写的备份根是两处互不相干的目录，用户看到的默认值根本
+                // 不是备份真正的落点；装在 Program Files 下时还建不出来。
+                var defaultPath = Path.Combine(AppPaths.ModBackupsDirectory, $"{GameName}_备份");
+                if (AppPaths.TryEnsureDirectory(defaultPath))
                 {
-                    Directory.CreateDirectory(defaultPath);
                     BackupPath = defaultPath;
                 }
-                catch
+                else
                 {
-                    // 如果创建失败，使用程序目录下的Backups文件夹
-                    var fallbackPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
-                    try
-                    {
-                        Directory.CreateDirectory(fallbackPath);
-                        BackupPath = fallbackPath;
-                    }
-                    catch
-                    {
-                        // 最后的备选方案：使用程序目录
-                        BackupPath = AppDomain.CurrentDomain.BaseDirectory;
-                    }
+                    // 按游戏分的子目录建不出来就退到备份根，仍在同一个根内。
+                    // 不再像以前那样一路退回安装目录本身——那正是本次迁移要甩掉的位置，
+                    // 退过去只是把失败推迟到真正备份的时候。
+                    AppPaths.TryEnsureDirectory(AppPaths.ModBackupsDirectory);
+                    BackupPath = AppPaths.ModBackupsDirectory;
                 }
             }
         }
@@ -292,8 +283,11 @@ namespace UEModManager.Views
             string initialPath = BackupPath;
             if (string.IsNullOrEmpty(initialPath))
             {
-                // 如果备份路径为空，使用程序安装目录下的Backups作为初始路径
-                initialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+                // 备份路径为空时，选择器从 MOD 备份根起步；先建出来，否则
+                // FolderBrowserDialog 拿到不存在的路径会忽略 SelectedPath，
+                // 把用户丢回"此电脑"重新翻。
+                initialPath = AppPaths.ModBackupsDirectory;
+                AppPaths.TryEnsureDirectory(initialPath);
             }
             
             var dialog = new System.Windows.Forms.FolderBrowserDialog

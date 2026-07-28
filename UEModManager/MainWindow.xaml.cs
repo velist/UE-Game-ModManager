@@ -654,10 +654,16 @@ namespace UEModManager
             if (dialog.ShowDialog() == true)
             {
                 var backupPath = dialog.BackupPath;
-                if (string.IsNullOrEmpty(backupPath) || backupPath.Contains("AppData") || backupPath.StartsWith("C:\\Users"))
+                if (string.IsNullOrEmpty(backupPath))
                 {
-                    backupPath = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups", $"{gameName}_备份");
-                    Directory.CreateDirectory(backupPath);
+                    // 兜底值跟随 MOD 备份根。此前是 {安装目录}\Backups，与服务层实际使用的
+                    // 备份根是两个互不相干的目录，装在 Program Files 下时还根本建不出来。
+                    //
+                    // 同时删掉了原来"路径含 AppData 或位于 C:\Users 下就判为非法"的两个条件：
+                    // 备份根现在正是 %LOCALAPPDATA%\UEModManager\Backups\Mods，判据整个反了过来，
+                    // 留着只会把用户在个人目录下亲手选的备份位置无声改掉。
+                    backupPath = IOPath.Combine(AppPaths.ModBackupsDirectory, $"{gameName}_备份");
+                    AppPaths.TryEnsureDirectory(backupPath);
                 }
 
                 await _gameConfig.SwitchGameAsync(gameName, dialog.GamePath, dialog.ModPath, backupPath);
