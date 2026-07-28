@@ -21,15 +21,39 @@ namespace UEModManager.Services
     /// <para>
     /// 四步搬移的顺序不可换：<b>复制 → 校验 → 写墓碑 → 删源</b>。
     /// 墓碑是"复制完整且校验通过"的唯一证据，任何一步失败都保留旧数据不动。
+    /// 四步之外还夹着一对进行中标记的写与清（见 <see cref="InProgressMarkerName"/>）：
+    /// 复制前立、写完墓碑后清，用来证明"目标里的残留是我留下的"。
+    /// </para>
+    ///
+    /// <para>
+    /// 四个步骤方法都是 <c>virtual</c>，<see cref="Execute"/> 刻意不是。这条界线是有意的：
+    /// 派生类只允许替换<b>某一步做了什么</b>（测试据此在指定阶段注入失败，复现断电），
+    /// 不允许替换<b>步骤的先后顺序</b>——顺序正是本类要守住的不变量，能被覆盖就守不住了。
     /// </para>
     /// </summary>
-    public sealed class DataRelocationExecutor
+    public class DataRelocationExecutor
     {
         /// <summary>目录搬迁的墓碑文件名。</summary>
         public const string DirectoryTombstoneName = "migrated-to.txt";
 
         /// <summary>单文件搬迁的墓碑后缀。</summary>
         public const string FileTombstoneSuffix = ".migrated-to.txt";
+
+        /// <summary>
+        /// "搬迁进行中"标记。写在<b>目标</b>位置，从复制开始起、到墓碑写下为止一直存在。
+        ///
+        /// <para>
+        /// 它回答的是一个墓碑回答不了的问题：<b>目标位置里的东西，是不是搬迁器自己写的？</b>
+        /// 没有它的话，"目标有内容且无墓碑"只能一律当成"上次中断的半份数据"清掉重来——
+        /// 而路径归口之后，老用户升级后的全部新数据本来就写在新位置，
+        /// 开关翻开的那一刻这套判据会把用户升级以来的劳动整个清空，再把升级前的旧状态盖回去。
+        /// 有了标记，"我留下的残留"与"应用的真实数据"才区分得开。
+        /// </para>
+        /// </summary>
+        public const string InProgressMarkerName = ".uemm-migration-in-progress";
+
+        /// <summary>单文件搬迁的进行中标记后缀。</summary>
+        public const string InProgressMarkerSuffix = ".uemm-migration-in-progress";
 
         private readonly ILogger? _logger;
 
@@ -52,8 +76,29 @@ namespace UEModManager.Services
                 ? legacyPath + FileTombstoneSuffix
                 : Path.Combine(legacyPath, DirectoryTombstoneName);
 
+        /// <summary>该路径是否是搬迁进行中标记。</summary>
+        public static bool IsInProgressMarker(string path)
+        {
+            var name = Path.GetFileName(path);
+            return string.Equals(name, InProgressMarkerName, StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(InProgressMarkerSuffix, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
-        /// 目录存在<b>且有内容</b>（墓碑不算内容）。
+        /// 该路径是否是搬迁器自己的元数据（墓碑或进行中标记）。
+        /// 这类文件不算数据：不参与内容判定、不复制、不校验、也不随删源被抹掉。
+        /// </summary>
+        public static bool IsMigratorMetadata(string path)
+            => IsTombstone(path) || IsInProgressMarker(path);
+
+        /// <summary>取某项的进行中标记路径（位于<b>目标</b>侧）。</summary>
+        public static string GetInProgressMarkerPath(string targetPath, bool isFile)
+            => isFile
+                ? targetPath + InProgressMarkerSuffix
+                : Path.Combine(targetPath, InProgressMarkerName);
+
+        /// <summary>
+        /// 目录存在<b>且有内容</b>（搬迁器自己的元数据不算内容）。
         ///
         /// 空目录按"不存在"处理：应用启动时会主动创建一批空目录（App 建 Data、
         /// 各服务构造函数建自己的目录），把它们当成"有旧数据要迁"会凭空产生
@@ -64,7 +109,8 @@ namespace UEModManager.Services
             try
             {
                 if (!Directory.Exists(path)) return false;
-                return Directory.EnumerateFileSystemEntries(path).Any(entry => !IsTombstone(entry));
+                return Directory.EnumerateFileSystemEntries(path)
+                    .Any(entry => !IsMigratorMetadata(entry));
             }
             catch
             {
@@ -95,14 +141,18 @@ namespace UEModManager.Services
             {
                 case RelocationAction.PurgeTargetThenCopy:
                     PurgeTarget(step, isFile);
+                    MarkInProgress(step, isFile);
                     CopyAndVerify(step, isFile, excludedChildDirectories);
                     WriteTombstone(step, isFile);
+                    ClearInProgressMarker(step, isFile);
                     DeleteLegacy(step, isFile, excludedChildDirectories);
                     break;
 
                 case RelocationAction.Copy:
+                    MarkInProgress(step, isFile);
                     CopyAndVerify(step, isFile, excludedChildDirectories);
                     WriteTombstone(step, isFile);
+                    ClearInProgressMarker(step, isFile);
                     DeleteLegacy(step, isFile, excludedChildDirectories);
                     break;
 
@@ -115,8 +165,36 @@ namespace UEModManager.Services
             }
         }
 
+        /// <summary>
+        /// 在目标位置立下"搬迁进行中"的记号。<b>必须在往目标写第一个字节之前</b>，
+        /// 否则中途断电留下的残留就没有归属证据，下次启动分不清那是自己的半份数据
+        /// 还是应用的真实数据。非 virtual：它和四步的先后关系是不变量的一部分。
+        /// </summary>
+        private static void MarkInProgress(RelocationStep step, bool isFile)
+        {
+            if (!isFile) Directory.CreateDirectory(step.TargetPath);
+
+            var marker = GetInProgressMarkerPath(step.TargetPath, isFile);
+            var markerDir = Path.GetDirectoryName(marker);
+            if (!string.IsNullOrEmpty(markerDir)) Directory.CreateDirectory(markerDir);
+
+            File.WriteAllText(marker,
+                $"UEModManager 正在把 {step.LegacyPath} 搬到此处（{DateTime.Now:yyyy-MM-dd HH:mm:ss}）。" +
+                $"{Environment.NewLine}若此文件长期存在，说明上次搬迁被中断，下次启动会自动清理重来。");
+        }
+
+        /// <summary>
+        /// 清掉进行中标记。位置卡在<b>写墓碑之后、删源之前</b>：墓碑一落地，目标就是权威副本，
+        /// 再有人来清空它就是毁数据了。提前清则会让"写墓碑前断电"的残留失去归属证据。
+        /// </summary>
+        private static void ClearInProgressMarker(RelocationStep step, bool isFile)
+        {
+            var marker = GetInProgressMarkerPath(step.TargetPath, isFile);
+            if (File.Exists(marker)) File.Delete(marker);
+        }
+
         /// <summary>复制并校验。校验不过直接抛，此时墓碑尚未写下，旧数据仍是唯一可信副本。</summary>
-        public void CopyAndVerify(RelocationStep step, bool isFile,
+        public virtual void CopyAndVerify(RelocationStep step, bool isFile,
             IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             if (isFile)
@@ -137,7 +215,8 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 递归复制目录，跳过墓碑（墓碑属于旧位置，跟到新位置会让下次探测误判）。
+        /// 递归复制目录，跳过搬迁器自己的元数据（墓碑属于旧位置，跟到新位置会让下次探测误判；
+        /// 进行中标记同理，它描述的是这一次搬迁的状态，不是数据）。
         /// <paramref name="excludedChildDirectories"/> 只对<b>顶层</b>生效——排除的是
         /// 具名的一项数据，而不是所有同名子目录。
         /// </summary>
@@ -148,7 +227,7 @@ namespace UEModManager.Services
 
             foreach (var file in Directory.GetFiles(source))
             {
-                if (IsTombstone(file)) continue;
+                if (IsMigratorMetadata(file)) continue;
                 File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
             }
 
@@ -210,7 +289,7 @@ namespace UEModManager.Services
         }
 
         /// <summary>写墓碑。此刻起该项被视为"已完成复制与校验"。</summary>
-        public void WriteTombstone(RelocationStep step, bool isFile)
+        public virtual void WriteTombstone(RelocationStep step, bool isFile)
         {
             var content =
                 $"此位置的数据已于 {DateTime.Now:yyyy-MM-dd HH:mm:ss} 迁移至：{Environment.NewLine}" +
@@ -227,7 +306,7 @@ namespace UEModManager.Services
         /// 清理旧位置。目录情况下**保留墓碑**：整个删掉的话下次启动会因"旧位置不存在"
         /// 而判定为未迁移过——结论虽然相同，但排障时看不出这里发生过什么。
         /// </summary>
-        public void DeleteLegacy(RelocationStep step, bool isFile,
+        public virtual void DeleteLegacy(RelocationStep step, bool isFile,
             IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             if (isFile)
@@ -238,7 +317,7 @@ namespace UEModManager.Services
             {
                 foreach (var file in Directory.GetFiles(step.LegacyPath))
                 {
-                    if (!IsTombstone(file)) File.Delete(file);
+                    if (!IsMigratorMetadata(file)) File.Delete(file);
                 }
                 foreach (var dir in Directory.GetDirectories(step.LegacyPath))
                 {
@@ -252,9 +331,27 @@ namespace UEModManager.Services
                 step.Name, step.LegacyPath);
         }
 
-        /// <summary>清空目标位置的无墓碑残留（上次中断留下的半份数据）。</summary>
-        public void PurgeTarget(RelocationStep step, bool isFile)
+        /// <summary>
+        /// 清空目标位置的残留。
+        ///
+        /// <para>
+        /// <b>只清自己留下的。</b>判据是目标侧的进行中标记：有标记才说明这堆东西是上一次
+        /// 被中断的搬迁写的，清掉是唯一正确的做法（绝不能在半份数据上继续追加）。
+        /// 没有标记却有内容，说明目标是被别人正常使用的位置——路径归口之后老用户升级以来的
+        /// 全部新数据就在那里——此时清空等于把用户升级后的劳动删光、再拿升级前的旧状态盖回去。
+        /// 宁可让这一项失败、让用户看到"迁移未完成"，也绝不能动它。
+        /// </para>
+        /// </summary>
+        public virtual void PurgeTarget(RelocationStep step, bool isFile)
         {
+            if (!FileExists(GetInProgressMarkerPath(step.TargetPath, isFile)))
+            {
+                throw new IOException(
+                    $"拒绝清空目标：{step.TargetPath} 已有内容，但没有搬迁进行中标记，" +
+                    "说明这些数据不是上次中断的残留，而是新位置被正常使用后写下的。" +
+                    $"本项保持原样，{step.LegacyPath} 的数据也一并保留。");
+            }
+
             _logger?.LogWarning(
                 "[DataMigration] {Name} 目标位置存在无墓碑的残留（上次中断），清空后重新复制：{Path}",
                 step.Name, step.TargetPath);
@@ -286,7 +383,7 @@ namespace UEModManager.Services
             if (!Directory.Exists(root)) return new List<string>();
 
             var files = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
-                .Where(f => !IsTombstone(f));
+                .Where(f => !IsMigratorMetadata(f));
 
             if (excludedChildDirectories is { Count: > 0 })
             {

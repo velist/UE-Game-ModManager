@@ -52,7 +52,17 @@ namespace UEModManager.Services
     /// <para>
     /// 判定逻辑在 Core 的 <see cref="DataRelocationPlanner"/>（纯函数，74 个单测），
     /// 文件操作在 <see cref="DataRelocationExecutor"/>（可在临时目录上测），
-    /// 本类只剩下与 <see cref="UiPreferences"/> 全局状态打交道的部分。
+    /// 本类负责把两者接到真实的路径与偏好上。
+    /// </para>
+    ///
+    /// <para>
+    /// 本类<b>自己不碰任何静态全局状态</b>：<see cref="AppPaths"/> 与
+    /// <see cref="UiPreferences"/> 只在 <see cref="CreateProductionEnvironment"/> 这一处出现，
+    /// 其余代码一律走构造时传入的 <see cref="DataMigrationEnvironment"/>。
+    /// 这样测试能把整个迁移器指到临时目录上驱动，而不会碰开发者本机真实的
+    /// <c>%LOCALAPPDATA%</c> / <c>%APPDATA%</c>——本类会<b>复制并删除</b>这些位置下的文件，
+    /// 跑错一次就没有后悔药。<see cref="DataRelocationExecutor"/> 当初从本类里拆出去
+    /// 正是因为这层全局状态没法在测试里安全驱动，现在本类自己也补上了这一刀。
     /// </para>
     ///
     /// <para>
@@ -62,7 +72,13 @@ namespace UEModManager.Services
     public sealed class DataLocationMigrator
     {
         /// <summary>
-        /// 搬移类动作（Copy / PurgeTargetThenCopy / ResumeCleanup）的执行开关。
+        /// 搬移类动作（Copy / PurgeTargetThenCopy / ResumeCleanup）的<b>生产</b>执行开关。
+        ///
+        /// <para>
+        /// <b>这是全项目唯一决定"正式版要不要真的搬数据"的地方，改它之前先读完下面几段。</b>
+        /// 它只喂给 <see cref="CreateProductionEnvironment"/>；测试通过自己构造
+        /// <see cref="DataMigrationEnvironment"/> 把开关打开，不会也不能改到这个值。
+        /// </para>
         ///
         /// <para>
         /// <b>代码侧的前置条件已全部满足（核实于 2026-07-28），此开关之所以还是 false，
@@ -94,10 +110,22 @@ namespace UEModManager.Services
         /// <para>
         /// <b>翻开之前还差的事：</b>
         /// <list type="number">
-        /// <item><b>D0–D5 测试矩阵尚未在真机跑过。</b>见迁移方案 §七。其中 D5（复制中途
-        /// 强杀进程后重启）必须在不同阶段反复中断三次以上——幂等性只跑一次启动测不出来；
-        /// D2（用户自定义过仓库位置）是"绝不能动用户的选择"那条的唯一验证；
-        /// 每种形态都要连启两次，验证第二次不重复执行。</item>
+        /// <item><b>新旧两处都有数据时怎么合，方案里没写。</b><u>这是当前最大的一条，
+        /// 而且它是常态而非边角料。</u>路径归口（<c>c6523fc</c> / <c>7c58a43</c>）之后
+        /// 全部读写方都走新位置，而本开关一直关着——于是每一台老用户机器上，
+        /// 旧数据躺在安装目录、<b>新数据一直在往 <c>%LOCALAPPDATA%</c> 里写</b>，
+        /// 开关翻开的那次启动，两处都有内容且都没有墓碑。规划器给出的
+        /// <see cref="RelocationAction.PurgeTargetThenCopy"/> 前提是"目标里是上次中断的半份数据"，
+        /// 在这里根本不成立。<see cref="DataRelocationExecutor.PurgeTarget"/> 已加进行中标记
+        /// 作为拦阻（无标记就拒绝清空，该项计为失败、两边数据都不动），
+        /// 因此不会再毁数据；但代价是这两项会<b>每次启动都失败</b>，用户看到的是
+        /// 长期挂着的"迁移未完成"。翻开开关前必须先定下合并策略
+        /// （谁赢 / 逐文件按时间 / 让用户选），否则等于给全体老用户发一条永久告警。
+        /// 相关用例见 <c>DataLocationMigratorTests.新位置已有应用写入的数据时拒绝清空目标…</c>。</item>
+        /// <item><b>D0–D5 测试矩阵尚未在真机跑过。</b>见迁移方案 §七。文件系统层面的部分
+        /// 已在 <c>DataLocationMigratorTests</c> 里自动化（D0/D1/D2/D5、幂等、两项备份解耦、
+        /// 失败时不改配置），真机只剩 GUI 相关的几项：应用能启动到主界面、界面显示正确、
+        /// D3（安装目录不可写）、D4（目标盘空间不足）。</item>
         /// <item><b>没有磁盘空间预检。</b>方案 §三② 要求空间不足时降级为原地登记，
         /// 目前没实现。几十 GB 的仓库/生成物已经是 <c>RegisterInPlace</c>、根本不复制，
         /// 所以风险比方案设想的小得多；但备份两项是游戏文件的副本，体积仍可观，
@@ -117,7 +145,7 @@ namespace UEModManager.Services
         /// 本开关关着时不会有任何墓碑，因而同样是彻底的空操作。
         /// </para>
         /// </summary>
-        private const bool RelocationExecutionEnabled = false;
+        private const bool ProductionRelocationExecutionEnabled = false;
 
         private const string RepositoryItemName = "包仓库";
         private const string OverwritesItemName = "生成物存储";
@@ -127,11 +155,67 @@ namespace UEModManager.Services
         private readonly ILogger<DataLocationMigrator> _logger;
         private readonly DataRelocationExecutor _executor;
 
+        /// <summary>
+        /// 注入的运行环境；<c>null</c> 表示走生产环境。
+        ///
+        /// <para>
+        /// 生产环境刻意<b>不在构造时求值</b>，而是每次 <see cref="Run"/> 现算一次：
+        /// <see cref="AppPaths"/> 本身就不缓存布局（用户改了仓库位置要立即生效），
+        /// 在构造函数里把路径拍死会悄悄改掉这个语义。
+        /// </para>
+        /// </summary>
+        private readonly DataMigrationEnvironment? _environment;
+
         public DataLocationMigrator(ILogger<DataLocationMigrator> logger)
+            : this(logger, environment: null, executor: null)
+        {
+        }
+
+        /// <summary>
+        /// 测试用构造：把路径、偏好与搬移开关整体换成可控的实现。
+        ///
+        /// <para>
+        /// 刻意标 <c>internal</c>（配合 <c>AssemblyInfo.cs</c> 里的
+        /// <c>InternalsVisibleTo("UEModManager.Tests")</c>）。DI 只看得到上面那个公开构造，
+        /// 也就不存在"某处顺手 new 一个开着搬移开关的迁移器"这种事——生产行为仍然只由
+        /// <see cref="ProductionRelocationExecutionEnabled"/> 一个常量决定。
+        /// </para>
+        /// </summary>
+        /// <param name="executor">
+        /// 传入自定义执行器是为了在四步搬移的<b>指定阶段</b>注入失败
+        /// （复制中 / 校验后写墓碑前 / 删源中），验证中断后重启能自愈。
+        /// 这三种中断没法靠真实文件操作稳定复现。
+        /// </param>
+        internal DataLocationMigrator(
+            ILogger<DataLocationMigrator> logger,
+            DataMigrationEnvironment? environment,
+            DataRelocationExecutor? executor = null)
         {
             _logger = logger;
-            _executor = new DataRelocationExecutor(logger);
+            _environment = environment;
+            _executor = executor ?? new DataRelocationExecutor(logger);
         }
+
+        /// <summary>
+        /// 生产环境：把 <see cref="AppPaths"/> 的真实路径与 <see cref="UiPreferences"/>
+        /// 的真实偏好绑上，搬移开关取
+        /// <see cref="ProductionRelocationExecutionEnabled"/>。
+        /// <b>全类只有这一个方法碰静态全局状态。</b>
+        /// </summary>
+        private static DataMigrationEnvironment CreateProductionEnvironment() => new(
+            new DataMigrationPaths(
+                LegacyConfigFile: AppPaths.Legacy.ConfigFile,
+                ConfigFile: AppPaths.ConfigFile,
+                LegacyDeploymentBackupsDirectory: AppPaths.Legacy.DeploymentBackupsDirectory,
+                DeploymentBackupsDirectory: AppPaths.DeploymentBackupsDirectory,
+                LegacyDataDirectory: AppPaths.Legacy.DataDirectory,
+                DataDirectory: AppPaths.DataDirectory,
+                LegacyModBackupsDirectory: AppPaths.Legacy.ModBackupsDirectory,
+                ModBackupsDirectory: AppPaths.ModBackupsDirectory,
+                LegacyRepositoryRoot: AppPaths.Legacy.RepositoryRoot,
+                LegacyOverwritesRoot: AppPaths.Legacy.OverwritesRoot),
+            UiPreferencesDataMigrationAdapter.Instance,
+            ProductionRelocationExecutionEnabled);
 
         /// <summary>
         /// 最近一次 <see cref="RunAsync"/> 的结果；从未跑过时为 <c>null</c>。
@@ -177,8 +261,11 @@ namespace UEModManager.Services
 
         private DataMigrationOutcome Run()
         {
-            var migratedVersion = UiPreferences.LoadDataLayoutVersion();
-            var plan = DataRelocationPlanner.Plan(migratedVersion, BuildProbes());
+            // 生产环境每次现算：AppPaths 不缓存布局，用户改过的仓库位置要立即生效。
+            var env = _environment ?? CreateProductionEnvironment();
+
+            var migratedVersion = env.Preferences.LoadDataLayoutVersion();
+            var plan = DataRelocationPlanner.Plan(migratedVersion, BuildProbes(env));
 
             int executed = 0, skipped = 0, deferred = 0, failed = 0;
 
@@ -191,7 +278,7 @@ namespace UEModManager.Services
                     continue;
                 }
 
-                if (step.Action != RelocationAction.RegisterInPlace && !RelocationExecutionEnabled)
+                if (step.Action != RelocationAction.RegisterInPlace && !env.RelocationExecutionEnabled)
                 {
                     deferred++;
                     _logger.LogInformation(
@@ -200,21 +287,21 @@ namespace UEModManager.Services
                     continue;
                 }
 
-                if (TryExecute(step)) executed++;
+                if (TryExecute(env, step)) executed++;
                 else failed++;
             }
 
             // 目录搬完了，config.json 里指向旧位置的绝对路径必须跟着改。
             // 放在整个循环之后是必须的：config.json 自己就是"主配置"那一项，
             // 得等它落到新位置，才能读新位置的那份来改写。
-            if (!RewriteConfigPaths()) failed++;
+            if (!RewriteConfigPaths(env)) failed++;
 
             // 只有既无失败、也无推迟项时，本布局版本才算彻底完成。
             // 推迟项在开关打开后仍要处理，提前打版本标记会让它们被永久跳过。
             var completed = failed == 0 && deferred == 0;
             if (completed && plan.ShouldStampVersion)
             {
-                UiPreferences.SaveDataLayoutVersion(plan.ToVersion);
+                env.Preferences.SaveDataLayoutVersion(plan.ToVersion);
                 _logger.LogInformation("[DataMigration] 数据布局版本标记为 v{Version}", plan.ToVersion);
             }
 
@@ -237,27 +324,31 @@ namespace UEModManager.Services
 
         // ─── 探测 ───
 
-        private IReadOnlyList<RelocationProbe> BuildProbes() => new[]
+        private static IReadOnlyList<RelocationProbe> BuildProbes(DataMigrationEnvironment env)
         {
-            // 搬移类：体积恒定在 MB 级
-            FileProbe("主配置", AppPaths.Legacy.ConfigFile, AppPaths.ConfigFile),
+            var paths = env.Paths;
+            return new[]
+            {
+                // 搬移类：体积恒定在 MB 级
+                FileProbe("主配置", paths.LegacyConfigFile, paths.ConfigFile),
 
-            // 部署事务备份必须早于"数据索引"：它物理上是 {安装目录}\Data\Backups，
-            // 即数据索引那一项的子目录，但目标位置完全不同
-            // （{LOCALAPPDATA}\Backups\Deployments，而非 {LOCALAPPDATA}\Data\Backups）。
-            // 顺序只是让日志更好读——真正保证两项不打架的是数据索引那一步的排除清单。
-            DirectoryProbe(DeploymentBackupsItemName,
-                AppPaths.Legacy.DeploymentBackupsDirectory, AppPaths.DeploymentBackupsDirectory),
-            DirectoryProbe(DataIndexItemName, AppPaths.Legacy.DataDirectory, AppPaths.DataDirectory),
+                // 部署事务备份必须早于"数据索引"：它物理上是 {安装目录}\Data\Backups，
+                // 即数据索引那一项的子目录，但目标位置完全不同
+                // （{LOCALAPPDATA}\Backups\Deployments，而非 {LOCALAPPDATA}\Data\Backups）。
+                // 顺序只是让日志更好读——真正保证两项不打架的是数据索引那一步的排除清单。
+                DirectoryProbe(DeploymentBackupsItemName,
+                    paths.LegacyDeploymentBackupsDirectory, paths.DeploymentBackupsDirectory),
+                DirectoryProbe(DataIndexItemName, paths.LegacyDataDirectory, paths.DataDirectory),
 
-            DirectoryProbe("MOD 备份", AppPaths.Legacy.ModBackupsDirectory, AppPaths.ModBackupsDirectory),
+                DirectoryProbe("MOD 备份", paths.LegacyModBackupsDirectory, paths.ModBackupsDirectory),
 
-            // 原地登记类：可能几十 GB，且已不在安装目录，卸载不会丢
-            RegisterInPlaceProbe(RepositoryItemName, AppPaths.Legacy.RepositoryRoot,
-                UiPreferences.LoadRepositoryRoot()),
-            RegisterInPlaceProbe(OverwritesItemName, AppPaths.Legacy.OverwritesRoot,
-                UiPreferences.LoadOverwritesRoot()),
-        };
+                // 原地登记类：可能几十 GB，且已不在安装目录，卸载不会丢
+                RegisterInPlaceProbe(RepositoryItemName, paths.LegacyRepositoryRoot,
+                    env.Preferences.LoadRepositoryRoot()),
+                RegisterInPlaceProbe(OverwritesItemName, paths.LegacyOverwritesRoot,
+                    env.Preferences.LoadOverwritesRoot()),
+            };
+        }
 
         /// <summary>
         /// "数据索引"搬移时必须原样留下的子目录。
@@ -269,9 +360,10 @@ namespace UEModManager.Services
         /// 崩溃回滚随之失效。排除后两项彻底解耦：谁先执行都一样，一项失败也不波及另一项。
         /// </para>
         /// </summary>
-        private static IReadOnlyCollection<string> ExcludedChildrenOf(string itemName)
+        private static IReadOnlyCollection<string> ExcludedChildrenOf(
+            DataMigrationEnvironment env, string itemName)
             => itemName == DataIndexItemName
-                ? new[] { Path.GetFileName(AppPaths.Legacy.DeploymentBackupsDirectory) }
+                ? new[] { Path.GetFileName(env.Paths.LegacyDeploymentBackupsDirectory) }
                 : Array.Empty<string>();
 
         private static RelocationProbe FileProbe(string name, string legacy, string target)
@@ -297,17 +389,17 @@ namespace UEModManager.Services
 
         // ─── 执行 ───
 
-        private bool TryExecute(RelocationStep step)
+        private bool TryExecute(DataMigrationEnvironment env, RelocationStep step)
         {
             try
             {
                 if (step.Action == RelocationAction.RegisterInPlace)
                 {
-                    RegisterInPlace(step);
+                    RegisterInPlace(env, step);
                     return true;
                 }
 
-                _executor.Execute(step, IsFileItem(step), ExcludedChildrenOf(step.Name));
+                _executor.Execute(step, IsFileItem(step), ExcludedChildrenOf(env, step.Name));
                 return true;
             }
             catch (Exception ex)
@@ -319,15 +411,15 @@ namespace UEModManager.Services
             }
         }
 
-        private void RegisterInPlace(RelocationStep step)
+        private void RegisterInPlace(DataMigrationEnvironment env, RelocationStep step)
         {
             switch (step.Name)
             {
                 case RepositoryItemName:
-                    UiPreferences.SaveRepositoryRoot(step.LegacyPath);
+                    env.Preferences.SaveRepositoryRoot(step.LegacyPath);
                     break;
                 case OverwritesItemName:
-                    UiPreferences.SaveOverwritesRoot(step.LegacyPath);
+                    env.Preferences.SaveOverwritesRoot(step.LegacyPath);
                     break;
                 default:
                     _logger.LogWarning("[DataMigration] 未知的原地登记项：{Name}", step.Name);
@@ -355,8 +447,8 @@ namespace UEModManager.Services
         /// <b>判据是墓碑，不是"本次执行成功"。</b>墓碑代表"复制与校验都已完成"
         /// （见 <see cref="DataRelocationPlanner"/>），这正是"数据确实已经在新位置"的唯一证据：
         /// 本次搬成的、上次搬完只差删源的、上次搬完这次直接跳过的，三种情况一视同仁；
-        /// 而搬迁失败、或 <see cref="RelocationExecutionEnabled"/> 仍为 false 根本没搬时，
-        /// 墓碑不存在，对应的路径一个字都不会动。
+        /// 而搬迁失败、或 <see cref="DataMigrationEnvironment.RelocationExecutionEnabled"/>
+        /// 仍为 false 根本没搬时，墓碑不存在，对应的路径一个字都不会动。
         /// </para>
         ///
         /// <para>
@@ -364,18 +456,18 @@ namespace UEModManager.Services
         /// 绝不抛出：配置没改好顶多是备份路径不对，启动不了则彻底不可用。
         /// </para>
         /// </summary>
-        private bool RewriteConfigPaths()
+        private bool RewriteConfigPaths(DataMigrationEnvironment env)
         {
             try
             {
                 var modBackupsRule = RuleIfRelocated(
-                    AppPaths.Legacy.ModBackupsDirectory, AppPaths.ModBackupsDirectory);
+                    env.Paths.LegacyModBackupsDirectory, env.Paths.ModBackupsDirectory);
                 var dataRule = RuleIfRelocated(
-                    AppPaths.Legacy.DataDirectory, AppPaths.DataDirectory);
+                    env.Paths.LegacyDataDirectory, env.Paths.DataDirectory);
 
                 if (modBackupsRule is null && dataRule is null) return true;
 
-                var configFile = ResolveConfigFileToRewrite();
+                var configFile = ResolveConfigFileToRewrite(env);
                 if (configFile is null)
                 {
                     _logger.LogInformation("[DataMigration] 未找到 config.json，无需改写配置中的路径");
@@ -414,12 +506,39 @@ namespace UEModManager.Services
         /// 定位要改写的 config.json：优先新位置——那是应用真正会去读的一份。
         /// 主配置那一项自己搬失败时它还在旧位置，就改旧的那份，等它搬过来时新值会一并带过去。
         /// </summary>
-        private static string? ResolveConfigFileToRewrite()
+        private static string? ResolveConfigFileToRewrite(DataMigrationEnvironment env)
         {
-            if (DataRelocationExecutor.FileExists(AppPaths.ConfigFile)) return AppPaths.ConfigFile;
-            return DataRelocationExecutor.FileExists(AppPaths.Legacy.ConfigFile)
-                ? AppPaths.Legacy.ConfigFile
+            if (DataRelocationExecutor.FileExists(env.Paths.ConfigFile)) return env.Paths.ConfigFile;
+            return DataRelocationExecutor.FileExists(env.Paths.LegacyConfigFile)
+                ? env.Paths.LegacyConfigFile
                 : null;
         }
+    }
+
+    /// <summary>
+    /// <see cref="IDataMigrationPreferences"/> 的生产实现，转调静态的 <see cref="UiPreferences"/>。
+    ///
+    /// <para>
+    /// 只是一层直通转发，没有任何自己的状态——因此用单例，避免每次迁移都 new 一个。
+    /// 真正的隔离发生在接口那一侧：测试注入自己的实现，压根不会走到这里。
+    /// </para>
+    /// </summary>
+    internal sealed class UiPreferencesDataMigrationAdapter : IDataMigrationPreferences
+    {
+        internal static readonly UiPreferencesDataMigrationAdapter Instance = new();
+
+        private UiPreferencesDataMigrationAdapter() { }
+
+        public int LoadDataLayoutVersion() => UiPreferences.LoadDataLayoutVersion();
+
+        public void SaveDataLayoutVersion(int version) => UiPreferences.SaveDataLayoutVersion(version);
+
+        public string? LoadRepositoryRoot() => UiPreferences.LoadRepositoryRoot();
+
+        public void SaveRepositoryRoot(string? path) => UiPreferences.SaveRepositoryRoot(path);
+
+        public string? LoadOverwritesRoot() => UiPreferences.LoadOverwritesRoot();
+
+        public void SaveOverwritesRoot(string? path) => UiPreferences.SaveOverwritesRoot(path);
     }
 }

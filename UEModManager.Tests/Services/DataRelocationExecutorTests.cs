@@ -293,17 +293,87 @@ public sealed class DataRelocationExecutorTests : IDisposable
     [Fact]
     public void Execute_PurgeTargetThenCopy_DiscardsPartialTarget()
     {
-        // 模拟"上次断电停在复制中途"：目标里有半份数据且没有墓碑
+        // 模拟"上次断电停在复制中途"：目标里有半份数据、有进行中标记、没有墓碑
         WriteLegacy("a.json", """{"good":1}""");
         Directory.CreateDirectory(_target);
         File.WriteAllText(Path.Combine(_target, "a.json"), """{"stale":true}""");
         File.WriteAllText(Path.Combine(_target, "orphan.json"), "{}");
+        File.WriteAllText(
+            DataRelocationExecutor.GetInProgressMarkerPath(_target, isFile: false), "in-progress");
 
         _executor.Execute(Step(RelocationAction.PurgeTargetThenCopy), isFile: false);
 
         Assert.Equal("""{"good":1}""", File.ReadAllText(Path.Combine(_target, "a.json")));
         // 残留的孤儿文件必须被清掉，否则会永久留在新位置
         Assert.False(File.Exists(Path.Combine(_target, "orphan.json")));
+        // 墓碑写下之后标记必须被清掉：留着它等于永久授权下一次清空目标
+        Assert.False(File.Exists(
+            DataRelocationExecutor.GetInProgressMarkerPath(_target, isFile: false)));
+    }
+
+    [Fact]
+    public void Execute_PurgeTargetThenCopy_WithoutMarker_RefusesAndKeepsBothSides()
+    {
+        // 目标有内容却没有进行中标记 —— 那不是上次中断的残留，而是新位置被正常使用后
+        // 写下的真实数据（路径归口之后，老用户升级以来的全部新数据都在新位置）。
+        // 清空它等于把用户升级后的劳动删光、再拿升级前的旧状态盖回去。
+        WriteLegacy("a.json", """{"old":1}""");
+        Directory.CreateDirectory(_target);
+        File.WriteAllText(Path.Combine(_target, "a.json"), """{"用户升级后的新数据":1}""");
+
+        var ex = Assert.Throws<IOException>(
+            () => _executor.Execute(Step(RelocationAction.PurgeTargetThenCopy), isFile: false));
+        Assert.Contains("拒绝清空目标", ex.Message);
+
+        Assert.Equal("""{"用户升级后的新数据":1}""", File.ReadAllText(Path.Combine(_target, "a.json")));
+        Assert.Equal("""{"old":1}""", File.ReadAllText(Path.Combine(_legacy, "a.json")));
+        Assert.False(File.Exists(Path.Combine(_legacy, DataRelocationExecutor.DirectoryTombstoneName)));
+    }
+
+    [Fact]
+    public void Execute_Copy_ClearsInProgressMarkerAfterTombstone()
+    {
+        WriteLegacy("a.json", """{"x":1}""");
+
+        _executor.Execute(Step(RelocationAction.Copy), isFile: false);
+
+        Assert.True(File.Exists(Path.Combine(_legacy, DataRelocationExecutor.DirectoryTombstoneName)));
+        Assert.False(File.Exists(
+            DataRelocationExecutor.GetInProgressMarkerPath(_target, isFile: false)));
+    }
+
+    [Fact]
+    public void Execute_CopyFailure_LeavesMarkerSoNextRunMayPurge()
+    {
+        // 复制/校验失败时标记必须留着：它是"目标里这堆东西是我写的"的唯一证据，
+        // 丢了的话下次启动会因为无从判断而拒绝清空，本来能自愈的中断变成永久卡死。
+        WriteLegacy("a.json", """{"ab":12}""");
+        DataRelocationExecutor.CopyDirectory(_legacy, _target);
+        File.WriteAllText(Path.Combine(_target, "extra.json"), "{}");   // 制造文件数不一致
+
+        Assert.Throws<IOException>(() => _executor.Execute(Step(RelocationAction.Copy), isFile: false));
+
+        Assert.True(File.Exists(
+            DataRelocationExecutor.GetInProgressMarkerPath(_target, isFile: false)));
+        Assert.False(File.Exists(Path.Combine(_legacy, DataRelocationExecutor.DirectoryTombstoneName)));
+    }
+
+    [Fact]
+    public void InProgressMarker_IsNotContentAndIsNotCopied()
+    {
+        // 标记既不能被算成"目标已有内容"，也不能跟着复制/校验走，否则会把自己卡死
+        Directory.CreateDirectory(_target);
+        File.WriteAllText(
+            DataRelocationExecutor.GetInProgressMarkerPath(_target, isFile: false), "in-progress");
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(_target));
+
+        WriteLegacy("a.json", "{}");
+        _executor.Execute(Step(RelocationAction.Copy), isFile: false);
+
+        // 目标里只该有 a.json：标记既没被算进校验（否则文件数不一致，搬迁当场回滚），
+        // 也在写完墓碑后被清掉了
+        Assert.Equal(new[] { "a.json" },
+            Directory.GetFiles(_target).Select(Path.GetFileName).ToArray());
     }
 
     [Fact]

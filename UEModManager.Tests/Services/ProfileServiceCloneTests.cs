@@ -15,15 +15,18 @@ namespace UEModManager.Tests.Services;
 /// </summary>
 public sealed class ProfileServiceCloneTests : IDisposable
 {
+    // 每个用例类一份独立临时目录。此处曾经写的是"测试宿主进程目录\Data"，
+    // 而 ProfileService 的数据目录早已归口到 AppPaths —— 于是测试实际写的是开发者真实的
+    // %LOCALAPPDATA%\UEModManager\Data，Dispose 又删不到，每跑一次就留下一批孤儿文件。
     private readonly string _dataDir =
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+        Path.Combine(Path.GetTempPath(), "uemm_profile_" + Guid.NewGuid().ToString("N")[..8]);
 
     private readonly List<string> _gameNames = [];
 
     private async Task<(ProfileService Service, InstanceProfile Source)> CreateWithSourceAsync(
         Action<ProfilePackageEntry> configureEntry)
     {
-        var service = new ProfileService(NullLogger<ProfileService>.Instance);
+        var service = new ProfileService(NullLogger<ProfileService>.Instance, _dataDir);
         await service.SetCurrentGameAsync(NewGameName());
 
         var source = await service.CreateProfileAsync("源方案");
@@ -113,9 +116,7 @@ public sealed class ProfileServiceCloneTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var game in _gameNames)
-        {
-            try { File.Delete(Path.Combine(_dataDir, $"{game}_profiles.json")); } catch { }
-        }
+        try { if (Directory.Exists(_dataDir)) Directory.Delete(_dataDir, recursive: true); }
+        catch { /* 临时目录清理失败不影响测试结论 */ }
     }
 }

@@ -1,0 +1,910 @@
+using System.Reflection;
+using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
+using UEModManager.Services;
+using UEModManager.Services.Paths;
+
+namespace UEModManager.Tests.Services;
+
+/// <summary>
+/// 数据搬迁<b>编排层</b>的测试，对应迁移方案 §七 的 D0–D5 形态矩阵中一切
+/// 不依赖 GUI 的部分（"应用启动到主界面""界面显示是否正确"留给真机）。
+///
+/// <para>
+/// 这段编排逻辑至今一行都没被执行过：生产开关
+/// <c>DataLocationMigrator.ProductionRelocationExecutionEnabled</c> 仍是 false，
+/// 而它翻开的那一刻就会真的复制数据并删除旧位置。这里的用例就是那次"第一次执行"
+/// 的前置演练——每一条都在临时目录上把整个迁移器跑一遍真实的文件操作。
+/// </para>
+///
+/// <para>
+/// <b>绝不触碰开发机真实的 <c>%LOCALAPPDATA%</c> / <c>%APPDATA%</c>。</b>
+/// 迁移器的路径与偏好全部由 <see cref="DataMigrationEnvironment"/> 注入，
+/// 本类构造的环境只指向 <see cref="_root"/> 下的临时目录，偏好用内存替身。
+/// 这正是把 <c>AppPaths</c> / <c>UiPreferences</c> 两个静态全局从迁移器里挖出去的原因
+/// —— 本项目已经踩过一次：<c>OverwriteStore</c> 的测试原先靠"测试宿主进程目录"的
+/// 隐式隔离，路径归口之后就开始写真实 <c>%LOCALAPPDATA%</c> 了。
+/// </para>
+/// </summary>
+public sealed class DataLocationMigratorTests : IDisposable
+{
+    // 目录名刻意不带点：DataLocationMigrator.IsFileItem 用 Path.HasExtension 区分文件与目录，
+    // 临时目录里混进一个点会让"数据索引"被当成文件处理。
+    private readonly string _root;
+
+    /// <summary>假的安装目录（旧位置）。</summary>
+    private readonly string _install;
+
+    /// <summary>假的 <c>%LOCALAPPDATA%\UEModManager</c>（新位置）。</summary>
+    private readonly string _local;
+
+    /// <summary>假的 <c>%APPDATA%\UEModManager</c>（仓库/生成物的旧默认位置在此）。</summary>
+    private readonly string _roaming;
+
+    private readonly FakePreferences _prefs = new();
+
+    public DataLocationMigratorTests()
+    {
+        _root = Path.Combine(Path.GetTempPath(), "uemm_mig_" + Guid.NewGuid().ToString("N")[..8]);
+        _install = Path.Combine(_root, "install");
+        _local = Path.Combine(_root, "local");
+        _roaming = Path.Combine(_root, "roaming");
+        Directory.CreateDirectory(_install);
+    }
+
+    public void Dispose()
+    {
+        try { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
+        catch { /* 临时目录清理失败不影响测试结论 */ }
+    }
+
+    // ─── 环境构造 ───
+
+    /// <summary>与 <c>DataLocationMigrator.CreateProductionEnvironment</c> 逐项同构，只是根换成临时目录。</summary>
+    private DataMigrationPaths BuildPaths() => new(
+        LegacyConfigFile: Path.Combine(_install, "config.json"),
+        ConfigFile: Path.Combine(_local, "config.json"),
+        LegacyDeploymentBackupsDirectory: Path.Combine(_install, "Data", "Backups"),
+        DeploymentBackupsDirectory: Path.Combine(_local, "Backups", "Deployments"),
+        LegacyDataDirectory: Path.Combine(_install, "Data"),
+        DataDirectory: Path.Combine(_local, "Data"),
+        LegacyModBackupsDirectory: Path.Combine(_install, "Backups"),
+        ModBackupsDirectory: Path.Combine(_local, "Backups", "Mods"),
+        LegacyRepositoryRoot: Path.Combine(_roaming, "Repository"),
+        LegacyOverwritesRoot: Path.Combine(_roaming, "Overwrites"));
+
+    private DataLocationMigrator CreateMigrator(
+        bool relocationEnabled = true, DataRelocationExecutor? executor = null)
+        => new(NullLogger<DataLocationMigrator>.Instance,
+            new DataMigrationEnvironment(BuildPaths(), _prefs, relocationEnabled),
+            executor);
+
+    private DataMigrationOutcome Run(
+        bool relocationEnabled = true, DataRelocationExecutor? executor = null)
+        => CreateMigrator(relocationEnabled, executor).RunAsync().GetAwaiter().GetResult();
+
+    // ─── 形态构造 ───
+
+    private string LegacyData(string relativePath) => Path.Combine(_install, "Data", relativePath);
+    private string LegacyModBackup(string relativePath) => Path.Combine(_install, "Backups", relativePath);
+    private string LegacyDeployBackup(string relativePath)
+        => Path.Combine(_install, "Data", "Backups", relativePath);
+
+    private static void Write(string path, string content)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+    }
+
+    private static string Escape(string path) => path.Replace(@"\", @"\\");
+
+    /// <summary>
+    /// D1 典型老用户：exe 旁有 config.json、Data 下有三个游戏索引、Backups 下有 MOD 备份，
+    /// %APPDATA% 下有仓库与生成物。config.json 里的 BackupPath / GameIcons 是绝对路径，
+    /// 指向即将被搬走的两个目录。
+    /// </summary>
+    private void SeedTypicalLegacyUser()
+    {
+        Write(Path.Combine(_install, "config.json"),
+            $$"""
+            {
+              "GamePath": "D:\\Games\\Wukong",
+              "BackupPath": "{{Escape(Path.Combine(_install, "Backups", "悟空_备份"))}}",
+              "GameIcons": {
+                "黑神话": "{{Escape(Path.Combine(_install, "Data", "GameIcons", "wukong.png"))}}"
+              },
+              "UnknownFutureField": 42
+            }
+            """);
+
+        Write(LegacyData("wukong_mods.json"), """[{"Name":"MOD-A"},{"Name":"MOD-B"}]""");
+        Write(LegacyData("wukong_profiles.json"), """[{"Name":"默认方案"}]""");
+        Write(LegacyData("wukong_categories.json"), """{"MOD-A":["武器"]}""");
+        Write(LegacyData(Path.Combine("GameIcons", "wukong.png")), "\u0089PNG-fake-bytes");
+        Write(LegacyData(Path.Combine("LaunchSessions", "s1.json")), """{"At":"2026-07-01"}""");
+
+        Write(LegacyModBackup(Path.Combine("悟空_备份", "old.pak")), "备份内容 with \r\n 混合换行\n");
+
+        Write(Path.Combine(_roaming, "Repository", "pkg-1", "body.bin"), "包实体");
+        Write(Path.Combine(_roaming, "Overwrites", "ow-1", "gen.bin"), "生成物");
+    }
+
+    /// <summary>部署事务备份（<c>Data\Backups</c>）—— 数据索引的子目录，但目标位置完全不同。</summary>
+    private void SeedDeploymentBackups()
+    {
+        Write(LegacyDeployBackup("tx-001.json"), """{"Id":"tx-001","Files":["a.pak"]}""");
+        Write(LegacyDeployBackup(Path.Combine("tx-001", "a.pak")), "被覆盖前的原文件");
+    }
+
+    // ─── 快照与比对 ───
+
+    /// <summary>目录内容快照：相对路径 → 字节。用于逐字节一致性与"第二次是空操作"的断言。</summary>
+    private static SortedDictionary<string, byte[]> SnapshotBytes(string root)
+    {
+        var snapshot = new SortedDictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(root)) return snapshot;
+
+        foreach (var file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+        {
+            snapshot[Path.GetRelativePath(root, file)] = File.ReadAllBytes(file);
+        }
+        return snapshot;
+    }
+
+    /// <summary>
+    /// "数据索引"这一项自己的内容快照 —— 顶层的 <c>Backups</c> 是"部署事务备份"那一项的地盘，
+    /// 靠排除清单与数据索引解耦，不参与数据索引的搬移，自然也不该算进它的预期内容。
+    /// </summary>
+    private SortedDictionary<string, byte[]> SnapshotDataIndexOnly(string dataRoot)
+    {
+        var snapshot = SnapshotBytes(dataRoot);
+        foreach (var key in snapshot.Keys
+                     .Where(k => k.StartsWith("Backups" + Path.DirectorySeparatorChar,
+                         StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            snapshot.Remove(key);
+        }
+        return snapshot;
+    }
+
+    /// <summary>整棵树的"文件 → 字节 + 最后写入时间"快照。比只比内容更狠：连"白写一遍同样内容"都会被抓到。</summary>
+    private static SortedDictionary<string, (long Length, DateTime WrittenUtc, byte[] Bytes)> SnapshotTree(string root)
+    {
+        var snapshot = new SortedDictionary<string, (long, DateTime, byte[])>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(root)) return snapshot;
+
+        foreach (var file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+        {
+            var info = new FileInfo(file);
+            snapshot[Path.GetRelativePath(root, file)] =
+                (info.Length, info.LastWriteTimeUtc, File.ReadAllBytes(file));
+        }
+        return snapshot;
+    }
+
+    private static void AssertSameBytes(
+        SortedDictionary<string, byte[]> expected, SortedDictionary<string, byte[]> actual)
+    {
+        Assert.Equal(expected.Keys, actual.Keys);
+        foreach (var (relative, bytes) in expected)
+        {
+            Assert.Equal(bytes, actual[relative]);
+        }
+    }
+
+    private static void AssertTreeUnchanged(
+        SortedDictionary<string, (long Length, DateTime WrittenUtc, byte[] Bytes)> before,
+        SortedDictionary<string, (long Length, DateTime WrittenUtc, byte[] Bytes)> after)
+    {
+        Assert.Equal(before.Keys, after.Keys);
+        foreach (var (relative, expected) in before)
+        {
+            var actual = after[relative];
+            Assert.Equal(expected.Length, actual.Length);
+            Assert.Equal(expected.Bytes, actual.Bytes);
+            Assert.Equal(expected.WrittenUtc, actual.WrittenUtc);
+        }
+    }
+
+    private bool DirectoryTombstoneExists(string legacyDirectory)
+        => File.Exists(Path.Combine(legacyDirectory, DataRelocationExecutor.DirectoryTombstoneName));
+
+    private IReadOnlyList<string> AllTombstones()
+        => Directory.Exists(_root)
+            ? Directory.GetFiles(_root, "*", SearchOption.AllDirectories)
+                .Where(DataRelocationExecutor.IsTombstone).OrderBy(x => x).ToList()
+            : Array.Empty<string>();
+
+    // ─── 生产默认值守卫 ───
+
+    /// <summary>
+    /// <b>这条用例的作用是拦住"顺手把开关翻开"。</b>翻开它意味着正式版会真的复制数据、
+    /// 删除旧位置，那是一次需要 D0–D5 真机验收背书的决定，不该跟着某次重构溜进来。
+    /// 真要翻开时，请连同本用例一起改，并在提交信息里写清真机验收结论。
+    /// </summary>
+    [Fact]
+    public void 生产搬移开关必须保持关闭()
+    {
+        var field = typeof(DataLocationMigrator).GetField(
+            "ProductionRelocationExecutionEnabled",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(field);
+        Assert.False((bool)field!.GetRawConstantValue()!);
+    }
+
+    /// <summary>开关的默认值也必须是"不搬"：漏传参数时应该退到最保守的行为。</summary>
+    [Fact]
+    public void 环境的搬移开关默认关闭()
+        => Assert.False(new DataMigrationEnvironment(BuildPaths(), _prefs).RelocationExecutionEnabled);
+
+    /// <summary>
+    /// 开关关闭时（= 当前生产行为）：搬移类动作一律推迟，磁盘一个字节都不动。
+    /// 原地登记不受开关影响——它只写配置值，要么与当前行为等价，要么写的是还没有读取方的新键。
+    /// </summary>
+    [Fact]
+    public void 开关关闭时不动任何文件且不打版本标记()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var before = SnapshotTree(_root);
+
+        var outcome = Run(relocationEnabled: false);
+
+        Assert.Equal(4, outcome.Deferred);              // 主配置 / 部署事务备份 / 数据索引 / MOD 备份
+        Assert.Equal(2, outcome.Executed);              // 两项原地登记
+        Assert.Equal(0, outcome.Failed);
+        Assert.False(outcome.Completed);                // 有推迟项就不算完成
+        Assert.Equal(0, _prefs.DataLayoutVersion);      // 因而绝不能打版本标记
+        Assert.Empty(AllTombstones());
+        AssertTreeUnchanged(before, SnapshotTree(_root));
+    }
+
+    // ─── D0 全新安装 ───
+
+    [Fact]
+    public void D0_全新安装不产生搬移与墓碑()
+    {
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Executed);
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(0, outcome.Deferred);
+        Assert.True(outcome.Completed);
+        Assert.Empty(AllTombstones());
+
+        // 无旧数据时不该凭空建出新目录，也不该往偏好里写任何自定义位置
+        Assert.False(Directory.Exists(_local));
+        Assert.Null(_prefs.RepositoryRoot);
+        Assert.Null(_prefs.OverwritesRoot);
+
+        // 版本标记仍要打：否则每次启动都要重新探测一遍磁盘
+        Assert.Equal(DataRelocationPlanner.CurrentLayoutVersion, _prefs.DataLayoutVersion);
+    }
+
+    [Fact]
+    public void D0_连跑两次第二次是彻底的空操作()
+    {
+        Run();
+        var after1 = SnapshotTree(_root);
+
+        var outcome2 = Run();
+
+        Assert.Equal(0, outcome2.Executed);
+        Assert.Equal(1, _prefs.DataLayoutVersionSaveCount); // 第二次不再重复写标记
+        AssertTreeUnchanged(after1, SnapshotTree(_root));
+    }
+
+    // ─── D1 典型老用户 ───
+
+    [Fact]
+    public void D1_老用户数据搬到新位置且逐字节一致()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+        var modBackupsBefore = SnapshotBytes(Path.Combine(_install, "Backups"));
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(0, outcome.Deferred);
+        Assert.True(outcome.Completed);
+        // 主配置 + 数据索引 + MOD 备份 + 包仓库登记 + 生成物登记；部署事务备份此形态下不存在
+        Assert.Equal(5, outcome.Executed);
+        Assert.Equal(1, outcome.Skipped);
+
+        // 条数与内容都要对得上——只比条数抓不到"复制了但内容变了"
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        AssertSameBytes(modBackupsBefore, SnapshotBytes(Path.Combine(_local, "Backups", "Mods")));
+        Assert.Equal(5, dataBefore.Count);
+
+        // 旧位置留墓碑，数据已清空
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Backups")));
+        Assert.True(File.Exists(Path.Combine(_install, "config.json")
+            + DataRelocationExecutor.FileTombstoneSuffix));
+        Assert.False(File.Exists(Path.Combine(_install, "config.json")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Backups")));
+
+        // 仓库与生成物原地登记：一个字节都不搬，只把当前位置写进偏好
+        Assert.Equal(Path.Combine(_roaming, "Repository"), _prefs.RepositoryRoot);
+        Assert.Equal(Path.Combine(_roaming, "Overwrites"), _prefs.OverwritesRoot);
+        Assert.True(File.Exists(Path.Combine(_roaming, "Repository", "pkg-1", "body.bin")));
+    }
+
+    [Fact]
+    public void D1_配置里的绝对路径跟着搬到新位置()
+    {
+        SeedTypicalLegacyUser();
+
+        Run();
+
+        var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_local, "config.json"))).RootElement;
+        Assert.Equal(
+            Path.Combine(_local, "Backups", "Mods", "悟空_备份"),
+            config.GetProperty("BackupPath").GetString());
+        Assert.Equal(
+            Path.Combine(_local, "Data", "GameIcons", "wukong.png"),
+            config.GetProperty("GameIcons").GetProperty("黑神话").GetString());
+
+        // 与本次搬迁无关的字段一个都不能动，包括当前模型不认识的
+        Assert.Equal(@"D:\Games\Wukong", config.GetProperty("GamePath").GetString());
+        Assert.Equal(42, config.GetProperty("UnknownFutureField").GetInt32());
+    }
+
+    [Fact]
+    public void D1_连跑两次第二次是彻底的空操作()
+    {
+        SeedTypicalLegacyUser();
+        Run();
+        var after1 = SnapshotTree(_root);
+
+        var outcome2 = Run();
+
+        Assert.Equal(0, outcome2.Executed);
+        Assert.Equal(0, outcome2.Failed);
+        Assert.Equal(6, outcome2.Skipped);
+        Assert.Equal(1, _prefs.DataLayoutVersionSaveCount);
+        // 连 config.json 的最后写入时间都不该被扰动：无改动就不写盘
+        AssertTreeUnchanged(after1, SnapshotTree(_root));
+    }
+
+    // ─── D2 自定义仓库位置（关键项） ───
+
+    [Fact]
+    public void D2_用户自定义的仓库位置一个字都不能动()
+    {
+        SeedTypicalLegacyUser();
+        var custom = Path.Combine(_root, "custom-repo");
+        Write(Path.Combine(custom, "pkg-9", "body.bin"), "用户放在别的盘的包");
+        _prefs.RepositoryRoot = custom;
+        _prefs.ResetCounters();
+        var customBefore = SnapshotTree(custom);
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(custom, _prefs.RepositoryRoot);
+        Assert.Equal(0, _prefs.RepositoryRootSaveCount);   // 连"写回同一个值"都不许发生
+        AssertTreeUnchanged(customBefore, SnapshotTree(custom));
+
+        // 旧的默认仓库位置同样保持原样：用户已自定义，这里的残留不归迁移器处置
+        Assert.True(File.Exists(Path.Combine(_roaming, "Repository", "pkg-1", "body.bin")));
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_roaming, "Repository")));
+
+        // 其余项照常搬迁，不因为仓库被跳过而受影响
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+    }
+
+    [Fact]
+    public void D2_连跑两次仍不碰自定义仓库()
+    {
+        SeedTypicalLegacyUser();
+        var custom = Path.Combine(_root, "custom-repo");
+        Write(Path.Combine(custom, "pkg-9", "body.bin"), "用户放在别的盘的包");
+        _prefs.RepositoryRoot = custom;
+
+        Run();
+        var after1 = SnapshotTree(_root);
+        _prefs.ResetCounters();
+
+        var outcome2 = Run();
+
+        Assert.Equal(0, outcome2.Executed);
+        Assert.Equal(0, _prefs.RepositoryRootSaveCount);
+        Assert.Equal(custom, _prefs.RepositoryRoot);
+        AssertTreeUnchanged(after1, SnapshotTree(_root));
+    }
+
+    // ─── D5 中断恢复（关键项） ───
+
+    [Fact]
+    public void D5_复制中途中断_重启后清空目标重来且不留残留()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        var interrupted = Run(executor: new FaultInjectingExecutor("数据索引", FaultStage.DuringCopy));
+
+        Assert.Equal(1, interrupted.Failed);
+        Assert.False(interrupted.Completed);
+        Assert.Equal(0, _prefs.DataLayoutVersion);                                  // 没搬完不许打标记
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Data")));      // 没有墓碑
+        Assert.True(File.Exists(LegacyData("wukong_mods.json")));                    // 旧数据仍是唯一可信副本
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "上次中断的孤儿.json"))); // 目标里是半份数据
+
+        var healed = Run();
+
+        Assert.Equal(0, healed.Failed);
+        Assert.True(healed.Completed);
+        // 关键：必须先清空目标再重新复制，绝不能在残留上继续
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.False(File.Exists(Path.Combine(_local, "Data", "上次中断的孤儿.json")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+    }
+
+    [Fact]
+    public void D5_校验后写墓碑前中断_重启后重新复制而不是把残留当成完成()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        var interrupted = Run(executor: new FaultInjectingExecutor(
+            "数据索引", FaultStage.AfterVerifyBeforeTombstone));
+
+        Assert.Equal(1, interrupted.Failed);
+        // 目标是完整副本，但没有墓碑——这个状态外观上与"复制到一半"无法区分，
+        // 规划器只认墓碑，因此下一轮必然走 PurgeTargetThenCopy。
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.True(File.Exists(LegacyData("wukong_mods.json")));
+
+        var healed = Run();
+
+        Assert.Equal(0, healed.Failed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data")));
+    }
+
+    [Fact]
+    public void D5_删源中途中断_重启后续做删源而不重新复制()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        var interrupted = Run(executor: new FaultInjectingExecutor(
+            "数据索引", FaultStage.DuringDeleteLegacy));
+
+        Assert.Equal(1, interrupted.Failed);
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));   // 墓碑已写下
+        Assert.True(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data"))); // 源没删干净
+
+        // 在旧位置塞一个只有它才有的文件：若第二轮错误地重新复制，它会被带到新位置去
+        Write(LegacyData("不该被重新复制.json"), """{"stale":true}""");
+
+        var healed = Run();
+
+        Assert.Equal(0, healed.Failed);
+        Assert.True(healed.Completed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.False(File.Exists(Path.Combine(_local, "Data", "不该被重新复制.json")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data")));
+    }
+
+    /// <summary>
+    /// 方案 §七 第 9 项要求"反复中断 3 次以上，每次在不同阶段"。这里把三个阶段连成一串：
+    /// 复制中 → 校验后写墓碑前 → 删源中 → 正常跑完，全程不重启进程之外的任何状态。
+    /// </summary>
+    [Fact]
+    public void D5_三个阶段依次中断后仍能自愈且不产生重复或半份数据()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var dataBefore = SnapshotDataIndexOnly(Path.Combine(_install, "Data"));
+        var deployBefore = SnapshotBytes(Path.Combine(_install, "Data", "Backups"));
+
+        foreach (var stage in new[]
+                 {
+                     FaultStage.DuringCopy,
+                     FaultStage.AfterVerifyBeforeTombstone,
+                     FaultStage.DuringDeleteLegacy,
+                 })
+        {
+            var outcome = Run(executor: new FaultInjectingExecutor("数据索引", stage));
+            Assert.Equal(1, outcome.Failed);
+            Assert.Equal(0, _prefs.DataLayoutVersion);
+        }
+
+        var healed = Run();
+
+        Assert.Equal(0, healed.Failed);
+        Assert.True(healed.Completed);
+        Assert.Equal(DataRelocationPlanner.CurrentLayoutVersion, _prefs.DataLayoutVersion);
+
+        // 数据索引：内容逐字节一致，且不多不少
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        // 部署事务备份走的是另一条路，三次中断都不该波及它
+        AssertSameBytes(deployBefore, SnapshotBytes(Path.Combine(_local, "Backups", "Deployments")));
+        Assert.False(Directory.Exists(Path.Combine(_local, "Data", "Backups")));
+
+        // 再跑一次仍是空操作
+        var after = SnapshotTree(_root);
+        Assert.Equal(0, Run().Executed);
+        AssertTreeUnchanged(after, SnapshotTree(_root));
+    }
+
+    // ─── 部署事务备份与数据索引的解耦（编排层） ───
+
+    [Fact]
+    public void 部署事务备份与数据索引各自到达正确位置()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var deployBefore = SnapshotBytes(Path.Combine(_install, "Data", "Backups"));
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(6, outcome.Executed);
+
+        // 部署事务备份落在 Backups\Deployments，而不是跟着 Data 走到 Data\Backups
+        AssertSameBytes(deployBefore, SnapshotBytes(Path.Combine(_local, "Backups", "Deployments")));
+        Assert.False(Directory.Exists(Path.Combine(_local, "Data", "Backups")));
+
+        // 数据索引本身不受影响
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data", "Backups")));
+    }
+
+    [Fact]
+    public void 部署事务备份失败不波及数据索引且其数据完整留在旧位置()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var deployBefore = SnapshotBytes(Path.Combine(_install, "Data", "Backups"));
+
+        var outcome = Run(executor: new FaultInjectingExecutor("部署事务备份", FaultStage.BeforeCopy));
+
+        Assert.Equal(1, outcome.Failed);
+        // 数据索引照常到位
+        Assert.True(File.Exists(Path.Combine(_local, "Data", "wukong_mods.json")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        // 部署事务备份的数据一个字节都没少——它没有副本，被顺手删掉就是崩溃回滚彻底失效
+        AssertSameBytes(deployBefore, SnapshotBytes(Path.Combine(_install, "Data", "Backups")));
+        // 目标侧只可能剩一个进行中标记（复制前立的），没有任何数据落地
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(
+            Path.Combine(_local, "Backups", "Deployments")));
+    }
+
+    [Fact]
+    public void 数据索引失败不波及部署事务备份()
+    {
+        SeedTypicalLegacyUser();
+        SeedDeploymentBackups();
+        var dataBefore = SnapshotDataIndexOnly(Path.Combine(_install, "Data"));
+        var deployBefore = SnapshotBytes(Path.Combine(_install, "Data", "Backups"));
+
+        var outcome = Run(executor: new FaultInjectingExecutor("数据索引", FaultStage.BeforeCopy));
+
+        Assert.Equal(1, outcome.Failed);
+        AssertSameBytes(deployBefore, SnapshotBytes(Path.Combine(_local, "Backups", "Deployments")));
+        // 数据索引的内容原封不动留在旧位置（部署事务备份已被搬走，只剩它的墓碑）
+        AssertSameBytes(dataBefore, SnapshotDataIndexOnly(Path.Combine(_install, "Data")));
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_local, "Data")));
+    }
+
+    // ─── 搬迁失败时配置不被改写 ───
+
+    [Fact]
+    public void MOD备份搬迁失败时配置里的备份路径一个字都不改()
+    {
+        SeedTypicalLegacyUser();
+        var originalBackupPath = Path.Combine(_install, "Backups", "悟空_备份");
+
+        var outcome = Run(executor: new FaultInjectingExecutor("MOD 备份", FaultStage.BeforeCopy));
+
+        Assert.Equal(1, outcome.Failed);
+
+        // 主配置那一项自己搬成功了，配置已在新位置；但 BackupPath 必须仍指向旧位置——
+        // 数据确实还在那儿，改了配置反而会让备份写进一个空目录。
+        var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_local, "config.json"))).RootElement;
+        Assert.Equal(originalBackupPath, config.GetProperty("BackupPath").GetString());
+        // 数据索引搬成功了，GameIcons 就该改
+        Assert.Equal(
+            Path.Combine(_local, "Data", "GameIcons", "wukong.png"),
+            config.GetProperty("GameIcons").GetProperty("黑神话").GetString());
+        Assert.True(File.Exists(Path.Combine(originalBackupPath, "old.pak")));
+    }
+
+    [Fact]
+    public void 数据索引搬迁失败时游戏图标路径一个字都不改()
+    {
+        SeedTypicalLegacyUser();
+        var originalIcon = Path.Combine(_install, "Data", "GameIcons", "wukong.png");
+
+        var outcome = Run(executor: new FaultInjectingExecutor("数据索引", FaultStage.BeforeCopy));
+
+        Assert.Equal(1, outcome.Failed);
+
+        var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_local, "config.json"))).RootElement;
+        Assert.Equal(originalIcon, config.GetProperty("GameIcons").GetProperty("黑神话").GetString());
+        Assert.Equal(
+            Path.Combine(_local, "Backups", "Mods", "悟空_备份"),
+            config.GetProperty("BackupPath").GetString());
+    }
+
+    [Fact]
+    public void 全部搬迁失败时配置文件完全不被触碰()
+    {
+        SeedTypicalLegacyUser();
+        var configPath = Path.Combine(_install, "config.json");
+        var before = new FileInfo(configPath);
+        var (bytesBefore, writtenBefore) = (File.ReadAllBytes(configPath), before.LastWriteTimeUtc);
+
+        var outcome = Run(executor: new FaultInjectingExecutor(itemName: null, FaultStage.BeforeCopy));
+
+        Assert.Equal(3, outcome.Failed);   // 主配置 / 数据索引 / MOD 备份
+        Assert.Equal(bytesBefore, File.ReadAllBytes(configPath));
+        Assert.Equal(writtenBefore, new FileInfo(configPath).LastWriteTimeUtc);
+        Assert.Empty(AllTombstones());
+        Assert.Equal(0, _prefs.DataLayoutVersion);
+    }
+
+    // ─── 新位置已被应用正常使用（开关翻开当天的默认形态） ───
+
+    /// <summary>
+    /// <b>翻开开关那一刻每台老用户机器的真实形态。</b>
+    ///
+    /// <para>
+    /// 路径归口（c6523fc / 7c58a43）之后，全部读写方都走 <c>AppPaths</c> 的新位置，
+    /// 而搬移开关一直关着——于是老用户升级到 2.0.5 后，旧数据静静躺在安装目录，
+    /// <b>新数据一直在往 <c>%LOCALAPPDATA%</c> 里写</b>。开关翻开的那次启动，
+    /// 两处都有内容且都没有墓碑。
+    /// </para>
+    ///
+    /// <para>
+    /// 规划器此时给出 <c>PurgeTargetThenCopy</c>——它的前提是"目标里的东西是上次中断的半份数据"，
+    /// 但这里目标里的是用户升级之后所有的真实劳动。照着执行就是<b>清空新位置、把升级前的旧状态盖回去</b>，
+    /// 正是迁移方案 §三 否决"保留旧位置只读"时点名的那类 bug（"用户的方案/分类会凭空回退"），
+    /// 而且更糟——还带删除。
+    /// </para>
+    ///
+    /// <para>
+    /// 修法：搬迁器复制前在目标留一个"进行中标记"，复制+校验+写墓碑走完再清掉。
+    /// 有标记才证明残留是搬迁器自己的，才允许清空；没有标记就拒绝动手，该项计为失败，
+    /// 新旧两处数据一个字节都不动，用户拿到"迁移未完成"的提示。
+    /// 噪音换数据，这个交换在这里没有第二种选法。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void 新位置已有应用写入的数据时拒绝清空目标而不是把旧状态盖回去()
+    {
+        SeedTypicalLegacyUser();
+
+        // 用户升级后这段时间的劳动：新增了一个 MOD 清单、改了配置
+        Write(Path.Combine(_local, "Data", "wukong_mods.json"),
+            """[{"Name":"MOD-A"},{"Name":"MOD-B"},{"Name":"升级后新装的 MOD-C"}]""");
+        Write(Path.Combine(_local, "Data", "starfield_mods.json"), """[{"Name":"升级后新加的游戏"}]""");
+        Write(Path.Combine(_local, "config.json"), """{"GamePath":"E:\\Games\\Wukong"}""");
+        var localDataBefore = SnapshotTree(Path.Combine(_local, "Data"));
+        var localConfigBytes = File.ReadAllBytes(Path.Combine(_local, "config.json"));
+        var localConfigWritten = new FileInfo(Path.Combine(_local, "config.json")).LastWriteTimeUtc;
+        var legacyDataBefore = SnapshotTree(Path.Combine(_install, "Data"));
+        var legacyConfigBytes = File.ReadAllBytes(Path.Combine(_install, "config.json"));
+
+        var outcome = Run();
+
+        // 主配置与数据索引两项都必须拒绝执行
+        Assert.Equal(2, outcome.Failed);
+        Assert.False(outcome.Completed);
+        Assert.True(outcome.ShouldNotifyUser);
+        Assert.Equal(0, _prefs.DataLayoutVersion);
+
+        // 冲突的两项：新旧两处的数据一个字节都不许动
+        AssertTreeUnchanged(localDataBefore, SnapshotTree(Path.Combine(_local, "Data")));
+        AssertTreeUnchanged(legacyDataBefore, SnapshotTree(Path.Combine(_install, "Data")));
+        Assert.Equal(localConfigBytes, File.ReadAllBytes(Path.Combine(_local, "config.json")));
+        Assert.Equal(localConfigWritten,
+            new FileInfo(Path.Combine(_local, "config.json")).LastWriteTimeUtc);
+        Assert.Equal(legacyConfigBytes, File.ReadAllBytes(Path.Combine(_install, "config.json")));
+
+        // 没搬成就没有墓碑，配置里的路径因而也一个字都不会被改写
+        Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.False(File.Exists(Path.Combine(_install, "config.json")
+            + DataRelocationExecutor.FileTombstoneSuffix));
+
+        // 不冲突的 MOD 备份照常搬迁：拒绝的粒度是单项，不是整体停摆
+        Assert.True(File.Exists(Path.Combine(_local, "Backups", "Mods", "悟空_备份", "old.pak")));
+    }
+
+    /// <summary>
+    /// 上一条的反面：残留确实是搬迁器自己留下的（有进行中标记）时，照旧清空重来。
+    /// 拒绝清空的判据必须精确到"是不是我写的"，宽一格就丢用户数据，严一格就治不好断电。
+    /// </summary>
+    [Fact]
+    public void 残留带着进行中标记时仍然清空重来()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+
+        // 模拟上次复制到一半断电：目标有半份数据 + 进行中标记
+        Write(Path.Combine(_local, "Data", "wukong_mods.json"), """[{"Name":"半份"}]""");
+        Write(Path.Combine(_local, "Data", "孤儿.json"), "{}");
+        Write(DataRelocationExecutor.GetInProgressMarkerPath(
+            Path.Combine(_local, "Data"), isFile: false), "in-progress");
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+        Assert.False(File.Exists(Path.Combine(_local, "Data", "孤儿.json")));
+        // 标记在写完墓碑后必须被清掉，否则它会永久授权下一次清空
+        Assert.False(File.Exists(DataRelocationExecutor.GetInProgressMarkerPath(
+            Path.Combine(_local, "Data"), isFile: false)));
+    }
+
+    /// <summary>进行中标记不能被当成"目标已有内容"，也不能混进复制与校验，否则会把自己卡死。</summary>
+    [Fact]
+    public void 只剩进行中标记的目标按空目标处理()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+        Write(DataRelocationExecutor.GetInProgressMarkerPath(
+            Path.Combine(_local, "Data"), isFile: false), "in-progress");
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+    }
+
+    // ─── 替身 ───
+
+    private enum FaultStage
+    {
+        /// <summary>整项失败，目标一个字节都没写过。</summary>
+        BeforeCopy,
+
+        /// <summary>复制到一半断电：目标里有半份数据 + 上次残留的孤儿文件，且没有墓碑。</summary>
+        DuringCopy,
+
+        /// <summary>复制与校验都完成、墓碑还没写下时断电。外观上与"复制到一半"无法区分。</summary>
+        AfterVerifyBeforeTombstone,
+
+        /// <summary>墓碑已写下、删源删到一半时断电。</summary>
+        DuringDeleteLegacy,
+    }
+
+    /// <summary>
+    /// 在四步搬移的<b>指定阶段</b>注入失败。
+    ///
+    /// <para>
+    /// 只覆盖单个步骤，不覆盖 <c>Execute</c>——步骤的先后顺序正是被测的不变量。
+    /// 断电落在哪一步决定了下次启动该走 PurgeTargetThenCopy 还是 ResumeCleanup，
+    /// 而这三种中断没法靠真实的强杀进程稳定复现，必须精确注入。
+    /// </para>
+    /// </summary>
+    /// <param name="itemName">只对这一项注入失败；<c>null</c> 表示所有搬移项都失败。</param>
+    private sealed class FaultInjectingExecutor(string? itemName, FaultStage stage) : DataRelocationExecutor
+    {
+        private bool Targets(RelocationStep step) => itemName is null || step.Name == itemName;
+
+        public override void CopyAndVerify(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
+        {
+            if (!Targets(step) || stage is not (FaultStage.BeforeCopy or FaultStage.DuringCopy))
+            {
+                base.CopyAndVerify(step, isFile, excludedChildDirectories);
+                return;
+            }
+
+            if (stage == FaultStage.BeforeCopy) throw new IOException("模拟：该项整体失败");
+
+            WriteHalfOfTarget(step, isFile);
+            throw new IOException("模拟：复制中途断电");
+        }
+
+        public override void WriteTombstone(RelocationStep step, bool isFile)
+        {
+            if (Targets(step) && stage == FaultStage.AfterVerifyBeforeTombstone)
+            {
+                throw new IOException("模拟：校验通过、写墓碑前断电");
+            }
+
+            base.WriteTombstone(step, isFile);
+        }
+
+        public override void DeleteLegacy(RelocationStep step, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
+        {
+            if (!Targets(step) || stage != FaultStage.DuringDeleteLegacy)
+            {
+                base.DeleteLegacy(step, isFile, excludedChildDirectories);
+                return;
+            }
+
+            // 删掉一个就断电，剩下的留给下次启动续做
+            var victim = Directory.GetFiles(step.LegacyPath)
+                .FirstOrDefault(f => !IsTombstone(f));
+            if (victim != null) File.Delete(victim);
+            throw new IOException("模拟：删源中途断电");
+        }
+
+        /// <summary>只复制顶层第一个文件，并额外留下一个孤儿文件冒充上一版本的残留。</summary>
+        private static void WriteHalfOfTarget(RelocationStep step, bool isFile)
+        {
+            if (isFile)
+            {
+                var dir = Path.GetDirectoryName(step.TargetPath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(step.TargetPath, "{");   // 截断的半份文件
+                return;
+            }
+
+            Directory.CreateDirectory(step.TargetPath);
+            var first = Directory.GetFiles(step.LegacyPath).FirstOrDefault(f => !IsTombstone(f));
+            if (first != null)
+            {
+                File.Copy(first, Path.Combine(step.TargetPath, Path.GetFileName(first)), overwrite: true);
+            }
+            File.WriteAllText(Path.Combine(step.TargetPath, "上次中断的孤儿.json"), "{}");
+        }
+    }
+
+    /// <summary>
+    /// <see cref="IDataMigrationPreferences"/> 的内存替身。
+    ///
+    /// <para>
+    /// 生产实现转调静态的 <c>UiPreferences</c>——进程级内存单例 + 真实的
+    /// <c>%APPDATA%\UEModManager\ui_config.json</c>，用例之间会互相串味，
+    /// 还会改掉开发者本机的配置。替身另外记下写入次数，
+    /// 用来断言"第二次启动是彻底的空操作"和"自定义仓库位置连写回同一个值都不许"。
+    /// </para>
+    /// </summary>
+    private sealed class FakePreferences : IDataMigrationPreferences
+    {
+        public int DataLayoutVersion { get; private set; }
+        public string? RepositoryRoot { get; set; }
+        public string? OverwritesRoot { get; set; }
+
+        public int DataLayoutVersionSaveCount { get; private set; }
+        public int RepositoryRootSaveCount { get; private set; }
+        public int OverwritesRootSaveCount { get; private set; }
+
+        public void ResetCounters()
+        {
+            DataLayoutVersionSaveCount = 0;
+            RepositoryRootSaveCount = 0;
+            OverwritesRootSaveCount = 0;
+        }
+
+        public int LoadDataLayoutVersion() => DataLayoutVersion;
+
+        public void SaveDataLayoutVersion(int version)
+        {
+            DataLayoutVersion = version;
+            DataLayoutVersionSaveCount++;
+        }
+
+        public string? LoadRepositoryRoot() => RepositoryRoot;
+
+        public void SaveRepositoryRoot(string? path)
+        {
+            RepositoryRoot = path;
+            RepositoryRootSaveCount++;
+        }
+
+        public string? LoadOverwritesRoot() => OverwritesRoot;
+
+        public void SaveOverwritesRoot(string? path)
+        {
+            OverwritesRoot = path;
+            OverwritesRootSaveCount++;
+        }
+    }
+}
