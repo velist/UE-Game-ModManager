@@ -130,8 +130,14 @@ namespace UEModManager.Infrastructure
         // ─── 旧位置（仅供迁移器使用） ───
 
         /// <summary>
-        /// 迁移前的旧位置。除 <c>DataLocationMigrator</c> 外不应有任何消费者——
-        /// 新代码一律走上面的属性。
+        /// 迁移前的旧位置。**写入方一律不得使用**——新代码只写上面的属性。
+        ///
+        /// <para>
+        /// 合法的消费者只有两类：<c>DataLocationMigrator</c>（把数据从这里搬走），
+        /// 以及 <c>DiagnosticExportService</c>（诊断包新旧位置都采——搬迁可能尚未执行、
+        /// 中途失败或降级，而排障最需要证据的恰恰是这些"没按预期发生"的时刻）。
+        /// 再多一个消费者之前请先想清楚：它是在读历史遗留，还是在给旧位置续命。
+        /// </para>
         /// </summary>
         public static class Legacy
         {
