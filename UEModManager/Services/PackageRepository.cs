@@ -372,7 +372,21 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查仓库完整性（manifest 存在且文件齐全，并反向检出未登记的残留目录）。
+        /// 检查仓库完整性：从索引出发，逐个包核对 manifest 与文件是否齐全。
+        ///
+        /// <para>
+        /// **只做正向检查**。"磁盘上有目录、索引里没记录"的反向检查归
+        /// <see cref="RepositoryReclaimService"/>：那条判定需要跨游戏读取全部
+        /// <c>*_packages.json</c>（仓库根全局共享而索引按游戏分文件）、需要排除
+        /// <c>.import-tmp</c> 这类内部目录、还需要看目录形态才能区分"导入残留"与
+        /// "用户把仓库根指到了自己已有的文件夹"。这套判据一旦有两份实现就一定会漂移，
+        /// 而漂移的后果是误删用户数据，所以只留一份在 Core 的
+        /// <c>RepositoryReclaimPlanner</c> 里，本类不再重复。
+        /// </para>
+        /// <para>
+        /// 这里检出的"文件缺失"是另一类不一致（索引记了、实体不全），**永远不会被自动清理**：
+        /// 那是数据丢失而不是垃圾，删掉只会让用户连"曾经有这个包"都看不到。
+        /// </para>
         /// </summary>
         public Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
         {
@@ -391,34 +405,7 @@ namespace UEModManager.Services
                     issues.Add((pkg.PackageKey, $"文件缺失: 期望 {expectedCount}, 实际 {files.Count}"));
             }
 
-            issues.AddRange(FindOrphanPackageDirectories());
             return Task.FromResult(issues);
-        }
-
-        /// <summary>
-        /// 反向检查：磁盘上有目录、却没有 manifest.json 的包。
-        ///
-        /// 只从索引出发的正向检查永远看不到这类目录，而它们正是导入中途失败的残留
-        /// （先逐个文件落盘，最后才写 manifest + 索引）。
-        /// 只报"无 manifest"的目录：仓库根跨游戏共享，有 manifest 但不在当前游戏索引里的，
-        /// 通常是别的游戏的包，不是问题。
-        /// </summary>
-        private List<(string packageKey, string issue)> FindOrphanPackageDirectories()
-        {
-            var orphans = new List<(string, string)>();
-            var indexed = new HashSet<string>(
-                _packages.Select(p => p.PackageKey), StringComparer.OrdinalIgnoreCase);
-
-            foreach (var key in _objectStore.EnumeratePackageKeys())
-            {
-                if (indexed.Contains(key) || _objectStore.PackageExists(key)) continue;
-                orphans.Add((key, "导入残留目录（无 manifest.json，索引中也无记录）"));
-            }
-
-            if (orphans.Count > 0)
-                _logger.LogWarning("发现 {Count} 个导入残留目录", orphans.Count);
-
-            return orphans;
         }
 
         // ─── 持久化 ───

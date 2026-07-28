@@ -22,6 +22,7 @@ namespace UEModManager.Views
         private readonly ConfigMergeEngine _configMergeEngine;
         private readonly OverwriteStore _overwriteStore;
         private readonly DiagnosticExportService _diagnosticExport;
+        private readonly RepositoryReclaimService _reclaim;
 
         private int _activeTab;
 
@@ -31,7 +32,8 @@ namespace UEModManager.Views
             DeploymentService deploymentService,
             ConfigMergeEngine configMergeEngine,
             OverwriteStore overwriteStore,
-            DiagnosticExportService diagnosticExport)
+            DiagnosticExportService diagnosticExport,
+            RepositoryReclaimService reclaim)
         {
             InitializeComponent();
             _packageRepo = packageRepo;
@@ -40,6 +42,7 @@ namespace UEModManager.Views
             _configMergeEngine = configMergeEngine;
             _overwriteStore = overwriteStore;
             _diagnosticExport = diagnosticExport;
+            _reclaim = reclaim;
 
             Loaded += OnLoaded;
         }
@@ -319,22 +322,23 @@ namespace UEModManager.Views
 
         // ─── MOD 库操作 ───
 
-        private async void RepoCheckIntegrity_Click(object sender, RoutedEventArgs e)
-        {
-            try
+        private void RepoCheckIntegrity_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
+                // 正向检查（索引 → 磁盘）之外还要反向扫描（磁盘 → 索引）：
+                // "磁盘上有、索引里没有"的导入残留在界面上完全不可见，只有这里能发现它。
                 var issues = await _packageRepo.CheckIntegrityAsync();
+                var plan = _reclaim.BuildPlan();
+                var problemCount = issues.Count + plan.Reclaimable.Count + plan.Unregistered.Count;
+
                 CyberMessageBox.Show(this,
-                    issues.Count == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {issues.Count} 个文件问题",
+                    problemCount == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {problemCount} 个文件问题",
                     "检查缺失文件", MessageBoxButton.OK,
-                    issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                    problemCount == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+                RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, plan);
                 await LoadModLibAsync();
-            }
-            catch (Exception ex)
-            {
-                CyberMessageBox.Show(this, $"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+            }, null, "检查仓库完整性");
 
         private async void RepoMergeDuplicates_Click(object sender, RoutedEventArgs e)
         {
@@ -404,6 +408,10 @@ namespace UEModManager.Views
                 }
 
                 CyberMessageBox.Show(this, $"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // 用户点"清理未使用文件"要的是腾空间，而占空间最狠的往往不是这些登记在册的包，
+                // 而是索引里根本没有记录的导入残留 —— 顺带问一句，否则那部分永远没人清。
+                RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, _reclaim.BuildPlan());
                 await LoadModLibAsync();
             }
             catch (Exception ex)
