@@ -107,14 +107,15 @@ namespace UEModManager
                     UpdateUserStatusDisplay();
                 }
 
-                // 订阅 ViewModel 事件
-                _vm.ModList.ModSelected += OnModSelected;
+                // 订阅 ViewModel 事件。
+                // ModList.ModSelected 只由 MainViewModel 订阅：这里曾有第二个 handler，
+                // 与 VM 那份对"取消选中"的处理相反，谁最后订阅谁说了算。见 MainViewModel。
                 _vm.ModDetail.ModStateChanged += async () => await RefreshAfterModChange();
                 _vm.ModDetail.CloseRequested += () => _vm.IsDetailPanelOpen = false;
 
-                // 订阅 Profile 变化事件
-                _vm.ProfileService.ProfileChanged += OnProfileSelectorUpdate;
-                _vm.ProfileService.ProfileListChanged += () => Dispatcher.Invoke(UpdateProfileSelector);
+                // 方案选择器的名称/摘要走 XAML 绑定（{Binding CurrentProfileName/CurrentProfileSummary}），
+                // ProfileChanged / ProfileListChanged 由 MainViewModel 独家订阅，
+                // 这里不再挂第二份直接写 TextBlock.Text 的实现。
 
                 // 拖拽
                 AllowDrop = true;
@@ -346,8 +347,8 @@ namespace UEModManager
             LanguageManager.LanguageChanged -= OnLanguageChanged;
             BackgroundManager.BackgroundChanged -= OnBackgroundChanged;
 
-            // ProfileService 是单例，退订后 ViewModel 才能被回收
-            _vm.ProfileService.ProfileChanged -= OnProfileSelectorUpdate;
+            // ProfileService 是单例，退订后 ViewModel 才能被回收。
+            // 本窗口自己已不再订阅它的事件，退订由 MainViewModel.Dispose 完成。
             _vm.Dispose();
         }
 
@@ -479,11 +480,13 @@ namespace UEModManager
                         menu.Items.Add(new Separator { Style = FindResource("CyberMenuSeparator") as Style });
 
                         var logoutItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Log Out" : "退出登录", Style = FindResource("CyberMenuItemDanger") as Style };
-                        logoutItem.Click += async (_, _) =>
+                        logoutItem.Click += (_, _) => SafeEvent.Run(this, async () =>
                         {
-                            try { await _localAuthService.LogoutAsync(); UpdateUserStatusDisplay(); }
-                            catch { }
-                        };
+                            // 原先是 try { ... } catch { } 的裸 async void：退出登录失败
+                            // 既不弹窗也不留日志，界面还停在已登录状态，用户只会觉得"点了没反应"。
+                            await _localAuthService.LogoutAsync();
+                            UpdateUserStatusDisplay();
+                        }, _logger, "退出登录");
                         menu.Items.Add(logoutItem);
 
                         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
@@ -594,7 +597,9 @@ namespace UEModManager
 
                 var addItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Add New Game..." : "添加新游戏...", Style = FindResource("CyberMenuItem") as Style,
                                              Foreground = FindResource("PrimaryBrush") as Brush };
-                addItem.Click += async (_, _) =>
+                // 裸 async void lambda 抛出去只能落到全局 DispatcherUnhandledException——
+                // 能弹窗，但不带"添加新游戏"这个上下文，日志里也看不出是哪一步失败的。
+                addItem.Click += (_, _) => SafeEvent.Run(this, async () =>
                 {
                     var dialog = new AddCustomGameDialog { Owner = this };
                     if (dialog.ShowDialog() == true)
@@ -609,7 +614,7 @@ namespace UEModManager
 
                         ShowGamePathDialog(dialog.GameName);
                     }
-                };
+                }, _logger, "添加新游戏");
                 menu.Items.Add(addItem);
 
                 menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
@@ -635,33 +640,13 @@ namespace UEModManager
                 profileWindow.LoadForGame(_gameConfig.CurrentGameName);
                 profileWindow.ShowDialog();
 
-                // 关闭方案管理窗口后刷新
-                UpdateProfileSelector();
+                // 关闭方案管理窗口后刷新（方案可能被改名/切换/删除）
+                _vm.RefreshProfileDisplay();
                 _ = _vm.RefreshFromRepositoryAsync();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Profile] 打开方案管理失败: {ex.Message}");
-            }
-        }
-
-        private void OnProfileSelectorUpdate(Models.InstanceProfile? profile)
-        {
-            Dispatcher.Invoke(UpdateProfileSelector);
-        }
-
-        private void UpdateProfileSelector()
-        {
-            var profile = _vm.ProfileService.CurrentProfile;
-            if (profile != null)
-            {
-                ProfileSelectorName.Text = profile.Name;
-                ProfileSelectorSummary.Text = $"{profile.EnabledCount}/{profile.TotalCount} 已启用";
-            }
-            else
-            {
-                ProfileSelectorName.Text = "未选择";
-                ProfileSelectorSummary.Text = "";
             }
         }
 
@@ -956,12 +941,6 @@ namespace UEModManager
 
                 e.Handled = true;
             }
-        }
-
-        private void OnModSelected(ModInfo? mod)
-        {
-            _vm.ModDetail.CurrentMod = mod;
-            _vm.IsDetailPanelOpen = mod != null;
         }
 
         private void OpenModDetailWindow(ModInfo mod)

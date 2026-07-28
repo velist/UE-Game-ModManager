@@ -443,12 +443,13 @@
                                                            Foreground="{StaticResource PrimaryBrush}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
-                                            <!-- 方案名称 + 摘要 -->
+                                            <!-- 方案名称 + 摘要：绑 MainViewModel，code-behind 不再直接写 Text
+                                                 （去掉 x:Name 就是为了让"再写回去"这件事编译不过） -->
                                             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock x:Name="ProfileSelectorName" Text="默认 MOD 方案"
+                                                <TextBlock Text="{Binding CurrentProfileName}"
                                                            Foreground="{StaticResource Text200Brush}"
                                                            FontSize="12" FontWeight="Medium"/>
-                                                <TextBlock x:Name="ProfileSelectorSummary" Text=""
+                                                <TextBlock Text="{Binding CurrentProfileSummary}"
                                                            Foreground="{StaticResource Text500Brush}"
                                                            FontSize="10" Margin="0,1,0,0"/>
                                             </StackPanel>
