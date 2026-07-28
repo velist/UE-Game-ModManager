@@ -26,6 +26,13 @@ namespace UEModManager.Services
     /// </para>
     ///
     /// <para>
+    /// 还有一条<b>什么都不搬</b>的路径：<see cref="RelocationAction.AdoptTargetKeepLegacy"/>
+    /// ——新位置已有应用写入的真实数据时认新位置为准，只在旧位置写一张"已跳过"标记
+    /// （见 <see cref="DirectorySupersededMarkerName"/>），旧数据原样留着。
+    /// 它是本类唯一一条<b>不产生任何数据移动</b>的动作，也是"零数据丢失"承诺的支点。
+    /// </para>
+    ///
+    /// <para>
     /// 四个步骤方法都是 <c>virtual</c>，<see cref="Execute"/> 刻意不是。这条界线是有意的：
     /// 派生类只允许替换<b>某一步做了什么</b>（测试据此在指定阶段注入失败，复现断电），
     /// 不允许替换<b>步骤的先后顺序</b>——顺序正是本类要守住的不变量，能被覆盖就守不住了。
@@ -38,6 +45,30 @@ namespace UEModManager.Services
 
         /// <summary>单文件搬迁的墓碑后缀。</summary>
         public const string FileTombstoneSuffix = ".migrated-to.txt";
+
+        /// <summary>
+        /// 目录"已跳过"标记的文件名（<see cref="RelocationAction.AdoptTargetKeepLegacy"/> 留下的）。
+        ///
+        /// <para>
+        /// <b>刻意与墓碑用不同的文件名，而不是同一个文件配不同的正文。</b>
+        /// 全项目有两处要按"这里发生过什么"分叉，两处一旦读错就是灾难：
+        /// <list type="number">
+        /// <item><c>DataRelocationPlanner</c> ——把跳过标记读成墓碑，第二次启动会给出
+        /// <c>ResumeCleanup</c>，转头删掉旧位置那份从没被搬走的数据；</item>
+        /// <item><c>DataLocationMigrator.RewriteConfigPaths</c> ——它以"墓碑存在"为判据改写
+        /// <c>config.json</c> 里的绝对路径。跳过时数据<b>根本没搬过去</b>，把
+        /// <c>GameIcons</c> 平移到新位置只会指向一个不存在的文件，用户的自定义图标全部失效。</item>
+        /// </list>
+        /// 文件名即类型，是这里最难被后人改坏的表达方式：正文措辞可以随时润色、可以被用户
+        /// 编辑、可以国际化，文件名不会；而且 <c>RewriteConfigPaths</c> 那一侧<b>什么都不用改</b>
+        /// ——它查的一直是 <c>migrated-to.txt</c>，跳过项自然就落不进它的判据里。
+        /// 若改成"同名文件 + 正文里塞个标志位"，两处都得记得去解析正文，漏一处就出上面的事故。
+        /// </para>
+        /// </summary>
+        public const string DirectorySupersededMarkerName = "superseded-by.txt";
+
+        /// <summary>单文件"已跳过"标记的后缀。语义同 <see cref="DirectorySupersededMarkerName"/>。</summary>
+        public const string FileSupersededMarkerSuffix = ".superseded-by.txt";
 
         /// <summary>
         /// "搬迁进行中"标记。写在<b>目标</b>位置，从复制开始起、到墓碑写下为止一直存在。
@@ -62,7 +93,10 @@ namespace UEModManager.Services
             _logger = logger;
         }
 
-        /// <summary>该路径是否是墓碑文件。</summary>
+        /// <summary>
+        /// 该路径是否是<b>搬移</b>墓碑。<b>只认 <c>migrated-to.txt</c></b> —— "已跳过"标记不算，
+        /// 那是语义相反的另一种记号（见 <see cref="DirectorySupersededMarkerName"/>）。
+        /// </summary>
         public static bool IsTombstone(string path)
         {
             var name = Path.GetFileName(path);
@@ -76,6 +110,20 @@ namespace UEModManager.Services
                 ? legacyPath + FileTombstoneSuffix
                 : Path.Combine(legacyPath, DirectoryTombstoneName);
 
+        /// <summary>该路径是否是"已跳过"标记。</summary>
+        public static bool IsSupersededMarker(string path)
+        {
+            var name = Path.GetFileName(path);
+            return string.Equals(name, DirectorySupersededMarkerName, StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(FileSupersededMarkerSuffix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>取某项的"已跳过"标记路径（与墓碑一样位于<b>旧</b>位置）。</summary>
+        public static string GetSupersededMarkerPath(string legacyPath, bool isFile)
+            => isFile
+                ? legacyPath + FileSupersededMarkerSuffix
+                : Path.Combine(legacyPath, DirectorySupersededMarkerName);
+
         /// <summary>该路径是否是搬迁进行中标记。</summary>
         public static bool IsInProgressMarker(string path)
         {
@@ -85,11 +133,11 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 该路径是否是搬迁器自己的元数据（墓碑或进行中标记）。
+        /// 该路径是否是搬迁器自己的元数据（搬移墓碑、已跳过标记、进行中标记）。
         /// 这类文件不算数据：不参与内容判定、不复制、不校验、也不随删源被抹掉。
         /// </summary>
         public static bool IsMigratorMetadata(string path)
-            => IsTombstone(path) || IsInProgressMarker(path);
+            => IsTombstone(path) || IsSupersededMarker(path) || IsInProgressMarker(path);
 
         /// <summary>取某项的进行中标记路径（位于<b>目标</b>侧）。</summary>
         public static string GetInProgressMarkerPath(string targetPath, bool isFile)
@@ -158,6 +206,13 @@ namespace UEModManager.Services
 
                 case RelocationAction.ResumeCleanup:
                     DeleteLegacy(step, isFile, excludedChildDirectories);
+                    break;
+
+                // 新位置赢：一个文件都不动，只在旧位置留一张说明。
+                // 这里没有复制、没有校验、没有删源，也就没有进行中标记的用武之地——
+                // 标记回答的是"目标里的残留是不是我写的"，而本分支根本不往目标写东西。
+                case RelocationAction.AdoptTargetKeepLegacy:
+                    WriteSupersededMarker(step, isFile);
                     break;
 
                 default:
@@ -288,18 +343,64 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>写墓碑。此刻起该项被视为"已完成复制与校验"。</summary>
+        /// <summary>
+        /// 写<b>搬移</b>墓碑。此刻起该项被视为"已完成复制与校验"。
+        /// 文案要点：数据<b>已经被移走了</b>，这里已经空了，新位置在哪。
+        /// </summary>
         public virtual void WriteTombstone(RelocationStep step, bool isFile)
         {
             var content =
-                $"此位置的数据已于 {DateTime.Now:yyyy-MM-dd HH:mm:ss} 迁移至：{Environment.NewLine}" +
-                $"{step.TargetPath}{Environment.NewLine}{Environment.NewLine}" +
-                "此文件由 UEModManager 自动生成，用于避免重复迁移，请勿删除。";
+                $"这里的数据已经被 UEModManager 搬走了，没有丢失。{Environment.NewLine}" +
+                Environment.NewLine +
+                $"原位置：{step.LegacyPath}{Environment.NewLine}" +
+                $"新位置：{step.TargetPath}{Environment.NewLine}" +
+                $"搬移时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}" +
+                Environment.NewLine +
+                $"搬走的原因是新位置不会被卸载或升级清空。要找 {step.Name}，请到上面的新位置。" +
+                Environment.NewLine +
+                "此文件由 UEModManager 自动生成，用于避免重复搬移，请勿删除。";
 
-            var tombstone = GetTombstonePath(step.LegacyPath, isFile);
-            var tombstoneDir = Path.GetDirectoryName(tombstone);
-            if (!string.IsNullOrEmpty(tombstoneDir)) Directory.CreateDirectory(tombstoneDir);
-            File.WriteAllText(tombstone, content);
+            WriteMarker(GetTombstonePath(step.LegacyPath, isFile), content);
+        }
+
+        /// <summary>
+        /// 写"已跳过"标记。对应
+        /// <see cref="RelocationAction.AdoptTargetKeepLegacy"/>：新位置有更新的一份，本项不搬。
+        ///
+        /// <para>
+        /// 文案与墓碑<b>必须说的是相反的两件事</b>，因为用户在安装目录里看到它时的第一反应
+        /// 是"我的东西是不是被动过了"。墓碑说"已经搬走，去新位置找"；这张说"一个字节都没动，
+        /// 你的文件还在这儿，只是软件改用另一份更新的了"。写成同一套话术，用户会以为数据
+        /// 被搬走后又莫名其妙留在原地，然后自己动手去"整理"，那才是真出事。
+        /// </para>
+        /// </summary>
+        public virtual void WriteSupersededMarker(RelocationStep step, bool isFile)
+        {
+            var content =
+                $"UEModManager 没有动这里的数据，你的文件一个都没少。{Environment.NewLine}" +
+                Environment.NewLine +
+                $"这里（历史副本）：{step.LegacyPath}{Environment.NewLine}" +
+                $"软件正在使用：  {step.TargetPath}{Environment.NewLine}" +
+                $"判定时间：      {DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}" +
+                Environment.NewLine +
+                $"发生了什么：新版本改用上面那个新位置存放 {step.Name}，而那里已经有一份更新的记录" +
+                $"（软件升级之后一直写在那边）。{Environment.NewLine}" +
+                "为了不覆盖你这段时间的改动，这里的旧数据既没有被复制过去，也没有被删除，" +
+                $"原样留在这里作为历史副本。{Environment.NewLine}" +
+                Environment.NewLine +
+                "需要你做什么：不需要。软件读写的是上面那个新位置。" +
+                $"等确认新位置一切正常之后，你可以自行删除这份历史副本来腾出空间。{Environment.NewLine}" +
+                "此文件由 UEModManager 自动生成，用于避免下次启动重复判断，请勿删除。";
+
+            WriteMarker(GetSupersededMarkerPath(step.LegacyPath, isFile), content);
+        }
+
+        /// <summary>把一张标记落盘，必要时先建出它所在的目录。</summary>
+        private static void WriteMarker(string markerPath, string content)
+        {
+            var directory = Path.GetDirectoryName(markerPath);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+            File.WriteAllText(markerPath, content);
         }
 
         /// <summary>
@@ -339,7 +440,14 @@ namespace UEModManager.Services
         /// 被中断的搬迁写的，清掉是唯一正确的做法（绝不能在半份数据上继续追加）。
         /// 没有标记却有内容，说明目标是被别人正常使用的位置——路径归口之后老用户升级以来的
         /// 全部新数据就在那里——此时清空等于把用户升级后的劳动删光、再拿升级前的旧状态盖回去。
-        /// 宁可让这一项失败、让用户看到"迁移未完成"，也绝不能动它。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>这道拒绝现在是第二道防线。</b>第一道在
+        /// <c>DataRelocationPlanner</c>：它看的是同一个标记，无标记时给出的是
+        /// <see cref="RelocationAction.AdoptTargetKeepLegacy"/>（认新位置为准，两边都不动），
+        /// 根本不会走到这里。留着它是因为判据只有一条、后果却不可逆——将来谁改规划器时
+        /// 漏掉这个条件，这里会当场把该项判失败，而不是安静地删掉用户的数据。
         /// </para>
         /// </summary>
         public virtual void PurgeTarget(RelocationStep step, bool isFile)

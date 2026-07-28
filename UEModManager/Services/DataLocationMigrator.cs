@@ -108,24 +108,23 @@ namespace UEModManager.Services
         /// </para>
         ///
         /// <para>
+        /// <b>新旧两处都有数据时怎么合，已经定了（2026-07-28）</b>，不再是翻开开关的阻塞项。
+        /// 策略是<b>新位置赢、旧位置原样保留不删</b>，落在
+        /// <see cref="RelocationAction.AdoptTargetKeepLegacy"/>：
+        /// 目标有实质内容、无墓碑、且<b>无搬迁进行中标记</b>时，判定那是应用一直在读写的真实数据，
+        /// 于是不复制、不删源，只在旧位置写一张"已跳过"标记（<c>superseded-by.txt</c>）。
+        /// 这条路径算<b>正常完成</b>，不会再让老用户每次启动都收到"迁移未完成"。
+        /// <see cref="RelocationAction.PurgeTargetThenCopy"/> 则收窄成"目标带进行中标记"这一种情形，
+        /// 即真正的"上次中断的半份数据"，两者判据不再重叠。
+        /// </para>
+        ///
+        /// <para>
         /// <b>翻开之前还差的事：</b>
         /// <list type="number">
-        /// <item><b>新旧两处都有数据时怎么合，方案里没写。</b><u>这是当前最大的一条，
-        /// 而且它是常态而非边角料。</u>路径归口（<c>c6523fc</c> / <c>7c58a43</c>）之后
-        /// 全部读写方都走新位置，而本开关一直关着——于是每一台老用户机器上，
-        /// 旧数据躺在安装目录、<b>新数据一直在往 <c>%LOCALAPPDATA%</c> 里写</b>，
-        /// 开关翻开的那次启动，两处都有内容且都没有墓碑。规划器给出的
-        /// <see cref="RelocationAction.PurgeTargetThenCopy"/> 前提是"目标里是上次中断的半份数据"，
-        /// 在这里根本不成立。<see cref="DataRelocationExecutor.PurgeTarget"/> 已加进行中标记
-        /// 作为拦阻（无标记就拒绝清空，该项计为失败、两边数据都不动），
-        /// 因此不会再毁数据；但代价是这两项会<b>每次启动都失败</b>，用户看到的是
-        /// 长期挂着的"迁移未完成"。翻开开关前必须先定下合并策略
-        /// （谁赢 / 逐文件按时间 / 让用户选），否则等于给全体老用户发一条永久告警。
-        /// 相关用例见 <c>DataLocationMigratorTests.新位置已有应用写入的数据时拒绝清空目标…</c>。</item>
         /// <item><b>D0–D5 测试矩阵尚未在真机跑过。</b>见迁移方案 §七。文件系统层面的部分
-        /// 已在 <c>DataLocationMigratorTests</c> 里自动化（D0/D1/D2/D5、幂等、两项备份解耦、
-        /// 失败时不改配置），真机只剩 GUI 相关的几项：应用能启动到主界面、界面显示正确、
-        /// D3（安装目录不可写）、D4（目标盘空间不足）。</item>
+        /// 已在 <c>DataLocationMigratorTests</c> 里自动化（D0/D1/D2/D5、新旧冲突合并、幂等、
+        /// 两项备份解耦、失败时不改配置），真机只剩 GUI 相关的几项：应用能启动到主界面、
+        /// 界面显示正确、D3（安装目录不可写）、D4（目标盘空间不足）。</item>
         /// <item><b>没有磁盘空间预检。</b>方案 §三② 要求空间不足时降级为原地登记，
         /// 目前没实现。几十 GB 的仓库/生成物已经是 <c>RegisterInPlace</c>、根本不复制，
         /// 所以风险比方案设想的小得多；但备份两项是游戏文件的副本，体积仍可观，
@@ -371,14 +370,22 @@ namespace UEModManager.Services
                 LegacyExists: DataRelocationExecutor.FileExists(legacy),
                 TargetExists: DataRelocationExecutor.FileExists(target),
                 TombstoneExists: DataRelocationExecutor.FileExists(
-                    DataRelocationExecutor.GetTombstonePath(legacy, isFile: true)));
+                    DataRelocationExecutor.GetTombstonePath(legacy, isFile: true)),
+                SupersededMarkerExists: DataRelocationExecutor.FileExists(
+                    DataRelocationExecutor.GetSupersededMarkerPath(legacy, isFile: true)),
+                TargetMigrationInProgress: DataRelocationExecutor.FileExists(
+                    DataRelocationExecutor.GetInProgressMarkerPath(target, isFile: true)));
 
         private static RelocationProbe DirectoryProbe(string name, string legacy, string target)
             => new(name, RelocationKind.Relocate, legacy, target,
                 LegacyExists: DataRelocationExecutor.DirectoryHasContent(legacy),
                 TargetExists: DataRelocationExecutor.DirectoryHasContent(target),
                 TombstoneExists: DataRelocationExecutor.FileExists(
-                    DataRelocationExecutor.GetTombstonePath(legacy, isFile: false)));
+                    DataRelocationExecutor.GetTombstonePath(legacy, isFile: false)),
+                SupersededMarkerExists: DataRelocationExecutor.FileExists(
+                    DataRelocationExecutor.GetSupersededMarkerPath(legacy, isFile: false)),
+                TargetMigrationInProgress: DataRelocationExecutor.FileExists(
+                    DataRelocationExecutor.GetInProgressMarkerPath(target, isFile: false)));
 
         private static RelocationProbe RegisterInPlaceProbe(string name, string legacy, string? userOverride)
             => new(name, RelocationKind.RegisterInPlace, legacy, legacy,
@@ -444,11 +451,29 @@ namespace UEModManager.Services
         /// </para>
         ///
         /// <para>
-        /// <b>判据是墓碑，不是"本次执行成功"。</b>墓碑代表"复制与校验都已完成"
-        /// （见 <see cref="DataRelocationPlanner"/>），这正是"数据确实已经在新位置"的唯一证据：
+        /// <b>判据是墓碑，不是"本次执行成功"。</b>墓碑（<c>migrated-to.txt</c>）代表
+        /// "复制与校验都已完成"（见 <see cref="DataRelocationPlanner"/>），
+        /// 这正是"数据确实已经在新位置"的唯一证据：
         /// 本次搬成的、上次搬完只差删源的、上次搬完这次直接跳过的，三种情况一视同仁；
         /// 而搬迁失败、或 <see cref="DataMigrationEnvironment.RelocationExecutionEnabled"/>
         /// 仍为 false 根本没搬时，墓碑不存在，对应的路径一个字都不会动。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>"已跳过"标记不是墓碑，这里也绝不能认它。</b>
+        /// <see cref="RelocationAction.AdoptTargetKeepLegacy"/>（新位置赢）留下的是
+        /// <c>superseded-by.txt</c>，它的含义恰恰是"数据<b>没有</b>搬过去"。若把它也当成改写依据：
+        /// <list type="bullet">
+        /// <item><c>GameIcons</c> 会被平移到新位置下的同名文件，而那些 png <b>还留在安装目录里</b>，
+        /// 新位置压根没有 —— 用户的全部自定义游戏图标当场失效，且是那种"界面上图标空了、
+        /// 日志里什么都没有"的静默故障；</item>
+        /// <item><c>BackupPath</c> 会指向一个新位置下不存在的备份目录，用户此前的备份从界面上消失
+        /// （文件其实还在旧位置）。</item>
+        /// </list>
+        /// 跳过时正确的做法是<b>一个字都不改</b>：数据仍在旧位置且完好，旧的绝对路径依然有效。
+        /// 这也是"两种记号用两个文件名"的直接收益 —— 本方法的判据一行都不用改，
+        /// 跳过项自然落不进 <c>migrated-to.txt</c> 的查询里，
+        /// 不存在"忘了在这里加一个 if"这种失误空间。
         /// </para>
         ///
         /// <para>
@@ -495,7 +520,11 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>该项已留下墓碑（数据确已在新位置）时给出改写规则，否则返回 null 表示"不许改"。</summary>
+        /// <summary>
+        /// 该项已留下<b>搬移</b>墓碑（数据确已在新位置）时给出改写规则，否则返回 null 表示"不许改"。
+        /// 只查 <c>migrated-to.txt</c>：<c>superseded-by.txt</c>（新位置赢、旧数据原样留着）
+        /// 表示数据<b>没有</b>搬过去，理由见 <see cref="RewriteConfigPaths"/> 的注释。
+        /// </summary>
         private static PathRebaseRule? RuleIfRelocated(string legacyRoot, string targetRoot)
             => DataRelocationExecutor.FileExists(
                     DataRelocationExecutor.GetTombstonePath(legacyRoot, isFile: false))

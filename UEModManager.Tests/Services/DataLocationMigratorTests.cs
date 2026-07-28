@@ -183,6 +183,22 @@ public sealed class DataLocationMigratorTests : IDisposable
         return snapshot;
     }
 
+    /// <summary>
+    /// 同 <see cref="SnapshotTree"/>，但滤掉搬迁器自己的元数据（墓碑 / 已跳过标记 / 进行中标记）。
+    /// 用于断言"旧位置的<b>数据</b>一个字节都没动"——留一张说明是允许的，动数据不是。
+    /// </summary>
+    private static SortedDictionary<string, (long Length, DateTime WrittenUtc, byte[] Bytes)>
+        SnapshotDataOnly(string root)
+    {
+        var snapshot = SnapshotTree(root);
+        foreach (var key in snapshot.Keys
+                     .Where(k => DataRelocationExecutor.IsMigratorMetadata(k)).ToList())
+        {
+            snapshot.Remove(key);
+        }
+        return snapshot;
+    }
+
     private static void AssertSameBytes(
         SortedDictionary<string, byte[]> expected, SortedDictionary<string, byte[]> actual)
     {
@@ -209,6 +225,10 @@ public sealed class DataLocationMigratorTests : IDisposable
 
     private bool DirectoryTombstoneExists(string legacyDirectory)
         => File.Exists(Path.Combine(legacyDirectory, DataRelocationExecutor.DirectoryTombstoneName));
+
+    private bool SupersededMarkerExists(string legacyDirectory)
+        => File.Exists(Path.Combine(
+            legacyDirectory, DataRelocationExecutor.DirectorySupersededMarkerName));
 
     private IReadOnlyList<string> AllTombstones()
         => Directory.Exists(_root)
@@ -668,21 +688,20 @@ public sealed class DataLocationMigratorTests : IDisposable
     /// </para>
     ///
     /// <para>
-    /// 规划器此时给出 <c>PurgeTargetThenCopy</c>——它的前提是"目标里的东西是上次中断的半份数据"，
-    /// 但这里目标里的是用户升级之后所有的真实劳动。照着执行就是<b>清空新位置、把升级前的旧状态盖回去</b>，
-    /// 正是迁移方案 §三 否决"保留旧位置只读"时点名的那类 bug（"用户的方案/分类会凭空回退"），
-    /// 而且更糟——还带删除。
+    /// 策略：<b>新位置赢，旧位置原样保留不删</b>。新位置那份才是用户界面上看得见、
+    /// 升级以来一直在改的真实状态；反过来让旧位置赢，就是迁移方案 §三 否决"保留旧位置只读"
+    /// 时点名的那类 bug——"用户的方案/分类会凭空回退"，而且还带删除。
+    /// 而旧位置一个字节都不删，是这条启发式判断的安全网：万一判错，用户的历史数据仍在原处。
     /// </para>
     ///
     /// <para>
-    /// 修法：搬迁器复制前在目标留一个"进行中标记"，复制+校验+写墓碑走完再清掉。
-    /// 有标记才证明残留是搬迁器自己的，才允许清空；没有标记就拒绝动手，该项计为失败，
-    /// 新旧两处数据一个字节都不动，用户拿到"迁移未完成"的提示。
-    /// 噪音换数据，这个交换在这里没有第二种选法。
+    /// 上一版在这里是<b>拒绝并计为失败</b>（靠 <c>PurgeTarget</c> 的进行中标记拦阻）。
+    /// 那一版不会毁数据，但这两项会每次启动都失败，等于给全体老用户挂一条永久的
+    /// "迁移未完成"。判据下沉到规划器之后，这条路径成了正常完成。
     /// </para>
     /// </summary>
     [Fact]
-    public void 新位置已有应用写入的数据时拒绝清空目标而不是把旧状态盖回去()
+    public void 新旧两处都有数据时认新位置为准_两边一个字节都不动()
     {
         SeedTypicalLegacyUser();
 
@@ -694,37 +713,166 @@ public sealed class DataLocationMigratorTests : IDisposable
         var localDataBefore = SnapshotTree(Path.Combine(_local, "Data"));
         var localConfigBytes = File.ReadAllBytes(Path.Combine(_local, "config.json"));
         var localConfigWritten = new FileInfo(Path.Combine(_local, "config.json")).LastWriteTimeUtc;
-        var legacyDataBefore = SnapshotTree(Path.Combine(_install, "Data"));
+        var legacyDataBefore = SnapshotDataOnly(Path.Combine(_install, "Data"));
         var legacyConfigBytes = File.ReadAllBytes(Path.Combine(_install, "config.json"));
 
         var outcome = Run();
 
-        // 主配置与数据索引两项都必须拒绝执行
-        Assert.Equal(2, outcome.Failed);
-        Assert.False(outcome.Completed);
-        Assert.True(outcome.ShouldNotifyUser);
-        Assert.Equal(0, _prefs.DataLayoutVersion);
+        // 主配置 + 数据索引跳过（算执行）、MOD 备份正常搬、两项原地登记；部署事务备份此形态下不存在
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(5, outcome.Executed);
+        Assert.True(outcome.Completed);
+        Assert.Equal(DataRelocationPlanner.CurrentLayoutVersion, _prefs.DataLayoutVersion);
 
-        // 冲突的两项：新旧两处的数据一个字节都不许动
+        // 冲突的两项：新位置一个字节没变（连修改时间都没动）
         AssertTreeUnchanged(localDataBefore, SnapshotTree(Path.Combine(_local, "Data")));
-        AssertTreeUnchanged(legacyDataBefore, SnapshotTree(Path.Combine(_install, "Data")));
         Assert.Equal(localConfigBytes, File.ReadAllBytes(Path.Combine(_local, "config.json")));
         Assert.Equal(localConfigWritten,
             new FileInfo(Path.Combine(_local, "config.json")).LastWriteTimeUtc);
+
+        // 旧位置一个字节没删——这是本策略"零数据丢失"的支点
+        AssertTreeUnchanged(legacyDataBefore, SnapshotDataOnly(Path.Combine(_install, "Data")));
         Assert.Equal(legacyConfigBytes, File.ReadAllBytes(Path.Combine(_install, "config.json")));
 
-        // 没搬成就没有墓碑，配置里的路径因而也一个字都不会被改写
+        // 留下的是"已跳过"标记，不是搬移墓碑——两者语义相反，混用会让下一轮去删旧数据
+        Assert.True(SupersededMarkerExists(Path.Combine(_install, "Data")));
+        Assert.True(File.Exists(Path.Combine(_install, "config.json")
+            + DataRelocationExecutor.FileSupersededMarkerSuffix));
         Assert.False(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
         Assert.False(File.Exists(Path.Combine(_install, "config.json")
             + DataRelocationExecutor.FileTombstoneSuffix));
 
-        // 不冲突的 MOD 备份照常搬迁：拒绝的粒度是单项，不是整体停摆
+        // 不冲突的 MOD 备份照常搬迁：判定的粒度是单项，不是整体停摆
+        Assert.True(File.Exists(Path.Combine(_local, "Backups", "Mods", "悟空_备份", "old.pak")));
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Backups")));
+    }
+
+    /// <summary>
+    /// 四态语义：跳过属于<b>正常完成</b>，绝不能触发"迁移未完成"提示。
+    /// 这正是上一版最大的代价——两项每次启动都失败，用户看到一条永久挂着的告警。
+    /// </summary>
+    [Fact]
+    public void 新位置赢属于正常完成_不给用户报迁移未完成()
+    {
+        SeedTypicalLegacyUser();
+        Write(Path.Combine(_local, "Data", "wukong_mods.json"), """[{"Name":"新位置的真实数据"}]""");
+        Write(Path.Combine(_local, "config.json"), """{"GamePath":"E:\\Games\\Wukong"}""");
+
+        var outcome = Run();
+
+        Assert.Equal(DataMigrationStatus.Completed, outcome.Status);
+        Assert.False(outcome.ShouldNotifyUser);
+        Assert.Null(outcome.UserMessage);
+    }
+
+    /// <summary>
+    /// 幂等：第二次启动看到跳过标记直接跳过，两棵树的字节与修改时间全不许变。
+    ///
+    /// <para>
+    /// 这条用例真正拦的是一个很容易犯的错：跳过标记若被误当成搬移墓碑，
+    /// 规划器会判成"搬完了只差删源"（<c>ResumeCleanup</c>），第二轮直接把旧位置那份
+    /// 从没被复制过的数据删光。两种标记用两个文件名，就是为了让这件事无从发生。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void 新位置赢之后连跑两次第二次是彻底的空操作()
+    {
+        SeedTypicalLegacyUser();
+        Write(Path.Combine(_local, "Data", "wukong_mods.json"), """[{"Name":"新位置的真实数据"}]""");
+        Write(Path.Combine(_local, "config.json"), """{"GamePath":"E:\\Games\\Wukong"}""");
+
+        Run();
+        var after1 = SnapshotTree(_root);
+
+        var outcome2 = Run();
+
+        Assert.Equal(0, outcome2.Executed);
+        Assert.Equal(0, outcome2.Failed);
+        Assert.Equal(6, outcome2.Skipped);
+        Assert.Equal(1, _prefs.DataLayoutVersionSaveCount);
+        // 旧位置的数据必须仍在——被误判成 ResumeCleanup 的话这一行会先炸
+        Assert.True(File.Exists(LegacyData("wukong_mods.json")));
+        AssertTreeUnchanged(after1, SnapshotTree(_root));
+    }
+
+    /// <summary>
+    /// <b>"墓碑存在但数据其实没搬过去"这一类的核心用例。</b>
+    ///
+    /// <para>
+    /// 形态：新位置只有 <c>Data</c> 有内容（用户升级后加过游戏），<c>config.json</c> 还没有。
+    /// 于是主配置走正常搬移（旧的那份被复制到新位置），数据索引走"新位置赢"。
+    /// 被搬过去的那份 config.json 里，<c>GameIcons</c> 指向 <c>{安装目录}\Data\GameIcons\wukong.png</c>。
+    /// </para>
+    ///
+    /// <para>
+    /// 若沿用"有标记就改写"的判据，这个值会被平移到 <c>{新位置}\Data\GameIcons\wukong.png</c>
+    /// ——而那个文件<b>根本不存在</b>（数据索引压根没搬），用户的自定义游戏图标全部失效，
+    /// 且是"界面上图标空了、日志里什么都没有"的静默故障。
+    /// 正确做法是一个字都不改：png 还在安装目录里，旧的绝对路径依然有效。
+    /// </para>
+    ///
+    /// <para>
+    /// 对照组是同一次运行里的 <c>BackupPath</c>：MOD 备份走的是真正的搬移，
+    /// 留下的是搬移墓碑，它必须被改写——否则备份会继续写进已被清空的安装目录。
+    /// 一次运行里两个字段一改一不改，判据的边界就钉死了。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void 数据索引被跳过时游戏图标路径一个字都不改()
+    {
+        SeedTypicalLegacyUser();
+        // 新位置只有 Data 有内容，config.json 尚未生成 —— 主配置搬、数据索引跳
+        Write(Path.Combine(_local, "Data", "starfield_mods.json"), """[{"Name":"升级后新加的游戏"}]""");
+        var originalIcon = LegacyData(Path.Combine("GameIcons", "wukong.png"));
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.True(outcome.Completed);
+
+        var config = JsonDocument.Parse(File.ReadAllText(Path.Combine(_local, "config.json"))).RootElement;
+
+        // 图标：值原样保留，且它指向的文件确实还在旧位置（跳过从不删源）
+        Assert.Equal(originalIcon, config.GetProperty("GameIcons").GetProperty("黑神话").GetString());
+        Assert.True(File.Exists(originalIcon));
+        // 反证：新位置下同名文件根本不存在，改写过去就是让图标彻底失效
+        Assert.False(File.Exists(Path.Combine(_local, "Data", "GameIcons", "wukong.png")));
+
+        // 对照组：MOD 备份真的搬走了，它的绝对路径就必须跟着改
+        Assert.Equal(
+            Path.Combine(_local, "Backups", "Mods", "悟空_备份"),
+            config.GetProperty("BackupPath").GetString());
         Assert.True(File.Exists(Path.Combine(_local, "Backups", "Mods", "悟空_备份", "old.pak")));
     }
 
     /// <summary>
+    /// 新位置只有空目录时仍按正常搬移处理。空目录不算内容是既有语义：
+    /// 应用启动时会主动建出一批空目录，把它们当成"新位置已有数据"会让所有项都被跳过，
+    /// 搬迁从此永远不会发生。
+    /// </summary>
+    [Fact]
+    public void 新位置只有空目录时仍走正常搬移()
+    {
+        SeedTypicalLegacyUser();
+        var dataBefore = SnapshotBytes(Path.Combine(_install, "Data"));
+        Directory.CreateDirectory(Path.Combine(_local, "Data"));
+        Directory.CreateDirectory(Path.Combine(_local, "Backups", "Mods"));
+
+        var outcome = Run();
+
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(5, outcome.Executed);
+        AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
+
+        // 留下的是搬移墓碑而不是跳过标记，旧位置也确实被清空了
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.False(SupersededMarkerExists(Path.Combine(_install, "Data")));
+        Assert.False(DataRelocationExecutor.DirectoryHasContent(Path.Combine(_install, "Data")));
+    }
+
+    /// <summary>
     /// 上一条的反面：残留确实是搬迁器自己留下的（有进行中标记）时，照旧清空重来。
-    /// 拒绝清空的判据必须精确到"是不是我写的"，宽一格就丢用户数据，严一格就治不好断电。
+    /// 判据必须精确到"是不是我写的"，宽一格就丢用户数据，严一格就治不好断电。
     /// </summary>
     [Fact]
     public void 残留带着进行中标记时仍然清空重来()
@@ -743,6 +891,9 @@ public sealed class DataLocationMigratorTests : IDisposable
         Assert.Equal(0, outcome.Failed);
         AssertSameBytes(dataBefore, SnapshotBytes(Path.Combine(_local, "Data")));
         Assert.False(File.Exists(Path.Combine(_local, "Data", "孤儿.json")));
+        // 走的是搬移而不是"新位置赢"：标记在，残留就是我自己的
+        Assert.True(DirectoryTombstoneExists(Path.Combine(_install, "Data")));
+        Assert.False(SupersededMarkerExists(Path.Combine(_install, "Data")));
         // 标记在写完墓碑后必须被清掉，否则它会永久授权下一次清空
         Assert.False(File.Exists(DataRelocationExecutor.GetInProgressMarkerPath(
             Path.Combine(_local, "Data"), isFile: false)));

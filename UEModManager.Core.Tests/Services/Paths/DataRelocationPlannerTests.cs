@@ -14,9 +14,12 @@ public class DataRelocationPlannerTests
         bool tombstoneExists = false,
         bool isUserOverridden = false,
         string legacyPath = Legacy,
-        string targetPath = Target)
+        string targetPath = Target,
+        bool supersededMarkerExists = false,
+        bool targetMigrationInProgress = false)
         => new("Data", kind, legacyPath, targetPath,
-            legacyExists, targetExists, tombstoneExists, isUserOverridden);
+            legacyExists, targetExists, tombstoneExists,
+            supersededMarkerExists, targetMigrationInProgress, isUserOverridden);
 
     private static RelocationStep PlanOne(RelocationProbe probe, int migratedVersion = 0)
         => Assert.Single(DataRelocationPlanner.Plan(migratedVersion, new[] { probe }).Steps);
@@ -73,10 +76,12 @@ public class DataRelocationPlannerTests
     }
 
     [Fact]
-    public void TargetExistsWithoutTombstone_PurgesTargetFirst()
+    public void TargetExistsWithInProgressMarker_PurgesTargetFirst()
     {
-        // 断电停在"复制中途" —— 目标里可能是半份数据，绝不能在残留上继续
-        var step = PlanOne(Probe(legacyExists: true, targetExists: true, tombstoneExists: false));
+        // 断电停在"复制中途" —— 进行中标记证明目标里的残留是搬迁器自己写的，
+        // 可能是半份数据，绝不能在上面继续
+        var step = PlanOne(Probe(legacyExists: true, targetExists: true, tombstoneExists: false,
+            targetMigrationInProgress: true));
 
         Assert.Equal(RelocationAction.PurgeTargetThenCopy, step.Action);
     }
@@ -114,10 +119,71 @@ public class DataRelocationPlannerTests
         // 幂等性的核心：目标存在只说明"复制开始过"，只有墓碑代表"复制完整且校验通过"。
         // 同样是 targetExists=true，墓碑的有无必须导出完全不同的动作。
         var withTombstone = PlanOne(Probe(targetExists: true, tombstoneExists: true));
-        var withoutTombstone = PlanOne(Probe(targetExists: true, tombstoneExists: false));
+        var withoutTombstone = PlanOne(Probe(targetExists: true, tombstoneExists: false,
+            targetMigrationInProgress: true));
 
         Assert.Equal(RelocationAction.ResumeCleanup, withTombstone.Action);
         Assert.Equal(RelocationAction.PurgeTargetThenCopy, withoutTombstone.Action);
+    }
+
+    // ─── 新旧两处都有数据：新位置赢，旧位置原样保留 ───
+
+    [Fact]
+    public void TargetHasContentWithoutMarkers_AdoptsTargetAndKeepsLegacy()
+    {
+        // 开关翻开当天每台老用户机器的形态：两处都有内容、都没有墓碑，
+        // 而目标侧没有进行中标记 —— 那是应用一直在读写的真实数据，不是搬迁残留。
+        var step = PlanOne(Probe(legacyExists: true, targetExists: true, tombstoneExists: false));
+
+        Assert.Equal(RelocationAction.AdoptTargetKeepLegacy, step.Action);
+        Assert.Equal(RelocationSkipReason.NotSkipped, step.SkipReason);
+    }
+
+    [Fact]
+    public void InProgressMarkerIsTheOnlyLineBetweenPurgeAndAdopt()
+    {
+        // 两种形态在磁盘上长得一模一样（有内容 + 无墓碑），唯一的分界线就是这个标记。
+        // 判宽一格删用户数据，判严一格治不好断电，因此必须钉死成一条用例。
+        var mine = PlanOne(Probe(targetExists: true, targetMigrationInProgress: true));
+        var theirs = PlanOne(Probe(targetExists: true, targetMigrationInProgress: false));
+
+        Assert.Equal(RelocationAction.PurgeTargetThenCopy, mine.Action);
+        Assert.Equal(RelocationAction.AdoptTargetKeepLegacy, theirs.Action);
+    }
+
+    [Fact]
+    public void EmptyTarget_StillPlansPlainCopy()
+    {
+        // "目标为空"由 IO 侧的 DirectoryHasContent 判定（空目录不算内容）。
+        // 应用启动时会主动建出一批空目录，把它们当成"新位置已有数据"会让所有项都被跳过。
+        var step = PlanOne(Probe(legacyExists: true, targetExists: false,
+            targetMigrationInProgress: true));
+
+        Assert.Equal(RelocationAction.Copy, step.Action);
+    }
+
+    [Fact]
+    public void SupersededMarker_SkipsAndNeverResumesCleanup()
+    {
+        // 第二次启动：旧位置有跳过标记、数据也还在。绝不能因为"有标记 + 源还在"
+        // 就走 ResumeCleanup —— 那会删掉一份从来没被复制过的数据。
+        var step = PlanOne(Probe(legacyExists: true, targetExists: true,
+            supersededMarkerExists: true));
+
+        Assert.Equal(RelocationAction.None, step.Action);
+        Assert.Equal(RelocationSkipReason.SupersededByTarget, step.SkipReason);
+    }
+
+    [Fact]
+    public void SupersededMarker_WinsOverTombstone()
+    {
+        // 两种标记同时存在（人工把旧数据放回去、又跑出一次跳过）时，保守的一边是什么都不做。
+        // 墓碑分支若先命中，动作会是 ResumeCleanup，直接删掉旧位置。
+        var step = PlanOne(Probe(legacyExists: true, targetExists: true,
+            tombstoneExists: true, supersededMarkerExists: true));
+
+        Assert.Equal(RelocationAction.None, step.Action);
+        Assert.Equal(RelocationSkipReason.SupersededByTarget, step.SkipReason);
     }
 
     [Fact]
@@ -184,17 +250,20 @@ public class DataRelocationPlannerTests
     [Fact]
     public void RegisterInPlace_NeverCopies()
     {
-        // 大目录一律不搬 —— 任何输入组合都不该产出复制类动作
+        // 大目录一律不搬 —— 任何输入组合都不该产出复制类动作，也不该产出"新位置赢"
+        // （原地登记项的新位置就是旧位置本身，谈不上谁赢）
         foreach (var legacyExists in new[] { true, false })
         foreach (var targetExists in new[] { true, false })
         foreach (var tombstone in new[] { true, false })
+        foreach (var inProgress in new[] { true, false })
         {
             var step = PlanOne(Probe(RelocationKind.RegisterInPlace,
-                legacyExists, targetExists, tombstone));
+                legacyExists, targetExists, tombstone, targetMigrationInProgress: inProgress));
 
             Assert.NotEqual(RelocationAction.Copy, step.Action);
             Assert.NotEqual(RelocationAction.PurgeTargetThenCopy, step.Action);
             Assert.NotEqual(RelocationAction.ResumeCleanup, step.Action);
+            Assert.NotEqual(RelocationAction.AdoptTargetKeepLegacy, step.Action);
         }
     }
 
