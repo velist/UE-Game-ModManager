@@ -151,7 +151,9 @@ namespace UEModManager.Services
                 if (!string.IsNullOrEmpty(Config.BackupPath) && Config.BackupPath.Contains("net6.0-windows"))
                 {
                     Config.BackupPath = Config.BackupPath.Replace("net6.0-windows", "net8.0-windows");
-                    SaveConfigSync();
+                    // 这是加载路径上的顺带修正，用户没有发起任何操作，没有 UI 能承接错误；
+                    // 抛出去只会让 LoadConfigAsync 整体失败、主界面连游戏名都拿不到。
+                    TrySaveConfigQuietly("修正旧版本备份路径");
                     _logger.LogInformation("已自动修正备份路径");
                 }
 
@@ -161,13 +163,22 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 保存当前配置到 config.json。
+        /// 保存当前配置到 config.json。写失败会以异常形式上抛给调用方。
         /// </summary>
         public Task SaveConfigAsync()
         {
             return Task.Run(() => SaveConfigSync());
         }
 
+        /// <summary>
+        /// 落盘配置。
+        ///
+        /// 写失败必须上抛：config.json 里装的是游戏安装路径、MOD 路径、自定义游戏列表。
+        /// 此前这里把异常吞掉，用户设完游戏路径看到界面正常刷新，重启后路径没了——
+        /// 而同一个根因（目标目录不可写）下，导入 MOD 和改方案却会弹错误框
+        /// （ModDataService / ProfileService 一直是 log + throw）。分裂的失败语义比
+        /// 全都静默更糟：用户会因为"别处会报错"而信任这里的沉默。现统一为 log + throw。
+        /// </summary>
         private void SaveConfigSync()
         {
             try
@@ -184,7 +195,27 @@ namespace UEModManager.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "保存配置失败");
+                _logger.LogError(ex, "保存配置失败: {Path}", _configFilePath);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 顺带保存：只记日志、不上抛。
+        ///
+        /// 仅用于"用户没有发起、失败也不该中断当前动作"的隐式落盘（加载时的路径修正、
+        /// 启动游戏时回写自动检测到的可执行文件名）。用户显式发起的保存一律走
+        /// <see cref="SaveConfigSync"/>，失败要看得见。
+        /// </summary>
+        private void TrySaveConfigQuietly(string reason)
+        {
+            try
+            {
+                SaveConfigSync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{Reason}后保存配置失败，本次改动仅存在于内存", reason);
             }
         }
 
@@ -326,7 +357,9 @@ namespace UEModManager.Services
                     {
                         exePath = detected;
                         Config.ExecutableName = Path.GetFileName(detected);
-                        SaveConfigSync();
+                        // 缓存检测结果失败不该连累"启动游戏"本身——exe 已经找到了，
+                        // 大不了下次再检测一遍。
+                        TrySaveConfigQuietly("缓存自动检测到的可执行文件名");
                     }
                 }
 

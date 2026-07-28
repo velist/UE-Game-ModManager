@@ -437,15 +437,19 @@ namespace UEModManager.Services
 
         private bool ImportCompressedMod(string filePath, string modName, string modPath, string backupPath)
         {
-            var tempRoot = !string.IsNullOrWhiteSpace(backupPath)
-                ? IOPath.Combine(backupPath, ".import-tmp")
-                : IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", ".import-tmp");
-            var tempDir = IOPath.Combine(tempRoot, $"uemod_temp_{Guid.NewGuid()}");
+            string tempDir;
+            try
+            {
+                tempDir = CreateImportTempDirectory(backupPath, modPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "无法创建导入临时目录，导入中止");
+                return false;
+            }
 
             try
             {
-                Directory.CreateDirectory(tempDir);
-
                 // 解压
                 if (!ExtractCompressedFile(filePath, tempDir))
                     return false;
@@ -512,8 +516,50 @@ namespace UEModManager.Services
             }
             finally
             {
-                try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+                // 清理孤儿目录：整个 tempDir 是本次导入独占的（名字带 Guid），
+                // 无论成功失败都必须删掉，否则几十 GB 的解压产物会永久占着盘。
+                // tempDir 换位置后这段仍然有效——它删的一直是上面刚创建的那一个。
+                try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "清理导入临时目录失败，残留: {Path}", tempDir);
+                }
             }
+        }
+
+        /// <summary>
+        /// 建一个本次导入独占的解压临时目录。
+        ///
+        /// 候选顺序由 Core 的 <see cref="ImportTempRootSelector"/> 给出（备份目录 → MOD 目录
+        /// → %TEMP%），这里负责逐个真正去创建：备份盘被拔掉、目标只读之类的问题只有
+        /// 建目录时才发现，建不出来就自动降级到下一个候选。全部失败才抛。
+        ///
+        /// 原先的最后一档是 <c>{安装目录}\Data\.import-tmp</c>，而安装目录默认在系统盘上：
+        /// 解压一个几十 GB 的整合包足以把 C 盘写满。
+        /// </summary>
+        private string CreateImportTempDirectory(string backupPath, string modPath)
+        {
+            var candidates = ImportTempRootSelector.GetCandidates(backupPath, modPath, IOPath.GetTempPath());
+            Exception? lastFailure = null;
+
+            foreach (var root in candidates)
+            {
+                var tempDir = IOPath.Combine(root, $"uemod_temp_{Guid.NewGuid()}");
+                try
+                {
+                    Directory.CreateDirectory(tempDir);
+                    _logger.LogDebug("导入临时目录: {Path}", tempDir);
+                    return tempDir;
+                }
+                catch (Exception ex)
+                {
+                    lastFailure = ex;
+                    _logger.LogWarning(ex, "创建导入临时目录失败，尝试下一个位置: {Path}", tempDir);
+                }
+            }
+
+            throw new IOException(
+                $"所有候选位置都无法创建导入临时目录（共 {candidates.Count} 个）。", lastFailure);
         }
 
         // ─── 插件导入 ───

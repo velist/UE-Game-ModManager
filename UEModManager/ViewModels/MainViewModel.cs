@@ -414,6 +414,9 @@ namespace UEModManager.ViewModels
 
         /// <summary>
         /// 导入 MOD。
+        ///
+        /// 失败以异常形式上抛，由调用它的 SafeEvent.Run 弹出——命令方法不能返回
+        /// OperationResult（[RelayCommand] 只认 Task），而把失败静静咽下去正是要修的问题。
         /// </summary>
         [RelayCommand]
         public async Task ImportModAsync()
@@ -424,8 +427,11 @@ namespace UEModManager.ViewModels
                 Multiselect = true
             };
 
-            if (dialog.ShowDialog() == true)
-                await ImportModsAsync(dialog.FileNames);
+            if (dialog.ShowDialog() != true) return;
+
+            var result = await ImportModsAsync(dialog.FileNames);
+            if (!result.Success && !result.IsCancelled)
+                throw new InvalidOperationException(result.Error ?? OperationResult.DefaultError);
         }
 
         /// <summary>
@@ -438,9 +444,14 @@ namespace UEModManager.ViewModels
         }
 
         /// <summary>
-        /// 通过文件路径导入 MOD（拖拽导入）。
+        /// 通过文件路径导入 MOD。
+        ///
+        /// 返回 OperationResult 而不是 void：<see cref="PackageImportService.ImportAsync"/>
+        /// 是"每个文件各自 try"的结构，失败不会抛，只在结果里留一条 ErrorMessage。
+        /// 此前这里只统计成功个数、把失败原因整个丢掉，于是"仓库目录不可写"表现为
+        /// 列表里凭空少了几个 MOD 且没有任何解释。
         /// </summary>
-        public async Task ImportModsAsync(string[] filePaths)
+        public async Task<OperationResult> ImportModsAsync(string[] filePaths)
         {
             using var loading = BeginLoading("导入MOD...");
             try
@@ -451,6 +462,10 @@ namespace UEModManager.ViewModels
                     .Select(r => r.Package!)
                     .ToList();
 
+                var outcomes = results
+                    .Select(r => r.Success ? OperationResult.Ok() : OperationResult.Fail(r.ErrorMessage))
+                    .ToList();
+
                 await _profileService.AddPackagesToCurrentProfileAsync(importedPackages);
                 if (UiPreferences.LoadAutoDeploy())
                 {
@@ -458,16 +473,18 @@ namespace UEModManager.ViewModels
                     await using (await _profileService.BeginBatchAsync())
                     {
                         foreach (var package in importedPackages)
-                            await DeployToggleAsync(package.PackageKey, true);
+                            outcomes.Add(await DeployToggleAsync(package.PackageKey, true));
                     }
                 }
 
                 await RefreshFromRepositoryAsync();
                 _logger.LogInformation("导入了 {Count} 个包", importedPackages.Count);
+                return OperationResult.Aggregate(outcomes);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "导入 MOD 失败");
+                return OperationResult.Fail(ex.Message);
             }
         }
 
@@ -562,7 +579,19 @@ namespace UEModManager.ViewModels
             }
 
             package.DisplayName = newName.Trim();
-            await _packageRepository.UpdatePackageAsync(package);
+            try
+            {
+                await _packageRepository.UpdatePackageAsync(package);
+            }
+            catch (Exception ex)
+            {
+                // 索引/manifest 写失败现在会上抛。这里转成 OperationResult 而不是让它冒到
+                // SafeEvent：同一个方法的其它失败分支都走 OperationResult，混着两种通道
+                // 会让调用方无从判断"返回了就一定没抛"。
+                _logger.LogError(ex, "重命名 MOD 失败: {Key}", mod.RealName);
+                return OperationResult.Fail($"重命名「{mod.Name}」失败：{ex.Message}");
+            }
+
             mod.Name = package.DisplayName;
             await RefreshFromRepositoryAsync();
             return OperationResult.Ok();
@@ -570,11 +599,23 @@ namespace UEModManager.ViewModels
 
         public async Task<OperationResult> ChangePreviewAsync(ModInfo mod, string imagePath)
         {
-            var storedPath = await _packageRepository.UpdatePreviewImageAsync(mod.RealName, imagePath);
+            string? storedPath;
+            try
+            {
+                storedPath = await _packageRepository.UpdatePreviewImageAsync(mod.RealName, imagePath);
+            }
+            catch (Exception ex)
+            {
+                // ObjectStore 现在把真实原因抛上来（仓库目录不可写、磁盘满、源图被占用……），
+                // 直接透传比原来那句"请确认图片文件仍然存在且可读取"的猜测有用得多。
+                _logger.LogError(ex, "更换预览图失败: {Key} ← {Path}", mod.RealName, imagePath);
+                return OperationResult.Fail($"预览图保存失败：{ex.Message}");
+            }
+
             if (string.IsNullOrEmpty(storedPath))
             {
-                _logger.LogWarning("更换预览图失败: {Key} ← {Path}", mod.RealName, imagePath);
-                return OperationResult.Fail($"预览图保存失败。请确认图片文件仍然存在且可读取：{imagePath}");
+                _logger.LogWarning("更换预览图失败，仓库中找不到包: {Key}", mod.RealName);
+                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
             }
 
             mod.PreviewImage = null;
