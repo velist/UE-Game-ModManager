@@ -43,7 +43,7 @@ UEModManager/
 │   ├── Migrations/           # EF Core 迁移
 │   └── MainWindow.xaml       # 主窗口
 ├── UEModManager.Core/        # 核心库：纯函数 + 纯模型，无 WPF 依赖
-├── UEModManager.Core.Tests/  # Core 单元测试（660 个）
+├── UEModManager.Core.Tests/  # Core 单元测试（882 个）
 ├── UEModManager.Tests/       # 主程序测试（少量，需要 net8.0-windows）
 ├── samples/                  # 示例工程（SampleBackend：IDeploymentBackend 实现范例）
 ├── docs/                     # 架构说明、playbooks、审计报告
@@ -61,7 +61,7 @@ UEModManager/
 - **`UEModManager.Core`**：纯函数 + 纯模型。部署计划计算、冲突检测、路径清洗、
   lock 文件构建、崩溃恢复分类、原子写等算法都在这里，不碰 WPF，也基本不碰 IO
   （`Services/Persistence/AtomicFileWriter` 是被明确划出来的 IO 抽象例外）。
-  测试都压在这一层——`UEModManager.Core.Tests` 有 660 个测试。
+  测试都压在这一层——`UEModManager.Core.Tests` 有 882 个测试。
 - **`UEModManager/Services`**：Core 的 IO 适配层。负责读写文件、访问数据库、记日志、
   调度 UI，纯逻辑部分转调 Core。新增算法应优先落在 Core 并配单测，
   见 `docs/playbooks/writing-core-service.md`。
@@ -170,7 +170,16 @@ API 统一用 snake_case，模型用 `[JsonPropertyName("snake_case")]`
   `DataContext` 绑定），但窗口仍保留大量 code-behind（`MainWindow.xaml.cs` 约 1670 行），
   改 UI 前先确认逻辑在 VM 还是 code-behind
 - MOD 分类存储在 `ModInfo.Categories` (`List<string>`，默认 `["未分类"]`)，
-  `ModInfo.PrimaryCategory` 是取首个元素的只读派生属性（无 `Type` 字段）
-- 右键菜单"移动到分类"通过 `ContextMenu` 实现
-- 拖拽到左侧分类使用 `MainWindow.CategoryList_Drop` 处理
+  `ModInfo.PrimaryCategory` 是取首个元素的只读派生属性（无 `Type` 字段）；
+  **权威存储是包仓库的 `Package.Tags`**——`RefreshFromRepositoryAsync` 每次都据此重建
+  `AllMods`，只改 `ModInfo.Categories` 的话下一次刷新就被打回去
+- 右键菜单"移动到分类"（卡片模式与列表模式各一份 `ContextMenu`，共用 `MainWindow.xaml`
+  里的 `MoveToCategoryMenuItem` 样式）：子项由 `CategoryViewModel.AssignableCategories`
+  动态生成，落盘走 `MainViewModel.MoveModToCategoryAsync`。
+  可选目标不含"全部/已启用/已禁用"——这三个是按 `IsEnabled` 现算的筛选视图、不存储归属，
+  名单归口 `Core` 的 `ModCategoryAssignment.SystemCategoryNames`
+- 带子菜单的 `MenuItem` 必须用 `CyberMenuItemSubmenuHeader` 样式；`CyberMenuItem` 的模板里
+  没有 `Popup` 也没有 `IsItemsHost`，套着它的菜单项填满 `Items` 也弹不出任何东西
+- `MainWindow.CategoryList_Drop` 只处理**分类之间的拖拽排序**（数据类型 `CategoryItem`），
+  不接受 MOD 拖入；把 MOD 归类只有右键菜单一条路径
 - UI 事件处理器统一用 `Infrastructure/SafeEvent.Run` 包裹，不要新写裸 `async void` 处理器

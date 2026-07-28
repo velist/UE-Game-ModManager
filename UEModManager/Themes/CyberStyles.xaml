@@ -1062,6 +1062,82 @@
         </Setter>
     </Style>
 
+    <!-- ── ContextMenu 带子菜单的项 (SubmenuHeader) ──
+         CyberMenuItem 的模板里只有 Border > Grid > Header，没有 Popup 也没有 ItemsHost，
+         套着它的 MenuItem 哪怕填满了 Items 也弹不出任何东西——"移动到分类"当初就是这么
+         静默失效的（既没接线，也没有能显示子项的模板）。带子菜单的项必须用这个样式。 -->
+    <Style x:Key="CyberMenuItemSubmenuHeader" TargetType="{x:Type MenuItem}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type MenuItem}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusSm}" Padding="12,0"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter x:Name="Icon" Grid.Column="0" Content="{TemplateBinding Icon}"
+                                              VerticalAlignment="Center" Margin="0,0,10,0" Width="16" Height="16"/>
+                            <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                              VerticalAlignment="Center"/>
+                            <!-- 没有子项时用这里提示原因，否则画展开箭头 -->
+                            <TextBlock x:Name="hintText" Grid.Column="2" Visibility="Collapsed"
+                                       Text="{TemplateBinding InputGestureText}"
+                                       Foreground="{StaticResource Text600Brush}" FontSize="11"
+                                       VerticalAlignment="Center" Margin="20,0,0,0"/>
+                            <Path x:Name="arrow" Grid.Column="2" Data="M 0 0 L 4 4 L 0 8 Z"
+                                  Fill="{StaticResource Text600Brush}"
+                                  VerticalAlignment="Center" Margin="20,0,0,0"/>
+
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Right" HorizontalOffset="4" VerticalOffset="-7"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource DropdownBgBrush}"
+                                        BorderBrush="{StaticResource DropdownBorderBrush}"
+                                        BorderThickness="1" CornerRadius="{StaticResource RadiusMd}"
+                                        Padding="6" SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True"
+                                                KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource ItemHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="Icon" Value="{x:Null}">
+                            <Setter TargetName="Icon" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="arrow" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="hintText" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource Text600Brush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!-- 一个分类都没有时，点开是个空白浮层，看着像坏了。直接禁用并说明原因。 -->
+            <Trigger Property="HasItems" Value="False">
+                <Setter Property="IsEnabled" Value="False"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ── ContextMenu 分割线 Separator ── -->
     <Style x:Key="CyberMenuSeparator" TargetType="{x:Type Separator}">
         <Setter Property="Height" Value="1"/>

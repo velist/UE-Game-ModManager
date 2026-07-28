@@ -133,6 +133,97 @@ public class MainWindowSourceGuardTests
     }
 
     [Fact]
+    public void 移动到分类菜单真的接了线_而不是挂在那里没人管()
+    {
+        // 事故原型：v2.0 基线把 <MenuItem Header="移动到分类"> 从 v1.7 抄进了新 XAML，
+        // 却没抄它的填充逻辑，C# 里对它零引用。菜单点开是空的，而"移动 MOD 到分类"
+        // 恰恰没有任何替代路径（拖拽只处理分类之间的排序，不接受 MOD）。
+        // 这里同时钉住三件事：菜单项存在、子项由数据驱动、点击有处理器。
+        var xaml = ReadMainWindow("MainWindow.xaml");
+        var source = ReadMainWindow("MainWindow.xaml.cs");
+
+        Assert.Contains("MoveToCategoryMenuItem", xaml);
+
+        // 子项必须来自 AssignableCategories：绑到 Categories 会把三个系统筛选视图
+        // 也列出来，它们不存储归属，移进去等于什么都没发生。
+        Assert.Contains("AssignableCategories", xaml);
+        Assert.DoesNotContain("Value=\"{Binding PlacementTarget.Tag.Categories.Categories", xaml);
+
+        // 点击必须有处理器，且走 SafeEvent.Run（落盘失败要弹给用户）
+        Assert.Contains("MoveToCategoryMenuItem_Click", source);
+        var handler = Regex.Match(source,
+            @"private void MoveToCategoryMenuItem_Click\(.*?\n            \}, _logger", RegexOptions.Singleline);
+        Assert.True(handler.Success, "找不到 MoveToCategoryMenuItem_Click");
+        Assert.Contains("SafeEvent.Run", handler.Value);
+        Assert.Contains("MoveModToCategoryAsync", handler.Value);
+        Assert.Contains("ShowOperationFailure", handler.Value);
+    }
+
+    [Fact]
+    public void 两个模式的右键菜单都有移动到分类()
+    {
+        // 卡片模式和列表模式各有一份 ContextMenu。列表模式那份此前压根没有这一项，
+        // 于是"切到列表视图就没法改分类"。共用同一个 Style 是为了不再各写各的。
+        var xaml = ReadMainWindow("MainWindow.xaml");
+
+        var uses = Regex.Matches(xaml, Regex.Escape("Style=\"{StaticResource MoveToCategoryMenuItem}\"")).Count;
+
+        Assert.True(uses == 2,
+            $"应有卡片模式和列表模式两处引用 MoveToCategoryMenuItem 样式，实际 {uses} 处");
+    }
+
+    [Fact]
+    public void 带子菜单的菜单项没有套用不能显示子项的样式()
+    {
+        // CyberMenuItem 的 ControlTemplate 里只有 Border > Grid > Header，
+        // 没有 Popup 也没有 IsItemsHost——套着它的 MenuItem 哪怕 Items 填满了也弹不出东西。
+        // "移动到分类"当初就是这么双重失效的。带子项的菜单项必须用 SubmenuHeader 样式。
+        var xaml = ReadMainWindow("MainWindow.xaml");
+
+        var style = Regex.Match(xaml,
+            @"<Style x:Key=""MoveToCategoryMenuItem"".*?</Style>\s*</Window.Resources>",
+            RegexOptions.Singleline);
+
+        Assert.True(style.Success, "找不到 MoveToCategoryMenuItem 样式定义");
+        Assert.Contains("CyberMenuItemSubmenuHeader", style.Value);
+    }
+
+    [Fact]
+    public void 右键菜单取MOD时会一路向上找ContextMenu()
+    {
+        // 只看一层 Parent 有两个后果：子菜单项（"移动到分类"下的分类）的 Parent
+        // 是父 MenuItem 而非 ContextMenu，永远取不到 MOD；列表模式的菜单挂在
+        // ListView 上，PlacementTarget 给不出具体某一行，也必须回落到选中项。
+        var source = ReadMainWindow("MainWindow.xaml.cs");
+
+        var helper = Regex.Match(source,
+            @"private ModInfo\? GetModFromContextMenu\(.*?\n        \}", RegexOptions.Singleline);
+
+        Assert.True(helper.Success, "找不到 GetModFromContextMenu");
+        Assert.Contains("while", helper.Value);
+        Assert.Contains("_vm.ModList.SelectedMod", helper.Value);
+    }
+
+    [Fact]
+    public void 系统分类名单只有一份事实来源()
+    {
+        // 名单散成多份拷贝时，加一个系统分类漏改一处的表现是：
+        // 某个筛选视图变成了可写的真分类，用户能把 MOD 移进"已启用"。
+        var categoryItem = File.ReadAllText(
+            Path.Combine(RepoRoot(), "UEModManager", "Models", "CategoryItem.cs"));
+        var categoryService = File.ReadAllText(
+            Path.Combine(RepoRoot(), "UEModManager", "Services", "NewCategoryService.cs"));
+
+        Assert.Contains("ModCategoryAssignment.SystemCategoryNames", categoryItem);
+        Assert.Contains("ModCategoryAssignment.SystemCategoryNames", categoryService);
+
+        // 运行时再确认一次两边确实一致
+        Assert.Equal(
+            UEModManager.Services.Categories.ModCategoryAssignment.SystemCategoryNames.OrderBy(n => n),
+            UEModManager.Models.CategoryItem.SystemNames.OrderBy(n => n));
+    }
+
+    [Fact]
     public void 绑定路径在ViewModel上真实存在_改名不会静默断掉绑定()
     {
         // XAML 绑定路径不参与编译检查：把 ModList 改名，绑定会静默失效、列表变空，
@@ -155,6 +246,13 @@ public class MainWindowSourceGuardTests
         Assert.True(categoryItems != null,
             "CategoryViewModel.Categories 不存在，{Binding Categories.Categories} 会失效");
         Assert.True(categoryItems!.GetMethod?.IsPublic == true, "Categories 必须是 public");
+
+        // 右键"移动到分类"的子项绑的是这条路径
+        var assignable = categories.PropertyType.GetProperty("AssignableCategories");
+        Assert.True(assignable != null,
+            "CategoryViewModel.AssignableCategories 不存在，右键菜单的分类子项会全部消失");
+        Assert.True(assignable!.GetMethod?.IsPublic == true, "AssignableCategories 必须是 public");
+        Assert.Null(assignable.SetMethod);
     }
 
     [Fact]

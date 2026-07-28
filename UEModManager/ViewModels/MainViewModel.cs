@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Converters;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Categories;
 using UEModManager.Services.Conflict;
 
 namespace UEModManager.ViewModels
@@ -600,6 +601,53 @@ namespace UEModManager.ViewModels
             }
 
             mod.Name = package.DisplayName;
+            await RefreshFromRepositoryAsync();
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// 把 MOD 移动到指定分类。
+        ///
+        /// 必须写进包仓库的 <c>Package.Tags</c>，不能只改 <c>ModInfo.Categories</c>：
+        /// <see cref="RefreshFromRepositoryAsync"/> 每次都用 <c>package.Tags</c> 重建整个 AllMods，
+        /// 只改内存的话下一次刷新（切换游戏、启用/禁用任意一个 MOD）就把分类打回原样，
+        /// 而用户已经看到界面更新过一次了。
+        /// </summary>
+        public async Task<OperationResult> MoveModToCategoryAsync(ModInfo mod, string categoryName)
+        {
+            if (!ModCategoryAssignment.IsAssignableTarget(categoryName))
+            {
+                _logger.LogWarning("移动分类失败，目标不合法: {Category}", categoryName);
+                return OperationResult.Fail($"「{categoryName}」不是可用的分类目标。");
+            }
+
+            if (ModCategoryAssignment.IsAlreadyIn(mod.Categories, categoryName))
+                return OperationResult.Ok();
+
+            var package = _packageRepository.GetByKey(mod.RealName);
+            if (package == null)
+            {
+                _logger.LogWarning("移动分类失败，仓库中找不到包: {Key}", mod.RealName);
+                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+            }
+
+            var previousTags = package.Tags;
+            package.Tags = ModCategoryAssignment.BuildCategoriesFor(categoryName);
+            try
+            {
+                await _packageRepository.UpdatePackageAsync(package);
+            }
+            catch (Exception ex)
+            {
+                // 内存里的 Package 实例是仓库索引里那一个，写盘失败就得把标签放回去，
+                // 否则界面刷新时会读到一个磁盘上并不存在的分类——跟分类服务里
+                // 增删改失败要回滚内存是同一个道理。
+                package.Tags = previousTags;
+                _logger.LogError(ex, "移动 MOD 分类失败: {Key} -> {Category}", mod.RealName, categoryName);
+                return OperationResult.Fail($"将「{mod.Name}」移动到「{categoryName}」失败：{ex.Message}");
+            }
+
+            mod.Categories = ModCategoryAssignment.BuildCategoriesFor(categoryName);
             await RefreshFromRepositoryAsync();
             return OperationResult.Ok();
         }
