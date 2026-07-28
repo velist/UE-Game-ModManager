@@ -15,12 +15,17 @@ namespace UEModManager.Views
     {
         private readonly PackageRepository _packageRepo;
         private readonly ProfileService _profileService;
+        private readonly RepositoryReclaimService _reclaim;
 
-        public RepositoryManagerWindow(PackageRepository packageRepo, ProfileService profileService)
+        public RepositoryManagerWindow(
+            PackageRepository packageRepo,
+            ProfileService profileService,
+            RepositoryReclaimService reclaim)
         {
             InitializeComponent();
             _packageRepo = packageRepo;
             _profileService = profileService;
+            _reclaim = reclaim;
             Loaded += (_, _) => RefreshUI();
         }
 
@@ -158,22 +163,27 @@ namespace UEModManager.Views
 
         // ─── 事件处理 ───
 
-        private async void CheckIntegrity_Click(object sender, RoutedEventArgs e)
-        {
-            try
+        private void CheckIntegrity_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
+                // 正向检查（索引 → 磁盘）与反向扫描（磁盘 → 索引）必须一起做：
+                // 只查索引永远看不到"磁盘上有、索引里没有"的导入残留，那正是用户既看不见
+                // 也删不掉、却实实在在占着几十 GB 的那部分。
                 var issues = await _packageRepo.CheckIntegrityAsync();
-                var msg = issues.Count == 0
+                var plan = _reclaim.BuildPlan();
+                var lines = issues.Select(i => $"[{i.packageKey}] {i.issue}")
+                    .Concat(RepositoryReclaimPrompt.DescribeIssues(plan))
+                    .ToList();
+
+                var msg = lines.Count == 0
                     ? "所有 MOD 文件都能正常找到"
-                    : $"发现 {issues.Count} 个文件问题:\n" + string.Join("\n", issues.Take(5).Select(i => $"[{i.packageKey}] {i.issue}"));
+                    : $"发现 {lines.Count} 个问题:\n" + string.Join("\n", lines.Take(5));
                 CyberMessageBox.Show(this, msg, "检查缺失文件",
-                    MessageBoxButton.OK, issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
-            }
-            catch (Exception ex)
-            {
-                CyberMessageBox.Show(this, $"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+                    MessageBoxButton.OK, lines.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+                if (RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, plan))
+                    RefreshUI();
+            }, null, "检查仓库完整性");
 
         private void MergeDuplicates_Click(object sender, RoutedEventArgs e)
         {

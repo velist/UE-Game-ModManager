@@ -314,6 +314,10 @@ namespace UEModManager.Services
                         .ToList();
                     if (bundled.Count == 0) continue;
 
+                    // 目录是否本来就在磁盘上：只有本次自己创建的才允许在失败时删掉。
+                    // localKeys 已经排除了索引里有记录的键，但索引里没有、磁盘上有的残留
+                    // （上一次整合包导入失败留下的）仍可能存在。
+                    var pkgDirPreexisted = Directory.Exists(pkgDir);
                     Directory.CreateDirectory(pkgDir);
 
                     foreach (var entry in bundled)
@@ -347,8 +351,12 @@ namespace UEModManager.Services
                     }
                     extracted++;
 
-                    // 从解压出的 manifest.json 注册 Package
+                    // 从解压出的 manifest.json 注册 Package。
+                    // 注册不成 = 文件已经解进仓库、索引里却没有记录，正是导入路径上那种
+                    // "用户看不见也删不掉"的孤儿目录，故这里补上与 PackageImportService
+                    // 对称的补偿删除：只删本次自己解出来的目录。
                     var manifestPath = _packageRepo.Store.GetManifestPath(pkg.PackageKey);
+                    var registeredThisPackage = false;
                     if (File.Exists(manifestPath))
                     {
                         try
@@ -360,6 +368,7 @@ namespace UEModManager.Services
                                 var newPkg = manifest.ToPackage();
                                 await _packageRepo.RegisterPackageAsync(newPkg);
                                 registered++;
+                                registeredThisPackage = true;
                             }
                         }
                         catch (Exception ex)
@@ -367,6 +376,14 @@ namespace UEModManager.Services
                             _logger.LogWarning(ex, "[Lock] Failed to register package from bundle: {Key}", pkg.PackageKey);
                         }
                     }
+                    else
+                    {
+                        // 整合包里这个包缺 manifest.json —— 解出来的文件永远不会被登记。
+                        _logger.LogWarning("[Lock] Bundle package has no manifest.json: {Key}", pkg.PackageKey);
+                    }
+
+                    if (!registeredThisPackage)
+                        CleanupUnregisteredBundleDirectory(pkg.PackageKey, pkgDir, pkgDirPreexisted);
                 }
             }
 
@@ -375,6 +392,40 @@ namespace UEModManager.Services
                 extracted, registered);
 
             return await ApplyImportAsync(lockFile);
+        }
+
+        /// <summary>
+        /// 整合包里的某个包解出来了、却没能登记进索引时，删掉本次自己解出来的目录。
+        ///
+        /// <para>
+        /// 不这么做的话磁盘上就多出一个"有文件、索引里没记录"的目录：用户在界面上看不见它，
+        /// 也就没有任何入口能删掉它，只能靠 <see cref="RepositoryReclaimService"/> 事后回收，
+        /// 而带 manifest 的残留连事后回收都不会碰（那条判据保守到只提示不删）。
+        /// </para>
+        /// <para>
+        /// 目录在本次导入之前就存在时不删：那可能是别的包/别的游戏的数据，
+        /// 判据不足就不动手 —— 与 <c>PackageImportService.CleanupPartialImport</c> 一致。
+        /// </para>
+        /// </summary>
+        private void CleanupUnregisteredBundleDirectory(string packageKey, string pkgDir, bool preexisted)
+        {
+            if (preexisted)
+            {
+                _logger.LogWarning(
+                    "[Lock] Package dir existed before import, skip cleanup: {Key}", packageKey);
+                return;
+            }
+
+            try
+            {
+                if (Directory.Exists(pkgDir)) Directory.Delete(pkgDir, true);
+                _logger.LogInformation("[Lock] Cleaned up unregistered bundle package dir: {Key}", packageKey);
+            }
+            catch (Exception ex)
+            {
+                // 删不掉不阻断整合包导入的其余部分；残留会被 RepositoryReclaimService 找出来。
+                _logger.LogWarning(ex, "[Lock] Failed to clean up bundle package dir: {Key}", packageKey);
+            }
         }
 
         // ─── ZIP 工具 ───

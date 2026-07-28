@@ -288,6 +288,9 @@ namespace UEModManager
                     // v2.0 Phase 2: 包仓库服务
                     services.AddSingleton<ObjectStore>();
                     services.AddSingleton<PackageRepository>();
+                    // 仓库孤儿对象的事后回收。PackageImportService 注入它，在每次压缩包导入前
+                    // 回收上一次进程被强杀留下的解压临时目录。
+                    services.AddSingleton<RepositoryReclaimService>();
                     services.AddSingleton<PackageImportService>();
                     services.AddSingleton<DataMigrationService>();
 

@@ -37,6 +37,7 @@ namespace UEModManager.Services
         private readonly PackageRepository _repository;
         private readonly ObjectStore _objectStore;
         private readonly GameConfigService _gameConfig;
+        private readonly RepositoryReclaimService _reclaim;
 
         /// <summary>
         /// 导入完成时触发。
@@ -47,12 +48,14 @@ namespace UEModManager.Services
             ILogger<PackageImportService> logger,
             PackageRepository repository,
             ObjectStore objectStore,
-            GameConfigService gameConfig)
+            GameConfigService gameConfig,
+            RepositoryReclaimService reclaim)
         {
             _logger = logger;
             _repository = repository;
             _objectStore = objectStore;
             _gameConfig = gameConfig;
+            _reclaim = reclaim;
         }
 
         /// <summary>
@@ -274,6 +277,12 @@ namespace UEModManager.Services
             var tempDir = IOPath.Combine(tempRoot, $"uemod_import_{Guid.NewGuid()}");
             var archiveName = IOPath.GetFileNameWithoutExtension(filePath);
 
+            // 先回收上次没能清掉的解压残留：本方法的 finally 会删自己的临时目录，但进程被强杀
+            // （任务管理器结束进程/断电）时不会执行，几十 GB 的解压产物就永久留在仓库根下。
+            // 放在导入前顺手做，比另起一个用户看不懂的按钮更合理；判据见
+            // RepositoryReclaimPlanner.PlanImportTemp，无歧义故不需要确认。
+            _reclaim.ReclaimStaleImportTemp(tempRoot);
+
             try
             {
                 Directory.CreateDirectory(tempDir);
@@ -334,7 +343,17 @@ namespace UEModManager.Services
             }
             finally
             {
-                try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true); } catch { }
+                // 删不掉不阻断导入结果的返回（成品已经在仓库里了），但必须留痕：
+                // 此前这里是裸 catch{}，几十 GB 的解压产物默默留在磁盘上，日志里一个字都没有。
+                // 删不掉的会由下一次导入前的 ReclaimStaleImportTemp 回收。
+                try
+                {
+                    if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "删除解压临时目录失败，将在下次导入时回收: {Dir}", tempDir);
+                }
             }
 
             return results;
