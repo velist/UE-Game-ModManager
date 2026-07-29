@@ -20,6 +20,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Backends;
 using UEModManager.Services.Recovery;
 using UEModManager.Views;
 using UEModManager.Infrastructure;
@@ -64,12 +65,16 @@ namespace UEModManager
         private readonly CrashRecoveryService? _crashRecovery;
         private readonly DataLocationMigrator? _dataMigrator;
         private readonly HealthCheckService? _healthCheck;
+        private readonly DeploymentService? _deployService;
 
         // ── UI 状态 ──
         private DispatcherTimer? _searchDebounceTimer;
         private bool _isDragging;
         private Point _startPoint;
         private string _activeNavTag = "全部";
+
+        /// <summary>降级提示正在显示。批量部署会连着抛 N 次告知事件，这个标志挡住后面几次。</summary>
+        private bool _degradationNoticeShowing;
 
 
         // ═════════════════════════════════════════
@@ -99,12 +104,21 @@ namespace UEModManager
                 _crashRecovery = sp.GetService<CrashRecoveryService>();
                 _dataMigrator = sp.GetService<DataLocationMigrator>();
                 _healthCheck = sp.GetService<HealthCheckService>();
+                _deployService = sp.GetService<DeploymentService>();
 
                 // 订阅认证事件
                 if (_localAuthService != null)
                 {
                     _localAuthService.AuthStateChanged += OnLocalAuthStateChanged;
                     UpdateUserStatusDisplay();
+                }
+
+                // 订阅部署降级告知。挂在主窗口而不是各个部署入口上：单个开关、批量开关、
+                // 导入后自动部署、启动前部署走的是同一个 DeploymentService 单例，订一次就全覆盖；
+                // 分散到入口上则必然漏掉某一条路径——"某条路径上用户什么都看不到"正是这次要修的病。
+                if (_deployService != null)
+                {
+                    _deployService.DegradationDetected += OnDeploymentDegraded;
                 }
 
                 // 订阅 ViewModel 事件。
@@ -347,9 +361,92 @@ namespace UEModManager
             LanguageManager.LanguageChanged -= OnLanguageChanged;
             BackgroundManager.BackgroundChanged -= OnBackgroundChanged;
 
+            // DeploymentService 是单例，同理必须退订
+            if (_deployService != null)
+            {
+                _deployService.DegradationDetected -= OnDeploymentDegraded;
+            }
+
             // ProfileService 是单例，退订后 ViewModel 才能被回收。
             // 本窗口自己已不再订阅它的事件，退订由 MainViewModel.Dispose 完成。
             _vm.Dispose();
+        }
+
+        // ═════════════════════════════════════════
+        //  部署降级告知
+        // ═════════════════════════════════════════
+
+        /// <summary>
+        /// 部署成功但"没能按用户选的方式做"时告知一次。
+        ///
+        /// <para>
+        /// 典型场景：用户在设置里选了「硬链接」，而包仓库默认在系统盘、游戏装在别的盘。
+        /// 硬链接建不了跨盘，后端逐个文件降级为复制——部署成功、MOD 能用、空间一点没省，
+        /// 而此前整个过程在界面上不留一个字，只有日志里一行 LogWarning。
+        /// </para>
+        ///
+        /// <para>
+        /// 事件可能在部署线程上抛出，且此刻还在 <c>ExecuteAsync</c> 的 finally 里：
+        /// 直接弹框会把部署的收尾卡在一个等用户点确定的模态窗口上。
+        /// 丢回 UI 队列末尾再弹，让部署流程和列表刷新先跑完。
+        /// </para>
+        /// </summary>
+        private void OnDeploymentDegraded(DeploymentTransaction transaction)
+        {
+            var summaries = transaction.Degradations.ToList();
+            if (summaries.Count == 0) return;
+
+            Dispatcher.BeginInvoke(DispatcherPriority.Background,
+                new Action(() => ShowDeploymentDegradationNotice(summaries)));
+        }
+
+        /// <summary>
+        /// 真正弹这条提示。
+        ///
+        /// <para>
+        /// <b>不走 <c>SafeEvent.Run</c></b>：它的失败呈现是一个"操作失败"的错误框，
+        /// 而这里整体只是一条提示——为一条没弹出来的提示再弹一个错误框是荒唐的。
+        /// 本方法自带 try/catch，失败只留痕，事务日志里那条降级记录仍然在。
+        /// </para>
+        /// </summary>
+        private void ShowDeploymentDegradationNotice(IReadOnlyList<DeploymentDegradationSummary> summaries)
+        {
+            // 批量启用会连着部署 N 次、抛 N 次告知。第一条弹出来的时候后面几条已经排在队列里了
+            // （签名要等这一条弹完才存得下去），靠这个标志挡住，否则用户要连点 N 个一模一样的框。
+            if (_degradationNoticeShowing) return;
+
+            try
+            {
+                // "什么时候值得说一次"的判定在 Core：同一种情形（原因 + 哪两个盘）只说一次，
+                // 用户换了存放位置或换了别的盘上的游戏才会再说。
+                var decision = DeploymentDegradationNotice.Decide(
+                    summaries, UiPreferences.LoadDeployDegradationNotice());
+
+                _logger?.LogInformation("[Deploy] 降级告知 shouldNotify={Should}：{Reason}",
+                    decision.ShouldNotify, decision.Reason);
+                if (!decision.ShouldNotify) return;
+
+                var content = DeploymentDegradationNotice.BuildContent(summaries);
+
+                _degradationNoticeShowing = true;
+                try
+                {
+                    // 提示不是错误：Information 图标 + 单个"知道了"，不做成拦人的错误框。
+                    CyberMessageBox.Show(this, content.Message, content.Title,
+                        MessageBoxButton.OK, MessageBoxImage.Information, okText: "知道了");
+                }
+                finally
+                {
+                    _degradationNoticeShowing = false;
+                }
+
+                // 先弹再记账：反过来的话，进程在弹框期间被杀会让用户永远看不到这条提示。
+                UiPreferences.SaveDeployDegradationNotice(decision.Signature);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "[UI] 显示部署降级提示失败");
+            }
         }
 
         /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>

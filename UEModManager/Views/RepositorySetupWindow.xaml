@@ -82,6 +82,12 @@
                                              Foreground="{Binding UsageBrush}"/>
                                 <TextBlock Text="{Binding CapacityText}" FontSize="11" Margin="0,4,0,0"
                                            Foreground="{StaticResource Text500Brush}"/>
+                                <!-- 与游戏同一个盘：单独一行，不和角标抢位置。
+                                     拿不到游戏路径（首次运行的常态）时整行 Collapsed。 -->
+                                <TextBlock Text="{Binding GameVolumeText}" FontSize="11" Margin="0,3,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding GameVolumeVisibility}"
+                                           Foreground="{Binding GameVolumeBrush}"/>
                             </StackPanel>
                         </Grid>
                     </DataTemplate>

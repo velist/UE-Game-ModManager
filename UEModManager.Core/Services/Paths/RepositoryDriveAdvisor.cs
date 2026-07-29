@@ -14,13 +14,29 @@ namespace UEModManager.Services.Paths;
 /// <param name="AvailableBytes">可用字节数；查不到为 <c>null</c>。</param>
 /// <param name="TotalBytes">总容量；查不到为 <c>null</c>。</param>
 /// <param name="IsCurrentDefault">当前默认仓库位置是否就在这个盘上。</param>
+/// <param name="HostsCurrentGame">
+/// 当前配置的游戏是否装在这个盘上。
+///
+/// <para>
+/// 用途只有一个：告诉用户"选这个盘，部署时才能用硬链接省空间"——硬链接建不了跨盘，
+/// 仓库和游戏不在同一个盘时部署会静默退化成复制，空间一点省不下来。
+/// </para>
+///
+/// <para>
+/// <b>带默认值 <c>false</c> 是刻意的</b>：首次运行引导跑在启动早期，此时
+/// <c>config.json</c> 还不存在（它不存在正是引导会弹出来的前提之一），
+/// 拿不到游戏路径是<b>常态</b>。此时全部为 <c>false</c>，界面上这条提示整体不出现，
+/// 而不是显示一句"未知"或报错。
+/// </para>
+/// </param>
 public sealed record RepositoryDriveOption(
     string RootPath,
     string DisplayName,
     RepositoryVolumeKind Kind,
     long? AvailableBytes,
     long? TotalBytes,
-    bool IsCurrentDefault);
+    bool IsCurrentDefault,
+    bool HostsCurrentGame = false);
 
 /// <summary>
 /// 引导界面上盘位列表的排序与推荐（纯函数，不碰 IO）。
@@ -42,6 +58,16 @@ public sealed record RepositoryDriveOption(
 /// <b>推荐项刻意可以为空。</b>只有固定盘才够资格被推荐；一台只有系统盘、且系统盘也快满了的
 /// 机器上，与其硬推一个位置，不如什么都不推、让用户自己选 —— 推荐一个装不下的盘
 /// 比不推荐更糟。
+/// </para>
+///
+/// <para>
+/// <b>"与游戏同一个盘"不参与推荐，只作为一条并列信息展示</b>
+/// （<see cref="RepositoryDriveOption.HostsCurrentGame"/>）。不把它并进
+/// <see cref="Recommend"/> 有两条理由：一是排序的判据是"装得下、不会哪天不见"，
+/// 硬链接省空间是另一个维度，混进来会让"推荐"同时代表两件事，
+/// 而两件事完全可能指向不同的盘；二是游戏可能装在移动硬盘上，
+/// 让它借"同盘"绕过"可移动盘永不推荐"这条规则，正是那条规则要防的事。
+/// 界面上二者各占一行，用户自己权衡。
 /// </para>
 /// </summary>
 public static class RepositoryDriveAdvisor

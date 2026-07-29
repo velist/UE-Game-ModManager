@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using UEModManager.Services;
 using UEModManager.Services.Paths;
@@ -406,6 +407,58 @@ public sealed class RepositorySetupServiceTests : IDisposable
         Assert.Equal(
             RepositoryDriveAdvisor.Rank(drives).Select(d => d.RootPath),
             drives.Select(d => d.RootPath));
+    }
+
+    // ─── 与游戏同一个盘 ───
+
+    [Fact]
+    public void 没有主配置时一个盘都不标成游戏盘()
+    {
+        // 这是首次运行的<b>常态</b>而不是异常：引导会弹出来的前提之一就是 config.json 不存在
+        // （见"主配置存在时不弹"）。两条判据合在一起意味着：首次运行引导里这条提示
+        // 恒定不显示。它必须安静地消失，而不是显示"未知"或把引导带崩。
+        Assert.False(File.Exists(Path.Combine(_local, "config.json")));
+
+        Assert.All(CreateService().ListDrives(), d => Assert.False(d.HostsCurrentGame));
+    }
+
+    [Fact]
+    public void 主配置里有游戏路径时标出它所在的那个盘()
+    {
+        // 引导本身不会在这个形态下弹出（config.json 存在即不弹），但同一份盘位列表
+        // 只要被复用到"用户已经配置过游戏"的入口上，这条提示就必须能亮起来。
+        var gamePath = Path.Combine(Path.GetTempPath(), "uemm_fake_game");
+        Seed(Path.Combine(_local, "config.json"),
+            $$"""{"GamePath": {{JsonSerializer.Serialize(gamePath)}}}""");
+
+        var expectedRoot = Path.GetPathRoot(Path.GetFullPath(gamePath));
+        var marked = CreateService().ListDrives().Where(d => d.HostsCurrentGame).ToList();
+
+        var one = Assert.Single(marked);
+        Assert.Equal(expectedRoot, one.RootPath);
+    }
+
+    [Theory]
+    [InlineData("{ 这不是 json")]
+    [InlineData("{}")]
+    [InlineData("""{"GamePath": ""}""")]
+    [InlineData("""{"GamePath": "   "}""")]
+    public void 配置读不出游戏路径时安静地不标(string configContent)
+    {
+        // 这条信息只驱动一句可有可无的提示，为它把启动早期的引导带崩完全不成比例
+        Seed(Path.Combine(_local, "config.json"), configContent);
+
+        Assert.All(CreateService().ListDrives(), d => Assert.False(d.HostsCurrentGame));
+    }
+
+    [Fact]
+    public void 游戏路径是相对路径时不标()
+    {
+        // 相对路径按当前工作目录展开，而 WPF 进程的工作目录不受控，
+        // 据此标盘会让提示随启动方式漂移
+        Seed(Path.Combine(_local, "config.json"), """{"GamePath": "Games\\Wukong"}""");
+
+        Assert.All(CreateService().ListDrives(), d => Assert.False(d.HostsCurrentGame));
     }
 
     // ─── 偏好替身 ───
