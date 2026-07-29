@@ -57,6 +57,13 @@ namespace UEModManager.Services
             public string? BackupsRoot { get; set; }
 
             /// <summary>
+            /// 首次运行的仓库位置引导是否已经问过。
+            /// 独立于 <see cref="RepositoryRoot"/>：跳过引导的人这里为 true 而 RepositoryRoot 仍为 null，
+            /// 拿"有没有位置"当判据会让他每次启动都被问一次。
+            /// </summary>
+            public bool RepositoryLocationPrompted { get; set; }
+
+            /// <summary>
             /// 已迁移到的数据目录布局版本（见 DataRelocationPlanner.CurrentLayoutVersion）。
             /// 0 表示尚未迁移。用版本号而非布尔，是为了将来再次调整目录结构时能做增量迁移。
             /// </summary>
@@ -536,6 +543,33 @@ namespace UEModManager.Services
             Write(cfg => cfg.BackupsRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存备份根目录");
         }
 
+        // ── 首次运行的仓库位置引导 ──
+
+        /// <summary>首次运行的仓库位置引导是否已经问过；从未问过返回 false。</summary>
+        public static bool LoadRepositoryLocationPrompted()
+        {
+            return Read(cfg => cfg.RepositoryLocationPrompted, false, "读取仓库位置引导标记");
+        }
+
+        /// <summary>
+        /// 记下"已经问过仓库位置"。
+        ///
+        /// <para>
+        /// <b>静默写入</b>（本类第二个，也是最后一个）。这不是设置界面上的一项，用户看不见它，
+        /// 弹一个"保存标记失败"的框只会让人莫名其妙；而它写不上的唯一后果是下次启动再问一次，
+        /// 与 <see cref="SaveDataLayoutVersion"/> 同类，属于可承受的失败。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>调用顺序是硬要求：先存位置，成功之后才记标记。</b>反过来的话，
+        /// 位置落盘失败时用户既没设置成功、下次也不会再被问，那个选择就永久丢了。
+        /// </para>
+        /// </summary>
+        public static void SaveRepositoryLocationPrompted()
+        {
+            WriteQuietly(cfg => cfg.RepositoryLocationPrompted = true, "保存仓库位置引导标记");
+        }
+
         // ── 数据目录布局版本 ──
 
         /// <summary>读取已迁移到的数据目录布局版本；从未迁移过返回 0。</summary>
@@ -548,7 +582,7 @@ namespace UEModManager.Services
         /// 写入已迁移到的数据目录布局版本。
         ///
         /// <para>
-        /// <b>本类唯一保持静默的写入口</b>，三条理由：
+        /// 与 <see cref="SaveRepositoryLocationPrompted"/> 并列为本类仅有的两处静默写入，三条理由：
         /// <list type="number">
         /// <item>唯一调用方是 <c>DataLocationMigrator.Run</c>，用户没发起任何操作，
         /// 迁移跑在主窗口创建之前，压根没有 UI 能承接这个错误。</item>

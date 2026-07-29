@@ -337,6 +337,9 @@ namespace UEModManager
                     // 数据目录搬迁（安装目录 → %LOCALAPPDATA%）
                     services.AddSingleton<DataLocationMigrator>();
 
+                    // 首次运行时引导用户挑一个包仓库位置（默认在系统盘，而仓库可能几十 GB）
+                    services.AddSingleton<RepositorySetupService>();
+
                     services.AddTransient<ViewModels.MainViewModel>();
                     // 注册窗口
                     services.AddTransient<MainWindow>();
@@ -408,6 +411,22 @@ namespace UEModManager
                     // 此时 LastOutcome 仍是 null，UI 侧按"没有可提示的状态"处理即可。
                     Console.WriteLine($"[Startup] 数据目录迁移异常（沿用旧位置继续）: {migEx}");
                 }
+
+                // 首次运行的仓库位置引导。位置必须夹在这两件事之间，两头都是硬约束：
+                //
+                // 上界（搬迁器之后）：搬迁器的"原地登记"会把老用户的旧仓库位置写进配置，
+                //   而"配置里已有仓库位置"正是 RepositorySetupPrompt 判定老用户最主要的一条判据。
+                //   抢在它前面判，装满 MOD 的老用户会被读成"未配置"，于是被弹窗问一次
+                //   ——他很可能会认真挑一个大盘，而引导只改指针不搬数据，他的 MOD 当场"消失"。
+                //
+                // 下界（ObjectStore 首次解析之前）：ObjectStore 是 DI 单例，在构造时读一次
+                //   AppPaths.RepositoryRoot 并记进字段，之后本次会话不再回头看配置。
+                //   引导只写偏好、刻意不去碰 ObjectStore —— 解析它就等于把它构造出来，
+                //   反而会把"第一次读配置"的时机提前到引导内部。所以这里必须早于任何会拖出
+                //   ObjectStore 的解析（下面第一处是 LocalDbContext，真正拖出它的是 MainWindow）。
+                //
+                // 两条约束都有源码守卫测试钉住（StartupSequenceGuardTests）。
+                ShowRepositorySetupIfNeeded();
 
                 // 初始化本地数据库
                 Console.WriteLine("[Auth] Resolve LocalDbContext");
@@ -491,6 +510,30 @@ namespace UEModManager
                 try { Console.WriteLine($"[FATAL][Auth] ShowAuthenticationWindow failed: {ex}"); } catch { }
                 MessageBox.Show($"认证窗口启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
+            }
+        }
+
+        /// <summary>
+        /// 首次运行时问一句"MOD 存哪个盘"。判定与对话框都不允许影响启动：
+        /// 判定本身不抛（<see cref="RepositorySetupService.Decide"/> 内部兜住），
+        /// 这里再包一层是为了防住"弹窗构造/显示失败"这类 UI 侧异常——
+        /// 一个可选的引导把用户挡在主界面之外是完全不成比例的代价。
+        /// </summary>
+        private void ShowRepositorySetupIfNeeded()
+        {
+            try
+            {
+                var setup = ServiceProvider!.GetRequiredService<RepositorySetupService>();
+                var decision = setup.Decide();
+                Console.WriteLine($"[Startup] 仓库位置引导: {decision}");
+                if (!decision.ShouldPrompt) return;
+
+                var logger = ServiceProvider.GetService<ILogger<Views.RepositorySetupWindow>>();
+                new Views.RepositorySetupWindow(setup, logger).ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Startup] 仓库位置引导失败（沿用默认位置继续）: {ex}");
             }
         }
 
