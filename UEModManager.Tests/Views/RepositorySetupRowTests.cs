@@ -26,8 +26,9 @@ public class RepositorySetupRowTests
 
     private static RepositoryDriveOption Option(
         RepositoryVolumeKind kind = RepositoryVolumeKind.Fixed,
-        long? available = 500 * GiB, long? total = 1000 * GiB, bool isCurrentDefault = false)
-        => new(@"D:\", "D:", kind, available, total, isCurrentDefault);
+        long? available = 500 * GiB, long? total = 1000 * GiB, bool isCurrentDefault = false,
+        bool hostsCurrentGame = false)
+        => new(@"D:\", "D:", kind, available, total, isCurrentDefault, hostsCurrentGame);
 
     // ─── 角标 ───
 
@@ -144,8 +145,62 @@ public class RepositorySetupRowTests
         Assert.True(row.IsRecommended);
     }
 
-    // ─── 提示行 ───
+    // ─── 与游戏同一个盘 ───
 
+    [Fact]
+    public void 拿不到游戏路径时整行不显示()
+    {
+        // 首次运行引导跑在启动早期，config.json 还不存在（它不存在正是引导会弹的前提之一），
+        // 所以"拿不到游戏路径"是常态而不是异常。此时这条提示整体消失，
+        // 界面上绝不能出现"未知"或任何错误字样。
+        var row = RepositoryDriveRow.Create(Option(hostsCurrentGame: false), isRecommended: false, NoBrush);
+
+        Assert.Equal(Visibility.Collapsed, row.GameVolumeVisibility);
+        Assert.Equal(string.Empty, row.GameVolumeText);
+    }
+
+    [Fact]
+    public void 游戏在这个盘时说清楚选它能省什么()
+    {
+        var row = RepositoryDriveRow.Create(Option(hostsCurrentGame: true), isRecommended: false, NoBrush);
+
+        Assert.Equal(Visibility.Visible, row.GameVolumeVisibility);
+        Assert.Contains("游戏", row.GameVolumeText);
+        Assert.Contains("空间", row.GameVolumeText);
+        Assert.Equal("StatusGreenBrush", row.GameVolumeBrushKey);
+    }
+
+    [Fact]
+    public void 同盘提示不和风险角标抢位置()
+    {
+        // 一块装着游戏的移动硬盘：拔掉就全没了，和放这里能省空间，两件事都成立。
+        // 角标那一格已经按"风险 > 推荐 > 现状"排好优先级，所以同盘提示单独占一行，
+        // 两条信息同时在，由用户自己权衡——不该由我们替他二选一。
+        var row = RepositoryDriveRow.Create(
+            Option(RepositoryVolumeKind.Removable, hostsCurrentGame: true),
+            isRecommended: false, NoBrush);
+
+        Assert.Equal("可移动", row.BadgeText);
+        Assert.Equal("StatusOrangeBrush", row.BadgeBrushKey);
+        Assert.Equal(Visibility.Visible, row.GameVolumeVisibility);
+    }
+
+    [Fact]
+    public void 同盘不改变推荐资格()
+    {
+        // 让移动硬盘借"同盘"绕过"可移动盘永不推荐"，正是那条规则要防的事
+        var drives = new[]
+        {
+            new RepositoryDriveOption(@"E:\", "E:", RepositoryVolumeKind.Removable,
+                4000 * GiB, 4000 * GiB, false, HostsCurrentGame: true),
+            new RepositoryDriveOption(@"C:\", "C:", RepositoryVolumeKind.Fixed,
+                40 * GiB, 500 * GiB, true, HostsCurrentGame: false),
+        };
+
+        Assert.Equal(@"C:\", RepositoryDriveAdvisor.Recommend(drives)?.RootPath);
+    }
+
+    // ─── 提示行 ───
     [Fact]
     public void 落点变化只是提示不是警告()
     {

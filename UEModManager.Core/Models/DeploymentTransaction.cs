@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using UEModManager.Services.Backends;
 
 namespace UEModManager.Models
 {
@@ -68,6 +69,16 @@ namespace UEModManager.Models
         /// 每条记录"哪个目标路径回滚失败、失败原因"，供恢复 UI 展示。
         /// </summary>
         public List<RollbackFailure> RollbackFailures { get; set; } = [];
+
+        /// <summary>
+        /// 本次部署里"没能按用户选的方式做"的降级（已按原因聚合，每种原因一条）。
+        ///
+        /// 存进事务日志而不只是发个事件：用户在管理中心翻历史事务、或者排障时看
+        /// transaction.json，都应当能看出"这一次其实是复制的"——
+        /// 只发事件的话，这个事实在弹窗关掉之后就再也查不到了。
+        /// 旧日志里没有这个字段，反序列化后为空列表，语义正好是"没发生过降级"。
+        /// </summary>
+        public List<DeploymentDegradationSummary> Degradations { get; set; } = [];
 
         /// <summary>
         /// 用户曾忽略此事务的时间（Dismissed 状态下设置）。

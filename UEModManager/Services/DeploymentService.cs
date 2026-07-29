@@ -32,6 +32,24 @@ namespace UEModManager.Services
         /// <summary>部署进度变化事件。</summary>
         public event Action<DeploymentTransaction>? ProgressChanged;
 
+        /// <summary>
+        /// 本次部署发生过降级、且事务成功提交时抛出一次（已按原因聚合，不是每个文件一次）。
+        ///
+        /// <para>
+        /// <b>只在提交成功时抛。</b>部署失败有自己的错误呈现，在一个"已自动回滚"的错误框后面
+        /// 再补一句"顺便说这次没用上硬链接"，只会让用户以为两件事有因果关系。
+        /// 降级本身不是错误——MOD 装好了，只是多占了一份空间。
+        /// </para>
+        ///
+        /// <para>
+        /// 呈现放在 UI 层（<c>MainWindow</c> 订阅一次，覆盖全部部署入口：单个开关、批量开关、
+        /// 导入后自动部署、启动前部署）。本服务只负责把事实送出来，不决定弹不弹——
+        /// "同一种情形只说一次"的判定在 Core 的 <see cref="DeploymentDegradationNotice"/>，
+        /// 记账靠用户偏好，两者都不属于部署执行。
+        /// </para>
+        /// </summary>
+        public event Action<DeploymentTransaction>? DegradationDetected;
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true,
@@ -67,13 +85,17 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 获取指定类型的后端。
+        /// 获取指定类型的后端。找不到时兜底为 Copy —— 这是 Symlink 这类已下线后端
+        /// 留在旧计划里时的必经之路，属于预期行为，但<b>必须留痕</b>：
+        /// 兜底一旦发生，用户选的部署方式就被整体换掉了，
+        /// 而此前这里连一条日志都没有，排障时看不出后端是怎么变成 Copy 的。
         /// </summary>
         public IDeploymentBackend GetBackend(DeploymentBackendType type)
         {
-            return _backends.TryGetValue(type, out var backend)
-                ? backend
-                : _backends[DeploymentBackendType.Copy]; // 默认降级为 Copy
+            if (_backends.TryGetValue(type, out var backend)) return backend;
+
+            _logger.LogWarning("未注册的部署后端 {Type}，兜底为 Copy", type);
+            return _backends[DeploymentBackendType.Copy];
         }
 
         /// <summary>
@@ -99,10 +121,18 @@ namespace UEModManager.Services
             }
 
             // 选择后端（不可用时降级为 Copy）
+            //
+            // 降级从这一步就开始记：后端不可用此前同样只写一条 LogWarning，
+            // 用户在设置里选的部署方式被整体换掉，界面上没有任何痕迹。
+            var degradations = new DeploymentDegradationCollector();
             var backendType = plan.BackendType;
             if (!await IsBackendAvailableAsync(backendType))
             {
                 _logger.LogWarning("后端 {Type} 不可用，降级为 Copy", backendType);
+                degradations.Add(new DeploymentDegradation(
+                    DeploymentDegradationKind.BackendUnavailable,
+                    string.Empty, string.Empty,
+                    $"后端 {backendType} 未注册或 CanUseAsync 返回 false"));
                 backendType = DeploymentBackendType.Copy;
             }
             var backend = GetBackend(backendType);
@@ -131,6 +161,14 @@ namespace UEModManager.Services
             _logger.LogInformation(
                 "开始执行部署: {Id} ({Count} 个操作, 后端={Backend})",
                 transaction.Id, plan.TotalCount, backendType);
+
+            // 订阅后端的降级上报。用 is 探测而不是要求所有后端都实现：
+            // IDeploymentDegradationReporter 是可选能力，复制类后端没有降级这回事，
+            // samples/UEModManager.SampleBackend 那样的外部实现也不必跟着改。
+            // 订阅紧挨着 try 放，中间不留任何可能抛出的语句 —— 否则这个订阅会永久挂在
+            // 单例后端上，之后每一次部署的降级都会重复累进这份已经没人要的收集器里。
+            var reporter = backend as IDeploymentDegradationReporter;
+            if (reporter != null) reporter.Degraded += degradations.Add;
 
             try
             {
@@ -186,7 +224,13 @@ namespace UEModManager.Services
                             sourceTransactionId: transaction.Id,
                             sourceDescription: $"部署事务 {transaction.Id.ToString("N")[..8]} 的备份");
                     }
-                    catch { /* 注册失败不影响部署 */ }
+                    catch (Exception ex)
+                    {
+                        // 注册失败不影响部署（备份文件本身已经在磁盘上），但不能一声不吭：
+                        // 没登记上的备份不会进生成物索引，将来的清理与回收都看不见它，
+                        // 排查"备份目录越攒越大"时这条日志是唯一的线索。
+                        _logger.LogWarning(ex, "备份文件登记为生成物失败: {Backup}", op.BackupPath);
+                    }
                 }
             }
             catch (Exception ex)
@@ -208,6 +252,19 @@ namespace UEModManager.Services
             }
             finally
             {
+                if (reporter != null) reporter.Degraded -= degradations.Add;
+
+                // 聚合后落进事务：一次部署上万个文件的降级是整批同因的，
+                // 存成"每种原因一条 + 文件数"，事务日志和告知都只看这一份。
+                transaction.Degradations = degradations.Summarize().ToList();
+                if (transaction.Degradations.Count > 0)
+                {
+                    _logger.LogWarning("部署 {Id} 发生降级: {Summary}",
+                        transaction.Id,
+                        string.Join("；", transaction.Degradations.Select(
+                            d => $"{d.Kind} × {d.FileCount} 个文件（{d.Detail}）")));
+                }
+
                 // 保存事务日志
                 await SaveTransactionLogAsync(transaction);
                 // 终态事件不经闸门节流：这一发承载的是 Committed/Failed 的最终状态，
@@ -217,6 +274,7 @@ namespace UEModManager.Services
                 if (transaction.Status == DeploymentStatus.Committed)
                 {
                     ScheduleBackupCleanup();
+                    RaiseDegradationDetected(transaction);
                 }
             }
 
@@ -224,8 +282,28 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 回滚事务：从备份恢复受影响的文件。
-        /// 中途单步失败不再吞异常 — 累计到 RollbackFailures，最终 Status 标记为 PartiallyRolledBack
+        /// 抛出降级告知事件。
+        /// <b>包一层 try 是必需的</b>：这一发在 <c>ExecuteAsync</c> 的 finally 里，
+        /// 订阅方（UI）抛出的异常会盖掉部署本身的异常与状态，
+        /// 让"部署失败"变成一个指向弹窗代码的莫名其妙的错误。
+        /// 告知送不出去只是少一次提示，事务日志里那条降级记录仍然在。
+        /// </summary>
+        private void RaiseDegradationDetected(DeploymentTransaction transaction)
+        {
+            if (transaction.Degradations.Count == 0) return;
+
+            try
+            {
+                DegradationDetected?.Invoke(transaction);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "派发部署降级告知失败: {Id}", transaction.Id);
+            }
+        }
+
+        /// <summary>
+        /// 回滚事务：从备份恢复受影响的文件。        /// 中途单步失败不再吞异常 — 累计到 RollbackFailures，最终 Status 标记为 PartiallyRolledBack
         /// 让 CrashRecoveryScanner 强制人工核查，避免"伪回滚成功"。
         ///
         /// 返回 <see cref="RollbackOutcome"/> 而非 void：调用方（尤其是崩溃恢复）

@@ -52,6 +52,18 @@ namespace UEModManager.Services
             public int DeployBackendType { get; set; } = 0;
             public bool DeployConfirm { get; set; } = true;
             public bool AutoDeploy { get; set; } = true;
+
+            /// <summary>
+            /// 已经就"这次没能按你选的方式部署"告知过用户的情形签名
+            /// （见 <c>DeploymentDegradationNotice.BuildSignature</c>）。
+            ///
+            /// <para>
+            /// <b>存签名而不是存一个"已提示过"的布尔</b>：用户把包仓库搬到别的盘、
+            /// 或者换一个装在别的盘上的游戏之后，结论真的变了，那时值得再说一次；
+            /// 而同一组合下每次部署都弹一遍只是骚扰，最终结果是用户开始无视所有提示。
+            /// </para>
+            /// </summary>
+            public string? DeployDegradationNotice { get; set; }
             public string? RepositoryRoot { get; set; }
             public string? OverwritesRoot { get; set; }
             public string? BackupsRoot { get; set; }
@@ -479,6 +491,26 @@ namespace UEModManager.Services
         public static void SaveAutoDeploy(bool auto)
         {
             Write(cfg => cfg.AutoDeploy = auto, "保存自动部署设置");
+        }
+
+        /// <summary>读取"已经告知过的部署降级情形签名"；从没告知过返回 <c>null</c>。</summary>
+        public static string? LoadDeployDegradationNotice()
+        {
+            return Read<string?>(cfg =>
+            {
+                var signature = cfg.DeployDegradationNotice?.Trim();
+                return string.IsNullOrWhiteSpace(signature) ? null : signature;
+            }, null, "读取部署降级告知记录");
+        }
+
+        /// <summary>
+        /// 记下"这种情形已经告知过了"。
+        /// <b>走 WriteQuietly</b>：这不是用户发起的设置变更，而是弹完提示之后的顺带记账；
+        /// 写失败的唯一后果是下次同样的情形再提示一次，为它弹一个错误框只会让人莫名其妙。
+        /// </summary>
+        public static void SaveDeployDegradationNotice(string? signature)
+        {
+            WriteQuietly(cfg => cfg.DeployDegradationNotice = signature, "保存部署降级告知记录");
         }
 
         public static string? LoadRepositoryRoot()

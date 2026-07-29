@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
+using UEModManager.Models;
 using UEModManager.Services.Paths;
 
 namespace UEModManager.Services
@@ -207,7 +209,15 @@ namespace UEModManager.Services
         /// </summary>
         public IReadOnlyList<RepositoryDriveOption> ListDrives()
         {
-            var currentRoot = TryGetPathRoot(ResolveEnvironment().Paths.CurrentRepositoryRoot);
+            var paths = ResolveEnvironment().Paths;
+            var currentRoot = TryGetPathRoot(paths.CurrentRepositoryRoot);
+
+            // 游戏所在的盘。拿不到是**常态**而不是异常：引导跑在启动早期，而
+            // "config.json 不存在"本身就是引导会弹出来的前提之一（见 RepositorySetupPrompt），
+            // 所以首次运行时这里几乎必然是 null。此时全部盘的 HostsCurrentGame 都是 false，
+            // 界面上那条"与游戏同一个盘"的提示整体不出现——不显示任何"未知"或错误。
+            var gameRoot = VolumePaths.TryGetVolumeRoot(TryGetConfiguredGamePath(paths));
+
             var options = new List<RepositoryDriveOption>();
 
             DriveInfo[] drives;
@@ -229,8 +239,9 @@ namespace UEModManager.Services
                     if (!drive.IsReady) continue;
 
                     var label = TryGetVolumeLabel(drive);
+                    var root = drive.RootDirectory.FullName;
                     options.Add(new RepositoryDriveOption(
-                        RootPath: drive.RootDirectory.FullName,
+                        RootPath: root,
                         DisplayName: string.IsNullOrWhiteSpace(label)
                             ? drive.Name.TrimEnd('\\')
                             : $"{drive.Name.TrimEnd('\\')} {label}",
@@ -238,7 +249,9 @@ namespace UEModManager.Services
                         AvailableBytes: drive.AvailableFreeSpace,
                         TotalBytes: drive.TotalSize,
                         IsCurrentDefault: currentRoot != null && string.Equals(
-                            currentRoot, drive.RootDirectory.FullName, StringComparison.OrdinalIgnoreCase)));
+                            currentRoot, root, StringComparison.OrdinalIgnoreCase),
+                        HostsCurrentGame: gameRoot != null && string.Equals(
+                            gameRoot, root, StringComparison.OrdinalIgnoreCase)));
                 }
                 catch (Exception ex)
                 {
@@ -248,6 +261,43 @@ namespace UEModManager.Services
             }
 
             return RepositoryDriveAdvisor.Rank(options);
+        }
+
+        /// <summary>
+        /// 读出当前配置的游戏安装路径；读不到返回 <c>null</c>。
+        ///
+        /// <para>
+        /// <b>直接读 config.json，不注入 <c>GameConfigService</c></b>：那个服务在引导跑的时候
+        /// 还没被解析过，为了一条提示把它提前构造出来，就等于把"第一次读主配置"的时机
+        /// 挪进了引导内部——本服务的时序约束本来就已经夹在搬迁器和 ObjectStore 之间，
+        /// 不该再多绑一个。这里只要一个字段，读一次文件就够，而且路径来自
+        /// <see cref="RepositorySetupPaths"/>，测试能整体指到临时目录。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>任何失败都当作"没有游戏路径"</b>：这条信息只驱动一句可有可无的提示，
+        /// 为它把启动早期的引导带崩是完全不成比例的。
+        /// </para>
+        /// </summary>
+        private string? TryGetConfiguredGamePath(RepositorySetupPaths paths)
+        {
+            foreach (var configFile in new[] { paths.ConfigFile, paths.LegacyConfigFile })
+            {
+                try
+                {
+                    if (!File.Exists(configFile)) continue;
+
+                    var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(configFile));
+                    var gamePath = config?.GamePath?.Trim();
+                    if (!string.IsNullOrWhiteSpace(gamePath)) return gamePath;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "[RepoSetup] 读取游戏路径失败，本次不标注同盘提示: {Path}", configFile);
+                }
+            }
+
+            return null;
         }
 
         private static string? TryGetVolumeLabel(DriveInfo drive)

@@ -236,7 +236,9 @@ namespace UEModManager.Views
         private RepositoryDriveRow(
             string rootPath, string displayName, string capacityText,
             string badgeText, string badgeBrushKey, Brush? badgeBrush, Visibility badgeVisibility,
-            double usedPercent, string usageBrushKey, Brush? usageBrush, bool isRecommended)
+            double usedPercent, string usageBrushKey, Brush? usageBrush, bool isRecommended,
+            string gameVolumeText, string gameVolumeBrushKey, Brush? gameVolumeBrush,
+            Visibility gameVolumeVisibility)
         {
             RootPath = rootPath;
             DisplayName = displayName;
@@ -249,6 +251,10 @@ namespace UEModManager.Views
             UsageBrushKey = usageBrushKey;
             UsageBrush = usageBrush;
             IsRecommended = isRecommended;
+            GameVolumeText = gameVolumeText;
+            GameVolumeBrushKey = gameVolumeBrushKey;
+            GameVolumeBrush = gameVolumeBrush;
+            GameVolumeVisibility = gameVolumeVisibility;
         }
 
         public string RootPath { get; }
@@ -262,6 +268,10 @@ namespace UEModManager.Views
         public string UsageBrushKey { get; }
         public Brush? UsageBrush { get; }
         public bool IsRecommended { get; }
+        public string GameVolumeText { get; }
+        public string GameVolumeBrushKey { get; }
+        public Brush? GameVolumeBrush { get; }
+        public Visibility GameVolumeVisibility { get; }
 
         /// <summary>
         /// 角标文字。优先级是"风险 &gt; 推荐 &gt; 现状"：
@@ -306,6 +316,29 @@ namespace UEModManager.Views
             return Math.Clamp(used * 100d / totalBytes.Value, 0, 100);
         }
 
+        /// <summary>
+        /// "与游戏同一个盘"这一行的文字。不占用角标，<b>单独一行</b>。
+        ///
+        /// <para>
+        /// 不做成角标是因为角标那一格已经按"风险 &gt; 推荐 &gt; 现状"排好了优先级，
+        /// 挤进去必然要和"可移动"抢位置——而一块装着游戏的移动硬盘，
+        /// "拔掉就全没了"和"放这里能省空间"两件事都成立，都得让用户看见，
+        /// 不该由我们替他二选一。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>拿不到游戏路径时返回空串</b>，整行随之隐藏。首次运行引导跑在启动早期、
+        /// config.json 还不存在（那正是引导会弹的前提之一），所以这是常态而非异常，
+        /// 界面上绝不能因此显示"未知"或任何错误。
+        /// </para>
+        /// </summary>
+        public static string GameVolumeTextFor(bool hostsCurrentGame)
+            => hostsCurrentGame ? "游戏就装在这个盘 · 存这里的话，MOD 不会再多占一份空间" : string.Empty;
+
+        /// <summary>这是一条好消息，用与"推荐"同一档的绿色；没有这行时颜色无意义。</summary>
+        public static string GameVolumeBrushKeyFor(bool hostsCurrentGame)
+            => hostsCurrentGame ? "StatusGreenBrush" : "Text500Brush";
+
         public static RepositoryDriveRow Create(
             RepositoryDriveOption option, bool isRecommended, Func<string, Brush?> resolveBrush)
         {
@@ -315,6 +348,8 @@ namespace UEModManager.Views
             var badgeText = BadgeTextFor(option.Kind, isRecommended, option.IsCurrentDefault);
             var badgeKey = BadgeBrushKeyFor(option.Kind, isRecommended);
             var usageKey = UsageBrushKeyFor(option.AvailableBytes);
+            var gameText = GameVolumeTextFor(option.HostsCurrentGame);
+            var gameKey = GameVolumeBrushKeyFor(option.HostsCurrentGame);
 
             return new RepositoryDriveRow(
                 option.RootPath,
@@ -327,7 +362,11 @@ namespace UEModManager.Views
                 UsedPercentFor(option.AvailableBytes, option.TotalBytes),
                 usageKey,
                 resolveBrush(usageKey),
-                isRecommended);
+                isRecommended,
+                gameText,
+                gameKey,
+                resolveBrush(gameKey),
+                gameText.Length == 0 ? Visibility.Collapsed : Visibility.Visible);
         }
     }
 

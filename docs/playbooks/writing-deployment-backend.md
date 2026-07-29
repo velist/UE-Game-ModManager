@@ -201,7 +201,52 @@ public Task<bool> CanUseAsync()
 
 参见 `HardLinkBackend.cs` 实际实现（`CopyBackend` 则恒返回 true，作为最终兜底）。
 注意降级是**整单级别**的：不要指望"单个文件失败时自动换后端"，
-单文件的容错要在你自己的 `DeployFileAsync` 里做（`HardLinkBackend` 遇到跨卷错误码时改用 `File.Copy` 就是这种写法）。
+单文件的容错要在你自己的 `DeployFileAsync` 里做（`HardLinkBackend` 遇到跨盘错误码时改用 `File.Copy` 就是这种写法）。
+
+---
+
+## 降级了就要说出来（可选能力：IDeploymentDegradationReporter）
+
+只要你的 `DeployFileAsync` 里有"这条路走不通，换个方式做"的分支，就必须把它上报出去。
+
+这条不是风格建议，是踩出来的：`HardLinkBackend` 跨盘时降级为 `File.Copy` 且只写一条
+`LogWarning`，而包仓库默认在系统盘、游戏通常装在别的盘——于是默认配置下用户在设置里选了
+"硬链接"、界面显示已选中、部署也成功，但每个文件都在实打实复制。功能没坏，
+坏的是它**没做用户以为它做的事**，而界面上一个字都看不到。
+
+```csharp
+public class MyBackend : IDeploymentBackend, IDeploymentDegradationReporter
+{
+    public event Action<DeploymentDegradation>? Degraded;
+
+    public Task DeployFileAsync(string sourcePath, string targetPath) => Task.Run(() =>
+    {
+        if (!TryPreferredWay(sourcePath, targetPath))
+        {
+            Degraded?.Invoke(new DeploymentDegradation(
+                DeploymentDegradationKind.HardLinkCrossVolume,   // 选一个能对应到具体解法的原因
+                sourcePath, targetPath,
+                "诊断细节，只进日志"));                            // Detail 绝不会出现在用户看到的句子里
+            FallBackToCopy(sourcePath, targetPath);
+        }
+    });
+}
+```
+
+几条硬约束：
+
+- **接口是可选的**：不需要降级的后端（复制、镜像）一行都不用改，`DeploymentService`
+  用 `backend as IDeploymentDegradationReporter` 探测。所以 `IDeploymentBackend` 本身
+  至今没变过，`samples/UEModManager.SampleBackend` 也不受影响。
+- **每个文件报一条就行，不要自己去重**：聚合由 `DeploymentDegradationCollector` 做
+  （一次整合包部署有上万个文件，它们的降级原因是同一个），弹给用户的永远只有一次。
+- **事件在部署线程上抛**（`DeployFileAsync` 普遍跑在 `Task.Run` 里），不要在里面碰 UI。
+- **`Detail` 只进日志**：面向普通玩家的告知里出现 `Win32Error=1` 只会让他更慌，
+  且什么也解决不了。用户看到的文案由 Core 的 `DeploymentDegradationNotice` 按
+  `Kind` 生成——每一种 `Kind` 对应一句不同的解法，所以选 `Kind` 时想清楚
+  "用户该怎么做才能用上"。
+- **降级 ≠ 失败**：真出了问题（被占用、权限不足）要抛异常走事务回滚，
+  悄悄换个方式做会把一次真实故障伪装成部署成功。
 
 ---
 
@@ -249,3 +294,5 @@ Core.Tests 只放纯函数测试，不适合放 IO 测试。
 - ❌ 在 backend 里直接读 PackageRepository —— 接收已计算好的 sourcePath / targetPath
 - ❌ 在 backend 里抛异常退出 —— 应该抛具体异常让 DeploymentService 决定回滚
 - ❌ 静默 swallow 异常 —— 至少 log 一下，否则诊断时找不到原因
+- ❌ 静默降级 —— 只写一条 `LogWarning` 就换个方式做，等于让用户以为他选的方式生效了。
+  实现 `IDeploymentDegradationReporter`（见上一节）
