@@ -132,27 +132,32 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 设置仓库根目录。
+        /// 认下一个<b>已经落盘</b>的新仓库根：只改内存，不写配置。
         ///
         /// <para>
-        /// <b>唯一合法的调用方是 <see cref="RepositoryRelocationService"/>。</b>
-        /// 界面上"改存放位置"这件事必须连着"把数据搬过去"——此前设置界面直接调本方法，
-        /// 只改指针不搬数据，用户改完之后已导入的包实体还躺在旧位置、新仓库是空的，
-        /// 界面上 MOD 全没了，而他既不知道发生了什么、也不会想到要自己去拷目录。
-        /// 有一条守卫测试（<c>StartupSequenceGuardTests</c>）钉住"Views 下不许出现本方法"。
+        /// <b>这里刻意没有"顺手把配置也写了"的版本。</b>本类此前有一个
+        /// <c>SetRepositoryRoot(path)</c>，它写配置 + 改内存，一行就能换掉仓库位置——
+        /// 而设置界面正是照着它写的：只改指针，不搬数据。用户改完位置，已导入的包实体
+        /// 还躺在旧位置、新仓库是空的，界面上 MOD 全没了，他既不知道发生了什么、
+        /// 也不会想到要自己去拷目录。把那个方法删掉是唯一能根治的做法：
+        /// 只要它还在，早晚会有第二处调用它，而调用它的代价是用户以为自己的 MOD 丢了。
         /// </para>
         ///
         /// <para>
-        /// 顺序是先落盘、再改内存：反过来的话写盘失败时本服务已经指向新目录，
-        /// 用户看到错误提示，但这次会话里 MOD 会全部"消失"（读的是一个空的新仓库），
-        /// 重启后又回到旧目录。与 BackgroundManager.Apply 同一条判据。
+        /// 现在换位置只有一条路：<see cref="RepositoryRelocationService"/> 先把数据搬过去、
+        /// 校验通过、写下墓碑，然后<b>在同一次原子写里</b>把存放位置与搬移日记一起落盘
+        /// （<see cref="UiPreferences.CommitRepositoryRelocation"/>），最后调本方法把
+        /// 内存里的值追上。"先落盘、再改内存"这条顺序仍然成立，只是落盘那一半由调用方完成
+        /// ——它必须和日记写在一起，否则断电恢复读到的两个值会互相矛盾。
         /// </para>
         /// </summary>
-        public void SetRepositoryRoot(string path)
+        public void AdoptRelocatedRoot(string path)
         {
-            UiPreferences.SaveRepositoryRoot(path);
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("仓库位置不能为空", nameof(path));
+
             _repositoryRoot = path;
-            _logger.LogInformation("仓库路径设置为: {Path}", path);
+            _logger.LogInformation("仓库路径已切换到: {Path}", path);
         }
 
         /// <summary>
