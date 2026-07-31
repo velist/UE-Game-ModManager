@@ -9,10 +9,10 @@
 #define MyAppVersion     "2.1.0"
 #endif
 #ifndef MyAppDisplayVer
-#define MyAppDisplayVer  "v2.0.5"
+#define MyAppDisplayVer  "v2.1.0"
 #endif
 #ifndef MyOutputBaseFilename
-#define MyOutputBaseFilename "UEModManager_v2.0.5_Setup"
+#define MyOutputBaseFilename "UEModManager_v2.1.0_Setup"
 #endif
 #define MyAppPublisher   "爱酱工作室"
 #define MyAppURL         "https://www.modmanger.com"

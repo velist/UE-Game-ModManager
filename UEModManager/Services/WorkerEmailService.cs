@@ -17,6 +17,14 @@ namespace UEModManager.Services
         private readonly ILogger<WorkerEmailService> _logger;
         private readonly HttpClient _httpClient;
 
+        /// <summary>
+        /// 随程序集走的版本号。此前 User-Agent 里硬编码着 "2.0.5-beta"，升版本时没人会想到
+        /// 来改它——服务端日志里看到的版本分布会一直停在某个早已不存在的版本上。
+        /// 取法与 <c>TelemetryService.AppVersion</c> 一致。
+        /// </summary>
+        private static string AppVersion =>
+            typeof(WorkerEmailService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
         public string ServiceName => "WorkerEmail";
 
         public WorkerEmailService(ILogger<WorkerEmailService> logger, string apiBaseUrl)
@@ -38,7 +46,7 @@ namespace UEModManager.Services
                 BaseAddress = new Uri(baseUrl + "/"),
                 Timeout = TimeSpan.FromSeconds(15)
             };
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.5-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", $"UEModManager/{AppVersion}");
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         }
 
