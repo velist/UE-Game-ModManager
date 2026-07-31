@@ -12,6 +12,7 @@ namespace UEModManager.Tests.Views;
 /// 本项目已经因为丢接线出过三次事故，所以对源码本身断言。
 /// </para>
 /// </summary>
+[Collection(ThemeResourceCollection.Name)]
 public class RepositoryRelocationGuardTests
 {
     private static string RepoRoot()
