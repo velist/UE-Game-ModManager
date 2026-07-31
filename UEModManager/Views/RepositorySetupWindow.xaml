@@ -126,7 +126,7 @@
 
             <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
                        Foreground="{StaticResource Text500Brush}"
-                       Text="以后可以在「设置 → 部署与仓库」里随时更改。换位置只改存放地点，已经导入的 MOD 需要自己搬过去。"/>
+                       Text="以后可以在「设置 → 部署与仓库」里随时更改，程序会把已经导入的 MOD 一起搬过去。"/>
         </StackPanel>
 
         <!-- ═══ 按钮 ═══ -->

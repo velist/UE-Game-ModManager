@@ -21,6 +21,7 @@ using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Backends;
+using UEModManager.Services.Paths;
 using UEModManager.Services.Recovery;
 using UEModManager.Views;
 using UEModManager.Infrastructure;
@@ -429,24 +430,92 @@ namespace UEModManager
                 var content = DeploymentDegradationNotice.BuildContent(summaries);
 
                 _degradationNoticeShowing = true;
+                MessageBoxResult choice;
                 try
                 {
-                    // 提示不是错误：Information 图标 + 单个"知道了"，不做成拦人的错误框。
-                    CyberMessageBox.Show(this, content.Message, content.Title,
-                        MessageBoxButton.OK, MessageBoxImage.Information, okText: "知道了");
+                    // 能一键修时给两个按钮，否则退回单个"知道了"。
+                    //
+                    // 只告知不给动作，对相当一部分玩家等于没告知——他们会关掉弹窗然后放弃；
+                    // 而照着"你自己去设置里改"做的那些人，此前还会撞上"改位置只改指针不搬数据"，
+                    // MOD 当场从界面上消失。所以发现问题的这个位置就得给出解决。
+                    choice = content.CanFixInPlace
+                        ? CyberMessageBox.Show(this, content.Message, content.Title,
+                            MessageBoxButton.YesNo, MessageBoxImage.Information,
+                            yesText: content.FixButtonText, noText: "先这样")
+                        : CyberMessageBox.Show(this, content.Message, content.Title,
+                            MessageBoxButton.OK, MessageBoxImage.Information, okText: "知道了");
                 }
                 finally
                 {
                     _degradationNoticeShowing = false;
                 }
 
-                // 先弹再记账：反过来的话，进程在弹框期间被杀会让用户永远看不到这条提示。
+                // 先记账再看用户选了什么：无论他点哪个，这套盘的组合都已经告知过了。
+                // 反过来（只在"先这样"时记账）会让点了"帮我搬"却中途取消的用户下次部署
+                // 再被弹一次，而他刚刚才明确表达过"现在不想搬"。
                 UiPreferences.SaveDeployDegradationNotice(decision.Signature);
+
+                if (choice == MessageBoxResult.Yes && content.CanFixInPlace)
+                {
+                    StartOneKeyRelocation(content.FixTargetVolumeRoot!);
+                }
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[UI] 显示部署降级提示失败");
             }
+        }
+
+        /// <summary>
+        /// 一键换盘：把 MOD 存放位置搬到游戏所在的盘。
+        ///
+        /// <para>
+        /// 落点是 <c>&lt;游戏所在盘&gt;\UEModManager\Repository</c>——盘根几乎必然非空，
+        /// 于是 <see cref="RepositoryLocationValidator.ResolveRepositoryPath"/> 会自动
+        /// 退到这个专用子目录，正是想要的结果（绝不能把盘根本身当成仓库根）。
+        /// </para>
+        ///
+        /// <para>
+        /// 走的是<b>与设置界面完全相同</b>的服务与窗口。一个功能一条路径：
+        /// 留一条只改指针的旁路，用户从别处改照样丢 MOD。
+        /// </para>
+        /// </summary>
+        private void StartOneKeyRelocation(string gameVolumeRoot)
+        {
+            SafeEvent.Run(this, () =>
+            {
+                var relocation = ((App)Application.Current).ServiceProvider
+                    ?.GetService<RepositoryRelocationService>();
+                if (relocation == null)
+                {
+                    _logger?.LogWarning("[UI] 搬移服务不可用，一键换盘无法进行");
+                    return Task.CompletedTask;
+                }
+
+                var resolved = RepositoryLocationValidator.ResolveRepositoryPath(
+                    gameVolumeRoot, directoryHasContent: true);
+                var plan = relocation.Plan(resolved);
+
+                // 这条入口的前提就是"刚刚部署过"，所以结果页一定要提醒重新装一次：
+                // 已装进游戏目录的文件是指向旧仓库的硬链接或副本，搬完游戏照常能玩，
+                // 但旧盘上那份空间要重新部署一次才腾得出来。
+                var window = new Views.RepositoryRelocationWindow(
+                    relocation, plan, anyDeployed: true, _logger)
+                {
+                    Owner = this,
+                };
+                window.ShowDialog();
+
+                if (window.Switched)
+                {
+                    // 存放位置变了，列表要按新仓库重建一遍；同时把降级告知的记账清掉——
+                    // 盘的组合已经变了，下次若仍有降级，那是一个新情况，值得再说一次。
+                    UiPreferences.SaveDeployDegradationNotice(null);
+                    return _vm.RefreshFromRepositoryAsync();
+                }
+
+                return Task.CompletedTask;
+            }, _logger, "一键搬移 MOD 存放位置");
         }
 
         /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>

@@ -6,8 +6,25 @@ using UEModManager.Services.Paths;
 
 namespace UEModManager.Services.Backends
 {
-    /// <summary>一条准备好、可以直接放进消息框的告知。</summary>
-    public sealed record DeploymentDegradationNoticeContent(string Title, string Message);
+    /// <summary>
+    /// 一条准备好、可以直接放进消息框的告知。
+    /// </summary>
+    /// <param name="Title">标题。</param>
+    /// <param name="Message">正文。</param>
+    /// <param name="FixTargetVolumeRoot">
+    /// 一键搬过去的落盘（游戏所在的盘根，例如 <c>D:\</c>）；这次没有可一键修复的办法时为 <c>null</c>。
+    /// 非 <c>null</c> 时界面上要给一个动作按钮，而不是只有"知道了"。
+    /// </param>
+    /// <param name="FixButtonText">动作按钮上的字；<see cref="FixTargetVolumeRoot"/> 为 <c>null</c> 时无意义。</param>
+    public sealed record DeploymentDegradationNoticeContent(
+        string Title,
+        string Message,
+        string? FixTargetVolumeRoot = null,
+        string? FixButtonText = null)
+    {
+        /// <summary>这条告知能不能给出一键解决。</summary>
+        public bool CanFixInPlace => !string.IsNullOrWhiteSpace(FixTargetVolumeRoot);
+    }
 
     /// <summary>
     /// 一次"这回值不值得跟用户说"的判定结果。
@@ -102,7 +119,8 @@ namespace UEModManager.Services.Backends
                 .ThenBy(s => (int)s.Kind)
                 .First();
 
-            var body = new StringBuilder(DescribePrimary(primary));
+            var fixTarget = TryGetFixTargetVolumeRoot(primary);
+            var body = new StringBuilder(DescribePrimary(primary, fixTarget != null));
 
             foreach (var other in summaries.Where(s => !ReferenceEquals(s, primary)))
             {
@@ -113,7 +131,53 @@ namespace UEModManager.Services.Backends
             body.Append(Environment.NewLine).Append(Environment.NewLine)
                 .Append("同样的情况以后不会再提示，除非你换了存放位置或换了别的盘上的游戏。");
 
-            return new DeploymentDegradationNoticeContent(TitleFor(primary.Kind), body.ToString());
+            return new DeploymentDegradationNoticeContent(
+                TitleFor(primary.Kind), body.ToString(),
+                fixTarget,
+                fixTarget == null ? null : BuildFixButtonText(fixTarget));
+        }
+
+        /// <summary>
+        /// 这次能不能靠"把 MOD 搬到游戏所在的盘"解决；不能则返回 <c>null</c>。
+        ///
+        /// <para>
+        /// <b>只有跨盘这一种能一键修</b>，这个收窄是刻意的：
+        /// <list type="bullet">
+        /// <item><see cref="DeploymentDegradationKind.HardLinkUnsupported"/> ——
+        /// 两个位置已经在同一个盘上了，是那个盘的<b>格式</b>不支持硬链接（exFAT/FAT32）。
+        /// 把仓库搬到同一个盘上不会有任何改变，用户等上十几分钟换来一模一样的提示，
+        /// 那比不给按钮糟得多。</item>
+        /// <item><see cref="DeploymentDegradationKind.BackendUnavailable"/> ——
+        /// 跟盘根本无关，搬到哪都一样。</item>
+        /// </list>
+        /// 算不出游戏所在的盘时同样返回 <c>null</c>：指错盘会让用户照着搬一遍几十 GB，
+        /// 然后发现什么都没变。宁可退回只有"知道了"的提示。
+        /// </para>
+        /// </summary>
+        public static string? TryGetFixTargetVolumeRoot(DeploymentDegradationSummary summary)
+        {
+            if (summary is null) throw new ArgumentNullException(nameof(summary));
+            if (summary.Kind != DeploymentDegradationKind.HardLinkCrossVolume) return null;
+
+            var repoRoot = VolumePaths.TryGetVolumeRoot(summary.SourcePath);
+            var gameRoot = VolumePaths.TryGetVolumeRoot(summary.TargetPath);
+
+            // 两个盘都得说得清，而且确实不是同一个——判据说不清时不给按钮
+            if (repoRoot == null || gameRoot == null) return null;
+            return string.Equals(repoRoot, gameRoot, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : gameRoot;
+        }
+
+        /// <summary>
+        /// 动作按钮上的字。<b>面向玩家，不堆盘符术语</b>：说的是"要发生什么"
+        /// （帮你搬过去），而不是"要执行什么操作"（迁移包仓库根目录）。
+        /// 带上盘名是因为它是这句话里唯一的具体信息，去掉之后用户不知道要搬去哪。
+        /// </summary>
+        public static string BuildFixButtonText(string fixTargetVolumeRoot)
+        {
+            var where = VolumePaths.TryDescribeVolume(fixTargetVolumeRoot);
+            return where == null ? "帮我搬到游戏所在的盘" : $"帮我搬到 {where}";
         }
 
         private static string TitleFor(DeploymentDegradationKind kind) => kind switch
@@ -123,7 +187,7 @@ namespace UEModManager.Services.Backends
             _ => "部署方式已自动改为复制",
         };
 
-        private static string DescribePrimary(DeploymentDegradationSummary summary)
+        private static string DescribePrimary(DeploymentDegradationSummary summary, bool canFixInPlace)
         {
             var files = $"{summary.FileCount} 个文件";
 
@@ -139,13 +203,21 @@ namespace UEModManager.Services.Backends
                         ? $"你的 MOD 存放在 {repo}，游戏装在 {game}"
                         : "你的 MOD 存放位置和游戏不在同一个盘";
 
+                    // 能一键修时，最后一段说的是"点下面那个按钮"，而不是"你自己去设置里改"。
+                    // 后者对相当一部分玩家等于没说——他们会关掉弹窗然后放弃；
+                    // 更糟的是照做之后会撞上"改位置只改指针不搬数据"，MOD 当场从界面上消失。
+                    var howTo = canFixInPlace
+                        ? "想真正省下这份空间：点下面的按钮，程序会把已经导入的 MOD 整个搬过去，"
+                            + "搬完自动切换，你不用手动拷任何文件。"
+                        : $"想真正省下这份空间：到「设置 → 部署与仓库」把 MOD 存放位置改到"
+                            + $"{(game ?? "游戏所在的那个盘")}，程序会连数据一起搬过去。";
+
                     return $"你在设置里选的是「硬链接」，但{where}。"
                         + $"硬链接只能在同一个盘里建立，所以这次的 {files} 是实打实复制过去的。"
                         + Environment.NewLine + Environment.NewLine
                         + "MOD 已经装好了，可以直接玩，只是这些文件在硬盘上多存了一份。"
                         + Environment.NewLine + Environment.NewLine
-                        + $"想真正省下这份空间：到「设置 → 部署与仓库」把包仓库目录改到"
-                        + $"{(game != null ? game : "游戏所在的那个盘")}，再重新部署一次。";
+                        + howTo;
                 }
 
                 case DeploymentDegradationKind.HardLinkUnsupported:

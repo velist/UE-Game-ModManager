@@ -217,8 +217,108 @@ public class DeploymentDegradationTests
         Assert.Contains("C 盘", content.Message);          // MOD 存在哪
         Assert.Contains("D 盘", content.Message);          // 游戏在哪
         Assert.Contains("128 个文件", content.Message);     // 影响面
-        Assert.Contains("设置 → 部署与仓库", content.Message); // 怎么改
         Assert.Contains("可以直接玩", content.Message);      // 这不是错误
+
+        // "怎么才能用上"现在是"点下面的按钮"，而不是"你自己去设置里改"。
+        // 后者对相当一部分玩家等于没说——他们会关掉弹窗然后放弃；而照做的那些人
+        // 此前还会撞上"改位置只改指针不搬数据"，MOD 当场从界面上消失。
+        Assert.Contains("点下面的按钮", content.Message);
+        Assert.Contains("不用手动", content.Message);
+        Assert.DoesNotContain("设置 → 部署与仓库", content.Message);
+    }
+
+    // ─── 一键：什么时候给得出动作按钮 ───
+
+    [Fact]
+    public void 跨盘时给得出一键搬过去()
+    {
+        var content = DeploymentDegradationNotice.BuildContent(CrossVolumeSummary());
+
+        Assert.True(content.CanFixInPlace);
+        Assert.Equal(@"D:\", content.FixTargetVolumeRoot);
+        // 按钮上说的是"要发生什么"，不是"要执行什么操作"
+        Assert.Equal("帮我搬到 D 盘", content.FixButtonText);
+    }
+
+    [Fact]
+    public void 盘的格式不支持硬链接时不给一键()
+    {
+        // 两个位置已经在同一个盘上了，是那个盘的格式不支持（exFAT/FAT32）。
+        // 把仓库搬到同一个盘不会有任何改变——用户等上十几分钟换来一模一样的提示，
+        // 那比不给按钮糟得多。
+        var summaries = DeploymentDegradationCollector.Summarize(new[]
+        {
+            new DeploymentDegradation(DeploymentDegradationKind.HardLinkUnsupported,
+                @"E:\Repository\a.pak", @"E:\Game\Content\Paks\a.pak", "x"),
+        });
+
+        var content = DeploymentDegradationNotice.BuildContent(summaries);
+
+        Assert.False(content.CanFixInPlace);
+        Assert.Null(content.FixTargetVolumeRoot);
+    }
+
+    [Fact]
+    public void 后端不可用时不给一键()
+    {
+        // 跟盘根本无关，搬到哪都一样
+        var summaries = DeploymentDegradationCollector.Summarize(new[]
+        {
+            new DeploymentDegradation(DeploymentDegradationKind.BackendUnavailable, "", "", "x"),
+        });
+
+        var content = DeploymentDegradationNotice.BuildContent(summaries);
+
+        Assert.False(content.CanFixInPlace);
+    }
+
+    [Fact]
+    public void 算不出游戏在哪个盘时不给一键()
+    {
+        // 指错盘会让用户照着搬一遍几十 GB，然后发现什么都没变。
+        // 宁可退回只有"知道了"的提示。
+        var summaries = DeploymentDegradationCollector.Summarize(new[]
+        {
+            new DeploymentDegradation(DeploymentDegradationKind.HardLinkCrossVolume,
+                @"C:\Repository\a.pak", @"relative\path\a.pak", "x"),
+        });
+
+        var content = DeploymentDegradationNotice.BuildContent(summaries);
+
+        Assert.False(content.CanFixInPlace);
+        // 此时文案要退回"自己去设置里改"，而不是留下一句指向不存在按钮的话
+        Assert.DoesNotContain("点下面的按钮", content.Message);
+    }
+
+    [Fact]
+    public void 两侧算出来是同一个盘时不给一键()
+    {
+        // 判据说不清（挂载点、junction）时宁可不给：搬完还是同一个盘，什么都不会变
+        var summary = new DeploymentDegradationSummary(
+            DeploymentDegradationKind.HardLinkCrossVolume, 5,
+            @"D:\Repository\a.pak", @"D:\Game\a.pak", "x");
+
+        Assert.Null(DeploymentDegradationNotice.TryGetFixTargetVolumeRoot(summary));
+    }
+
+    [Fact]
+    public void 一键按钮文案里不堆盘符术语()
+    {
+        var content = DeploymentDegradationNotice.BuildContent(CrossVolumeSummary());
+
+        Assert.NotNull(content.FixButtonText);
+        foreach (var jargon in new[] { "卷", "仓库根", "目录", "迁移", "路径", @"D:\" })
+        {
+            Assert.DoesNotContain(jargon, content.FixButtonText!);
+        }
+    }
+
+    [Fact]
+    public void 说不清盘名时按钮退回不点名的说法()
+    {
+        // 网络位置没有盘符。绝不能编一个"未知盘"塞进按钮上
+        Assert.Equal("帮我搬到游戏所在的盘",
+            DeploymentDegradationNotice.BuildFixButtonText(@"relative\path"));
     }
 
     [Fact]
