@@ -57,7 +57,9 @@ DisableWelcomePage=no
 ShowLanguageDialog=no
 
 [Languages]
-Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 语言包放在仓库内而不是引用 compiler:Languages\ ——Inno Setup 官方发行版**不含**简体中文
+; （中文是社区翻译），装了 Inno 却打不出包会让人以为是脚本坏了。放进仓库后 clone 即可构建。
+Name: "chs"; MessagesFile: "Languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："

@@ -6,8 +6,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>x64</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <AssemblyVersion>2.1.0.0</AssemblyVersion>
-    <FileVersion>2.1.0.0</FileVersion>
+    <!-- 版本号不在这里：本项目 GenerateAssemblyInfo=false，这两个属性会被静默忽略。
+         唯一事实来源是 Properties/VersionAssemblyInfo.cs，理由与同步清单见该文件。 -->
     <ApplicationIcon>mnlogo.ico</ApplicationIcon>
     <!-- 开启 longPathAware（详见 app.manifest 内的说明）。清单内容刻意与 apphost 默认
          清单保持最小差异，未引入 dpiAware / supportedOS。 -->
