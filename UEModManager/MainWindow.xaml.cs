@@ -215,11 +215,66 @@ namespace UEModManager
 
                 // Phase 11: 启动时健康检查（结果写入日志）
                 await LogHealthReportAsync();
+
+                // 匿名统计：先告知（只在从没问过时弹一次），再开始心跳。
+                // 排在最后一位是有意的——崩溃恢复和数据搬迁是用户真的需要处理的事，
+                // 统计是我们的需求，不该抢在它们前面占用户的注意力。
+                StartTelemetry();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"初始化失败: {ex}");
                 _logger?.LogError(ex, "MainWindow 初始化失败");
+            }
+        }
+
+        /// <summary>
+        /// 匿名统计的告知与启动。
+        ///
+        /// <para><b>为什么告知框在主窗口之后、而不是在启动序列里</b></para>
+        /// 全新安装的用户在见到主界面之前已经可能被拦两次（仓库位置引导、登录窗口）。
+        /// 再插一个"能不能统计你"进去，是把一个我们自己的需求排到用户还没看到软件长什么样
+        /// 的前面。放在主窗口起来之后问，用户至少已经知道这是个什么东西。
+        ///
+        /// <para><b>关掉窗口（点 X 而不选按钮）视为"不参与"，并且记为已问过</b></para>
+        /// 两条理由：没有明确同意就绝不上报，这是硬底线；而不记"已问过"就意味着每次启动
+        /// 再弹一遍，对一个习惯性关弹窗的用户等于永久骚扰。代价是有一部分只是随手关掉的人
+        /// 被算成了退出——这个方向的误差是可接受的那一侧，他们随时能在设置里打开。
+        ///
+        /// <para><b>整段不允许影响启动</b></para>
+        /// 判定、弹窗、心跳启动全部包在 try 里；心跳本身跑在线程池上，这里一行都不等它。
+        /// </summary>
+        private void StartTelemetry()
+        {
+            try
+            {
+                var telemetry = ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>();
+                if (telemetry == null) return;
+
+                var decision = TelemetryService.CurrentConsent();
+                Console.WriteLine($"[Telemetry] {decision}");
+
+                if (decision.ShouldAsk)
+                {
+                    var choice = CyberMessageBox.Show(this,
+                        "UEModManager 会在启动时看一眼有没有新版本，顺手带上一个随机编号和版本号，" +
+                        "好让我们知道有多少人在用。登录过的话还会带上邮箱算出来的一串乱码" +
+                        "（还原不回邮箱），用来去掉重复的人。\n\n" +
+                        "不会发送：你的邮箱、电脑名、文件路径、装了哪些 MOD。\n\n" +
+                        "随时可以在「设置 → 常规参数」里关掉。",
+                        "想知道有多少人在用",
+                        MessageBoxButton.YesNo, MessageBoxImage.Information,
+                        yesText: "可以", noText: "不用了");
+
+                    UiPreferences.SaveTelemetryConsent(choice == MessageBoxResult.Yes);
+                }
+
+                telemetry.StartHeartbeat();
+            }
+            catch (Exception ex)
+            {
+                // 统计是我们的需求，不是用户的。它出任何问题都不该在界面上留下一个字。
+                _logger?.LogDebug(ex, "[Telemetry] 启动失败");
             }
         }
 

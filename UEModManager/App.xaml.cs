@@ -340,6 +340,21 @@ namespace UEModManager
                     // 首次运行时引导用户挑一个包仓库位置（默认在系统盘，而仓库可能几十 GB）
                     services.AddSingleton<RepositorySetupService>();
 
+                    // 更新检查 + 匿名用量统计（注册数 / 在线数）。
+                    //
+                    // 取当前登录邮箱做成委托而不是直接注入 LocalAuthService：本服务是单例、
+                    // 认证服务是 scoped，更重要的是 TelemetryService 不该知道邮箱从哪来，
+                    // 它只需要一个字符串去算哈希。这条链路也是**注册数的主要来源**——
+                    // 绝大多数老用户靠"记住我"自动登录、根本不经过登录窗口，
+                    // 只在 LoginWindow 里上报的话他们一个都不会被计入。
+                    services.AddSingleton<TelemetryService>(sp => new TelemetryService(
+                        sp.GetService<ILogger<TelemetryService>>(),
+                        () =>
+                        {
+                            try { return sp.GetService<LocalAuthService>()?.CurrentUser?.Email; }
+                            catch { return null; }
+                        }));
+
                     // 换一个位置存 MOD：先搬数据、搬成了才改存放位置。
                     // 全项目唯一允许改仓库位置的地方（守卫测试钉住）。
                     //

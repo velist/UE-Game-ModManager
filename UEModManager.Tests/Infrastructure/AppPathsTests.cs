@@ -46,4 +46,20 @@ public sealed class AppPathsTests
         Assert.Equal(Path.Combine(AppPaths.RoamingRoot, "Backgrounds"), AppPaths.BackgroundsDirectory);
         Assert.Equal(Path.Combine(AppPaths.RoamingRoot, "local.db"), AppPaths.LocalDatabaseFile);
     }
+
+    /// <summary>
+    /// 设备标识必须在**本机**层，不能漫游。
+    ///
+    /// <para>
+    /// 漫游目录在域环境里会在多台机器之间同步。设备标识一旦跟着同步过去，两台机器共用
+    /// 一个"设备"，累计设备数和在线数会一起塌掉——而且塌得毫无痕迹：看板上只是数字偏小，
+    /// 没有任何异常可查。这条判据没有别的地方能兜住，只能钉在这里。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void DeviceIdFile_StaysUnderLocalRoot_NotRoaming()
+    {
+        Assert.Equal(Path.Combine(AppPaths.LocalRoot, "device.id"), AppPaths.DeviceIdFile);
+        Assert.DoesNotContain(AppPaths.RoamingRoot, AppPaths.DeviceIdFile);
+    }
 }

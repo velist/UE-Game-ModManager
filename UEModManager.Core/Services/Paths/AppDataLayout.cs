@@ -95,6 +95,23 @@ public sealed class AppDataLayout
     /// <summary>日志目录。</summary>
     public string LogsDirectory => Path.Combine(LocalRoot, "Logs");
 
+    /// <summary>
+    /// 匿名统计用的设备标识（一行随机 UUID v4）。
+    ///
+    /// <para>
+    /// <b>放本机层而不是漫游层，这一条是必须的。</b>漫游目录在域环境里会在多台机器之间同步，
+    /// 一旦同步过去，两台机器共用同一个"设备"标识——「累计设备数」和「在线数」会一起塌掉，
+    /// 而且塌得毫无痕迹（看板上只是数字偏小，没有任何异常可查）。设备标识按定义就该跟着
+    /// 这台机器走，不跟着人走。
+    /// </para>
+    ///
+    /// <para>
+    /// 与 <see cref="UiConfigFile"/> 分开存也是有意的：那里放的是"用户的选择"（含统计开关，
+    /// 跨机器仍然成立、应该漫游），这里放的是"这台机器是谁"。两者混在一起就必然有一头放错层。
+    /// </para>
+    /// </summary>
+    public string DeviceIdFile => Path.Combine(LocalRoot, "device.id");
+
     /// <summary>包实体仓库（可自定义）。</summary>
     public string RepositoryRoot => Resolve(DataRoot.Repository, Path.Combine(LocalRoot, "Repository"));
 

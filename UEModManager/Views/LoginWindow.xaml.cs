@@ -143,6 +143,7 @@ namespace UEModManager.Views
                     // 持久化“记住我”令牌，确保二次重启自动登录
                     await _localAuth.SaveRememberMeTokenAsync(email, true);
                     _logger.LogInformation($"验证码登录成功: {email}");
+                    ReportSignIn(email);
                     DialogResult = true;
                     Close();
                 }
@@ -157,6 +158,35 @@ namespace UEModManager.Views
             }
             finally
             {                _isProcessing = false;
+            }
+        }
+
+        /// <summary>
+        /// 登录成功后上报一次账号（邮箱哈希，明文邮箱不出本机）。
+        ///
+        /// <para>
+        /// <b>刻意不 await，也刻意不管失败。</b>登录已经成功了，用户在等窗口关掉；
+        /// 为了一次统计让他多等哪怕 5 秒都不成立，更不用说让他看到一个错误。
+        /// </para>
+        ///
+        /// <para>
+        /// 首次运行时这一次上报会被<b>正确地丢弃</b>：登录窗口出现在主窗口之前，
+        /// 那一刻还没告知过用户，<c>TelemetryConsent</c> 判定为不上报。兜底在心跳侧——
+        /// 主窗口起来、用户做完选择之后，第一次心跳会发现"已登录但本次会话没报过账号"
+        /// 并补上。那条兜底同时也覆盖靠"记住我"自动登录、根本不经过本窗口的老用户。
+        /// </para>
+        /// </summary>
+        private void ReportSignIn(string email)
+        {
+            try
+            {
+                var telemetry = ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>();
+                if (telemetry == null) return;
+                _ = telemetry.ReportSignInAsync(email);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "[Telemetry] 登录上报未能发起");
             }
         }
 
