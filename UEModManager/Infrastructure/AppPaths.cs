@@ -92,6 +92,12 @@ namespace UEModManager.Infrastructure
         /// <summary>日志目录。</summary>
         public static string LogsDirectory => Layout.LogsDirectory;
 
+        /// <summary>
+        /// 匿名统计用的设备标识文件。定位走 <see cref="PlainLayout"/>：它落在本机根下，
+        /// 与三个可自定义的数据根无关，没必要为它多读一次配置。
+        /// </summary>
+        public static string DeviceIdFile => PlainLayout.DeviceIdFile;
+
         /// <summary>包实体仓库（可自定义）。</summary>
         public static string RepositoryRoot => Layout.RepositoryRoot;
 

@@ -5,11 +5,38 @@ account_id = "4c1d8aa164a8e9f8a174a9e89fd3bffe"
 workers_dev = false
 preview_urls = false
 
-# secrets (BREVO_API_KEY / BREVO_FROM / BREVO_FROM_NAME / SUPABASE_*) 在 Cloudflare 端单独管理
-# wrangler deploy 不会清除现有 secret 值
+# secrets (BREVO_API_KEY / BREVO_FROM / BREVO_FROM_NAME / SUPABASE_* / DASH_TOKEN)
+# 在 Cloudflare 端单独管理；wrangler deploy 不会清除现有 secret 值
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
 id = "7bca3c2fb15b4bc09034695d3435360f"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 用量统计的 D1 库（注册数 / 在线数）
+#
+# ⚠️ 首次部署前必须先建库并把 database_id 填进来，否则 `wrangler deploy` 会直接报错：
+#     npx wrangler d1 create modmanger-stats
+#     npx wrangler d1 execute modmanger-stats --remote --file=schema.sql
+#
+# 如果暂时不想启用统计，把下面整段注释掉即可 —— Worker 侧对 `env.DB` 缺失做了防御：
+# /app/update 照常回答更新检查，只是不记数；/admin 看板显示全零。
+#
+# 为什么不用 KV：免费档 1000 写/天不够（1000 台设备心跳一次就打满），且 KV 的最终一致性
+# 会让「读-改-写」计数永久失真。详见 .claude/audit_reports/2026-07-27-telemetry-options.md。
+# ─────────────────────────────────────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "modmanger-stats"
+database_id = "TODO-填入-wrangler-d1-create-返回的-uuid"
+
+# 更新检查回答用的版本信息。
+#
+# 刻意放在 [vars] 而不是 KV：心跳场景下读 KV 是 3 倍读放大（原实现每次调用读 3 个 key），
+# 而发新版本本来就要动这个仓库，改这里再 deploy 一次的成本是零。
+[vars]
+LATEST_VERSION = "2.0.5"
+UPDATE_MANDATORY = "false"
+UPDATE_NOTES = ""
 
 # routes 已经在 zone 级别绑定到 api.modmanger.com/*，部署不带 routes 不会改动

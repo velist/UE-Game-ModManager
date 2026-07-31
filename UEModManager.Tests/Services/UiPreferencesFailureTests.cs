@@ -100,6 +100,7 @@ public sealed class UiPreferencesFailureTests : IDisposable
         { "repository", () => UiPreferences.SaveRepositoryRoot(@"D:\ModRepo") },
         { "overwrites", () => UiPreferences.SaveOverwritesRoot(@"D:\Overwrites") },
         { "backups", () => UiPreferences.SaveBackupsRoot(@"D:\Backups") },
+        { "telemetry", () => UiPreferences.SaveTelemetryEnabled(false) },
     };
 
     [Fact]

@@ -5,6 +5,7 @@ using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Paths;
 using UEModManager.Services.Persistence;
+using UEModManager.Services.Telemetry;
 
 namespace UEModManager.Services
 {
@@ -99,6 +100,35 @@ namespace UEModManager.Services
             /// 0 表示尚未迁移。用版本号而非布尔，是为了将来再次调整目录结构时能做增量迁移。
             /// </summary>
             public int DataLayoutVersion { get; set; }
+
+            /// <summary>
+            /// 是否已就"匿名统计"告知过用户。<b>与 <see cref="TelemetryEnabled"/> 正交，
+            /// 不能用后者是不是默认值来推断。</b>
+            ///
+            /// <para>
+            /// 一个主动选了"参与"的用户与一个从没被问过的用户，<see cref="TelemetryEnabled"/>
+            /// 都是 true，长得一模一样。合并成一个字段的后果只有两种：要么每次启动再问一遍，
+            /// 要么在还没告知的时候就开始上报——后者是合规意义上最严重的一种错误。
+            /// </para>
+            /// </summary>
+            public bool TelemetryAsked { get; set; }
+
+            /// <summary>
+            /// 匿名统计开关。<b>默认 true</b>。
+            ///
+            /// <para>
+            /// 默认关会让样本只剩下"愿意主动去设置里翻出这一项并打开"的人，那不是典型用户，
+            /// 数字会失真到没有参考价值——那还不如不做。所以取的是
+            /// "默认开 + 首次运行明确告知一次 + 设置里随时能关"，
+            /// 把代价放在"必须真的告知到位"上，而不是放在"数字不可信"上。
+            /// </para>
+            ///
+            /// <para>
+            /// 默认值为 true 不等于可以先斩后奏：<c>TelemetryConsent.Decide</c> 里
+            /// <see cref="TelemetryAsked"/> 优先级最高，没问过时这个 true 一个字节也发不出去。
+            /// </para>
+            /// </summary>
+            public bool TelemetryEnabled { get; set; } = true;
 
             /// <summary>
             /// 浅拷贝。全部属性都是值类型或 string（不可变），浅拷贝即完整快照。
@@ -730,5 +760,58 @@ namespace UEModManager.Services
         {
             WriteQuietly(cfg => cfg.DataLayoutVersion = version, "保存数据布局版本");
         }
+
+        // ── 匿名统计 ──
+
+        /// <summary>
+        /// 读出用户对匿名统计的当前状态。读失败时回落到"没问过 + 开"——
+        /// 而"没问过"意味着不上报，所以读不出配置的最坏结果是<b>少统计</b>，不是偷偷上报。
+        /// </summary>
+        public static TelemetryConsentState LoadTelemetryConsent()
+        {
+            return Read(cfg => new TelemetryConsentState(cfg.TelemetryAsked, cfg.TelemetryEnabled),
+                new TelemetryConsentState(Asked: false, Enabled: true), "读取匿名统计设置");
+        }
+
+        /// <summary>
+        /// 记下用户在首次运行的告知框里做的选择。
+        ///
+        /// <para>
+        /// <b>走 WriteQuietly</b>：这是弹完提示之后的顺带记账，用户刚点完一个"知道了"，
+        /// 紧接着甩他一个"保存失败"只会让人莫名其妙。写失败的唯一后果是下次启动再问一次
+        /// ——与 <see cref="SaveRepositoryLocationPrompted"/> 同类，属于可承受的失败。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>两个字段必须在同一次写里落盘。</b>分两次写就存在一个中间态：已标记问过、
+        /// 而选择还没写上。那一刻断电，用户明明选了"不参与"，下次启动却读到
+        /// "问过 + 默认开"，于是开始上报——恰好是这套设计最不能出的那个错。
+        /// </para>
+        /// </summary>
+        public static void SaveTelemetryConsent(bool enabled)
+        {
+            WriteQuietly(cfg =>
+            {
+                cfg.TelemetryAsked = true;
+                cfg.TelemetryEnabled = enabled;
+            }, "保存匿名统计选择");
+        }
+
+        /// <summary>
+        /// 用户在设置界面里显式改这个开关。<b>失败上抛</b>：与本类其余"用户点了才发生"的
+        /// 设置项同一语义——关掉统计却没关成，用户必须看得见。
+        /// </summary>
+        public static void SaveTelemetryEnabled(bool enabled)
+        {
+            Write(cfg =>
+            {
+                // 在设置里主动改过，等同于知情，顺带把"问过"钉上。
+                // 否则一个先在设置里关掉、又从没被弹窗问过的用户，下次启动会被弹一次
+                // "我们要开始统计了"——而他刚刚才明确表示过不要。
+                cfg.TelemetryAsked = true;
+                cfg.TelemetryEnabled = enabled;
+            }, "保存匿名统计开关");
+        }
+
     }
 }

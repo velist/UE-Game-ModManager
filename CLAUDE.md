@@ -33,7 +33,7 @@
 ```
 UEModManager/
 ├── UEModManager/              # 主程序（WPF）
-│   ├── Services/             # IO 编排层：认证、导入、部署、仓库、配置…（约 36 个服务）
+│   ├── Services/             # IO 编排层：认证、导入、部署、仓库、配置…（约 37 个服务）
 │   │   └── Backends/         # 部署后端实现（CopyBackend / HardLinkBackend）
 │   ├── ViewModels/           # MainViewModel / ModListViewModel / ModDetailViewModel…
 │   ├── Views/                # 各窗口与对话框
@@ -43,7 +43,7 @@ UEModManager/
 │   ├── Migrations/           # EF Core 迁移
 │   └── MainWindow.xaml       # 主窗口
 ├── UEModManager.Core/        # 核心库：纯函数 + 纯模型，无 WPF 依赖
-├── UEModManager.Core.Tests/  # Core 单元测试（882 个）
+├── UEModManager.Core.Tests/  # Core 单元测试（1145 个）
 ├── UEModManager.Tests/       # 主程序测试（少量，需要 net8.0-windows）
 ├── samples/                  # 示例工程（SampleBackend：IDeploymentBackend 实现范例）
 ├── docs/                     # 架构说明、playbooks、审计报告
@@ -61,7 +61,7 @@ UEModManager/
 - **`UEModManager.Core`**：纯函数 + 纯模型。部署计划计算、冲突检测、路径清洗、
   lock 文件构建、崩溃恢复分类、原子写等算法都在这里，不碰 WPF，也基本不碰 IO
   （`Services/Persistence/AtomicFileWriter` 是被明确划出来的 IO 抽象例外）。
-  测试都压在这一层——`UEModManager.Core.Tests` 有 882 个测试。
+  测试都压在这一层——`UEModManager.Core.Tests` 有 1145 个测试。
 - **`UEModManager/Services`**：Core 的 IO 适配层。负责读写文件、访问数据库、记日志、
   调度 UI，纯逻辑部分转调 Core。新增算法应优先落在 Core 并配单测，
   见 `docs/playbooks/writing-core-service.md`。
@@ -88,8 +88,26 @@ UEModManager/
 - `/api/auth/login` - 登录（POST）
 - `/auth/reset` - 密码重置邮件（POST）
 - `/reset-password` - 重置页面（GET）
+- `/app/update` - 更新检查 + 匿名统计心跳（POST，body `{d,v,o,a?}`）
+- `/admin` + `/admin/stats` - 用量看板页面与数据（GET，后者要 `Authorization: Bearer $DASH_TOKEN`）
 
 **UUID → int32 转换：** 使用哈希算法确保在 int32 范围内。
+
+### 用量统计（注册数 / 在线数）
+
+方案口径见 `.claude/audit_reports/2026-07-27-telemetry-options.md`。要点：
+
+- **上报字段就是 `TelemetryReport` 的四个属性**——随机设备 UUID、应用版本、Windows 版本号、
+  可选的邮箱哈希。README「安全与隐私」一节是这份清单对用户的公开承诺，加字段必须同步改它。
+- **没告知过就绝不上报**：`TelemetryConsent.Decide` 里 `Asked=false` 时 `ShouldReport` 恒为
+  false，压过默认开的 `Enabled`。`TelemetryAsked` 与 `TelemetryEnabled` 是两个正交字段，
+  别合并。
+- 设备标识是**随机 UUID v4**，存 `%LOCALAPPDATA%\UEModManager\device.id`（本机层，
+  漫游会让域环境里多台机器共用一个"设备"）。**不要**改成 MachineGuid / MAC / 硬盘序列号。
+- 存储只能是 **D1**，不要用 KV：免费档 1000 写/天不够，且 KV 最终一致下的读改写会让计数
+  永久失真（现有 `rateLimit()` 就是这个 bug）。
+- 上报端点的响应对**任何**输入都完全一致（含格式错误、数据库异常），不回传错误细节。
+- 心跳超时硬编码 5 秒，绝不用 `HttpClient` 默认的 100 秒。
 
 ---
 
@@ -125,11 +143,25 @@ npx wrangler secret put SUPABASE_SERVICE_KEY
 npx wrangler secret put BREVO_API_KEY
 npx wrangler secret put BREVO_FROM
 npx wrangler secret put BREVO_FROM_NAME
+npx wrangler secret put DASH_TOKEN          # 用量看板口令，未设置时 /admin/stats 一律 401
 ```
 
-以上 6 个即 `src/index.js` 实际读取的全部 secret。KV 绑定 `RATE_LIMIT` 在
+以上 7 个即 `src/index.js` 实际读取的全部 secret。KV 绑定 `RATE_LIMIT` 与 D1 绑定 `DB` 在
 `wrangler.toml` 中声明，不是 secret，无需 `secret put`。
 `wrangler deploy` 不会清除已有 secret 值。
+
+**首次部署统计功能前必须先建 D1 库**，否则 `wrangler deploy` 会因 `database_id` 是占位符而报错：
+
+```bash
+npx wrangler d1 create modmanger-stats                                   # 把返回的 uuid 填进 wrangler.toml
+npx wrangler d1 execute modmanger-stats --remote --file=schema.sql       # 建表，可重复执行
+```
+
+Worker 侧无测试框架，自测用 Node 直接把 fetch handler 跑起来（D1 用内存假实现）：
+
+```bash
+cd cf-workers/modmanger-api && node verify.mjs
+```
 
 ---
 

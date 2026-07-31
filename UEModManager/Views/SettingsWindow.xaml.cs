@@ -59,6 +59,9 @@ namespace UEModManager.Views
             // 插件系统
             PluginSystemToggle.IsChecked = UiPreferences.LoadPluginEnabled();
 
+            // 检查更新与匿名统计（同一个开关，因为它们本来就是同一个网络请求）
+            UpdateAndStatsToggle.IsChecked = UiPreferences.LoadTelemetryConsent().Enabled;
+
             // 语言
             LanguageManager.LanguageChanged += OnLanguageChanged;
             ApplyLocalization();
@@ -733,6 +736,12 @@ namespace UEModManager.Views
 
                 // 保存插件系统开关
                 UiPreferences.SavePluginEnabled(PluginSystemToggle.IsChecked == true);
+
+                // 保存"检查更新与匿名统计"开关。
+                // 走 SaveTelemetryEnabled 而不是直接写字段：它会顺带把"已问过"钉上——
+                // 一个先在设置里关掉、却从没被弹窗问过的用户，下次启动本该被弹一次
+                // "我们要开始统计了"，而他刚刚才明确表示过不要。
+                UiPreferences.SaveTelemetryEnabled(UpdateAndStatsToggle.IsChecked == true);
 
                 // 保存部署设置
                 UiPreferences.SaveDeployBackend(_selectedBackend);
