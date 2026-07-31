@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
+using UEModManager.Services.Paths;
 using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
@@ -67,6 +68,24 @@ namespace UEModManager.Services
             public string? RepositoryRoot { get; set; }
             public string? OverwritesRoot { get; set; }
             public string? BackupsRoot { get; set; }
+
+            /// <summary>
+            /// 在途的仓库搬移日记：阶段 + 从哪搬 + 搬到哪
+            /// （见 <c>RepositoryRelocationJournal</c>）。
+            ///
+            /// <para>
+            /// <b>刻意和 <see cref="RepositoryRoot"/> 放在同一个文件里。</b>
+            /// 搬移落定的那一刻要同时做两件事：把存放位置改成新位置、把日记推进到"只剩清尾"。
+            /// 两件事分处两个文件就必然存在一个"改了一个没改另一个"的窗口，
+            /// 而那个窗口正好是断电恢复唯一读不懂的状态。同一个文件意味着它们由
+            /// <see cref="SaveConfig"/> 的一次原子写一起落盘，要么都生效、要么都不生效。
+            /// </para>
+            /// </summary>
+            public int RepositoryRelocationPhase { get; set; }
+
+            public string? RepositoryRelocationSource { get; set; }
+
+            public string? RepositoryRelocationTarget { get; set; }
 
             /// <summary>
             /// 首次运行的仓库位置引导是否已经问过。
@@ -536,6 +555,87 @@ namespace UEModManager.Services
         public static void SaveRepositoryRoot(string? path)
         {
             Write(cfg => cfg.RepositoryRoot = string.IsNullOrWhiteSpace(path) ? null : path.Trim(), "保存仓库根目录");
+        }
+
+        // ── 在途的仓库搬移日记 ──
+
+        /// <summary>读出在途搬移日记；没有在途搬移时返回 <see cref="RepositoryRelocationJournal.None"/>。</summary>
+        public static RepositoryRelocationJournal LoadRepositoryRelocationJournal()
+        {
+            return Read(cfg =>
+            {
+                var phase = cfg.RepositoryRelocationPhase;
+                // 认不出的阶段值（配置被手改过、或将来降级安装到旧版本）一律当作没有在途搬移：
+                // 恢复动作里有"清空目标目录"这种不可逆的一步，判据说不清时唯一安全的做法是什么都不做。
+                if (!Enum.IsDefined(typeof(RepositoryRelocationPhase), phase))
+                {
+                    return RepositoryRelocationJournal.None;
+                }
+
+                return new RepositoryRelocationJournal(
+                    (RepositoryRelocationPhase)phase,
+                    string.IsNullOrWhiteSpace(cfg.RepositoryRelocationSource)
+                        ? null : cfg.RepositoryRelocationSource.Trim(),
+                    string.IsNullOrWhiteSpace(cfg.RepositoryRelocationTarget)
+                        ? null : cfg.RepositoryRelocationTarget.Trim());
+            }, RepositoryRelocationJournal.None, "读取仓库搬移日记");
+        }
+
+        /// <summary>
+        /// 写下在途搬移日记。<b>失败上抛</b>：日记是断电之后唯一能认出"那两个路径"的东西，
+        /// 写不下去就说明这次搬移不该开始——真断电了没人收拾得了。
+        /// </summary>
+        public static void SaveRepositoryRelocationJournal(RepositoryRelocationJournal journal)
+        {
+            if (journal is null) throw new ArgumentNullException(nameof(journal));
+
+            Write(cfg =>
+            {
+                cfg.RepositoryRelocationPhase = (int)journal.Phase;
+                cfg.RepositoryRelocationSource = journal.SourceRoot;
+                cfg.RepositoryRelocationTarget = journal.TargetRoot;
+            }, "保存仓库搬移日记");
+        }
+
+        /// <summary>
+        /// 落定：把存放位置改成新位置、同时把日记推进到"只剩清尾"。
+        ///
+        /// <para>
+        /// <b>这两件事必须在同一次写里完成</b>，这也是把日记塞进 <c>ui_config.json</c>
+        /// 的全部理由。分成两次写就必然存在一个中间态：存放位置已经指向新位置、
+        /// 而日记还停在"搬移中"。那一刻断电，下次启动的恢复判定会看到
+        /// "指针在新位置 + 旧位置有墓碑"——这一格恰好还判得对（继续清尾），
+        /// 但反过来的顺序（先推进日记再改指针）就会在同一格里判成"往前推"，
+        /// 对一个已经写好的指针再写一次。判据能被一次断电改变结论，这种代码不该存在。
+        /// </para>
+        /// </summary>
+        public static void CommitRepositoryRelocation(string targetRoot, string sourceRoot)
+        {
+            if (string.IsNullOrWhiteSpace(targetRoot))
+                throw new ArgumentException("新位置不能为空", nameof(targetRoot));
+
+            Write(cfg =>
+            {
+                cfg.RepositoryRoot = targetRoot.Trim();
+                cfg.RepositoryRelocationPhase = (int)RepositoryRelocationPhase.Cleanup;
+                cfg.RepositoryRelocationSource = sourceRoot?.Trim();
+                cfg.RepositoryRelocationTarget = targetRoot.Trim();
+            }, "落定仓库搬移（改存放位置 + 推进日记）");
+        }
+
+        /// <summary>
+        /// 划掉日记。<b>走 WriteQuietly</b>：搬移已经彻底做完了，此刻再弹一个
+        /// "保存失败"只会让用户以为刚搬好的 MOD 出了问题。失败的唯一后果是下次启动
+        /// 多做一次判定，而那次判定会得出 <c>ClearJournalOnly</c>，再划一次。
+        /// </summary>
+        public static void ClearRepositoryRelocationJournal()
+        {
+            WriteQuietly(cfg =>
+            {
+                cfg.RepositoryRelocationPhase = (int)RepositoryRelocationPhase.Idle;
+                cfg.RepositoryRelocationSource = null;
+                cfg.RepositoryRelocationTarget = null;
+            }, "清除仓库搬移日记");
         }
 
         // ── 其余可自定义的数据根 ──

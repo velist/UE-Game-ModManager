@@ -26,6 +26,7 @@ namespace UEModManager.Tests.Views;
 /// 本项目已经因为重构丢接线出过三次事故，行为测试盖不住"下次又写回去"。
 /// </para>
 /// </summary>
+[Collection(ThemeResourceCollection.Name)]
 public class StartupSequenceGuardTests
 {
     private static string RepoRoot()

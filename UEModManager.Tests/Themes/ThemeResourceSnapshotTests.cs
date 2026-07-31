@@ -15,6 +15,7 @@ namespace UEModManager.Tests.Themes;
 /// 快照取自重构前的实际运行结果。它同时验证了跨字典 StaticResource 解析确实成立：
 /// 令牌搬到另一个文件后，Style 里的 {StaticResource XxxBrush} 若解析不到，取值即抛异常。
 /// </summary>
+[Collection(ThemeResourceCollection.Name)]
 public class ThemeResourceSnapshotTests
 {
     [Fact]

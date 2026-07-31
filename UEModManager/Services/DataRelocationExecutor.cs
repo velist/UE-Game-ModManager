@@ -3,11 +3,72 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services.Paths;
 
 namespace UEModManager.Services
 {
+    /// <summary>
+    /// 一次复制的旁路观测：取消信号 + 每复制完一个文件回一次报。
+    ///
+    /// <para>
+    /// <b>为什么是"加一个可选的旁路"，而不是把四步搬移拆开在外面重新编排。</b>
+    /// <see cref="DataRelocationExecutor"/> 存在的全部价值就是"复制 → 校验 → 写墓碑 → 删源"
+    /// 这个顺序，以及夹在其中的一对进行中标记的写与清；<see cref="DataRelocationExecutor.Execute"/>
+    /// 刻意不是 <c>virtual</c> 就是为了让顺序<b>只有一处</b>。仓库搬移需要进度与取消，
+    /// 但它需要的只是"复制这一步能被打断、能报数"——把整套顺序抄到别处再插两个钩子，
+    /// 换来的是两份必须永远保持一致的顺序表，以及一个迟早会漏掉墓碑或漏掉标记的第二实现。
+    /// 所以取消与进度以参数的形式穿过既有的那一处顺序，一个字节都不绕开校验与墓碑。
+    /// </para>
+    ///
+    /// <para>
+    /// <b>取消只在复制期间生效。</b>只有复制这一步可能跑几十分钟，而它之后的每一步
+    /// （校验、写墓碑、清标记、删源）都是"要么全做完、要么留下一个说不清的中间态"的落定动作：
+    /// 在写墓碑和删源之间响应取消，等于亲手制造那个中间态。校验虽然也走一遍目录，
+    /// 但它的耗时相对复制可以忽略，为它加一个取消点只会多一条要测的路径。
+    /// </para>
+    /// </summary>
+    public sealed class RelocationCopyContext
+    {
+        private readonly Action<long>? _onFileCopied;
+
+        /// <param name="cancellationToken">取消信号。</param>
+        /// <param name="onFileCopied">
+        /// 每复制完一个文件回调一次，参数是<b>该文件</b>的字节数（增量，不是累计）。
+        /// 用增量是因为累计值只有调用方自己攒得对——多层递归里，"到这里为止一共复制了多少"
+        /// 需要跨递归层共享一个可变量，而增量回调让求和责任落在唯一有全局视角的那一方。
+        /// </param>
+        public RelocationCopyContext(CancellationToken cancellationToken, Action<long>? onFileCopied = null)
+        {
+            CancellationToken = cancellationToken;
+            _onFileCopied = onFileCopied;
+        }
+
+        public CancellationToken CancellationToken { get; }
+
+        /// <summary>
+        /// 复制下一个文件之前的取消检查点。<b>放在复制之前而不是之后</b>：
+        /// 之后检查的话，取消一个正在复制 8 GB 单文件的操作要等那个文件写完，
+        /// 而用户点的是"停下来"。
+        /// </summary>
+        internal void ThrowIfCancelled() => CancellationToken.ThrowIfCancellationRequested();
+
+        internal void ReportFileCopied(long bytes) => _onFileCopied?.Invoke(bytes);
+    }
+
+    /// <summary>
+    /// 一次搬移前的体积估算。
+    /// </summary>
+    /// <param name="Bytes">净字节数；<c>null</c> 表示估不出来（权限/占用/路径不可达）。</param>
+    /// <param name="FileCount">文件数；估不出来时为 0。</param>
+    /// <param name="TopLevelDirectoryCount">
+    /// 顶层子目录数（被排除的那些不计）。对包仓库来说这就是"有多少个 MOD 包"，
+    /// 是唯一能对普通玩家说得通的量词——他不关心 8 万个文件，他关心 42 个 MOD。
+    /// </param>
+    public readonly record struct RelocationPayloadEstimate(
+        long? Bytes, int FileCount, int TopLevelDirectoryCount);
+
     /// <summary>
     /// 数据搬迁的文件操作执行器。
     ///
@@ -36,6 +97,14 @@ namespace UEModManager.Services
     /// 四个步骤方法都是 <c>virtual</c>，<see cref="Execute"/> 刻意不是。这条界线是有意的：
     /// 派生类只允许替换<b>某一步做了什么</b>（测试据此在指定阶段注入失败，复现断电），
     /// 不允许替换<b>步骤的先后顺序</b>——顺序正是本类要守住的不变量，能被覆盖就守不住了。
+    /// </para>
+    ///
+    /// <para>
+    /// <b>两类调用方，一套顺序。</b>启动期的目录搬迁（<see cref="DataLocationMigrator"/>）
+    /// 是同步、无进度、体积 MB 级的；用户在设置里触发的仓库搬移
+    /// （<see cref="RepositoryRelocationService"/>）可能几十 GB、要进度也要能取消。
+    /// 差异全部收在可选的 <see cref="RelocationCopyContext"/> 里，
+    /// 顺序仍然只有 <see cref="Execute"/> 这一处，理由见该类型的注释。
     /// </para>
     /// </summary>
     public class DataRelocationExecutor
@@ -179,6 +248,19 @@ namespace UEModManager.Services
         /// （权限、占用、路径不可达），此时调用方应当放行而不是拒绝搬移。
         ///
         /// <para>
+        /// 只要字节数的调用方用本方法；还要文件数与包个数的走
+        /// <see cref="TryEstimatePayload"/>——两者共用同一遍枚举与同一套口径，
+        /// 本方法就是那个方法的一层投影。
+        /// </para>
+        /// </summary>
+        public static long? TryEstimateBytes(string path, bool isFile,
+            IReadOnlyCollection<string>? excludedChildDirectories = null)
+            => TryEstimatePayload(path, isFile, excludedChildDirectories).Bytes;
+
+        /// <summary>
+        /// 估算某项数据的体积、文件数与顶层子目录数。
+        ///
+        /// <para>
         /// <b>口径必须与 <see cref="CopyDirectory"/> 逐条对齐</b>：跳过搬迁器自己的元数据、
         /// 跳过被排除的顶层子目录。放在本类而不是迁移器里，就是为了让"算多少"与"复制多少"
         /// 这两件事共用同一套判断——分开写的话，哪天排除清单的语义变了，
@@ -195,7 +277,7 @@ namespace UEModManager.Services
         /// 相对于紧接着要发生的整目录复制（O(字节)），这一遍枚举（O(文件数)）可以忽略。
         /// </para>
         /// </summary>
-        public static long? TryEstimateBytes(string path, bool isFile,
+        public static RelocationPayloadEstimate TryEstimatePayload(string path, bool isFile,
             IReadOnlyCollection<string>? excludedChildDirectories = null)
         {
             try
@@ -203,34 +285,44 @@ namespace UEModManager.Services
                 if (isFile)
                 {
                     var file = new FileInfo(path);
-                    return file.Exists ? file.Length : 0;
+                    return file.Exists
+                        ? new RelocationPayloadEstimate(file.Length, 1, 0)
+                        : new RelocationPayloadEstimate(0, 0, 0);
                 }
 
                 var root = new DirectoryInfo(path);
-                if (!root.Exists) return 0;
+                if (!root.Exists) return new RelocationPayloadEstimate(0, 0, 0);
 
                 long total = 0;
+                var files = 0;
+                var topLevelDirectories = 0;
+
                 foreach (var file in root.EnumerateFiles())
                 {
-                    if (!IsMigratorMetadata(file.FullName)) total += file.Length;
+                    if (IsMigratorMetadata(file.FullName)) continue;
+                    total += file.Length;
+                    files++;
                 }
 
                 foreach (var child in root.EnumerateDirectories())
                 {
                     if (IsExcluded(child.FullName, excludedChildDirectories)) continue;
+                    topLevelDirectories++;
                     foreach (var file in child.EnumerateFiles("*", SearchOption.AllDirectories))
                     {
-                        if (!IsMigratorMetadata(file.FullName)) total += file.Length;
+                        if (IsMigratorMetadata(file.FullName)) continue;
+                        total += file.Length;
+                        files++;
                     }
                 }
 
-                return total;
+                return new RelocationPayloadEstimate(total, files, topLevelDirectories);
             }
             catch
             {
                 // 估不出来就让调用方放行：预检不该比它保护的复制更容易失败，
                 // 否则它自己会变成一个新的"永远搬不了"的原因。
-                return null;
+                return new RelocationPayloadEstimate(null, 0, 0);
             }
         }
 
@@ -242,15 +334,22 @@ namespace UEModManager.Services
         /// 排除项不复制、不计入校验、也不删源，因此两项互不干扰：
         /// 谁先执行都一样，一项失败也不会污染另一项。
         /// </param>
+        /// <param name="copyContext">
+        /// 复制期间的取消信号与进度回调；<c>null</c>（默认）即原来的同步无进度行为。
+        /// 取消表现为从本方法抛出 <see cref="OperationCanceledException"/>，
+        /// 且必然发生在写墓碑<b>之前</b>——此时旧数据仍是唯一可信副本，
+        /// 调用方按"失败"处理即可（清掉目标残留、指针不动）。
+        /// </param>
         public void Execute(RelocationStep step, bool isFile,
-            IReadOnlyCollection<string>? excludedChildDirectories = null)
+            IReadOnlyCollection<string>? excludedChildDirectories = null,
+            RelocationCopyContext? copyContext = null)
         {
             switch (step.Action)
             {
                 case RelocationAction.PurgeTargetThenCopy:
                     PurgeTarget(step, isFile);
                     MarkInProgress(step, isFile);
-                    CopyAndVerify(step, isFile, excludedChildDirectories);
+                    CopyAndVerify(step, isFile, excludedChildDirectories, copyContext);
                     WriteTombstone(step, isFile);
                     ClearInProgressMarker(step, isFile);
                     DeleteLegacy(step, isFile, excludedChildDirectories);
@@ -258,7 +357,7 @@ namespace UEModManager.Services
 
                 case RelocationAction.Copy:
                     MarkInProgress(step, isFile);
-                    CopyAndVerify(step, isFile, excludedChildDirectories);
+                    CopyAndVerify(step, isFile, excludedChildDirectories, copyContext);
                     WriteTombstone(step, isFile);
                     ClearInProgressMarker(step, isFile);
                     DeleteLegacy(step, isFile, excludedChildDirectories);
@@ -310,18 +409,21 @@ namespace UEModManager.Services
 
         /// <summary>复制并校验。校验不过直接抛，此时墓碑尚未写下，旧数据仍是唯一可信副本。</summary>
         public virtual void CopyAndVerify(RelocationStep step, bool isFile,
-            IReadOnlyCollection<string>? excludedChildDirectories = null)
+            IReadOnlyCollection<string>? excludedChildDirectories = null,
+            RelocationCopyContext? copyContext = null)
         {
             if (isFile)
             {
                 var targetDir = Path.GetDirectoryName(step.TargetPath);
                 if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
+                copyContext?.ThrowIfCancelled();
                 File.Copy(step.LegacyPath, step.TargetPath, overwrite: true);
+                copyContext?.ReportFileCopied(new FileInfo(step.TargetPath).Length);
                 VerifyFile(step.LegacyPath, step.TargetPath);
             }
             else
             {
-                CopyDirectory(step.LegacyPath, step.TargetPath, excludedChildDirectories);
+                CopyDirectory(step.LegacyPath, step.TargetPath, excludedChildDirectories, copyContext);
                 VerifyDirectory(step.LegacyPath, step.TargetPath, excludedChildDirectories);
             }
 
@@ -334,23 +436,45 @@ namespace UEModManager.Services
         /// 进行中标记同理，它描述的是这一次搬迁的状态，不是数据）。
         /// <paramref name="excludedChildDirectories"/> 只对<b>顶层</b>生效——排除的是
         /// 具名的一项数据，而不是所有同名子目录。
+        /// <paramref name="copyContext"/> 非空时每个文件复制前检查一次取消、复制后报一次字节数。
         /// </summary>
         public static void CopyDirectory(string source, string target,
-            IReadOnlyCollection<string>? excludedChildDirectories = null)
+            IReadOnlyCollection<string>? excludedChildDirectories = null,
+            RelocationCopyContext? copyContext = null)
         {
             Directory.CreateDirectory(target);
 
             foreach (var file in Directory.GetFiles(source))
             {
                 if (IsMigratorMetadata(file)) continue;
-                File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
+                copyContext?.ThrowIfCancelled();
+
+                var destination = Path.Combine(target, Path.GetFileName(file));
+                File.Copy(file, destination, overwrite: true);
+
+                // 报的是目标侧的长度而不是源侧：复制真正写下去多少才是进度，
+                // 而且源文件此刻可能已经被别人改了（虽然搬移期间仓库是上了闸的）。
+                if (copyContext != null) copyContext.ReportFileCopied(SafeLength(destination));
             }
 
             foreach (var dir in Directory.GetDirectories(source))
             {
                 if (IsExcluded(dir, excludedChildDirectories)) continue;
-                CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
+                // 排除清单只对顶层生效，所以递归时不再往下传——这一层的语义与
+                // TryEstimatePayload 里"只在顶层判排除"完全对应。
+                CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)), null, copyContext);
             }
+        }
+
+        /// <summary>
+        /// 取文件长度，失败回 0。只服务于进度显示：一个读不出长度的文件让进度条少走一格，
+        /// 而让它抛异常会把一次已经复制成功的搬移变成失败。真正的完整性由
+        /// <see cref="VerifyDirectory"/> 负责。
+        /// </summary>
+        private static long SafeLength(string path)
+        {
+            try { return new FileInfo(path).Length; }
+            catch { return 0; }
         }
 
         /// <summary>

@@ -124,6 +124,11 @@ namespace UEModManager.Services
         {
             if (plan == null) throw new ArgumentNullException(nameof(plan));
 
+            // 回收是递归删除仓库根下的目录，不经过 ObjectStore 的写方法，所以自己问一次搬移闸门。
+            // 而且这里比别处更要紧：计划是搬移<b>之前</b>扫出来的，搬移之后那些目录名指的已经是
+            // 另一个位置里的东西，照着老计划删等于按一份过期名单去删一个新仓库。
+            _objectStore.ThrowIfRelocating("清理仓库残留");
+
             var failures = new List<(string, string)>();
             var deleted = 0;
             long freed = 0;

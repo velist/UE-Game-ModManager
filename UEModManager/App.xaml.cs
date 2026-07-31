@@ -340,6 +340,17 @@ namespace UEModManager
                     // 首次运行时引导用户挑一个包仓库位置（默认在系统盘，而仓库可能几十 GB）
                     services.AddSingleton<RepositorySetupService>();
 
+                    // 换一个位置存 MOD：先搬数据、搬成了才改存放位置。
+                    // 全项目唯一允许改仓库位置的地方（守卫测试钉住）。
+                    //
+                    // ObjectStore 用工厂而不是直接注入：启动期的断电恢复要解析本服务，
+                    // 而解析时若把 ObjectStore 一并构造出来，它就会把"恢复之前"的存放位置
+                    // 记进字段——恢复紧接着把位置改到新位置，用户这一整次会话却仍看着旧的空仓库。
+                    services.AddSingleton<RepositoryRelocationService>(sp =>
+                        new RepositoryRelocationService(
+                            sp.GetRequiredService<ILogger<RepositoryRelocationService>>(),
+                            sp.GetRequiredService<ObjectStore>));
+
                     services.AddTransient<ViewModels.MainViewModel>();
                     // 注册窗口
                     services.AddTransient<MainWindow>();
@@ -411,6 +422,17 @@ namespace UEModManager
                     // 此时 LastOutcome 仍是 null，UI 侧按"没有可提示的状态"处理即可。
                     Console.WriteLine($"[Startup] 数据目录迁移异常（沿用旧位置继续）: {migEx}");
                 }
+
+                // 上次被中断（断电/强杀/崩溃）的仓库搬移，在这里自愈。
+                // 位置的两头与下面那个首次运行引导完全相同，理由也相同：
+                //   上界 —— 搬迁器的原地登记会写存放位置；
+                //   下界 —— ObjectStore 构造时读一次存放位置就记进字段，晚一步的话
+                //           恢复推过去的新位置这次会话根本不生效，用户看到的是一个空仓库。
+                // 排在引导之前是必须的：引导判定"老用户"最主要的两条判据是
+                // "配置里有没有仓库位置"和"当前仓库里有没有包"，而一次被中断的搬移
+                // 恰好会让这两条都读成 false —— 于是一个 MOD 正躺在半搬完状态的老用户
+                // 会被弹窗问"MOD 放哪个盘"。
+                RecoverInterruptedRepositoryRelocation();
 
                 // 首次运行的仓库位置引导。位置必须夹在这两件事之间，两头都是硬约束：
                 //
@@ -510,6 +532,35 @@ namespace UEModManager
                 try { Console.WriteLine($"[FATAL][Auth] ShowAuthenticationWindow failed: {ex}"); } catch { }
                 MessageBox.Show($"认证窗口启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
+            }
+        }
+
+        /// <summary>
+        /// 收拾上次被中断的仓库搬移。
+        ///
+        /// <para>
+        /// 判定与执行都在 <see cref="RepositoryRelocationService.RecoverInterrupted"/> 里，
+        /// 它自己已经兜住全部异常；这里再包一层只为防住"解析服务本身失败"。
+        /// 恢复失败绝不能阻断启动——什么都不做是安全的（两边的数据此刻至少有一份是完整的），
+        /// 下次启动还会再判一次。
+        /// </para>
+        ///
+        /// <para>
+        /// 与引导一样<b>刻意不解析 ObjectStore</b>：解析它就等于把它构造出来，
+        /// 正好把"第一次读存放位置"的时机提前到恢复内部，反手制造出这段代码要防的问题。
+        /// </para>
+        /// </summary>
+        private void RecoverInterruptedRepositoryRelocation()
+        {
+            try
+            {
+                var service = ServiceProvider!.GetRequiredService<RepositoryRelocationService>();
+                var plan = service.RecoverInterrupted();
+                Console.WriteLine($"[Startup] 仓库搬移恢复: {plan}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Startup] 仓库搬移恢复失败（沿用当前位置继续）: {ex}");
             }
         }
 

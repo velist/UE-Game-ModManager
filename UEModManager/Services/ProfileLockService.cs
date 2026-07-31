@@ -284,6 +284,11 @@ namespace UEModManager.Services
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
             if (!File.Exists(zipPath)) throw new FileNotFoundException("整合包文件不存在", zipPath);
 
+            // 整合包导入是直接往仓库目录 ExtractToFile，不经过 ObjectStore 的写方法，
+            // 所以自己问一次搬移闸门，而且要在开始解压<b>之前</b>问：一个整合包可能几 GB，
+            // 解压完再撞上闸门，用户白等一遍还得看着那批文件随旧位置被清空。
+            _packageRepo.Store.ThrowIfRelocating("导入整合包");
+
             var localKeys = new HashSet<string>(
                 _packageRepo.GetAllPackages().Select(p => p.PackageKey),
                 StringComparer.OrdinalIgnoreCase);

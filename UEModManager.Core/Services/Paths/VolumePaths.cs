@@ -71,6 +71,49 @@ public static class VolumePaths
     }
 
     /// <summary>
+    /// <paramref name="candidate"/> 是不是 <paramref name="parent"/> 本身或它的子孙。
+    ///
+    /// <para>
+    /// 两处消费者，两处算错都是丢数据：
+    /// <list type="bullet">
+    /// <item><b>引导侧</b>（<c>RepositorySetupService</c>）——判断用户选的仓库位置是否落在
+    /// 本程序的安装目录里，卸载会清空那里。</item>
+    /// <item><b>搬移侧</b>（<see cref="RepositoryRelocationPlanner"/>）——目标在源里面会让
+    /// 递归复制自己吃自己，源在目标里面会让"删源"删掉刚复制过去的数据。</item>
+    /// </list>
+    /// </para>
+    ///
+    /// <para>
+    /// <b>比前缀之前必须补上分隔符</b>，否则 <c>C:\App</c> 会把 <c>C:\AppData</c> 也算成
+    /// 自己的子目录——这个差错在两处的后果分别是"凭空多一条安装目录警告"和
+    /// "一次本来合法的搬移被拒"。判不出来（路径病态、超长）时返回 <c>false</c>：
+    /// 两处都是"证明得了才拦"，证明不了就放行，让后续真实的 IO 去失败并给出真正的原因。
+    /// </para>
+    /// </summary>
+    public static bool IsSameOrInside(string? parent, string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(parent) || string.IsNullOrWhiteSpace(candidate)) return false;
+
+        try
+        {
+            var normalizedParent = Path.GetFullPath(parent.Trim())
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedCandidate = Path.GetFullPath(candidate.Trim())
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (string.Equals(normalizedParent, normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return normalizedCandidate.StartsWith(
+                normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 把盘根说成普通玩家看得懂的话：<c>D:\Games</c> → <c>D 盘</c>。
     /// 网络位置没有盘符，原样返回共享根。说不清时返回 <c>null</c>，由调用方决定怎么绕开
     /// ——绝不能编一个"未知盘"塞进用户看的句子里。
