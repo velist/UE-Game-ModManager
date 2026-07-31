@@ -28,14 +28,14 @@ id = "7bca3c2fb15b4bc09034695d3435360f"
 [[d1_databases]]
 binding = "DB"
 database_name = "modmanger-stats"
-database_id = "TODO-填入-wrangler-d1-create-返回的-uuid"
+database_id = "b5e4b2b0-d4bd-4177-8eaf-16d76292710e"
 
 # 更新检查回答用的版本信息。
 #
 # 刻意放在 [vars] 而不是 KV：心跳场景下读 KV 是 3 倍读放大（原实现每次调用读 3 个 key），
 # 而发新版本本来就要动这个仓库，改这里再 deploy 一次的成本是零。
 [vars]
-LATEST_VERSION = "2.0.5"
+LATEST_VERSION = "2.1.0"
 UPDATE_MANDATORY = "false"
 UPDATE_NOTES = ""
 

@@ -6,7 +6,7 @@
 
 #define MyAppName        "爱酱MOD管理器"
 #ifndef MyAppVersion
-#define MyAppVersion     "2.0.5"
+#define MyAppVersion     "2.1.0"
 #endif
 #ifndef MyAppDisplayVer
 #define MyAppDisplayVer  "v2.0.5"
