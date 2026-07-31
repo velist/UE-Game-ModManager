@@ -26,6 +26,19 @@ namespace UEModManager.Services
         private readonly ILogger<ObjectStore> _logger;
         private string _repositoryRoot;
 
+        /// <summary>
+        /// 仓库正在被整体搬到别的位置。非 0 即"上了闸"。
+        ///
+        /// <para>
+        /// 用 <see cref="Interlocked"/> 的 0/1 而不是 <c>bool</c> 或 <c>lock</c>：
+        /// 上闸这件事必须是"要么我拿到、要么我知道别人拿着"的原子操作
+        /// ——两个搬移同时开始，两边各自往同一个目标复制，谁的墓碑先落地都是灾难。
+        /// 而闸门的读取（<see cref="ThrowIfRelocating"/>）发生在每一次写入之前，
+        /// 用不着比一次 volatile 读更重的东西。
+        /// </para>
+        /// </summary>
+        private int _relocating;
+
         public ObjectStore(ILogger<ObjectStore> logger)
             : this(logger, Infrastructure.AppPaths.RepositoryRoot)
         {
@@ -49,14 +62,94 @@ namespace UEModManager.Services
         /// <summary>仓库根目录。</summary>
         public string RepositoryRoot => _repositoryRoot;
 
+        /// <summary>仓库此刻是否正在被整体搬移。</summary>
+        public bool IsRelocating => Volatile.Read(ref _relocating) != 0;
+
         /// <summary>
-        /// 设置仓库根目录（用户可自定义）。
+        /// 给仓库上闸，返回的对象 Dispose 时开闸。已经上着闸时抛
+        /// <see cref="InvalidOperationException"/>。
+        ///
+        /// <para><b>闸门挡的是写入，不挡读取。</b>这不是偷懒，是搬移的落地顺序决定的：</para>
+        /// <list type="bullet">
+        /// <item><b>写入必须挡。</b>复制是对某一时刻的快照做的，快照之后新导入的包不会被复制过去，
+        /// 而搬移最后一步会把旧位置清空——那个包就这么没了，而且用户刚刚才看到"导入成功"。</item>
+        /// <item><b>读取不用挡。</b>旧位置的数据在墓碑落地<b>之前</b>一个字节都不会少，
+        /// 而墓碑落地之后紧接着就把存放位置改成了新位置，此后新的读取自然走新位置。
+        /// 也就是说任何一次读取要么读到完整的旧位置、要么读到完整的新位置。
+        /// 挡读取反而有害：界面刷新、统计仓库大小、切游戏都是读，
+        /// 一律抛异常会把一个正常的搬移变成满屏错误框。</item>
+        /// </list>
+        ///
+        /// <para>
+        /// 闸门是<b>第二道</b>防线。第一道是搬移界面本身是模态对话框——项目里所有会写仓库的
+        /// 动作（导入、部署、删包、回收、整合包导入）都由主窗口上的用户操作发起，
+        /// 一个 Owner 是主窗口的模态框把它们全挡住了，没有任何定时器或后台任务会写仓库。
+        /// 留着闸门是因为"没有后台写入方"这件事是靠人读代码保证的，而这类保证在这个项目里
+        /// 已经失效过三次；闸门一旦被撞上，用户看到的是一句明确的"正在搬移，请稍等"，
+        /// 而不是一个包被静默删掉。
+        /// </para>
+        /// </summary>
+        public IDisposable BeginRelocation()
+        {
+            if (Interlocked.CompareExchange(ref _relocating, 1, 0) != 0)
+            {
+                throw new InvalidOperationException("已经有一次 MOD 存放位置搬移在进行中");
+            }
+
+            _logger.LogInformation("仓库已上闸（搬移进行中），期间拒绝一切写入: {Root}", _repositoryRoot);
+            return new RelocationGate(this);
+        }
+
+        /// <summary>
+        /// 写入前的闸门检查。<b>公开</b>是刻意的：仓库根下面还有几个不经过本类写方法的写入方
+        /// （<c>PackageRepository</c> 写 manifest、<c>PackageImportService</c> 的解压临时目录、
+        /// <c>RepositoryReclaimService</c> 的残留回收、<c>ProfileLockService</c> 的整合包导入），
+        /// 它们都必须能问到同一个闸门。把判据留在本类，是因为仓库根这个字段的主人就是本类。
+        /// </summary>
+        /// <param name="operation">给用户看的动作名，例如"导入 MOD"。</param>
+        public void ThrowIfRelocating(string operation)
+        {
+            if (!IsRelocating) return;
+
+            throw new InvalidOperationException(
+                $"MOD 存放位置正在搬移，暂时不能{operation}。等搬完（界面上会提示）再试一次。");
+        }
+
+        private sealed class RelocationGate : IDisposable
+        {
+            private ObjectStore? _owner;
+
+            internal RelocationGate(ObjectStore owner) => _owner = owner;
+
+            public void Dispose()
+            {
+                var owner = Interlocked.Exchange(ref _owner, null);
+                if (owner == null) return;
+
+                Volatile.Write(ref owner._relocating, 0);
+                owner._logger.LogInformation("仓库已开闸: {Root}", owner._repositoryRoot);
+            }
+        }
+
+        /// <summary>
+        /// 设置仓库根目录。
+        ///
+        /// <para>
+        /// <b>唯一合法的调用方是 <see cref="RepositoryRelocationService"/>。</b>
+        /// 界面上"改存放位置"这件事必须连着"把数据搬过去"——此前设置界面直接调本方法，
+        /// 只改指针不搬数据，用户改完之后已导入的包实体还躺在旧位置、新仓库是空的，
+        /// 界面上 MOD 全没了，而他既不知道发生了什么、也不会想到要自己去拷目录。
+        /// 有一条守卫测试（<c>StartupSequenceGuardTests</c>）钉住"Views 下不许出现本方法"。
+        /// </para>
+        ///
+        /// <para>
+        /// 顺序是先落盘、再改内存：反过来的话写盘失败时本服务已经指向新目录，
+        /// 用户看到错误提示，但这次会话里 MOD 会全部"消失"（读的是一个空的新仓库），
+        /// 重启后又回到旧目录。与 BackgroundManager.Apply 同一条判据。
+        /// </para>
         /// </summary>
         public void SetRepositoryRoot(string path)
         {
-            // 顺序是先落盘、再改内存：反过来的话写盘失败时本服务已经指向新目录，
-            // 用户看到错误提示，但这次会话里 MOD 会全部"消失"（读的是一个空的新仓库），
-            // 重启后又回到旧目录。与 BackgroundManager.Apply 同一条判据。
             UiPreferences.SaveRepositoryRoot(path);
             _repositoryRoot = path;
             _logger.LogInformation("仓库路径设置为: {Path}", path);
@@ -101,6 +194,7 @@ namespace UEModManager.Services
         public async Task<(string relativePath, string fileHash, long fileSize)> StoreFileAsync(
             string packageKey, string sourceFilePath, string? targetRelativeName = null)
         {
+            ThrowIfRelocating("导入 MOD");
             EnsureInitialized();
 
             var fileName = PathSanitizer.SanitizeRelative(targetRelativeName ?? Path.GetFileName(sourceFilePath));
@@ -152,6 +246,7 @@ namespace UEModManager.Services
         {
             try
             {
+                ThrowIfRelocating("更换预览图");
                 EnsureInitialized();
                 var packageDir = GetPackageDirectory(packageKey);
                 Directory.CreateDirectory(packageDir);
@@ -212,6 +307,12 @@ namespace UEModManager.Services
         {
             try
             {
+                // 闸门检查刻意放在 try 里面：搬移期间删包会返回 false 并留一条错误日志，
+                // 与"删不掉"走同一条路径。调用方（PackageRepository.DeletePackageAsync、
+                // 导入失败的补偿清理）本来就按 false 处理，不会因此崩掉；
+                // 而搬移是模态的，正常情况下压根走不到这里。
+                ThrowIfRelocating("删除 MOD");
+
                 var packageDir = GetPackageDirectory(packageKey);
                 if (Directory.Exists(packageDir))
                 {

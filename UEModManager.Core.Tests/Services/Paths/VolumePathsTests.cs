@@ -105,4 +105,42 @@ public class VolumePathsTests
         Assert.Null(VolumePaths.TryDescribeVolume(@"relative\path"));
         Assert.Null(VolumePaths.TryDescribeVolume(null));
     }
+
+    // ─── 包含关系：两处消费者，算错都是丢数据 ───
+
+    [Theory]
+    [InlineData(@"D:\Mods", @"D:\Mods")]
+    [InlineData(@"D:\Mods", @"D:\Mods\")]
+    [InlineData(@"D:\Mods\", @"D:\Mods")]
+    [InlineData(@"D:\Mods", @"d:\mods")]
+    [InlineData(@"D:\Mods", @"D:\Mods\Repo")]
+    [InlineData(@"D:\Mods", @"D:\Mods\Repo\files\a.pak")]
+    public void 自己和子孙都算在里面(string parent, string candidate)
+    {
+        Assert.True(VolumePaths.IsSameOrInside(parent, candidate));
+    }
+
+    [Theory]
+    [InlineData(@"D:\Mods", @"D:\ModsBackup")]
+    [InlineData(@"C:\App", @"C:\AppData")]
+    [InlineData(@"D:\Mods\Repo", @"D:\Mods")]
+    [InlineData(@"D:\Mods", @"E:\Mods\Repo")]
+    public void 同名前缀与反方向都不算(string parent, string candidate)
+    {
+        // C:\App 把 C:\AppData 算成自己的子目录，会让引导对一整类用户凭空多一条
+        // "这是安装文件夹"的警告，也会让一次完全合法的搬移被误拒
+        Assert.False(VolumePaths.IsSameOrInside(parent, candidate));
+    }
+
+    [Theory]
+    [InlineData(null, @"D:\Mods")]
+    [InlineData(@"D:\Mods", null)]
+    [InlineData("", @"D:\Mods")]
+    [InlineData(@"D:\Mods", "   ")]
+    public void 判不出来时按不包含处理(string? parent, string? candidate)
+    {
+        // 两处消费者都是"证明得了才拦"，证明不了就放行，
+        // 让后续真实的 IO 去失败并给出真正的原因
+        Assert.False(VolumePaths.IsSameOrInside(parent, candidate));
+    }
 }

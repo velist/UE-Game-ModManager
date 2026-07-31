@@ -1320,11 +1320,12 @@ public sealed class DataLocationMigratorTests : IDisposable
         private bool Targets(RelocationStep step) => itemName is null || step.Name == itemName;
 
         public override void CopyAndVerify(RelocationStep step, bool isFile,
-            IReadOnlyCollection<string>? excludedChildDirectories = null)
+            IReadOnlyCollection<string>? excludedChildDirectories = null,
+            RelocationCopyContext? copyContext = null)
         {
             if (!Targets(step) || stage is not (FaultStage.BeforeCopy or FaultStage.DuringCopy))
             {
-                base.CopyAndVerify(step, isFile, excludedChildDirectories);
+                base.CopyAndVerify(step, isFile, excludedChildDirectories, copyContext);
                 return;
             }
 

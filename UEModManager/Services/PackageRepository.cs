@@ -490,6 +490,11 @@ namespace UEModManager.Services
         {
             try
             {
+                // manifest 不经过 ObjectStore 的写方法（这里直接拿路径 + AtomicFileWriter），
+                // 所以要自己问一次搬移闸门。漏掉它的后果是：搬移期间写下的 manifest 落在
+                // 旧位置，搬完随旧位置一起被清空，那个包从此没有自描述、
+                // 下次完整性检查会把它判成"导入残留目录"。
+                _objectStore.ThrowIfRelocating("保存 MOD 信息");
                 _objectStore.EnsureInitialized();
                 var manifestPath = _objectStore.GetManifestPath(package.PackageKey);
                 var dir = Path.GetDirectoryName(manifestPath);
