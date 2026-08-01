@@ -6,8 +6,9 @@ namespace UEModManager.Services.Detection
     /// <summary>
     /// 按 MOD 名称推测分类标签（纯函数）。
     ///
-    /// 主项目原本散落在 <c>ModManagementService.DetermineModType</c> 的中英文关键词分类规则，
-    /// 下沉到 Core 让关键词表集中可见、可独立单测，并供 PackageImportService 等其他场景复用。
+    /// 规则原本散落在 v1.8 主项目的 <c>ModManagementService.DetermineModType</c>
+    /// （该类整体已在 v2.0 作为死链路删除），下沉到 Core 让关键词表集中可见、可独立单测，
+    /// 现由 PackageImportService 等 v2.0 导入链路使用。
     ///
     /// 优先级：面部 &gt; 人物 &gt; 武器 &gt; 服装 &gt; 发型 &gt; 其他（兜底）。
     /// 早出现的关键词不会被后面覆盖，保留原 v1.8 行为。

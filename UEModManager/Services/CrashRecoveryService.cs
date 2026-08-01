@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
+using UEModManager.Services.Persistence;
 using UEModManager.Services.Recovery;
 
 namespace UEModManager.Services
@@ -79,7 +80,20 @@ namespace UEModManager.Services
                 switch (action)
                 {
                     case RecoveryAction.RollbackRecommended:
-                        await _deploymentService.RollbackAsync(tx);
+                        var outcome = await _deploymentService.RollbackAsync(tx);
+                        if (!outcome.Attempted)
+                        {
+                            _logger.LogError(
+                                "[Recovery] 事务 {Id} 未能回滚：{Reason}", transactionId, outcome.SkipReason);
+                            return false;
+                        }
+                        if (!outcome.Succeeded)
+                        {
+                            _logger.LogError(
+                                "[Recovery] 事务 {Id} 仅部分回滚，{Count} 个文件需人工核查",
+                                transactionId, outcome.Failures.Count);
+                            return false;
+                        }
                         _logger.LogInformation("[Recovery] 事务 {Id} 已回滚", transactionId);
                         return true;
 
@@ -193,7 +207,8 @@ namespace UEModManager.Services
 
             var path = Path.Combine(tx.BackupDirectory, "transaction.json");
             var json = JsonSerializer.Serialize(tx, JsonOptions);
-            await File.WriteAllTextAsync(path, json);
+            // 与 DeploymentService 一致：transaction.json 是崩溃恢复的唯一依据，必须原子写
+            await AtomicFileWriter.WriteAllTextAsync(path, json);
         }
     }
 }

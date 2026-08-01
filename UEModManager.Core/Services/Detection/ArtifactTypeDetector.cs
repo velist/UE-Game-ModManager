@@ -59,7 +59,7 @@ namespace UEModManager.Services.Detection
 
         /// <summary>
         /// 导入场景下的识别。需要调用方传入"该宿主认可的 MOD 扩展名表"
-        /// （来自 IHostAdapter.ModFileExtensions）。
+        /// （来自 <c>EngineProfile.Get(engineType).ModFileExtensions</c>）。
         ///
         /// 规则：
         /// - 图片扩展名 → PreviewImage

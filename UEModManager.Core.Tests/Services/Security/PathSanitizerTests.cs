@@ -51,4 +51,31 @@ public class PathSanitizerTests
 
         Assert.Throws<ArgumentException>(() => PathSanitizer.SafeCombine(baseDir, "..\\outside"));
     }
+
+    [Theory]
+    [InlineData("MyMod")]
+    [InlineData("剑星 CNS 补丁")]
+    [InlineData("mod.v1.2")]
+    public void SanitizeSegment_AcceptsPlainNames(string input)
+    {
+        Assert.Equal(input, PathSanitizer.SanitizeSegment(input));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("..\\..\\Startup")]
+    [InlineData("foo/bar")]
+    [InlineData("foo\\bar")]
+    [InlineData("C:evil")]
+    [InlineData("bad|name")]
+    [InlineData("trailing ")]
+    [InlineData("trailing.")]
+    public void SanitizeSegment_RejectsAnythingButASingleSafeName(string? input)
+    {
+        Assert.Throws<ArgumentException>(() => PathSanitizer.SanitizeSegment(input));
+    }
 }

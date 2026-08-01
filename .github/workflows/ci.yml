@@ -1,0 +1,39 @@
+name: CI
+
+# 新增于 2026-07-26 的优化审计。此前仓库无任何 CI，
+# "0 警告 / 639 测试全绿" 完全依赖人工在本机执行，没有任何自动化保证。
+# 因为当前基线已经是零警告，直接上 warnaserror 门禁的代价为零 —— 这是锁住成果的最佳时机。
+
+on:
+  push:
+    branches: [main, 'optimize/**', 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    # WPF 项目（net8.0-windows / UseWPF）只能在 Windows 上构建
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 还原依赖
+        run: dotnet restore UEModManager.sln
+
+      - name: 构建（警告即错误）
+        # NuGetAudit 的 NU19xx 排除在 warnaserror 之外：新的 CVE 通告随时可能出现，
+        # 不应让一条新公告直接卡死所有人的 PR。漏洞由下面的独立步骤单独可见。
+        run: dotnet build UEModManager.sln -c Release --no-restore -warnaserror -p:WarningsNotAsErrors=NU1901%3BNU1902%3BNU1903%3BNU1904
+
+      - name: 运行测试
+        run: dotnet test UEModManager.sln -c Release --no-build --verbosity normal
+
+      - name: 依赖漏洞扫描（不阻断，仅报告）
+        continue-on-error: true
+        run: dotnet list UEModManager.sln package --vulnerable --include-transitive

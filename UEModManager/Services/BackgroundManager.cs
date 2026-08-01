@@ -20,11 +20,19 @@ namespace UEModManager.Services
             _settings = UiPreferences.LoadBackground();
         }
 
+        /// <summary>
+        /// 持久化并应用背景设置。<b>落盘失败会上抛给调用方</b>
+        /// （<c>SettingsWindow.Save_Click</c> 有 try/catch + CyberMessageBox 承接）。
+        ///
+        /// 顺序是先落盘、再改内存、最后派发：反过来的话写盘失败时界面已经换了背景，
+        /// 用户以为设置生效了，重启后又变回去——正是本轮要堵的静默通道。
+        /// 现在失败时内存与界面都保持原状，语义与错误提示一致。
+        /// </summary>
         public static void Apply(BackgroundSettings settings)
         {
-            _settings = settings;
             UiPreferences.SaveBackground(settings);
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            _settings = settings;
+            RaiseBackgroundChanged();
         }
 
         /// <summary>
@@ -34,7 +42,7 @@ namespace UEModManager.Services
         public static void Preview(BackgroundSettings settings)
         {
             _settings = settings;
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            RaiseBackgroundChanged();
         }
 
         /// <summary>
@@ -43,7 +51,32 @@ namespace UEModManager.Services
         public static void RevertToSaved()
         {
             _settings = UiPreferences.LoadBackground();
-            try { BackgroundChanged?.Invoke(_settings); } catch { }
+            RaiseBackgroundChanged();
+        }
+
+        /// <summary>
+        /// 逐个订阅者派发，每个订阅者单独捕获异常。
+        /// 不能直接 <c>BackgroundChanged?.Invoke(...)</c>：多播委托是串行调用，
+        /// 只要某个 handler 抛异常，调用列表中排在它后面的 handler 全部不会被执行，
+        /// 表现为"改了背景只有部分窗口跟着变"且毫无日志。
+        /// </summary>
+        private static void RaiseBackgroundChanged()
+        {
+            var handlers = BackgroundChanged;
+            if (handlers == null) return;
+
+            foreach (var handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    ((Action<BackgroundSettings>)handler)(_settings);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BackgroundManager] 订阅者 " +
+                        $"{handler.Method.DeclaringType?.Name}.{handler.Method.Name} 处理背景变更失败: {ex}");
+                }
+            }
         }
 
         /// <summary>

@@ -1,0 +1,19 @@
+<Project>
+
+  <!--
+    仓库级统一构建属性。新增于 2026-07-26 的优化审计。
+
+    背景：此前各 .csproj 各自声明构建属性，已出现漂移（主项目 Nullable=annotations，
+    Core 未设置）。更关键的是 .NET 8 的 NuGetAudit 默认只审计**直接**依赖，
+    导致 5 个高危传递依赖漏洞在 `dotnet build` 中完全不产生警告——
+    "0 警告" 是假绿。此文件把审计范围放开到全部传递依赖。
+  -->
+  <PropertyGroup>
+    <!-- 审计包含传递依赖（默认 direct 只看直接引用，会漏掉绝大多数漏洞） -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <!-- low 会引入大量噪音；moderate 起报，与当前依赖治理水位匹配 -->
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+  </PropertyGroup>
+
+</Project>

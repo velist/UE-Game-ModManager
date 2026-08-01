@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
-using UEModManager.Services;
 
 namespace UEModManager.ViewModels
 {
@@ -15,9 +14,6 @@ namespace UEModManager.ViewModels
     /// </summary>
     public partial class ModDetailViewModel : ObservableObject
     {
-        private readonly ModManagementService _modService;
-        private readonly GameConfigService _gameConfig;
-        private readonly ModDataService _modData;
         private readonly ILogger _logger;
         private Func<ModInfo, bool, Task<bool>>? _toggleModAsync;
         private Func<ModInfo, string, Task<bool>>? _changePreviewAsync;
@@ -46,15 +42,8 @@ namespace UEModManager.ViewModels
         /// </summary>
         public event Action? CloseRequested;
 
-        public ModDetailViewModel(
-            ModManagementService modService,
-            GameConfigService gameConfig,
-            ModDataService modData,
-            ILogger logger)
+        public ModDetailViewModel(ILogger logger)
         {
-            _modService = modService;
-            _gameConfig = gameConfig;
-            _modData = modData;
             _logger = logger;
         }
 
@@ -142,6 +131,8 @@ namespace UEModManager.ViewModels
         public async Task ChangePreviewAsync()
         {
             if (CurrentMod == null) return;
+            if (_changePreviewAsync == null)
+                throw DeploymentServiceNotInitialized("更换预览图");
 
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
@@ -151,10 +142,7 @@ namespace UEModManager.ViewModels
 
             if (dialog.ShowDialog() == true)
             {
-                var changed = _changePreviewAsync != null
-                    ? await _changePreviewAsync(CurrentMod, dialog.FileName)
-                    : await ChangePreviewLegacyAsync(dialog.FileName);
-                if (changed)
+                if (await _changePreviewAsync(CurrentMod, dialog.FileName))
                 {
                     CurrentMod.PreviewImage = null;
                     OnPropertyChanged(nameof(PreviewImage));
@@ -180,17 +168,6 @@ namespace UEModManager.ViewModels
                 ModStateChanged?.Invoke();
                 CloseRequested?.Invoke();
             }
-        }
-
-        private async Task<bool> ChangePreviewLegacyAsync(string imagePath)
-        {
-            if (CurrentMod == null) return false;
-
-            var newPath = _modService.ChangePreviewImage(CurrentMod, imagePath, _gameConfig.CurrentBackupPath);
-            if (newPath == null) return false;
-
-            await _modData.SaveModAsync(CurrentMod);
-            return true;
         }
 
         /// <summary>

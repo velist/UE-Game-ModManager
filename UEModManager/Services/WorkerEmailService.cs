@@ -17,6 +17,14 @@ namespace UEModManager.Services
         private readonly ILogger<WorkerEmailService> _logger;
         private readonly HttpClient _httpClient;
 
+        /// <summary>
+        /// 随程序集走的版本号。此前 User-Agent 里硬编码着 "2.0.5-beta"，升版本时没人会想到
+        /// 来改它——服务端日志里看到的版本分布会一直停在某个早已不存在的版本上。
+        /// 取法与 <c>TelemetryService.AppVersion</c> 一致。
+        /// </summary>
+        private static string AppVersion =>
+            typeof(WorkerEmailService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
         public string ServiceName => "WorkerEmail";
 
         public WorkerEmailService(ILogger<WorkerEmailService> logger, string apiBaseUrl)
@@ -26,12 +34,19 @@ namespace UEModManager.Services
                 ? "https://api.modmanger.com"
                 : apiBaseUrl.TrimEnd('/');
 
-            _httpClient = new HttpClient
+            // 本服务注册为单例，HttpClient 会与进程同寿。默认的连接池不会主动淘汰连接，
+            // 导致 DNS 结果被永久缓存 —— Cloudflare 侧 IP 变更后客户端无法自愈，
+            // 只能靠用户重启应用。PooledConnectionLifetime 强制定期重建连接以刷新 DNS。
+            var handler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            };
+            _httpClient = new HttpClient(handler)
             {
                 BaseAddress = new Uri(baseUrl + "/"),
                 Timeout = TimeSpan.FromSeconds(15)
             };
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.5-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", $"UEModManager/{AppVersion}");
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         }
 

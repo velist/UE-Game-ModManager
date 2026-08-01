@@ -37,6 +37,11 @@ namespace UEModManager.Services.Backends
             });
         }
 
+        /// <summary>
+        /// 移除已部署的文件。
+        /// 空目录清理由 DeploymentService 统一负责——后端只拿到 targetPath，
+        /// 没有部署根，无法判断向上删到哪一层才算越界。
+        /// </summary>
         public Task RemoveFileAsync(string targetPath)
         {
             return Task.Run(() =>
@@ -46,29 +51,7 @@ namespace UEModManager.Services.Backends
                     File.Delete(targetPath);
                     _logger.LogDebug("移除文件: {Path}", targetPath);
                 }
-
-                // 清理空目录
-                var dir = Path.GetDirectoryName(targetPath);
-                CleanEmptyDirectories(dir);
             });
-        }
-
-        private static void CleanEmptyDirectories(string? directory)
-        {
-            while (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-            {
-                if (Directory.GetFileSystemEntries(directory).Length > 0)
-                    break;
-                try
-                {
-                    Directory.Delete(directory);
-                    directory = Path.GetDirectoryName(directory);
-                }
-                catch
-                {
-                    break;
-                }
-            }
         }
     }
 }

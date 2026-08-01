@@ -6,15 +6,17 @@
 
 ## 操作指南（Playbooks）
 
-- [编写自定义 Host Adapter](playbooks/writing-host-adapter.md) — 给新游戏加支持
 - [编写自定义部署后端](playbooks/writing-deployment-backend.md) — 加 VFS / Junction / 自定义部署方式
 - [在 Core 写新的纯函数 Service](playbooks/writing-core-service.md) — 扩展 Domain 内核
 - [Package 仓库与 manifest.json 格式](playbooks/package-manifest-format.md) — 外部工具生成包格式
 
 ## 第三方扩展示例
 
-- [`samples/UEModManager.SampleAdapter/`](../samples/UEModManager.SampleAdapter/) — 自定义 Host Adapter 最小独立可编译示例
 - [`samples/UEModManager.SampleBackend/`](../samples/UEModManager.SampleBackend/) — 自定义 Deployment Backend 最小独立可编译示例
+
+> 新增游戏支持**不需要**写扩展：引擎规则维护在 `UEModManager/Models/EngineProfile.cs` 静态表，
+> 具体要改哪几处见[架构总览](architecture/overview.md)"引擎规则维护在哪里"。
+> 原先的 `IHostAdapter` 扩展点与 `SampleAdapter` 示例因生产调用点为 0，已于 2026-07 删除。
 
 ## 设计漏洞记录（Findings）
 
@@ -40,4 +42,4 @@ dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj
 dotnet build UEModManager.sln --configuration Debug
 ```
 
-预期：**0 errors / 0 warnings**，5 个项目协同（主项目 + Core + Tests + SampleAdapter + SampleBackend）。
+预期：**0 errors / 0 warnings**，5 个项目协同（主项目 + Core + Core.Tests + UEModManager.Tests + SampleBackend）。

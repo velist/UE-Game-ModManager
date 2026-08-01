@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -202,80 +203,84 @@ namespace UEModManager.Views
 
         // ─── 事件处理 ───
 
-        private async void PromoteArtifact_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button { Tag: Guid id }) return;
-            var artifact = _overwriteStore.GetAll().FirstOrDefault(a => a.Id == id);
-            if (artifact == null) return;
-
-            var result = CyberMessageBox.Show(this,
-                $"将「{artifact.DisplayName}」转为正式 MOD？\n转换后会保存到 MOD 文件库，并可加入任意方案。",
-                "转为正式 MOD", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
+        private void PromoteArtifact_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                var pkg = await _overwriteStore.PromoteToPackageAsync(id, artifact.DisplayName);
-                if (pkg != null)
-                    CyberMessageBox.Show(this, $"已转为正式 MOD「{pkg.DisplayName}」", "成功",
+                if (sender is not Button { Tag: Guid id }) return;
+                var artifact = _overwriteStore.GetAll().FirstOrDefault(a => a.Id == id);
+                if (artifact == null) return;
+
+                var result = CyberMessageBox.Show(this,
+                    $"将「{artifact.DisplayName}」转为正式 MOD？\n转换后会保存到 MOD 文件库，并可加入任意方案。",
+                    "转为正式 MOD", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    var pkg = await _overwriteStore.PromoteToPackageAsync(id, artifact.DisplayName);
+                    if (pkg != null)
+                        CyberMessageBox.Show(this, $"已转为正式 MOD「{pkg.DisplayName}」", "成功",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    else
+                        CyberMessageBox.Show(this, "转换失败，请检查文件是否完整", "错误",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    RefreshUI();
+                }
+            }, null, "转为正式 MOD");
+
+        private void DeleteArtifact_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                if (sender is not Button { Tag: Guid id }) return;
+                await _overwriteStore.DeleteAsync(id);
+                RefreshUI();
+            }, null, "删除生成文件");
+
+        private void CleanupStale_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var staleSize = _overwriteStore.StaleSize;
+                if (staleSize == 0)
+                {
+                    CyberMessageBox.Show(this, "没有可清理的临时文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var result = CyberMessageBox.Show(this,
+                    $"将清理所有不再使用的临时文件，释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(staleSize)}。\n此操作不可撤销，确认继续？",
+                    "清理可删除文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    var count = await _overwriteStore.CleanupStaleAsync();
+                    CyberMessageBox.Show(this, $"已清理 {count} 个临时文件", "完成",
                         MessageBoxButton.OK, MessageBoxImage.Information);
-                else
-                    CyberMessageBox.Show(this, "转换失败，请检查文件是否完整", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    RefreshUI();
+                }
+            }, null, "清理临时文件");
+
+        private void AddUserFix_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var dlg = new OpenFileDialog
+                {
+                    Title = "选择自定义修复文件",
+                    Filter = "所有文件|*.*",
+                    Multiselect = true
+                };
+
+                if (dlg.ShowDialog() != true) return;
+
+                foreach (var file in dlg.FileNames)
+                {
+                    var name = System.IO.Path.GetFileName(file);
+                    await _overwriteStore.RegisterAsync(
+                        file,
+                        GeneratedArtifactType.UserFix,
+                        name,
+                        sourceDescription: "用户手动添加");
+                }
                 RefreshUI();
-            }
-        }
-
-        private async void DeleteArtifact_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button { Tag: Guid id }) return;
-            await _overwriteStore.DeleteAsync(id);
-            RefreshUI();
-        }
-
-        private async void CleanupStale_Click(object sender, RoutedEventArgs e)
-        {
-            var staleSize = _overwriteStore.StaleSize;
-            if (staleSize == 0)
-            {
-                CyberMessageBox.Show(this, "没有可清理的临时文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var result = CyberMessageBox.Show(this,
-                $"将清理所有不再使用的临时文件，释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(staleSize)}。\n此操作不可撤销，确认继续？",
-                "清理可删除文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                var count = await _overwriteStore.CleanupStaleAsync();
-                CyberMessageBox.Show(this, $"已清理 {count} 个临时文件", "完成",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                RefreshUI();
-            }
-        }
-
-        private async void AddUserFix_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title = "选择自定义修复文件",
-                Filter = "所有文件|*.*",
-                Multiselect = true
-            };
-
-            if (dlg.ShowDialog() != true) return;
-
-            foreach (var file in dlg.FileNames)
-            {
-                var name = System.IO.Path.GetFileName(file);
-                await _overwriteStore.RegisterAsync(
-                    file,
-                    GeneratedArtifactType.UserFix,
-                    name,
-                    sourceDescription: "用户手动添加");
-            }
-            RefreshUI();
-        }
+            }, null, "添加自定义修复文件");
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
     }

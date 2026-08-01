@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Media;
 using System.Windows.Controls;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -349,21 +350,21 @@ namespace UEModManager.Views
 
         private string ResolveBackupPath(string gameName)
         {
-            var currentDir = AppDomain.CurrentDomain.BaseDirectory;
-            var backupDir = Path.Combine(currentDir, "Backups", $"{gameName}_\u5907\u4efd");
+            // 备份根归口 AppPaths：此前拼的是 {安装目录}\Backups，和服务层读写的备份根
+            // 各是一处，用户在这里看到的默认值与实际备份落点对不上；安装在 Program Files
+            // 下时这个目录还建不出来，只能一路退到最后返回安装目录本身。
+            var backupRoot = AppPaths.ModBackupsDirectory;
+            var backupDir = Path.Combine(backupRoot, $"{gameName}_\u5907\u4efd");
 
-            if (EnsureDirectoryIfPossible(backupDir))
+            if (AppPaths.TryEnsureDirectory(backupDir))
             {
                 return backupDir;
             }
 
-            var fallbackDir = Path.Combine(currentDir, "Backups");
-            if (EnsureDirectoryIfPossible(fallbackDir))
-            {
-                return fallbackDir;
-            }
-
-            return currentDir;
+            // 按游戏分的子目录建不出来就退到备份根，仍在同一个根内；不再退回安装目录——
+            // 那正是本次迁移要甩掉的位置，退过去只是把失败推迟到真正备份的时候。
+            AppPaths.TryEnsureDirectory(backupRoot);
+            return backupRoot;
         }
 
         private string ResolveCommonModPath(string gameBasePath, EngineType engineType)
@@ -1082,8 +1083,11 @@ namespace UEModManager.Views
             string initialPath = BackupPath;
             if (string.IsNullOrEmpty(initialPath))
             {
-                // 如果备份路径为空，使用程序安装目录下的Backups作为初始路径
-                initialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+                // 备份路径为空时，选择器从 MOD 备份根起步；先建出来，否则
+                // FolderBrowserDialog 拿到不存在的路径会直接忽略 SelectedPath，
+                // 把用户丢回"此电脑"重新翻。
+                initialPath = AppPaths.ModBackupsDirectory;
+                AppPaths.TryEnsureDirectory(initialPath);
             }
             
             var dialog = new System.Windows.Forms.FolderBrowserDialog

@@ -38,4 +38,3 @@ dotnet build samples/UEModManager.SampleBackend/UEModManager.SampleBackend.cspro
 
 - [完整 Backend 写法说明](../../docs/playbooks/writing-deployment-backend.md)
 - [架构总览](../../docs/architecture/overview.md)
-- [SampleAdapter 示例](../UEModManager.SampleAdapter/) — 同模式的"自定义 Host Adapter"示例

@@ -11,8 +11,8 @@ using UEModManager.Services;
 using UEModManager.Services.Backends;
 using UEModManager.ViewModels;
 using UEModManager.Views;
-using UEModManager.Adapters;
 using UEModManager.Data;
+using UEModManager.Infrastructure;
 
 namespace UEModManager
 {
@@ -112,10 +112,48 @@ namespace UEModManager
             try { Console.WriteLine($"[FATAL] AppDomain Unhandled: {((Exception)e.ExceptionObject)}"); } catch { }
         }
 
+        /// <summary>
+        /// 进程级致命异常：继续运行只会让状态更坏，一律不拦截，让 WPF 走默认崩溃并落转储。
+        /// （StackOverflowException 无法被托管代码捕获，列出仅作说明。）
+        /// </summary>
+        private static bool IsUnrecoverable(Exception ex)
+            => ex is OutOfMemoryException
+                or StackOverflowException
+                or System.Runtime.InteropServices.SEHException
+                or AccessViolationException;
+
+        /// <summary>同一时刻只允许一个致命错误对话框，避免异常风暴把用户淹没在弹窗里。</summary>
+        private bool _isShowingFatalDialog;
+
         private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
             try { Console.WriteLine($"[FATAL] Dispatcher Unhandled: {e.Exception}"); } catch { }
-            e.Handled = true; // 阻止WPF默认崩溃
+
+            if (IsUnrecoverable(e.Exception))
+            {
+                // 不设 Handled：让进程崩溃，保留可分析的转储
+                return;
+            }
+
+            // UI 线程的异常绝大多数来自 async void 事件处理器。此前这里无条件 Handled=true
+            // 且只写日志，结果是"点了没反应，日志里也没有"——必须让用户看见失败。
+            if (!_isShowingFatalDialog)
+            {
+                _isShowingFatalDialog = true;
+                try
+                {
+                    MessageBox.Show(
+                        $"操作失败：{e.Exception.Message}\n\n" +
+                        $"详细信息已写入日志：\n{_logFilePath}",
+                        "UEModManager 发生错误",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+                catch { /* 弹窗本身失败时不能再抛，否则递归 */ }
+                finally { _isShowingFatalDialog = false; }
+            }
+
+            e.Handled = true;
         }
 
         private void TaskScheduler_UnobservedTaskException(object? sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
@@ -128,14 +166,23 @@ namespace UEModManager
         {
             try
             {
-                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                _logFilePath = System.IO.Path.Combine(baseDir, "console.log");
+                // 日志随数据一起移出安装目录：装在 Program Files 下时那里没有写权限，
+                // 且卸载/覆盖安装会连同日志一起抹掉——出问题时最需要的证据反而最先消失。
+                var logDir = AppPaths.LogsDirectory;
+                if (!AppPaths.TryEnsureDirectory(logDir))
+                {
+                    // 新位置不可用时退回安装目录，有日志总比没有强。
+                    logDir = AppDomain.CurrentDomain.BaseDirectory;
+                }
+
+                _logFilePath = System.IO.Path.Combine(logDir, "console.log");
                 // 轮转旧日志
                 if (System.IO.File.Exists(_logFilePath))
                 {
-                    var bak = System.IO.Path.Combine(baseDir, $"console_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+                    var bak = System.IO.Path.Combine(logDir, $"console_{DateTime.Now:yyyyMMdd_HHmmss}.log");
                     System.IO.File.Move(_logFilePath, bak, true);
                 }
+                PruneRotatedLogs(logDir);
                 var sw = new StreamWriter(System.IO.File.Open(_logFilePath, FileMode.Create, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
                 var structured = new UEModManager.Logging.StructuredLogWriter(sw);
                 Console.SetOut(structured);
@@ -145,21 +192,55 @@ namespace UEModManager
             catch { /* 如果失败，不阻断启动 */ }
         }
 
-        protected override async void OnExit(ExitEventArgs e)
+        /// <summary>
+        /// 只保留最近 <see cref="MaxRotatedLogs"/> 份轮转日志。
+        /// 此前每次启动都新增一份且从不清理，长期运行的机器上会攒出成百上千个文件。
+        /// </summary>
+        private static void PruneRotatedLogs(string logDir)
         {
-            if (_host != null)
+            const int MaxRotatedLogs = 10;
+            try
             {
-                await _host.StopAsync();
-                _host.Dispose();
+                var stale = new DirectoryInfo(logDir)
+                    .EnumerateFiles("console_*.log")
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .Skip(MaxRotatedLogs);
+
+                foreach (var file in stale)
+                {
+                    try { file.Delete(); } catch { /* 被占用就留到下次 */ }
+                }
             }
-            base.OnExit(e);
+            catch { /* 清理是尽力而为，绝不能挡住日志初始化 */ }
+        }
+
+        /// <summary>
+        /// 退出清理。必须是同步的：WPF 不会 await 派生的 OnExit，
+        /// async void 版本会在第一个 await 处让出，随后 _host.Dispose() 与 base.OnExit()
+        /// 能否执行取决于与进程终止的竞速——SQLite 上下文可能不被确定性释放、
+        /// 日志 writer 可能来不及 flush。
+        /// </summary>
+        protected override void OnExit(ExitEventArgs e)
+        {
+            try
+            {
+                _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                try { Console.WriteLine($"[App] 停止 Host 失败: {ex}"); } catch { }
+            }
+            finally
+            {
+                _host?.Dispose();
+                try { Console.Out.Flush(); } catch { }
+                base.OnExit(e);
+            }
         }
 
         private IHostBuilder CreateHostBuilder()
         {
-            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            var dataPath = Path.Combine(appDirectory, "Data");
-            Directory.CreateDirectory(dataPath);
+            AppPaths.TryEnsureDirectory(AppPaths.DataDirectory);
 
             return Host.CreateDefaultBuilder()
                 .ConfigureServices((context, services) =>
@@ -167,8 +248,8 @@ namespace UEModManager
                     // 注册本地SQLite数据库
                     services.AddDbContext<LocalDbContext>(options =>
                     {
-                        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                        var dbPath = Path.Combine(appDataPath, "UEModManager", "local.db");
+                        var dbPath = AppPaths.LocalDatabaseFile;
+                        AppPaths.TryEnsureDirectory(Path.GetDirectoryName(dbPath)!);
                         options.UseSqlite($"Data Source={dbPath}");
                     });
 
@@ -199,7 +280,6 @@ namespace UEModManager
                     services.AddSingleton<CustomOtpService>();
 
                     // 注册新服务层（Phase 1/3 产物）
-                    services.AddSingleton<ModManagementService>();
                     services.AddSingleton<GameConfigService>();
                     services.AddSingleton<NewCategoryService>();
                     services.AddSingleton<ModDataService>();
@@ -208,12 +288,22 @@ namespace UEModManager
                     // v2.0 Phase 2: 包仓库服务
                     services.AddSingleton<ObjectStore>();
                     services.AddSingleton<PackageRepository>();
+                    // 仓库孤儿对象的事后回收。PackageImportService 注入它，在每次压缩包导入前
+                    // 回收上一次进程被强杀留下的解压临时目录。
+                    services.AddSingleton<RepositoryReclaimService>();
                     services.AddSingleton<PackageImportService>();
                     services.AddSingleton<DataMigrationService>();
 
                     // v2.0 Phase 3: 部署服务
-                    services.AddSingleton<CopyBackend>();
-                    services.AddSingleton<HardLinkBackend>();
+                    //
+                    // 部署后端按接口注册，由 DI 汇集成 IEnumerable<IDeploymentBackend>
+                    // 注入 DeploymentService。新增一种部署方式只需在此加一行，
+                    // 不必再改 DeploymentService 的构造函数签名。
+                    // 同一 DeploymentBackendType 若注册多次，后注册的覆盖先注册的，
+                    // 因此自定义实现放在内置实现之后即可替换内置行为。
+                    // 注意：后端仍需编译进本项目，没有插件式动态加载。
+                    services.AddSingleton<IDeploymentBackend, CopyBackend>();
+                    services.AddSingleton<IDeploymentBackend, HardLinkBackend>();
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
 
@@ -244,14 +334,39 @@ namespace UEModManager
                     // Phase 12: Profile lock 导出/导入
                     services.AddSingleton<ProfileLockService>();
 
-                    // v2.0 Phase 6: Host Adapter
-                    services.AddSingleton<IHostAdapter, Adapters.UnrealEngineAdapter>();
-                    services.AddSingleton<IHostAdapter, Adapters.StellarBladeCNSAdapter>();
-                    services.AddSingleton<IHostAdapter, Adapters.GenericFileOverlayAdapter>();
-                    services.AddSingleton<Adapters.HostAdapterRegistry>();
+                    // 数据目录搬迁（安装目录 → %LOCALAPPDATA%）
+                    services.AddSingleton<DataLocationMigrator>();
+
+                    // 首次运行时引导用户挑一个包仓库位置（默认在系统盘，而仓库可能几十 GB）
+                    services.AddSingleton<RepositorySetupService>();
+
+                    // 更新检查 + 匿名用量统计（注册数 / 在线数）。
+                    //
+                    // 取当前登录邮箱做成委托而不是直接注入 LocalAuthService：本服务是单例、
+                    // 认证服务是 scoped，更重要的是 TelemetryService 不该知道邮箱从哪来，
+                    // 它只需要一个字符串去算哈希。这条链路也是**注册数的主要来源**——
+                    // 绝大多数老用户靠"记住我"自动登录、根本不经过登录窗口，
+                    // 只在 LoginWindow 里上报的话他们一个都不会被计入。
+                    services.AddSingleton<TelemetryService>(sp => new TelemetryService(
+                        sp.GetService<ILogger<TelemetryService>>(),
+                        () =>
+                        {
+                            try { return sp.GetService<LocalAuthService>()?.CurrentUser?.Email; }
+                            catch { return null; }
+                        }));
+
+                    // 换一个位置存 MOD：先搬数据、搬成了才改存放位置。
+                    // 全项目唯一允许改仓库位置的地方（守卫测试钉住）。
+                    //
+                    // ObjectStore 用工厂而不是直接注入：启动期的断电恢复要解析本服务，
+                    // 而解析时若把 ObjectStore 一并构造出来，它就会把"恢复之前"的存放位置
+                    // 记进字段——恢复紧接着把位置改到新位置，用户这一整次会话却仍看着旧的空仓库。
+                    services.AddSingleton<RepositoryRelocationService>(sp =>
+                        new RepositoryRelocationService(
+                            sp.GetRequiredService<ILogger<RepositoryRelocationService>>(),
+                            sp.GetRequiredService<ObjectStore>));
 
                     services.AddTransient<ViewModels.MainViewModel>();
-
                     // 注册窗口
                     services.AddTransient<MainWindow>();
                     services.AddTransient<LoginWindow>();
@@ -291,6 +406,64 @@ namespace UEModManager
                     Shutdown();
                     return;
                 }
+
+                // 数据目录搬迁：必须在任何服务读写数据之前完成。
+                // 迁移器自身不抛异常——失败时沿用旧位置继续，绝不阻断启动。
+                //
+                // 结果留在 DataLocationMigrator.LastOutcome 上供 UI 取用：迁移失败时数据
+                // 分处新旧两地、每次启动都在重试，而用户界面上一点痕迹都没有，只能靠翻日志
+                // 才发现——这正是 355589a 那轮修掉的"UI 静默失败通道"。
+                //
+                // TODO(UI)：主窗口初始化时读
+                //     ServiceProvider.GetRequiredService<DataLocationMigrator>().LastOutcome
+                // 若 outcome?.ShouldNotifyUser == true，用 outcome.UserMessage 弹一条
+                // **非模态**提示（现有的 Snackbar/状态栏通道即可，绝不能用 MessageBox 拦人）。
+                // 判据必须是 ShouldNotifyUser，不能是 Completed —— 搬移开关关着时每台老用户
+                // 机器都有推迟项、Completed 恒为 false，照它提示等于给全体用户天天报一次警。
+                Console.WriteLine("[Startup] DataLocationMigrator");
+                try
+                {
+                    var migrator = ServiceProvider.GetRequiredService<DataLocationMigrator>();
+                    var outcome = await migrator.RunAsync();
+                    Console.WriteLine($"[Startup] 数据目录迁移: {outcome.Status}｜{outcome.Summary}");
+                    if (outcome.ShouldNotifyUser)
+                    {
+                        Console.WriteLine($"[Startup] 数据目录迁移需提示用户: {outcome.UserMessage}");
+                    }
+                }
+                catch (Exception migEx)
+                {
+                    // 只有解析服务本身失败才会走到这里（RunAsync 自己不抛）。
+                    // 此时 LastOutcome 仍是 null，UI 侧按"没有可提示的状态"处理即可。
+                    Console.WriteLine($"[Startup] 数据目录迁移异常（沿用旧位置继续）: {migEx}");
+                }
+
+                // 上次被中断（断电/强杀/崩溃）的仓库搬移，在这里自愈。
+                // 位置的两头与下面那个首次运行引导完全相同，理由也相同：
+                //   上界 —— 搬迁器的原地登记会写存放位置；
+                //   下界 —— ObjectStore 构造时读一次存放位置就记进字段，晚一步的话
+                //           恢复推过去的新位置这次会话根本不生效，用户看到的是一个空仓库。
+                // 排在引导之前是必须的：引导判定"老用户"最主要的两条判据是
+                // "配置里有没有仓库位置"和"当前仓库里有没有包"，而一次被中断的搬移
+                // 恰好会让这两条都读成 false —— 于是一个 MOD 正躺在半搬完状态的老用户
+                // 会被弹窗问"MOD 放哪个盘"。
+                RecoverInterruptedRepositoryRelocation();
+
+                // 首次运行的仓库位置引导。位置必须夹在这两件事之间，两头都是硬约束：
+                //
+                // 上界（搬迁器之后）：搬迁器的"原地登记"会把老用户的旧仓库位置写进配置，
+                //   而"配置里已有仓库位置"正是 RepositorySetupPrompt 判定老用户最主要的一条判据。
+                //   抢在它前面判，装满 MOD 的老用户会被读成"未配置"，于是被弹窗问一次
+                //   ——他很可能会认真挑一个大盘，而引导只改指针不搬数据，他的 MOD 当场"消失"。
+                //
+                // 下界（ObjectStore 首次解析之前）：ObjectStore 是 DI 单例，在构造时读一次
+                //   AppPaths.RepositoryRoot 并记进字段，之后本次会话不再回头看配置。
+                //   引导只写偏好、刻意不去碰 ObjectStore —— 解析它就等于把它构造出来，
+                //   反而会把"第一次读配置"的时机提前到引导内部。所以这里必须早于任何会拖出
+                //   ObjectStore 的解析（下面第一处是 LocalDbContext，真正拖出它的是 MainWindow）。
+                //
+                // 两条约束都有源码守卫测试钉住（StartupSequenceGuardTests）。
+                ShowRepositorySetupIfNeeded();
 
                 // 初始化本地数据库
                 Console.WriteLine("[Auth] Resolve LocalDbContext");
@@ -374,6 +547,59 @@ namespace UEModManager
                 try { Console.WriteLine($"[FATAL][Auth] ShowAuthenticationWindow failed: {ex}"); } catch { }
                 MessageBox.Show($"认证窗口启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
+            }
+        }
+
+        /// <summary>
+        /// 收拾上次被中断的仓库搬移。
+        ///
+        /// <para>
+        /// 判定与执行都在 <see cref="RepositoryRelocationService.RecoverInterrupted"/> 里，
+        /// 它自己已经兜住全部异常；这里再包一层只为防住"解析服务本身失败"。
+        /// 恢复失败绝不能阻断启动——什么都不做是安全的（两边的数据此刻至少有一份是完整的），
+        /// 下次启动还会再判一次。
+        /// </para>
+        ///
+        /// <para>
+        /// 与引导一样<b>刻意不解析 ObjectStore</b>：解析它就等于把它构造出来，
+        /// 正好把"第一次读存放位置"的时机提前到恢复内部，反手制造出这段代码要防的问题。
+        /// </para>
+        /// </summary>
+        private void RecoverInterruptedRepositoryRelocation()
+        {
+            try
+            {
+                var service = ServiceProvider!.GetRequiredService<RepositoryRelocationService>();
+                var plan = service.RecoverInterrupted();
+                Console.WriteLine($"[Startup] 仓库搬移恢复: {plan}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Startup] 仓库搬移恢复失败（沿用当前位置继续）: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// 首次运行时问一句"MOD 存哪个盘"。判定与对话框都不允许影响启动：
+        /// 判定本身不抛（<see cref="RepositorySetupService.Decide"/> 内部兜住），
+        /// 这里再包一层是为了防住"弹窗构造/显示失败"这类 UI 侧异常——
+        /// 一个可选的引导把用户挡在主界面之外是完全不成比例的代价。
+        /// </summary>
+        private void ShowRepositorySetupIfNeeded()
+        {
+            try
+            {
+                var setup = ServiceProvider!.GetRequiredService<RepositorySetupService>();
+                var decision = setup.Decide();
+                Console.WriteLine($"[Startup] 仓库位置引导: {decision}");
+                if (!decision.ShouldPrompt) return;
+
+                var logger = ServiceProvider.GetService<ILogger<Views.RepositorySetupWindow>>();
+                new Views.RepositorySetupWindow(setup, logger).ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Startup] 仓库位置引导失败（沿用默认位置继续）: {ex}");
             }
         }
 

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.Json.Serialization;
+using UEModManager.Services.Categories;
 
 namespace UEModManager.Models
 {
@@ -171,9 +173,13 @@ namespace UEModManager.Models
         // ─── 系统分类常量 ───
 
         /// <summary>
-        /// 系统内置分类名称（不可删除/重命名）。
+        /// 系统内置分类名称（不可删除/重命名/不能作为移动目标）。
+        ///
+        /// 名单本身归口 <see cref="ModCategoryAssignment.SystemCategoryNames"/>，这里只是查得快的视图。
+        /// 各处自己写一份字面量的话，加系统分类时漏改一处就会让筛选视图变成可写的真分类。
         /// </summary>
-        public static readonly HashSet<string> SystemNames = new() { "全部", "已启用", "已禁用" };
+        public static readonly HashSet<string> SystemNames =
+            new(ModCategoryAssignment.SystemCategoryNames, StringComparer.Ordinal);
 
         /// <summary>
         /// 默认分类排序顺序。

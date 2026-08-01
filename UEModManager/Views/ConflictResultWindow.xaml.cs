@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -198,16 +199,17 @@ namespace UEModManager.Views
 
         // ─── 事件处理 ───
 
-        private async void AutoResolve_Click(object sender, RoutedEventArgs e)
-        {
-            // 按优先级自动解决（已经是默认行为）
-            if (_conflictAnalyzer != null)
+        private void AutoResolve_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                var result = await _conflictAnalyzer.AnalyzeAsync();
-                _conflicts = result.Conflicts;
-                RefreshUI();
-            }
-        }
+                // 按优先级自动解决（已经是默认行为）
+                if (_conflictAnalyzer != null)
+                {
+                    var result = await _conflictAnalyzer.AnalyzeAsync();
+                    _conflicts = result.Conflicts;
+                    RefreshUI();
+                }
+            }, null, "自动解决冲突");
 
         private void Apply_Click(object sender, RoutedEventArgs e)
         {

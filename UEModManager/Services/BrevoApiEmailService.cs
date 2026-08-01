@@ -31,7 +31,12 @@ namespace UEModManager.Services
             _fromEmail = fromEmail;
             _fromName = fromName;
 
-            _httpClient = new HttpClient
+            // 单例长驻的 HttpClient 会永久缓存 DNS 结果（见 WorkerEmailService 同处说明）。
+            var handler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            };
+            _httpClient = new HttpClient(handler)
             {
                 BaseAddress = new Uri("https://api.brevo.com/v3/"),
                 Timeout = TimeSpan.FromSeconds(10)  // 🔧 减少超时：30秒 → 10秒，快速fallback

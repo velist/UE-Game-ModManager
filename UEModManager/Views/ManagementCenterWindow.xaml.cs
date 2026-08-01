@@ -22,6 +22,7 @@ namespace UEModManager.Views
         private readonly ConfigMergeEngine _configMergeEngine;
         private readonly OverwriteStore _overwriteStore;
         private readonly DiagnosticExportService _diagnosticExport;
+        private readonly RepositoryReclaimService _reclaim;
 
         private int _activeTab;
 
@@ -31,7 +32,8 @@ namespace UEModManager.Views
             DeploymentService deploymentService,
             ConfigMergeEngine configMergeEngine,
             OverwriteStore overwriteStore,
-            DiagnosticExportService diagnosticExport)
+            DiagnosticExportService diagnosticExport,
+            RepositoryReclaimService reclaim)
         {
             InitializeComponent();
             _packageRepo = packageRepo;
@@ -40,6 +42,7 @@ namespace UEModManager.Views
             _configMergeEngine = configMergeEngine;
             _overwriteStore = overwriteStore;
             _diagnosticExport = diagnosticExport;
+            _reclaim = reclaim;
 
             Loaded += OnLoaded;
         }
@@ -49,11 +52,12 @@ namespace UEModManager.Views
             Close();
         }
 
-        private async void OnLoaded(object sender, RoutedEventArgs e)
-        {
-            SwitchTab(0);
-            await LoadModLibAsync();
-        }
+        private void OnLoaded(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                SwitchTab(0);
+                await LoadModLibAsync();
+            }, null, "加载管理中心");
 
         // ─── Tab 切换 ───
 
@@ -112,12 +116,10 @@ namespace UEModManager.Views
                 RepoUnrefCount.Text = orphans.Count.ToString();
                 RepoDupCount.Text = dupGroups.Count.ToString();
 
-                RepoPackageList.Children.Clear();
-                foreach (var pkg in packages)
-                {
-                    var isRef = referencedKeys.Contains(pkg.PackageKey);
-                    AddRepoPackageRow(pkg, isRef);
-                }
+                RepoPackageList.ItemsSource = packages
+                    .Select(pkg => RepoPackageRow.Create(
+                        pkg, referencedKeys.Contains(pkg.PackageKey), ResolveBrush))
+                    .ToList();
             }
             catch (Exception ex)
             {
@@ -127,45 +129,11 @@ namespace UEModManager.Views
             return Task.CompletedTask;
         }
 
-        private void AddRepoPackageRow(Package pkg, bool isReferenced)
-        {
-            var row = new Border
-            {
-                Padding = new Thickness(16, 10, 16, 10),
-                BorderBrush = (Brush)FindResource("CyberBorderBrush"),
-                BorderThickness = new Thickness(0, 0, 0, 1)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var name = new TextBlock
-            {
-                Text = pkg.DisplayName,
-                Foreground = (Brush)FindResource("Text200Brush"),
-                FontSize = 12,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
-            Grid.SetColumn(name, 0);
-            grid.Children.Add(name);
-
-            var status = new TextBlock
-            {
-                Text = isReferenced ? "方案在用" : "未使用",
-                Foreground = isReferenced
-                    ? (Brush)FindResource("StatusGreenBrush")
-                    : (Brush)FindResource("StatusOrangeBrush"),
-                FontSize = 11,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(status, 1);
-            grid.Children.Add(status);
-
-            row.Child = grid;
-            RepoPackageList.Children.Add(row);
-        }
+        /// <summary>
+        /// 按资源键取画刷。沿用 <see cref="FrameworkElement.FindResource"/> 的语义（键不存在即抛），
+        /// 与改造前逐行 new 控件时一致：主题令牌被改名时应当立刻暴露，而不是静默变成无前景色。
+        /// </summary>
+        private Brush ResolveBrush(string key) => (Brush)FindResource(key);
 
         // ─── Tab 1: 部署记录 ───
 
@@ -173,24 +141,27 @@ namespace UEModManager.Views
         {
             try
             {
-                DeployHistoryList.Children.Clear();
+                // 先清空再取数：与改造前 Children.Clear() 的位置一致。
+                // 取数失败时呈现空列表而不是上一次的旧内容——旧内容不带任何"已过期"提示，
+                // 比空列表更容易误导。
+                //
+                // 注意这与 3d8f4e0「列表刷新不再拔插 ItemsSource」不矛盾：那条针对的是
+                // 绑定到实例恒定的 ObservableCollection、靠 INotifyCollectionChanged 自动
+                // 刷新的列表，拔插纯属多余且会毁掉滚动位置与选中项。此处每次加载都产出
+                // 一个全新的 List，没有集合变更通知，重新赋值是唯一的刷新手段；
+                // ItemsControl 也不存在选中项，清空只影响滚动位置，而这几个列表本就
+                // 只在切换 Tab / 显式刷新时重载，归零是预期行为。
+                DeployHistoryList.ItemsSource = null;
+                DeployHistoryEmptyText.Visibility = Visibility.Collapsed;
+
                 var history = await _deploymentService.GetTransactionHistoryAsync();
 
-                if (history.Count == 0)
-                {
-                    DeployHistoryList.Children.Add(new TextBlock
-                    {
-                        Text = "暂无安装记录",
-                        Foreground = (Brush)FindResource("Text500Brush"),
-                        FontSize = 13,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        Margin = new Thickness(0, 40, 0, 0)
-                    });
-                    return;
-                }
+                DeployHistoryList.ItemsSource = history
+                    .Select(tx => DeployHistoryRow.Create(tx, ResolveBrush))
+                    .ToList();
 
-                foreach (var tx in history)
-                    AddDeployHistoryRow(tx);
+                DeployHistoryEmptyText.Visibility =
+                    history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             }
             catch (Exception ex)
             {
@@ -198,79 +169,14 @@ namespace UEModManager.Views
             }
         }
 
-        private void AddDeployHistoryRow(DeploymentTransaction tx)
-        {
-            var row = new Border
-            {
-                Padding = new Thickness(16, 12, 16, 12),
-                BorderBrush = (Brush)FindResource("CyberBorderBrush"),
-                BorderThickness = new Thickness(0, 0, 0, 1)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var info = new StackPanel();
-            info.Children.Add(new TextBlock
-            {
-                Text = tx.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
-                Foreground = (Brush)FindResource("Text200Brush"),
-                FontSize = 12
-            });
-            info.Children.Add(new TextBlock
-            {
-                Text = $"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}",
-                Foreground = (Brush)FindResource("Text500Brush"),
-                FontSize = 11,
-                Margin = new Thickness(0, 2, 0, 0)
-            });
-            Grid.SetColumn(info, 0);
-            grid.Children.Add(info);
-
-            var statusColor = tx.Status switch
-            {
-                DeploymentStatus.Committed => "StatusGreenBrush",
-                DeploymentStatus.Failed => "StatusRedBrush",
-                DeploymentStatus.RolledBack => "StatusOrangeBrush",
-                _ => "Text500Brush"
-            };
-            var statusText = new TextBlock
-            {
-                Text = DisplayNameMapper.DeploymentStatus(tx.Status),
-                Foreground = (Brush)FindResource(statusColor),
-                FontSize = 11,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0)
-            };
-            Grid.SetColumn(statusText, 1);
-            grid.Children.Add(statusText);
-
-            if (tx.CanRollback)
-            {
-                var rollbackBtn = new Button
-                {
-                    Content = "回滚",
-                    Tag = tx,
-                    Style = (Style)FindResource("CyberSecondaryButton")
-                };
-                rollbackBtn.Click += RollbackTransaction_Click;
-                Grid.SetColumn(rollbackBtn, 2);
-                grid.Children.Add(rollbackBtn);
-            }
-
-            row.Child = grid;
-            DeployHistoryList.Children.Add(row);
-        }
-
         private async void RollbackTransaction_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn || btn.Tag is not DeploymentTransaction tx) return;
 
-            var result = MessageBox.Show(
+            var result = CyberMessageBox.Show(this,
                 $"确定要回滚 {tx.CreatedAt:yyyy-MM-dd HH:mm} 的部署事务吗？",
-                "确认回滚", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "确认回滚", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "回滚", noText: "取消");
             if (result != MessageBoxResult.Yes) return;
 
             try
@@ -280,7 +186,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"回滚失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"回滚失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -386,7 +292,10 @@ namespace UEModManager.Views
         {
             try
             {
-                GenFileList.Children.Clear();
+                // 同 LoadDeployHistoryAsync：仅为让取数失败时呈现空列表而非旧内容。
+                GenFileList.ItemsSource = null;
+                GenFileEmptyText.Visibility = Visibility.Collapsed;
+
                 var artifacts = _overwriteStore.GetAll();
 
                 int active = _overwriteStore.ActiveCount;
@@ -396,21 +305,12 @@ namespace UEModManager.Views
                 GenExpiredCount.Text = stale.ToString();
                 GenTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_overwriteStore.TotalSize);
 
-                if (artifacts.Count == 0)
-                {
-                    GenFileList.Children.Add(new TextBlock
-                    {
-                        Text = "暂无临时文件",
-                        Foreground = (Brush)FindResource("Text500Brush"),
-                        FontSize = 13,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        Margin = new Thickness(0, 40, 0, 0)
-                    });
-                    return Task.CompletedTask;
-                }
+                GenFileList.ItemsSource = artifacts
+                    .Select(a => GenFileRow.Create(a, ResolveBrush))
+                    .ToList();
 
-                foreach (var a in artifacts)
-                    AddGenFileRow(a);
+                GenFileEmptyText.Visibility =
+                    artifacts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             }
             catch (Exception ex)
             {
@@ -420,101 +320,25 @@ namespace UEModManager.Views
             return Task.CompletedTask;
         }
 
-        private void AddGenFileRow(GeneratedArtifact artifact)
-        {
-            var row = new Border
-            {
-                Padding = new Thickness(16, 10, 16, 10),
-                BorderBrush = (Brush)FindResource("CyberBorderBrush"),
-                BorderThickness = new Thickness(0, 0, 0, 1)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var info = new StackPanel();
-            info.Children.Add(new TextBlock
-            {
-                Text = artifact.DisplayName,
-                Foreground = (Brush)FindResource("Text200Brush"),
-                FontSize = 12,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            info.Children.Add(new TextBlock
-            {
-                Text = $"{artifact.Type} \u00B7 {artifact.SourceSummary}",
-                Foreground = (Brush)FindResource("Text500Brush"),
-                FontSize = 11,
-                Margin = new Thickness(0, 2, 0, 0)
-            });
-            Grid.SetColumn(info, 0);
-            grid.Children.Add(info);
-
-            bool isStale = artifact.Status == GeneratedArtifactStatus.Stale;
-            var statusText = new TextBlock
-            {
-                Text = isStale ? "可清理" : "使用中",
-                Foreground = isStale
-                    ? (Brush)FindResource("StatusOrangeBrush")
-                    : (Brush)FindResource("StatusGreenBrush"),
-                FontSize = 11,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 0, 0)
-            };
-            Grid.SetColumn(statusText, 1);
-            grid.Children.Add(statusText);
-
-            var promoteBtn = new Button
-            {
-                Content = "转为MOD",
-                Tag = artifact.Id,
-                Style = (Style)FindResource("CyberSecondaryButton"),
-                Margin = new Thickness(4, 0, 0, 0),
-                Padding = new Thickness(8, 2, 8, 2),
-                FontSize = 11
-            };
-            promoteBtn.Click += GenPromote_Click;
-            Grid.SetColumn(promoteBtn, 2);
-            grid.Children.Add(promoteBtn);
-
-            var deleteBtn = new Button
-            {
-                Content = "删除",
-                Tag = artifact.Id,
-                Style = (Style)FindResource("CyberSecondaryButton"),
-                Margin = new Thickness(4, 0, 0, 0),
-                Padding = new Thickness(8, 2, 8, 2),
-                FontSize = 11
-            };
-            deleteBtn.Click += GenDelete_Click;
-            Grid.SetColumn(deleteBtn, 3);
-            grid.Children.Add(deleteBtn);
-
-            row.Child = grid;
-            GenFileList.Children.Add(row);
-        }
-
         // ─── MOD 库操作 ───
 
-        private async void RepoCheckIntegrity_Click(object sender, RoutedEventArgs e)
-        {
-            try
+        private void RepoCheckIntegrity_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
+                // 正向检查（索引 → 磁盘）之外还要反向扫描（磁盘 → 索引）：
+                // "磁盘上有、索引里没有"的导入残留在界面上完全不可见，只有这里能发现它。
                 var issues = await _packageRepo.CheckIntegrityAsync();
-                MessageBox.Show(
-                    issues.Count == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {issues.Count} 个文件问题",
+                var plan = _reclaim.BuildPlan();
+                var problemCount = issues.Count + plan.Reclaimable.Count + plan.Unregistered.Count;
+
+                CyberMessageBox.Show(this,
+                    problemCount == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {problemCount} 个文件问题",
                     "检查缺失文件", MessageBoxButton.OK,
-                    issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                    problemCount == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+                RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, plan);
                 await LoadModLibAsync();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+            }, null, "检查仓库完整性");
 
         private async void RepoMergeDuplicates_Click(object sender, RoutedEventArgs e)
         {
@@ -523,7 +347,7 @@ namespace UEModManager.Views
                 var dupGroups = _packageRepo.GetDuplicateGroups();
                 if (dupGroups.Count == 0)
                 {
-                    MessageBox.Show("没有发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, "没有发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -542,27 +366,28 @@ namespace UEModManager.Views
                         else if (plan != null)
                         {
                             // 重复包仍在某 Profile 中启用 — 跳过，提示用户
-                            MessageBox.Show(
+                            CyberMessageBox.Show(this,
                                 $"跳过 {dup.PackageKey}: {plan.Explanation}",
                                 "跳过删除", MessageBoxButton.OK, MessageBoxImage.Information);
                         }
                     }
                 }
 
-                MessageBox.Show($"合并了 {merged} 个相同文件", "合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"合并了 {merged} 个相同文件", "合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadModLibAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"合并失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"合并失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void RepoCleanUnreferenced_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(
+            var confirm = CyberMessageBox.Show(this,
                 "确定要清理所有未被任何 MOD 方案使用的文件吗？此操作不可撤销。",
-                "确认清理", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "确认清理", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "清理", noText: "取消");
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -582,12 +407,16 @@ namespace UEModManager.Views
                     if (success) count++;
                 }
 
-                MessageBox.Show($"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // 用户点"清理未使用文件"要的是腾空间，而占空间最狠的往往不是这些登记在册的包，
+                // 而是索引里根本没有记录的导入残留 —— 顺带问一句，否则那部分永远没人清。
+                RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, _reclaim.BuildPlan());
                 await LoadModLibAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -602,13 +431,13 @@ namespace UEModManager.Views
                 var pkg = await _overwriteStore.PromoteToPackageAsync(artifactId);
                 if (pkg != null)
                 {
-                    MessageBox.Show($"已转为正式 MOD: {pkg.DisplayName}", "转换成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, $"已转为正式 MOD: {pkg.DisplayName}", "转换成功", MessageBoxButton.OK, MessageBoxImage.Information);
                         await LoadGenFilesAsync();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"转换失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"转换失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -616,7 +445,8 @@ namespace UEModManager.Views
         {
             if (sender is not Button btn || btn.Tag is not Guid artifactId) return;
 
-            var confirm = MessageBox.Show("确定要删除此临时文件吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var confirm = CyberMessageBox.Show(this, "确定要删除此临时文件吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: "删除", noText: "取消");
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -626,7 +456,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"删除失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"删除失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -635,12 +465,12 @@ namespace UEModManager.Views
             try
             {
                 var count = await _overwriteStore.CleanupStaleAsync();
-                MessageBox.Show($"清理了 {count} 个可删除文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, $"清理了 {count} 个可删除文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadGenFilesAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -662,13 +492,13 @@ namespace UEModManager.Views
             {
                 Mouse.OverrideCursor = Cursors.Wait;
                 var count = await _diagnosticExport.ExportToZipAsync(dialog.FileName);
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"诊断包已导出（{count} 个条目）：\n{dialog.FileName}",
                     "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this,
+                CyberMessageBox.Show(this,
                     $"导出失败：{ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -679,5 +509,151 @@ namespace UEModManager.Views
         }
 
         // ─── 工具方法 ───
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  行展示模型
+    //
+    //  三个列表原本各有一个几十行的 AddXxxRow 方法，用 C# 手工 new 出
+    //  Border/Grid/TextBlock 再逐个 Grid.SetColumn —— 布局藏在代码里，
+    //  改一处样式要读一遍控件树，也没法在设计器里看。现在结构交给 XAML 的
+    //  DataTemplate，这里只负责把模型翻译成"该显示什么文字、什么颜色"。
+    //
+    //  画刷用 Brush 属性而不是在模板里写 DataTrigger：改造前每行是在构建时
+    //  FindResource 取一次画刷，这样写与之保持逐像素一致，也让状态→颜色的
+    //  映射留在可单测的 C# 里。
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// <summary>MOD 库列表的一行。</summary>
+    public sealed class RepoPackageRow
+    {
+        private RepoPackageRow(string displayName, string statusText, string statusBrushKey, Brush? statusBrush)
+        {
+            DisplayName = displayName;
+            StatusText = statusText;
+            StatusBrushKey = statusBrushKey;
+            StatusBrush = statusBrush;
+        }
+
+        public string DisplayName { get; }
+        public string StatusText { get; }
+        public string StatusBrushKey { get; }
+        public Brush? StatusBrush { get; }
+
+        /// <summary>被方案引用时显示绿色的"方案在用"，否则橙色的"未使用"。</summary>
+        public static string StatusTextFor(bool isReferenced) => isReferenced ? "方案在用" : "未使用";
+
+        public static string StatusBrushKeyFor(bool isReferenced)
+            => isReferenced ? "StatusGreenBrush" : "StatusOrangeBrush";
+
+        public static RepoPackageRow Create(Package package, bool isReferenced, Func<string, Brush?> resolveBrush)
+        {
+            var key = StatusBrushKeyFor(isReferenced);
+            return new RepoPackageRow(
+                package.DisplayName, StatusTextFor(isReferenced), key, resolveBrush(key));
+        }
+    }
+
+    /// <summary>部署记录列表的一行。</summary>
+    public sealed class DeployHistoryRow
+    {
+        private DeployHistoryRow(
+            string timeText, string summaryText, string statusText,
+            string statusBrushKey, Brush? statusBrush,
+            Visibility rollbackVisibility, DeploymentTransaction transaction)
+        {
+            TimeText = timeText;
+            SummaryText = summaryText;
+            StatusText = statusText;
+            StatusBrushKey = statusBrushKey;
+            StatusBrush = statusBrush;
+            RollbackVisibility = rollbackVisibility;
+            Transaction = transaction;
+        }
+
+        public string TimeText { get; }
+        public string SummaryText { get; }
+        public string StatusText { get; }
+        public string StatusBrushKey { get; }
+        public Brush? StatusBrush { get; }
+
+        /// <summary>
+        /// 不可回滚时把按钮 Collapsed 而不是不生成它：DataTemplate 是固定结构，
+        /// 折叠不占位，与改造前"不 Add 这个按钮"的布局结果一致。
+        /// </summary>
+        public Visibility RollbackVisibility { get; }
+
+        /// <summary>回滚按钮的 Tag，交给既有的 RollbackTransaction_Click 取用。</summary>
+        public DeploymentTransaction Transaction { get; }
+
+        public static string StatusBrushKeyFor(DeploymentStatus status) => status switch
+        {
+            DeploymentStatus.Committed => "StatusGreenBrush",
+            DeploymentStatus.Failed => "StatusRedBrush",
+            DeploymentStatus.RolledBack => "StatusOrangeBrush",
+            _ => "Text500Brush"
+        };
+
+        public static string SummaryTextFor(DeploymentTransaction tx)
+            => $"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}";
+
+        public static DeployHistoryRow Create(DeploymentTransaction tx, Func<string, Brush?> resolveBrush)
+        {
+            var key = StatusBrushKeyFor(tx.Status);
+            return new DeployHistoryRow(
+                tx.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
+                SummaryTextFor(tx),
+                DisplayNameMapper.DeploymentStatus(tx.Status),
+                key,
+                resolveBrush(key),
+                tx.CanRollback ? Visibility.Visible : Visibility.Collapsed,
+                tx);
+        }
+    }
+
+    /// <summary>生成文件列表的一行。</summary>
+    public sealed class GenFileRow
+    {
+        private GenFileRow(
+            string displayName, string summaryText, string statusText,
+            string statusBrushKey, Brush? statusBrush, Guid artifactId)
+        {
+            DisplayName = displayName;
+            SummaryText = summaryText;
+            StatusText = statusText;
+            StatusBrushKey = statusBrushKey;
+            StatusBrush = statusBrush;
+            ArtifactId = artifactId;
+        }
+
+        public string DisplayName { get; }
+        public string SummaryText { get; }
+        public string StatusText { get; }
+        public string StatusBrushKey { get; }
+        public Brush? StatusBrush { get; }
+
+        /// <summary>两个按钮的 Tag，交给既有的 GenPromote_Click / GenDelete_Click 取用。</summary>
+        public Guid ArtifactId { get; }
+
+        public static string StatusTextFor(GeneratedArtifactStatus status)
+            => status == GeneratedArtifactStatus.Stale ? "可清理" : "使用中";
+
+        public static string StatusBrushKeyFor(GeneratedArtifactStatus status)
+            => status == GeneratedArtifactStatus.Stale ? "StatusOrangeBrush" : "StatusGreenBrush";
+
+        public static string SummaryTextFor(GeneratedArtifact artifact)
+            => $"{artifact.Type} · {artifact.SourceSummary}";
+
+        public static GenFileRow Create(GeneratedArtifact artifact, Func<string, Brush?> resolveBrush)
+        {
+            var key = StatusBrushKeyFor(artifact.Status);
+            return new GenFileRow(
+                artifact.DisplayName,
+                SummaryTextFor(artifact),
+                StatusTextFor(artifact.Status),
+                key,
+                resolveBrush(key),
+                artifact.Id);
+        }
     }
 }

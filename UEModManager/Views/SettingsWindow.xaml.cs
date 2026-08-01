@@ -1,12 +1,16 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Paths;
 
 namespace UEModManager.Views
 {
@@ -55,15 +59,24 @@ namespace UEModManager.Views
             // 插件系统
             PluginSystemToggle.IsChecked = UiPreferences.LoadPluginEnabled();
 
+            // 检查更新与匿名统计（同一个开关，因为它们本来就是同一个网络请求）
+            UpdateAndStatsToggle.IsChecked = UiPreferences.LoadTelemetryConsent().Enabled;
+
             // 语言
-            LanguageManager.LanguageChanged += _ => Dispatcher.Invoke(ApplyLocalization);
+            LanguageManager.LanguageChanged += OnLanguageChanged;
             ApplyLocalization();
         }
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.CloseWindow(this);
 
         private void SettingsWindow_Closed(object? sender, EventArgs e)
         {
+            // 静态事件是 GC root，必须显式退订，否则每开一次设置窗就永久泄漏一个窗口
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+
             // 如果不是保存关闭（DialogResult != true），恢复到原始背景设置
             if (DialogResult != true && _originalBgSettings != null)
             {
@@ -71,11 +84,37 @@ namespace UEModManager.Views
             }
         }
 
+        /// <summary>
+        /// 语言是"选中即生效"的即时设置，不经过保存按钮，所以失败处理必须写在这里
+        /// （<c>Save_Click</c> 的 try/catch 兜不到它）。
+        ///
+        /// <para>
+        /// 顺序是先落盘再改界面：反过来的话写盘失败时界面已经切成新语言，用户以为成功了，
+        /// 重启后又变回去。失败时把下拉框拨回当前生效的语言——拨之前必须先摘掉本 handler，
+        /// 否则 <c>SelectedIndex</c> 的赋值会再触发一次本方法（构造函数里初始化下拉框
+        /// 用的是同一个手法）。
+        /// </para>
+        /// </summary>
         private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             bool isEnglish = LanguageComboBox.SelectedIndex == 1;
+
+            try
+            {
+                UiPreferences.SaveEnglish(isEnglish);
+            }
+            catch (Exception ex)
+            {
+                LanguageComboBox.SelectionChanged -= LanguageComboBox_SelectionChanged;
+                LanguageComboBox.SelectedIndex = LanguageManager.IsEnglish ? 1 : 0;
+                LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
+
+                CyberMessageBox.Show(this, $"保存语言设置失败：{ex.Message}", "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             LanguageManager.SetEnglish(isEnglish);
-            UiPreferences.SaveEnglish(isEnglish);
         }
 
         private void TabButton_Click(object sender, RoutedEventArgs e)
@@ -203,9 +242,7 @@ namespace UEModManager.Views
             {
                 try
                 {
-                    var bgDir = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        "UEModManager", "Backgrounds");
+                    var bgDir = AppPaths.BackgroundsDirectory;
                     Directory.CreateDirectory(bgDir);
 
                     // 唯一文件名 — 避开 File.Copy 同名覆盖竞争 + WPF BitmapImage URI 缓存
@@ -384,13 +421,9 @@ namespace UEModManager.Views
 
         private void LoadDeploySettings()
         {
-            // 加载仓库路径
-            if (_objectStore != null)
-                RepoPathTextBox.Text = _objectStore.RepositoryRoot;
-            else
-                RepoPathTextBox.Text = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "UEModManager", "Repository");
+            // 加载仓库路径。回退值走 AppPaths：此前这里自己拼了一份默认位置，
+            // 用户把仓库设到别的盘时显示的仍是默认路径，与实际读写的目录对不上。
+            RepoPathTextBox.Text = _objectStore?.RepositoryRoot ?? AppPaths.RepositoryRoot;
 
             // 加载仓库统计
             UpdateRepoStats();
@@ -704,25 +737,147 @@ namespace UEModManager.Views
                 // 保存插件系统开关
                 UiPreferences.SavePluginEnabled(PluginSystemToggle.IsChecked == true);
 
-                // 保存部署设置
-                var repoPath = RepoPathTextBox.Text?.Trim();
-                if (_objectStore != null && !string.IsNullOrWhiteSpace(repoPath))
-                {
-                    Directory.CreateDirectory(repoPath);
-                    _objectStore.SetRepositoryRoot(repoPath);
-                }
+                // 保存"检查更新与匿名统计"开关。
+                // 走 SaveTelemetryEnabled 而不是直接写字段：它会顺带把"已问过"钉上——
+                // 一个先在设置里关掉、却从没被弹窗问过的用户，下次启动本该被弹一次
+                // "我们要开始统计了"，而他刚刚才明确表示过不要。
+                UiPreferences.SaveTelemetryEnabled(UpdateAndStatsToggle.IsChecked == true);
 
+                // 保存部署设置
                 UiPreferences.SaveDeployBackend(_selectedBackend);
                 UiPreferences.SaveDeployConfirm(DeployConfirmToggle.IsChecked == true);
                 UiPreferences.SaveAutoDeploy(AutoDeployToggle.IsChecked == true);
+
+                // MOD 存放位置改在最后，而且走的是"先搬数据、搬成了才改位置"那条唯一的路。
+                //
+                // 此前这里是一行 _objectStore.SetRepositoryRoot(repoPath)——只改指针不搬数据。
+                // 用户改完，已导入的包实体还躺在旧位置、新仓库是空的，界面上 MOD 全没了，
+                // 而他既不知道发生了什么、也不会想到要自己去拷目录。那个方法现在已经整个删掉了。
+                //
+                // 放在最后是因为搬移会弹一个模态窗口、可能跑上十几分钟：排在前面的话，
+                // 用户在搬移窗口里点"先不用"之后，前面那些设置到底存没存下来就说不清了。
+                // 现在的语义很干净——走到这一步，别的设置已经全部落盘。
+                if (!await TryRelocateRepositoryAsync()) return;
 
                 DialogResult = true;
                 Close();
             }
             catch (Exception ex)
             {
+                // 这个 catch 是承重的：上面每一个 UiPreferences.SaveXxx / BackgroundManager.Apply
+                // 落盘失败都会抛到这里。抛之前偏好没被改动，此时窗口保持打开、DialogResult 仍是
+                // null，用户看到失败原因后可以改路径重试。别把它收窄成某个具体异常类型，
+                // 也别在中途 catch 掉——那等于把"设置没保存上"重新变成静默。
                 CyberMessageBox.Show(this, $"保存设置失败: {ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 把用户在这里选的 MOD 存放位置真正落实：<b>先把数据搬过去，搬成了才改位置</b>。
+        ///
+        /// <para>
+        /// 与部署降级提示里那个"帮我搬过去"走的是<b>同一个服务、同一个窗口</b>。
+        /// 一个功能一条路径是硬要求：留一条只改指针的旁路，用户从设置里改照样丢 MOD，
+        /// 而那正是这轮改动要根治的病。
+        /// </para>
+        /// </summary>
+        /// <returns>
+        /// 能不能关掉设置窗口。用户在搬移窗口里点了"先不用"或者搬移失败时返回 false
+        /// ——此时设置窗口保持打开，路径框也退回原值，让他看得见"这次没改成"。
+        /// 直接关窗口会让他以为已经换好了。
+        /// </returns>
+        private async Task<bool> TryRelocateRepositoryAsync()
+        {
+            var selected = RepoPathTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(selected)) return true;
+
+            var relocation = ((App)Application.Current).ServiceProvider
+                ?.GetService<RepositoryRelocationService>();
+            if (relocation == null || _objectStore == null)
+            {
+                // 容器里没有这两个服务是不该发生的。此时唯一安全的做法是什么都不做
+                // ——绝不能退回"直接改指针"，那正是会让 MOD 消失的那条路。
+                Console.WriteLine("[Settings] 搬移服务不可用，本次不改 MOD 存放位置");
+                return true;
+            }
+
+            // 落点换算与首次运行引导共用同一份判据：选中的目录里已经有别的东西时，
+            // 落点自动退到它下面的 UEModManager\Repository，免得把用户自己的文件夹变成仓库根。
+            var hasContent = DirectoryHasContent(selected);
+            var resolved = RepositoryLocationValidator.ResolveRepositoryPath(selected, hasContent);
+
+            var plan = relocation.Plan(resolved);
+
+            // 没变化就别弹窗。用户改了别的设置顺手点保存，不该被一个"要不要搬 MOD"的框拦一次。
+            if (plan.Action == RepositoryRelocationAction.None) return true;
+
+            // 仓库是空的（新用户）：没什么可搬，秒改，不弹进度条。
+            if (plan.Action == RepositoryRelocationAction.PointerOnly)
+            {
+                var quick = await relocation.ExecuteAsync(plan);
+                if (quick.Switched)
+                {
+                    RepoPathTextBox.Text = _objectStore.RepositoryRoot;
+                    return true;
+                }
+
+                CyberMessageBox.Show(this,
+                    RepositoryRelocationMessages.FailureBody(plan, quick.FailureDetail ?? string.Empty),
+                    "没能换位置", MessageBoxButton.OK, MessageBoxImage.Warning, okText: "知道了");
+                RepoPathTextBox.Text = _objectStore.RepositoryRoot;
+                return false;
+            }
+
+            var window = new RepositoryRelocationWindow(relocation, plan, AnyModDeployed())
+            {
+                Owner = this,
+            };
+            window.ShowDialog();
+
+            // 无论搬成没搬成，路径框都退回"此刻真正生效的位置"：
+            // 显示一个并没有生效的路径，正是让用户误以为 MOD 已经换过去的那一步。
+            RepoPathTextBox.Text = _objectStore.RepositoryRoot;
+            UpdateRepoStats();
+
+            return window.Switched;
+        }
+
+        /// <summary>
+        /// 目录里有没有东西。枚举失败按"有内容"处理，与
+        /// <c>RepositorySetupService.HasContent</c> 取同一个保守方向：
+        /// 错判成"有内容"只会让落点多一层专用子目录（安全且界面上写明了），
+        /// 错判成"空"则可能把用户自己的文件夹直接变成仓库根。
+        /// </summary>
+        private static bool DirectoryHasContent(string path)
+        {
+            try
+            {
+                return Directory.Exists(path)
+                    && Directory.EnumerateFileSystemEntries(path).Any();
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 当前有没有已经部署到游戏目录的 MOD。只影响结果文案要不要提"重新装一次"。
+        /// 查不出来时按 <c>false</c>：一句多余的提示会让没部署过的人困惑，
+        /// 而漏掉它的代价只是旧盘上那点空间晚一会儿才腾出来（游戏照常能玩）。
+        /// </summary>
+        private static bool AnyModDeployed()
+        {
+            try
+            {
+                var profiles = ((App)Application.Current).ServiceProvider
+                    ?.GetService<ProfileService>();
+                return profiles?.CurrentProfile?.Packages.Any(p => p.IsEnabled) == true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

@@ -1,95 +1,150 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
+REM ============================================================
+REM  ENCODING WARNING - keep this file in GBK (codepage 936).
+REM  Do NOT re-save it as UTF-8. cmd.exe miscounts line offsets in
+REM  a batch file that mixes "chcp 65001" with non-ASCII text and
+REM  starts executing the tail of a line as a command. It is not
+REM  cosmetic: it truncated the SET statements below to empty
+REM  strings, so the script deleted nothing at all.
+REM  See the commit that introduced this banner for the repro.
+REM ============================================================
+chcp 936 >nul
 
-title å½»åº•æ¸…ç† UEModManager ç”¨æˆ·æ•°æ®
+title ³¹µ×ÇåÀí UEModManager ÓÃ»§Êý¾Ý
 
 echo ============================================================
-echo  çˆ±é…±MODç®¡ç†å™¨ - å¸è½½åŽå½»åº•æ¸…ç†è„šæœ¬
+echo  °®½´MOD¹ÜÀíÆ÷ - Ð¶ÔØºó³¹µ×ÇåÀí½Å±¾
 echo ============================================================
 echo.
-echo æœ¬è„šæœ¬ä¼šæ¸…ç†å½“å‰ Windows ç”¨æˆ·ä¸‹çš„ UEModManager æ•°æ®ï¼š
+echo ±¾½Å±¾»áÇåÀíµ±Ç° Windows ÓÃ»§ÏÂµÄ UEModManager Êý¾Ý£º
 echo   1. %APPDATA%\UEModManager
 echo   2. %LOCALAPPDATA%\UEModManager
-echo   3. å¼€å§‹èœå•/æ¡Œé¢å¿«æ·æ–¹å¼æ®‹ç•™
-echo   4. å¼€æœºè‡ªå¯æ³¨å†Œè¡¨é¡¹
+echo   3. °²×°Ä¿Â¼Àï v2.0.5 ÒÔÇ°ÁôÏÂµÄ Data\ / Backups\ / config.json / ÈÕÖ¾
+echo   4. ¿ªÊ¼²Ëµ¥/×ÀÃæ¿ì½Ý·½Ê½²ÐÁô
+echo   5. ¿ª»ú×ÔÆô×¢²á±íÏî
 echo.
-echo æ³¨æ„ï¼šè¯·å…ˆåœ¨â€œåº”ç”¨å’ŒåŠŸèƒ½â€é‡Œå¸è½½çˆ±é…±MODç®¡ç†å™¨ï¼Œå†è¿è¡Œæœ¬è„šæœ¬ã€‚
-echo æœ¬è„šæœ¬ä¸ä¼šåˆ é™¤æ¸¸æˆç›®å½•é‡Œçš„ MOD æ–‡ä»¶ã€å¤‡ä»½ç›®å½•æˆ– Steam æ¸¸æˆæ–‡ä»¶ã€‚
+echo ËµÃ÷£º±¾½Å±¾¿ÉÒÔÔÚÐ¶ÔØÇ°Ö±½ÓÔËÐÐ£¬Ëü»áÏÈ½áÊøÕýÔÚÔËÐÐµÄ¹ÜÀíÆ÷¡£
+echo ÈôÏëÐ¶ÔØÖ®ºóÔÙÔËÐÐ£¬ÇëÏÈ°Ñ±¾ÎÄ¼þ¸´ÖÆµ½×ÀÃæ¡ª¡ªÐ¶ÔØ»á°Ñ°²×°Ä¿Â¼ÀïµÄ
+echo ËüÒ»ÆðÉ¾µô¡£
+echo ±¾½Å±¾²»»áÉ¾³ýÓÎÏ·Ä¿Â¼ÀïµÄ MOD ÎÄ¼þ£¬Ò²²»»áÉ¾³ýÄãÔÚÉèÖÃÀï
+echo ×Ô¶¨Òåµ½ÆäËü´ÅÅÌµÄ²Ö¿â/Éú³ÉÎï/±¸·ÝÄ¿Â¼¡ª¡ªÄÇÐ©Î»ÖÃ¼ÇÔÚ
+echo %APPDATA%\UEModManager\ui_config.json Àï£¬±¾½Å±¾É¾µôËüÖ®ºó¾ÍÎÞ´ÓµÃÖª£¬
+echo ÈçÓÐÇë×ÔÐÐÉ¾³ý¡£
 echo.
 
+REM v2.0.5 ÆðÔËÐÐÆÚÊý¾ÝÍ³Ò»ÔÚ %LOCALAPPDATA%\UEModManager£»
+REM ÔÚÄÇÖ®Ç°ËüÃÇÐ´ÔÚ exe ÅÔ±ß£¬¶ø Inno Ð¶ÔØÆ÷Ö»É¾×Ô¼º×°¹ýµÄÎÄ¼þ£¬
+REM ÔËÐÐÊ±Éú³ÉµÄ Data\ / Backups\ / config.json / console*.log Ò»ÂÉÁôÔÚÔ­µØ¡£
+REM Òò´ËÀÏ»úÆ÷ÉÏÐÂ¾ÉÁ½´¦¶¼¿ÉÄÜÓÐ²ÐÁô£¬Á½´¦¶¼ÒªÇå¡£
 set "ROAMING_DIR=%APPDATA%\UEModManager"
 set "LOCAL_DIR=%LOCALAPPDATA%\UEModManager"
-set "START_MENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\çˆ±é…±MODç®¡ç†å™¨"
-set "DESKTOP_LINK=%USERPROFILE%\Desktop\çˆ±é…±MODç®¡ç†å™¨.lnk"
-set "QUICK_LINK=%APPDATA%\Microsoft\Internet Explorer\Quick Launch\çˆ±é…±MODç®¡ç†å™¨.lnk"
+set "START_MENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\°®½´MOD¹ÜÀíÆ÷"
+set "DESKTOP_LINK=%USERPROFILE%\Desktop\°®½´MOD¹ÜÀíÆ÷.lnk"
+set "QUICK_LINK=%APPDATA%\Microsoft\Internet Explorer\Quick Launch\°®½´MOD¹ÜÀíÆ÷.lnk"
 
-echo å°†è¦æ¸…ç†ï¼š
+REM ½Å±¾×ÔÉíËùÔÚÄ¿Â¼È¥µô½áÎ²·´Ð±¸Ü£¬·ñÔòÆ´³öµÄÂ·¾¶»á´øÒ»¸ö¶àÓàµÄ \
+set "SCRIPT_DIR=%~dp0"
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+echo ½«ÒªÇåÀí£º
 echo   "%ROAMING_DIR%"
 echo   "%LOCAL_DIR%"
+echo   °²×°Ä¿Â¼ÏÂµÄ¾É°æ²ÐÁô£¨Data\ Backups\ UserData\ config.json ÈÕÖ¾£©
 echo   "%START_MENU_DIR%"
 echo   "%DESKTOP_LINK%"
 echo   "%QUICK_LINK%"
 echo.
-choice /C YN /N /M "ç¡®è®¤æ¸…ç†ï¼Ÿè¾“å…¥ Y ç»§ç»­ï¼Œè¾“å…¥ N å–æ¶ˆï¼š"
+choice /C YN /N /M "È·ÈÏÇåÀí£¿ÊäÈë Y ¼ÌÐø£¬ÊäÈë N È¡Ïû£º"
 if errorlevel 2 goto CANCEL
 
 echo.
-echo [1/5] å°è¯•å…³é—­æ­£åœ¨è¿è¡Œçš„ UEModManager...
+echo [1/6] ³¢ÊÔ¹Ø±ÕÕýÔÚÔËÐÐµÄ UEModManager...
 taskkill /IM UEModManager.exe /F >nul 2>nul
 
-echo [2/5] åˆ é™¤ç”¨æˆ·æ•°æ®ç›®å½•...
+echo [2/6] É¾³ýÓÃ»§Êý¾ÝÄ¿Â¼...
 call :DeleteDir "%ROAMING_DIR%"
 call :DeleteDir "%LOCAL_DIR%"
 
-echo [3/5] åˆ é™¤å¿«æ·æ–¹å¼æ®‹ç•™...
+echo [3/6] É¾³ý°²×°Ä¿Â¼ÀïµÄ¾É°æ²ÐÁô...
+REM Ö»ÔÚÄÜÈ·ÈÏÊÇ°²×°Ä¿Â¼Ê±²Å¶¯ÊÖ£º½Å±¾×ÔÉíÄ¿Â¼±ØÐë»¹ÓÐ UEModManager.exe
+REM £¨¼´ÔÚÐ¶ÔØÇ°ÔËÐÐ£©£¬·ñÔò½Å±¾±»¸´ÖÆµ½×ÀÃæÊ±»á°Ñ×ÀÃæÉÏÍ¬ÃûµÄ Data\ Ò»ÆðÉ¾µô¡£
+REM ÆäÓàÈýÌõÊÇ°²×°Ïòµ¼Ìá¹©¹ýµÄ¹Ì¶¨Â·¾¶£¬Â·¾¶±¾ÉíÒÑÎÞÆçÒå£¬²»ÐèÒª¶îÍâÖ¤¾Ý¡£
+call :CleanInstallDir "%SCRIPT_DIR%" require-exe
+call :CleanInstallDir "%LOCALAPPDATA%\Programs\UEModManager"
+call :CleanInstallDir "%ProgramFiles%\UEModManager"
+call :CleanInstallDir "%ProgramFiles(x86)%\UEModManager"
+
+echo [4/6] É¾³ý¿ì½Ý·½Ê½²ÐÁô...
 call :DeleteDir "%START_MENU_DIR%"
 call :DeleteFile "%DESKTOP_LINK%"
 call :DeleteFile "%QUICK_LINK%"
 
-echo [4/5] åˆ é™¤å¼€æœºè‡ªå¯æ³¨å†Œè¡¨é¡¹...
+echo [5/6] É¾³ý¿ª»ú×ÔÆô×¢²á±íÏî...
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "UEModManager" /f >nul 2>nul
 
-echo [5/5] æ¸…ç†å®Œæˆã€‚
+echo [6/6] ÇåÀíÍê³É¡£
 echo.
-echo å·²å®Œæˆ UEModManager ç”¨æˆ·æ•°æ®æ¸…ç†ã€‚
-echo çŽ°åœ¨å¯ä»¥é‡æ–°å®‰è£…æ–°ç‰ˆå®‰è£…åŒ…ã€‚
+echo ÒÑÍê³É UEModManager ÓÃ»§Êý¾ÝÇåÀí¡£
+echo ÈôÄãµ±³õ°Ñ³ÌÐò×°ÔÚÁËÉÏÃæÃ»ÁÐµ½µÄ×Ô¶¨ÒåÄ¿Â¼£¬ÇëË³ÊÖÉ¾µôÄÇÀïµÄ
+echo Data\¡¢Backups\¡¢UserData\¡¢config.json Óë console*.log¡£
+echo ÏÖÔÚ¿ÉÒÔÖØÐÂ°²×°ÐÂ°æ°²×°°ü¡£
 echo.
 pause
 exit /b 0
 
 :CANCEL
 echo.
-echo å·²å–æ¶ˆï¼Œæœªæ¸…ç†ä»»ä½•æ–‡ä»¶ã€‚
+echo ÒÑÈ¡Ïû£¬Î´ÇåÀíÈÎºÎÎÄ¼þ¡£
 pause
 exit /b 1
+
+:CleanInstallDir
+REM %~1 = ºòÑ¡°²×°Ä¿Â¼£¬%~2 = "require-exe" Ê±ÒªÇóÄ¿Â¼ÄÚÈ·ÊµÓÐ UEModManager.exe¡£
+REM Ö»É¾¾«È·ÃüÃûµÄÔËÐÐÆÚ²úÎï£¬¾ø²»ÕûÄ¿Â¼É¾£ººòÑ¡Â·¾¶¿ÉÄÜÊÇÓÃ»§µÄÆäËüÄ¿Â¼£¬
+REM ¶øÇÒÐ¶ÔØÇ°ÔËÐÐÊ±Ä¿Â¼Àï»¹ÓÐ³ÌÐòÎÄ¼þ£¬¶ËµôÕû¸öÄ¿Â¼Ö»»á°ÑÐ¶ÔØÆ÷Ò»²¢¸Éµô¡£
+set "APPDIR=%~1"
+if "%APPDIR%"=="" exit /b 0
+if not exist "%APPDIR%\" exit /b 0
+if /I "%~2"=="require-exe" if not exist "%APPDIR%\UEModManager.exe" exit /b 0
+
+echo   °²×°Ä¿Â¼£º"%APPDIR%"
+call :DeleteDir  "%APPDIR%\Data"
+call :DeleteDir  "%APPDIR%\Backups"
+call :DeleteDir  "%APPDIR%\UserData"
+call :DeleteFile "%APPDIR%\config.json"
+call :DeleteFile "%APPDIR%\console.log"
+call :DeleteFile "%APPDIR%\XamlErrorTracking.log"
+REM ÂÖ×ªÈÕÖ¾ÓÐ¼¸Ê®·Ý£¬Öð¸ö±¨¸æÖ»»áÑÍÃ»ÉÏÃæ¼¸ÐÐ£¬¾²Ä¬ÅúÉ¾¼´¿É
+del /F /Q "%APPDIR%\console_*.log" >nul 2>nul
+exit /b 0
 
 :DeleteDir
 set "TARGET=%~1"
 if exist "%TARGET%" (
-    echo   åˆ é™¤ç›®å½•ï¼š"%TARGET%"
+    echo   É¾³ýÄ¿Â¼£º"%TARGET%"
     rmdir /S /Q "%TARGET%" >nul 2>nul
     if exist "%TARGET%" (
-        echo   [å¤±è´¥] ç›®å½•ä»å­˜åœ¨ï¼Œå¯èƒ½è¢«å ç”¨ï¼š"%TARGET%"
+        echo   [Ê§°Ü] Ä¿Â¼ÈÔ´æÔÚ£¬¿ÉÄÜ±»Õ¼ÓÃ£º"%TARGET%"
     ) else (
-        echo   [å®Œæˆ] å·²åˆ é™¤
+        echo   [Íê³É] ÒÑÉ¾³ý
     )
 ) else (
-    echo   [è·³è¿‡] ä¸å­˜åœ¨ï¼š"%TARGET%"
+    echo   [Ìø¹ý] ²»´æÔÚ£º"%TARGET%"
 )
 exit /b 0
 
 :DeleteFile
 set "TARGET=%~1"
 if exist "%TARGET%" (
-    echo   åˆ é™¤æ–‡ä»¶ï¼š"%TARGET%"
+    echo   É¾³ýÎÄ¼þ£º"%TARGET%"
     del /F /Q "%TARGET%" >nul 2>nul
     if exist "%TARGET%" (
-        echo   [å¤±è´¥] æ–‡ä»¶ä»å­˜åœ¨ï¼Œå¯èƒ½è¢«å ç”¨ï¼š"%TARGET%"
+        echo   [Ê§°Ü] ÎÄ¼þÈÔ´æÔÚ£¬¿ÉÄÜ±»Õ¼ÓÃ£º"%TARGET%"
     ) else (
-        echo   [å®Œæˆ] å·²åˆ é™¤
+        echo   [Íê³É] ÒÑÉ¾³ý
     )
 ) else (
-    echo   [è·³è¿‡] ä¸å­˜åœ¨ï¼š"%TARGET%"
+    echo   [Ìø¹ý] ²»´æÔÚ£º"%TARGET%"
 )
 exit /b 0

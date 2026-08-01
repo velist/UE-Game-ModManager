@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Services;
 using UEModManager.ViewModels;
 
@@ -228,30 +229,38 @@ namespace UEModManager.Views
                     case nameof(LaunchViewModel.ConflictCount):
                         RebuildCheckList();
                         break;
+                    // 预检失败同样要重画：失败时 ConflictCount 停在 0 不会触发上面那条，
+                    // 清单就会一直显示预置的"无文件冲突"
+                    case nameof(LaunchViewModel.ConflictPreCheckError):
+                        RebuildCheckList();
+                        break;
                 }
             });
         }
 
-        private async void LaunchButton_Click(object sender, MouseButtonEventArgs e)
+        private void LaunchButton_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            if (_vm.IsLaunching) return;
-
-            ProgressText.Text = "正在启动...";
-            var session = await _vm.LaunchGameAsync();
-
-            if (session != null)
+            SafeEvent.Run(this, async () =>
             {
-                RebuildCheckList();
-                UpdateUI();
+                if (_vm.IsLaunching) return;
 
-                if (session.Success)
+                ProgressText.Text = "正在启动...";
+                var session = await _vm.LaunchGameAsync();
+
+                if (session != null)
                 {
-                    // 启动成功后短暂显示状态，然后关闭窗口
-                    await System.Threading.Tasks.Task.Delay(1500);
-                    Close();
+                    RebuildCheckList();
+                    UpdateUI();
+
+                    if (session.Success)
+                    {
+                        // 启动成功后短暂显示状态，然后关闭窗口
+                        await System.Threading.Tasks.Task.Delay(1500);
+                        Close();
+                    }
                 }
-            }
+            }, null, "启动游戏");
         }
 
         private void ShowHistory_Click(object sender, MouseButtonEventArgs e)
@@ -265,7 +274,7 @@ namespace UEModManager.Views
 
             if (launcher.SessionHistory.Count == 0)
             {
-                MessageBox.Show(this, "暂无启动记录。", "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, "暂无启动记录。", "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -279,7 +288,7 @@ namespace UEModManager.Views
                     lines.AppendLine($"    原因: {s.FailureReason}");
             }
 
-            MessageBox.Show(this, lines.ToString(), "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+            CyberMessageBox.Show(this, lines.ToString(), "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e)

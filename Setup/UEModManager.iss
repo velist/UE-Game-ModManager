@@ -6,13 +6,13 @@
 
 #define MyAppName        "爱酱MOD管理器"
 #ifndef MyAppVersion
-#define MyAppVersion     "2.0.5"
+#define MyAppVersion     "2.1.0"
 #endif
 #ifndef MyAppDisplayVer
-#define MyAppDisplayVer  "v2.0.5"
+#define MyAppDisplayVer  "v2.1.0"
 #endif
 #ifndef MyOutputBaseFilename
-#define MyOutputBaseFilename "UEModManager_v2.0.5_Setup"
+#define MyOutputBaseFilename "UEModManager_v2.1.0_Setup"
 #endif
 #define MyAppPublisher   "爱酱工作室"
 #define MyAppURL         "https://www.modmanger.com"
@@ -57,7 +57,9 @@ DisableWelcomePage=no
 ShowLanguageDialog=no
 
 [Languages]
-Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 语言包放在仓库内而不是引用 compiler:Languages\ ——Inno Setup 官方发行版**不含**简体中文
+; （中文是社区翻译），装了 Inno 却打不出包会让人以为是脚本坏了。放进仓库后 clone 即可构建。
+Name: "chs"; MessagesFile: "Languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："
@@ -66,7 +68,18 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "附加�
 
 [Files]
 ; 主程序及全部依赖（含思源黑体 OFL 字体）
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.log,console_*.log"; Flags: ignoreversion recursesubdirs createallsubdirs
+;
+; [安全] SourceDir 是 dotnet build 的输出目录本身（Build-Installer.ps1 未做暂存拷贝），
+; 因此开发机在该目录里留下的任何东西都会被 `\*` + recursesubdirs 原样打进安装包。
+; 原 Excludes 只有 "*.log"，意味着：
+;   - brevo.env / allcfkey.env —— SecretFileProtector.cs:80 明确支持"密钥文件放在 exe 旁边"，
+;     开发者调试邮件时把它放过来是自然操作，一旦如此就会分发给每一个用户；
+;   - Data\ —— ModDataService / ProfileService / NewCategoryService 的实时数据目录，
+;     里面是开发机自己的 MOD 清单、Profile 和游戏路径；
+;   - config.json / Backups\ / UserData\ —— 同理，均为运行期在 exe 旁生成的私有数据。
+; 下列排除项分三类：密钥类 / 运行期私有数据类 / 非 Windows 平台产物。
+; Build-Installer.ps1 中另有一道独立的打包前扫描，命中密钥类文件会直接中止构建。
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.env,.env*,*.enc,*.pfx,*.p12,*.key,*.log,\config.json,\Data,\Data\*,\Backups,\Backups\*,\UserData,\UserData\*,*.so,*.dylib,*.a"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; 一键迁移脚本（用户用于老版本升级）
 Source: "bundled\一键迁移老版本数据.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -107,10 +120,18 @@ Filename: "{app}\捐赠引导.jpg"; Description: "查看开发支持二维码"; 
 ; 在浏览器打开使用说明书（用户可选）
 Filename: "{#MyHelpDocUrl}"; Description: "查看使用说明书（联网）"; Flags: nowait postinstall skipifsilent shellexec unchecked
 
-[UninstallDelete]
-; 不删用户数据 — %APPDATA%\UEModManager 由用户自行决定保留/清理
-; 仅清理可能残留的运行时缓存
-Type: filesandordirs; Name: "{app}\Data\Backups"
+; [UninstallDelete] 已整段移除。
+;
+; 原先这里是：
+;     Type: filesandordirs; Name: "{app}\Data\Backups"
+; 上一行注释写着"不删用户数据"，但这条规则删的恰恰是**部署事务备份**
+; （DeploymentService 的备份根），也就是崩溃回滚唯一依赖的数据——
+; 它既是用户数据，也是"卸载重装以修复问题"这条常见路径上最不能丢的东西。
+;
+; 现行约定：卸载一律不碰任何用户数据，也不询问。
+; 卸载常常只是"重装/升级"的一步，此时弹一个"是否删除数据"的对话框，
+; 用户误点一次就永久失去全部 MOD 库。想彻底清理的用户走随包分发的
+; bundled\彻底清理UEModManager用户数据.bat，那是显式且可预期的入口。
 
 [Code]
 var

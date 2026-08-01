@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
@@ -15,6 +16,9 @@ namespace UEModManager.Services
     /// 包仓库管理服务。
     /// 管理 Package 的全生命周期：注册、查询、更新、删除、引用计数。
     /// 数据索引存储在 Data/{gameName}_packages.json，文件存储在 ObjectStore。
+    ///
+    /// 并发模型与 <see cref="ProfileService"/> 一致：写操作由 <see cref="_gate"/> 串行化、
+    /// 结构性修改走 swap-on-write、事件在出锁后触发。详见 ProfileService 的类注释。
     /// </summary>
     public class PackageRepository : IPackageQuery
     {
@@ -22,16 +26,31 @@ namespace UEModManager.Services
         private readonly ObjectStore _objectStore;
         private readonly string _dataDirectory;
         private string _currentGame = string.Empty;
+
+        /// <summary>串行化"改内存 + 落盘"。SemaphoreSlim 不可重入，锁内只能调 *Locked 方法。</summary>
+        private readonly SemaphoreSlim _gate = new(1, 1);
+
+        /// <summary>包索引。**只整体替换，不原地增删**，使无锁读取方的枚举始终安全。</summary>
         private List<Package> _packages = new();
 
         /// <summary>当包列表发生变化时触发。</summary>
         public event Action? PackagesChanged;
 
         public PackageRepository(ILogger<PackageRepository> logger, ObjectStore objectStore)
+            : this(logger, objectStore, Infrastructure.AppPaths.DataDirectory)
+        {
+        }
+
+        /// <summary>
+        /// 指定索引目录的构造函数（测试用）。DI 走上面的双参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。理由同 <see cref="OverwriteStore"/>：
+        /// 索引目录归口 AppPaths 之后，测试若不注入位置就会写进开发者真实的 %LOCALAPPDATA%。
+        /// </summary>
+        public PackageRepository(ILogger<PackageRepository> logger, ObjectStore objectStore, string dataDirectory)
         {
             _logger = logger;
             _objectStore = objectStore;
-            _dataDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
+            _dataDirectory = dataDirectory;
         }
 
         /// <summary>ObjectStore 实例。</summary>
@@ -44,26 +63,32 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
-            _currentGame = gameName;
             _objectStore.EnsureInitialized();
 
             if (!Directory.Exists(_dataDirectory))
                 Directory.CreateDirectory(_dataDirectory);
 
-            _packages = await LoadIndexAsync();
-
-            // 恢复预览图路径
-            foreach (var pkg in _packages)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
-                {
-                    var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
-                    if (preview != null)
-                        pkg.PreviewImagePath = preview;
-                }
-            }
+                _currentGame = gameName;
+                var loaded = await LoadIndexAsync().ConfigureAwait(false);
 
-            _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, _packages.Count);
+                // 恢复预览图路径
+                foreach (var pkg in loaded)
+                {
+                    if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
+                    {
+                        var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
+                        if (preview != null)
+                            pkg.PreviewImagePath = preview;
+                    }
+                }
+
+                _packages = loaded;
+                _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
+            }
+            finally { _gate.Release(); }
         }
 
         // ─── 查询 ───
@@ -73,6 +98,13 @@ namespace UEModManager.Services
 
         /// <summary>按 PackageKey 获取包。</summary>
         public Package? GetByKey(string packageKey)
+            => FindByKey(packageKey);
+
+        /// <summary>
+        /// 无锁按 key 查找。读一次字段引用再查（写入方走 swap-on-write，不会原地增删）。
+        /// 锁内代码也用它——它不抢锁，因此不会自锁。
+        /// </summary>
+        private Package? FindByKey(string packageKey)
             => _packages.FirstOrDefault(p => p.PackageKey.Equals(packageKey, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>按 ID 获取包。</summary>
@@ -105,25 +137,32 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<Package> RegisterPackageAsync(Package package)
         {
-            // 检查重复
-            var existing = GetByKey(package.PackageKey);
-            if (existing != null)
+            Package result;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                _logger.LogWarning("包已存在，更新: {Key}", package.PackageKey);
-                return await UpdatePackageAsync(package);
+                // 检查重复。注意：不能在锁内调 UpdatePackageAsync（它自己也要抢锁），
+                // 走 *Locked 版本。
+                var existing = FindByKey(package.PackageKey);
+                if (existing != null)
+                {
+                    _logger.LogWarning("包已存在，更新: {Key}", package.PackageKey);
+                    result = await UpdatePackageLockedAsync(existing, package).ConfigureAwait(false);
+                }
+                else
+                {
+                    _packages = [.. _packages, package];
+                    await WriteManifestAsync(package).ConfigureAwait(false);
+                    await SaveIndexAsync().ConfigureAwait(false);
+                    _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
+                    result = package;
+                }
             }
-
-            _packages.Add(package);
-
-            // 写 manifest
-            await WriteManifestAsync(package);
-
-            // 写索引
-            await SaveIndexAsync();
+            finally { _gate.Release(); }
 
             PackagesChanged?.Invoke();
-            _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
-            return package;
+            return result;
         }
 
         /// <summary>
@@ -131,12 +170,28 @@ namespace UEModManager.Services
         /// </summary>
         public async Task RegisterPackagesAsync(IEnumerable<Package> packages)
         {
-            foreach (var pkg in packages)
+            var incoming = packages.ToList();
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                if (!Exists(pkg.PackageKey))
-                    _packages.Add(pkg);
+                var appended = new List<Package>();
+                var known = new HashSet<string>(
+                    _packages.Select(p => p.PackageKey), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var pkg in incoming)
+                {
+                    if (known.Add(pkg.PackageKey))
+                        appended.Add(pkg);
+                }
+
+                if (appended.Count > 0)
+                    _packages = [.. _packages, .. appended];
+
+                await SaveIndexAsync().ConfigureAwait(false);
             }
-            await SaveIndexAsync();
+            finally { _gate.Release(); }
+
             PackagesChanged?.Invoke();
         }
 
@@ -147,10 +202,24 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<Package> UpdatePackageAsync(Package updated)
         {
-            var existing = GetByKey(updated.PackageKey);
-            if (existing == null)
-                throw new InvalidOperationException($"包不存在: {updated.PackageKey}");
+            Package existing;
 
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var found = FindByKey(updated.PackageKey)
+                    ?? throw new InvalidOperationException($"包不存在: {updated.PackageKey}");
+                existing = await UpdatePackageLockedAsync(found, updated).ConfigureAwait(false);
+            }
+            finally { _gate.Release(); }
+
+            PackagesChanged?.Invoke();
+            return existing;
+        }
+
+        /// <summary>把 <paramref name="updated"/> 的元数据合并进 <paramref name="existing"/>。调用方必须已持有 <see cref="_gate"/>。</summary>
+        private async Task<Package> UpdatePackageLockedAsync(Package existing, Package updated)
+        {
             existing.DisplayName = updated.DisplayName;
             existing.Note = updated.Note;
             existing.Tags = new List<string>(updated.Tags);
@@ -158,30 +227,30 @@ namespace UEModManager.Services
             existing.PluginTargetPath = updated.PluginTargetPath;
             existing.LastModified = DateTime.Now;
 
-            // 更新 manifest
-            await WriteManifestAsync(existing);
-            await SaveIndexAsync();
-
-            PackagesChanged?.Invoke();
+            await WriteManifestAsync(existing).ConfigureAwait(false);
+            await SaveIndexAsync().ConfigureAwait(false);
             return existing;
         }
 
         /// <summary>
-        /// 更新包的预览图。
+        /// 更新包的预览图。返回落盘后的路径；包不在索引中时返回 null。
+        /// 预览图或索引写失败会上抛——这是用户显式发起的操作，必须看得见失败。
         /// </summary>
         public async Task<string?> UpdatePreviewImageAsync(string packageKey, string imagePath)
         {
-            var package = GetByKey(packageKey);
-            if (package == null) return null;
-
-            var storedPath = _objectStore.StorePreviewImage(packageKey, imagePath);
-            if (storedPath != null)
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
+                var package = FindByKey(packageKey);
+                if (package == null) return null;
+
+                var storedPath = _objectStore.StorePreviewImage(packageKey, imagePath);
                 package.PreviewImagePath = storedPath;
                 package.LastModified = DateTime.Now;
-                await SaveIndexAsync();
+                await SaveIndexAsync().ConfigureAwait(false);
+                return storedPath;
             }
-            return storedPath;
+            finally { _gate.Release(); }
         }
 
         // ─── 删除 ───
@@ -209,35 +278,55 @@ namespace UEModManager.Services
         /// <param name="allProfiles">所有 Profile（用于引用计数）。传 null 表示跳过检查（仅供测试）。</param>
         /// <param name="force">true = 即使被引用也强制删除（必须先自行回滚部署）。</param>
         /// <returns>(成功否, 决策详情)。Decision=ActivelyDeployed 且 force=false 时返回 (false, plan)。</returns>
+        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足）。此时索引未被改动。</exception>
         public async Task<(bool Success, PackageDeletionPlan? Plan)> DeletePackageAsync(
             string packageKey,
             IEnumerable<InstanceProfile>? allProfiles,
             bool force = false)
         {
-            var package = GetByKey(packageKey);
-            if (package == null) return (false, null);
+            // 引用计数在锁外算：它只读传入的 profiles，不碰本服务状态，
+            // 而且 allProfiles 可能是 ProfileService 的实时视图，锁内枚举没有必要。
+            var profileSnapshot = allProfiles?.ToList();
 
             PackageDeletionPlan? plan = null;
-            if (allProfiles != null)
+            bool deleted;
+
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                plan = PlanDeletion(packageKey, allProfiles);
-                if (plan.RequiresUserConfirmation && !force)
+                var package = FindByKey(packageKey);
+                if (package == null) return (false, null);
+
+                if (profileSnapshot != null)
                 {
-                    _logger.LogWarning(
-                        "[PackageRepo] 拒绝删除 {Key}: {Decision} — {Explanation}",
-                        packageKey, plan.Decision, plan.Explanation);
-                    return (false, plan);
+                    plan = PlanDeletion(packageKey, profileSnapshot);
+                    if (plan.RequiresUserConfirmation && !force)
+                    {
+                        _logger.LogWarning(
+                            "[PackageRepo] 拒绝删除 {Key}: {Decision} — {Explanation}",
+                            packageKey, plan.Decision, plan.Explanation);
+                        return (false, plan);
+                    }
                 }
+
+                // 先删仓库文件、再动索引。反过来的话文件删不掉（被游戏占用/权限不足）
+                // 就会留下"索引里没有、磁盘上还在几十 GB"的孤儿目录，而且用户重试也删不掉了
+                // ——包已经不在索引里，界面上根本找不到它。
+                if (!_objectStore.DeletePackage(packageKey))
+                    throw new IOException(
+                        $"无法删除包「{packageKey}」的仓库文件，文件可能被游戏占用或权限不足。索引未改动，可稍后重试。");
+
+                _packages = _packages.Where(p => !ReferenceEquals(p, package)).ToList();
+                await SaveIndexAsync().ConfigureAwait(false);
+
+                _logger.LogInformation(
+                    "[PackageRepo] 包已删除: {Key} (force={Force}, decision={Decision})",
+                    packageKey, force, plan?.Decision.ToString() ?? "Unchecked");
+                deleted = true;
             }
+            finally { _gate.Release(); }
 
-            _packages.Remove(package);
-            _objectStore.DeletePackage(packageKey);
-            await SaveIndexAsync();
-
-            PackagesChanged?.Invoke();
-            _logger.LogInformation(
-                "[PackageRepo] 包已删除: {Key} (force={Force}, decision={Decision})",
-                packageKey, force, plan?.Decision.ToString() ?? "Unchecked");
+            if (deleted) PackagesChanged?.Invoke();
             return (true, plan);
         }
 
@@ -283,7 +372,21 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查仓库完整性（manifest 存在且文件齐全）。
+        /// 检查仓库完整性：从索引出发，逐个包核对 manifest 与文件是否齐全。
+        ///
+        /// <para>
+        /// **只做正向检查**。"磁盘上有目录、索引里没记录"的反向检查归
+        /// <see cref="RepositoryReclaimService"/>：那条判定需要跨游戏读取全部
+        /// <c>*_packages.json</c>（仓库根全局共享而索引按游戏分文件）、需要排除
+        /// <c>.import-tmp</c> 这类内部目录、还需要看目录形态才能区分"导入残留"与
+        /// "用户把仓库根指到了自己已有的文件夹"。这套判据一旦有两份实现就一定会漂移，
+        /// 而漂移的后果是误删用户数据，所以只留一份在 Core 的
+        /// <c>RepositoryReclaimPlanner</c> 里，本类不再重复。
+        /// </para>
+        /// <para>
+        /// 这里检出的"文件缺失"是另一类不一致（索引记了、实体不全），**永远不会被自动清理**：
+        /// 那是数据丢失而不是垃圾，删掉只会让用户连"曾经有这个包"都看不到。
+        /// </para>
         /// </summary>
         public Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
         {
@@ -301,6 +404,7 @@ namespace UEModManager.Services
                 if (files.Count < expectedCount)
                     issues.Add((pkg.PackageKey, $"文件缺失: 期望 {expectedCount}, 实际 {files.Count}"));
             }
+
             return Task.FromResult(issues);
         }
 
@@ -310,38 +414,87 @@ namespace UEModManager.Services
 
         private async Task<List<Package>> LoadIndexAsync()
         {
+            var path = GetIndexPath();
             try
             {
-                var path = GetIndexPath();
                 if (!File.Exists(path)) return new List<Package>();
                 var json = await File.ReadAllTextAsync(path);
                 return JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "加载包索引失败");
+                // 读失败回落空列表：包索引读不出来不该让整个初始化中断，
+                // 否则用户连界面都进不去，比暂时看不到 MOD 列表更糟。
+                // 但空列表接下来会被任意一次保存全量覆盖，原索引就此消失——
+                // 故先备份原文件，与 ProfileService.BackupCorruptProfileFile /
+                // GameConfigService.BackupBrokenConfigFile 的处理一致。
+                _logger.LogError(ex, "加载包索引失败: {Path}", path);
+                BackupUnusableIndexFile(path, ex);
                 return new List<Package>();
             }
         }
 
-        private async Task SaveIndexAsync()
+        /// <summary>
+        /// 备份读不出来的包索引，命名与 ProfileService / GameConfigService 对齐。
+        /// </summary>
+        private void BackupUnusableIndexFile(string path, Exception cause)
         {
+            if (!File.Exists(path)) return;
+
             try
             {
-                var path = GetIndexPath();
+                var backupPath = $"{path}.corrupt-{DateTime.Now:yyyyMMddHHmmss}.bak";
+                File.Copy(path, backupPath, overwrite: false);
+                _logger.LogWarning(cause, "已备份无法读取的包索引: {BackupPath}", backupPath);
+            }
+            catch (Exception backupException)
+            {
+                // 备份失败无处可退，至少留痕：此刻原文件仍在原地，直到下一次保存才会被覆盖。
+                _logger.LogError(backupException, "备份无法读取的包索引失败: {Path}", path);
+            }
+        }
+
+        /// <summary>
+        /// 落盘包索引。
+        ///
+        /// 写失败必须上抛：索引丢了等于所有 MOD 的登记信息丢了（仓库里的文件还在，
+        /// 界面上却什么都不剩）。此前这里把异常吞掉，用户导入/删除后看到界面正常刷新，
+        /// 重启后包凭空消失。语义与 ModDataService / ProfileService 统一为 log + throw，
+        /// 由调用链上的 SafeEvent.Run 或 MainViewModel 的 OperationResult 呈现。
+        ///
+        /// 失败时**不**回滚内存里的 <c>_packages</c>：仓库文件已经真实写进去了，
+        /// 从内存抹掉只会让用户在本次会话里既看不到也删不掉它。保留内存状态 + 明确报错，
+        /// 用户修好目录后下一次操作仍会把完整索引写下去。
+        /// </summary>
+        private async Task SaveIndexAsync()
+        {
+            var path = GetIndexPath();
+            try
+            {
                 var json = JsonSerializer.Serialize(_packages, new JsonSerializerOptions { WriteIndented = true });
                 await AtomicFileWriter.WriteAllTextAsync(path, json);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "保存包索引失败");
+                _logger.LogError(ex, "保存包索引失败: {Path}", path);
+                throw;
             }
         }
 
+        /// <summary>
+        /// 写包的 manifest.json。写失败上抛，理由同 <see cref="SaveIndexAsync"/>：
+        /// manifest 是仓库的自描述来源，缺了它 <see cref="CheckIntegrityAsync"/>
+        /// 会把这个包判成"导入残留目录"。
+        /// </summary>
         private async Task WriteManifestAsync(Package package)
         {
             try
             {
+                // manifest 不经过 ObjectStore 的写方法（这里直接拿路径 + AtomicFileWriter），
+                // 所以要自己问一次搬移闸门。漏掉它的后果是：搬移期间写下的 manifest 落在
+                // 旧位置，搬完随旧位置一起被清空，那个包从此没有自描述、
+                // 下次完整性检查会把它判成"导入残留目录"。
+                _objectStore.ThrowIfRelocating("保存 MOD 信息");
                 _objectStore.EnsureInitialized();
                 var manifestPath = _objectStore.GetManifestPath(package.PackageKey);
                 var dir = Path.GetDirectoryName(manifestPath);
@@ -355,6 +508,7 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "写入 manifest 失败: {Key}", package.PackageKey);
+                throw;
             }
         }
     }

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Categories;
 
 namespace UEModManager.ViewModels
 {
@@ -24,6 +25,20 @@ namespace UEModManager.ViewModels
         /// </summary>
         public ObservableCollection<CategoryItem> Categories => _categoryService.Categories;
 
+        /// <summary>
+        /// 可以作为"移动到分类"目标的分类（<see cref="Categories"/> 去掉三个系统分类）。
+        ///
+        /// 单独维护一个集合而不是让 View 自己过滤：右键子菜单是 ItemsSource 绑定的，
+        /// 绑到 <see cref="Categories"/> 就会把"全部/已启用/已禁用"也列出来，
+        /// 而这三个是按 IsEnabled 现算的筛选视图、根本不存储归属——
+        /// 用户点进去会看到一次"成功"，刷新后 MOD 却回到原分类。
+        ///
+        /// 跟随 <see cref="Categories"/> 整体重建而不是增量同步：分类总量是几十条的量级，
+        /// 重建的代价可以忽略，而增量同步要正确处理 Move/Replace/Reset 四种事件，
+        /// 漏一种的表现就是菜单里多出一个已被删除的分类。
+        /// </summary>
+        public ObservableCollection<CategoryItem> AssignableCategories { get; } = new();
+
         [ObservableProperty]
         private CategoryItem? _selectedCategory;
 
@@ -36,6 +51,16 @@ namespace UEModManager.ViewModels
         {
             _categoryService = categoryService;
             _logger = logger;
+
+            Categories.CollectionChanged += (_, _) => RebuildAssignableCategories();
+            RebuildAssignableCategories();
+        }
+
+        private void RebuildAssignableCategories()
+        {
+            AssignableCategories.Clear();
+            foreach (var cat in Categories.Where(c => ModCategoryAssignment.IsAssignableTarget(c.Name)))
+                AssignableCategories.Add(cat);
         }
 
         partial void OnSelectedCategoryChanged(CategoryItem? value)
@@ -97,6 +122,17 @@ namespace UEModManager.ViewModels
         public async Task DoRenameCategoryAsync(CategoryItem category, string newName)
         {
             await _categoryService.RenameCategoryAsync(category, newName);
+        }
+
+        /// <summary>
+        /// 调整分类顺序（侧边栏拖拽排序）。
+        ///
+        /// 必须走服务而不是直接 <c>Categories.Move</c>：后者只改内存，重启后顺序原样弹回来。
+        /// 落盘失败时服务会把顺序移回原位并上抛，由 View 的 SafeEvent.Run 弹给用户。
+        /// </summary>
+        public async Task ReorderCategoryAsync(CategoryItem category, int newIndex)
+        {
+            await _categoryService.ReorderCategoryAsync(category, newIndex);
         }
     }
 }

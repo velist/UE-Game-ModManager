@@ -10,7 +10,6 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgBaseBrush}"
         Style="{StaticResource CyberDarkWindow}"
-        PreviewMouseDown="MainWindow_PreviewMouseDown"
         SourceInitialized="Window_SourceInitialized">
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow" />
@@ -18,6 +17,35 @@
         <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow" />
         <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow" />
     </Window.CommandBindings>
+
+    <Window.Resources>
+        <!-- "移动到分类"右键项。卡片模式和列表模式各有一份 ContextMenu，
+             共用这个样式才不会出现"改了一处、另一处还是老样子"。
+
+             ItemsSource 走 PlacementTarget.Tag：ContextMenu 不在可视化树里，
+             RelativeSource AncestorType=Window 那一套在它内部取不到，
+             而卡片的 DataContext 是 ModInfo（没有分类列表）。所以由承载控件
+             用 Tag 把窗口的 DataContext 递进来，两个菜单的绑定表达式因此完全一致。
+
+             绑 AssignableCategories 而不是 Categories：后者含"全部/已启用/已禁用"
+             三个筛选视图，它们不存储归属，移进去等于什么都没发生。 -->
+        <Style x:Key="MoveToCategoryMenuItem" TargetType="MenuItem"
+               BasedOn="{StaticResource CyberMenuItemSubmenuHeader}">
+            <Setter Property="Header" Value="移动到分类"/>
+            <Setter Property="InputGestureText" Value="请先在左侧新建分类"/>
+            <Setter Property="ItemsSource"
+                    Value="{Binding PlacementTarget.Tag.Categories.AssignableCategories,
+                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="MenuItem" BasedOn="{StaticResource CyberMenuItem}">
+                        <Setter Property="Header" Value="{Binding DisplayText}"/>
+                        <EventSetter Event="Click" Handler="MoveToCategoryMenuItem_Click"/>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <!-- Body: CyberDarkWindow 样式已提供 TitleBar(36px) + 窗口控制按钮 -->
     <Grid>
@@ -320,6 +348,7 @@
 
                                     <!-- 分类列表 -->
                                     <ListBox x:Name="CategoryList" Background="Transparent" BorderThickness="0"
+                                             ItemsSource="{Binding Categories.Categories}"
                                              SelectionMode="Single"
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
@@ -330,8 +359,7 @@
                                              AllowDrop="True"
                                              DragEnter="CategoryList_DragEnter"
                                              DragOver="CategoryList_DragOver"
-                                             Drop="CategoryList_Drop"
-                                             ContextMenuOpening="CategoryList_ContextMenuOpening">
+                                             Drop="CategoryList_Drop">
                                         <ListBox.ItemContainerStyle>
                                             <Style TargetType="ListBoxItem">
                                                 <Setter Property="Background" Value="Transparent"/>
@@ -384,7 +412,7 @@
                                             </Style>
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ContextMenu>
-                                            <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="CategoryContextMenu_Opened">
+                                            <ContextMenu Style="{StaticResource CyberContextMenu}">
                                                 <MenuItem x:Name="CtxMenuRename" Header="重命名" Click="RenameCategoryMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem x:Name="CtxMenuDelete" Header="删除" Click="DeleteCategoryMenuItem_Click" Style="{StaticResource CyberMenuItemDanger}"/>
                                             </ContextMenu>
@@ -415,12 +443,13 @@
                                                            Foreground="{StaticResource PrimaryBrush}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
-                                            <!-- 方案名称 + 摘要 -->
+                                            <!-- 方案名称 + 摘要：绑 MainViewModel，code-behind 不再直接写 Text
+                                                 （去掉 x:Name 就是为了让"再写回去"这件事编译不过） -->
                                             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock x:Name="ProfileSelectorName" Text="默认 MOD 方案"
+                                                <TextBlock Text="{Binding CurrentProfileName}"
                                                            Foreground="{StaticResource Text200Brush}"
                                                            FontSize="12" FontWeight="Medium"/>
-                                                <TextBlock x:Name="ProfileSelectorSummary" Text=""
+                                                <TextBlock Text="{Binding CurrentProfileSummary}"
                                                            Foreground="{StaticResource Text500Brush}"
                                                            FontSize="10" Margin="0,1,0,0"/>
                                             </StackPanel>
@@ -703,10 +732,10 @@
                 </Border>
 
                 <!-- ═ ModGrid / ModList ═ -->
-                <Grid x:Name="ModContentArea" Margin="26,8,26,16"
-                      PreviewMouseDown="MainContentArea_PreviewMouseDown">
+                <Grid x:Name="ModContentArea" Margin="26,8,26,16">
                         <!-- 卡片视图 -->
                         <ListBox x:Name="ModsCardView" Visibility="Visible"
+                                 ItemsSource="{Binding ModList.Mods}"
                                  Background="Transparent" BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -717,8 +746,7 @@
                                  VirtualizingPanel.CacheLength="1,1"
                                  VirtualizingPanel.CacheLengthUnit="Page"
                                  SelectionMode="Single"
-                                 SizeChanged="ModsCardView_SizeChanged"
-                                 PreviewMouseDown="MainContentArea_PreviewMouseDown">
+                                 SizeChanged="ModsCardView_SizeChanged">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <vwp:VirtualizingWrapPanel Orientation="Horizontal"
@@ -747,17 +775,18 @@
                                     <Border x:Name="CardRoot" Margin="6" ClipToBounds="True"
                                             CornerRadius="12" Background="{StaticResource SurfaceBrush}"
                                             BorderThickness="1" Width="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}" Height="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Cursor="Hand" MouseDown="ModCard_MouseDown"
                                             MouseEnter="ModCard_MouseEnter" MouseLeave="ModCard_MouseLeave">
                                         <Border.BorderBrush>
                                             <SolidColorBrush Color="#27272A" Opacity="0.6"/>
                                         </Border.BorderBrush>
                                         <Border.ContextMenu>
-                                            <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="ModContextMenu_Opened">
+                                            <ContextMenu Style="{StaticResource CyberContextMenu}">
                                                 <MenuItem Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <Separator Style="{StaticResource CyberMenuSeparator}"/>
-                                                <MenuItem Header="移动到分类" x:Name="MoveToCategoryMenuItem" Style="{StaticResource CyberMenuItem}"/>
+                                                <MenuItem Style="{StaticResource MoveToCategoryMenuItem}"/>
                                                 <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                                 <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
@@ -960,6 +989,7 @@
                                     Background="{StaticResource CyberBorderBrush}"/>
 
                             <ListView x:Name="ModsListView" Background="Transparent" BorderThickness="0"
+                                      ItemsSource="{Binding ModList.Mods}"
                                       Margin="0,40,0,0"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -969,11 +999,14 @@
                                       VirtualizingPanel.ScrollUnit="Pixel"
                                       SelectionChanged="ModsListView_SelectionChanged"
                                       MouseDoubleClick="ModsListView_MouseDoubleClick"
+                                      Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                       SelectionMode="Extended">
                             <ListView.ContextMenu>
-                                <ContextMenu Style="{StaticResource CyberContextMenu}" Opened="ModContextMenu_Opened">
+                                <ContextMenu Style="{StaticResource CyberContextMenu}">
                                     <MenuItem Header="启用MOD" Click="EnableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <MenuItem Header="禁用MOD" Click="DisableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
+                                    <Separator Style="{StaticResource CyberMenuSeparator}"/>
+                                    <MenuItem Style="{StaticResource MoveToCategoryMenuItem}"/>
                                     <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                     <MenuItem Header="编辑" Click="RenameModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <MenuItem Header="修改预览图" Click="ChangePreviewMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>

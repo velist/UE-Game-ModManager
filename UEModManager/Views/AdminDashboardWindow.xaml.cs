@@ -51,7 +51,7 @@ namespace UEModManager.Views
         {
             InitializeComponent();
             ApplyLocalization();
-            UEModManager.Services.LanguageManager.LanguageChanged += _ => { Dispatcher.Invoke(ApplyLocalization); };
+            UEModManager.Services.LanguageManager.LanguageChanged += OnLanguageChanged;
 
 
 
@@ -638,27 +638,19 @@ namespace UEModManager.Views
 
 
 
-        private async void RefreshDataButton_Click(object sender, RoutedEventArgs e)
+        private void RefreshDataButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 手动刷新数据");
+                await LoadDashboardDataAsync();
+            }, _logger, "刷新管理面板数据");
 
-        {
-
-            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 手动刷新数据");
-
-            await LoadDashboardDataAsync();
-
-        }
-
-
-
-        private async void UserManagementButton_Click(object sender, RoutedEventArgs e)
-
-        {
-
-            AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 打开用户管理");
-
-            await LoadUsersAsync();
-
-        }
+        private void UserManagementButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                AddLogMessage($"[{DateTime.Now:HH:mm:ss}] 打开用户管理");
+                await LoadUsersAsync();
+            }, _logger, "加载用户管理");
 
 
 
@@ -1023,9 +1015,19 @@ namespace UEModManager.Views
 
 
 
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
+
+
+
         protected override void OnClosed(EventArgs e)
 
         {
+
+            // 静态事件是 GC root，必须显式退订，否则每开一次窗口就永久泄漏一个窗口
+
+            UEModManager.Services.LanguageManager.LanguageChanged -= OnLanguageChanged;
 
             _statusUpdateTimer?.Stop();
 

@@ -20,6 +20,8 @@ using Microsoft.Extensions.Logging;
 using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Backends;
+using UEModManager.Services.Paths;
 using UEModManager.Services.Recovery;
 using UEModManager.Views;
 using UEModManager.Infrastructure;
@@ -62,14 +64,18 @@ namespace UEModManager
         private readonly ILogger<MainWindow>? _logger;
         private readonly GameConfigService _gameConfig;
         private readonly CrashRecoveryService? _crashRecovery;
+        private readonly DataLocationMigrator? _dataMigrator;
         private readonly HealthCheckService? _healthCheck;
+        private readonly DeploymentService? _deployService;
 
         // ── UI 状态 ──
-        private DispatcherTimer? _statsTimer = null;
         private DispatcherTimer? _searchDebounceTimer;
         private bool _isDragging;
         private Point _startPoint;
         private string _activeNavTag = "全部";
+
+        /// <summary>降级提示正在显示。批量部署会连着抛 N 次告知事件，这个标志挡住后面几次。</summary>
+        private bool _degradationNoticeShowing;
 
 
         // ═════════════════════════════════════════
@@ -83,7 +89,6 @@ namespace UEModManager
 #endif
             try
             {
-                RedirectConsoleOutput();
                 InitializeComponent();
                 Console.WriteLine("MainWindow: InitializeComponent 完成");
 
@@ -98,7 +103,9 @@ namespace UEModManager
                 _localAuthService = sp.GetService<LocalAuthService>();
                 _logger = sp.GetService<ILogger<MainWindow>>();
                 _crashRecovery = sp.GetService<CrashRecoveryService>();
+                _dataMigrator = sp.GetService<DataLocationMigrator>();
                 _healthCheck = sp.GetService<HealthCheckService>();
+                _deployService = sp.GetService<DeploymentService>();
 
                 // 订阅认证事件
                 if (_localAuthService != null)
@@ -107,14 +114,23 @@ namespace UEModManager
                     UpdateUserStatusDisplay();
                 }
 
-                // 订阅 ViewModel 事件
-                _vm.ModList.ModSelected += OnModSelected;
+                // 订阅部署降级告知。挂在主窗口而不是各个部署入口上：单个开关、批量开关、
+                // 导入后自动部署、启动前部署走的是同一个 DeploymentService 单例，订一次就全覆盖；
+                // 分散到入口上则必然漏掉某一条路径——"某条路径上用户什么都看不到"正是这次要修的病。
+                if (_deployService != null)
+                {
+                    _deployService.DegradationDetected += OnDeploymentDegraded;
+                }
+
+                // 订阅 ViewModel 事件。
+                // ModList.ModSelected 只由 MainViewModel 订阅：这里曾有第二个 handler，
+                // 与 VM 那份对"取消选中"的处理相反，谁最后订阅谁说了算。见 MainViewModel。
                 _vm.ModDetail.ModStateChanged += async () => await RefreshAfterModChange();
                 _vm.ModDetail.CloseRequested += () => _vm.IsDetailPanelOpen = false;
 
-                // 订阅 Profile 变化事件
-                _vm.ProfileService.ProfileChanged += OnProfileSelectorUpdate;
-                _vm.ProfileService.ProfileListChanged += () => Dispatcher.Invoke(UpdateProfileSelector);
+                // 方案选择器的名称/摘要走 XAML 绑定（{Binding CurrentProfileName/CurrentProfileSummary}），
+                // ProfileChanged / ProfileListChanged 由 MainViewModel 独家订阅，
+                // 这里不再挂第二份直接写 TextBlock.Text 的实现。
 
                 // 拖拽
                 AllowDrop = true;
@@ -129,19 +145,33 @@ namespace UEModManager
                 // 语言
                 try
                 {
-                    LanguageManager.LanguageChanged += _ => Dispatcher.Invoke(ApplyLocalization);
+                    LanguageManager.LanguageChanged += OnLanguageChanged;
                     ApplyLocalization();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 不上抛：本地化失败不该拦住主窗口启动。但必须留痕——
+                    // ApplyLocalization 里任一具名控件被重命名就会 NullReferenceException，
+                    // 原先被吞掉后界面文案静默停在 XAML 默认值，没人知道发生过什么。
+                    // 此时 _logger 已就位，但日志系统本身可能还没配好，故两条通道都写。
+                    _logger?.LogError(ex, "[UI] 初始化本地化失败，界面文案将停留在默认值");
+                    Console.WriteLine($"[MainWindow] 初始化本地化失败: {ex}");
+                }
 
                 // 背景
                 try
                 {
                     BackgroundManager.Initialize();
-                    BackgroundManager.BackgroundChanged += bg => Dispatcher.Invoke(() => ApplyBackground(bg));
+                    BackgroundManager.BackgroundChanged += OnBackgroundChanged;
                     ApplyBackground(BackgroundManager.Settings);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 同上：背景加载失败不拦启动，但不能静默——
+                    // 用户设过的背景图突然不见了，日志里得能查到原因
+                    _logger?.LogError(ex, "[UI] 初始化背景失败，将使用默认背景");
+                    Console.WriteLine($"[MainWindow] 初始化背景失败: {ex}");
+                }
 
                 Console.WriteLine("MainWindow 初始化完成");
             }
@@ -170,10 +200,8 @@ namespace UEModManager
                 // 初始化 MOD 和分类
                 await _vm.InitializeAsync();
 
-                // 绑定数据源
-                CategoryList.ItemsSource = _vm.Categories.Categories;
-                ModsCardView.ItemsSource = _vm.ModList.Mods;
-                ModsListView.ItemsSource = _vm.ModList.Mods;
+                // 数据源在 XAML 中绑定（ItemsSource="{Binding ModList.Mods}" 等），
+                // 集合是 ObservableCollection 且实例从不替换，这里无需再手工接线
 
                 // 更新 UI
                 UpdateNavCounts();
@@ -182,13 +210,105 @@ namespace UEModManager
                 // Phase 11: 启动时检查未完成事务（崩溃恢复）
                 await CheckForCrashesAsync();
 
+                // 数据目录搬迁没做完时告知用户（软件仍在用旧位置，功能不受影响）
+                NotifyDataMigrationIfNeeded();
+
                 // Phase 11: 启动时健康检查（结果写入日志）
                 await LogHealthReportAsync();
+
+                // 匿名统计：先告知（只在从没问过时弹一次），再开始心跳。
+                // 排在最后一位是有意的——崩溃恢复和数据搬迁是用户真的需要处理的事，
+                // 统计是我们的需求，不该抢在它们前面占用户的注意力。
+                StartTelemetry();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"初始化失败: {ex}");
                 _logger?.LogError(ex, "MainWindow 初始化失败");
+            }
+        }
+
+        /// <summary>
+        /// 匿名统计的告知与启动。
+        ///
+        /// <para><b>为什么告知框在主窗口之后、而不是在启动序列里</b></para>
+        /// 全新安装的用户在见到主界面之前已经可能被拦两次（仓库位置引导、登录窗口）。
+        /// 再插一个"能不能统计你"进去，是把一个我们自己的需求排到用户还没看到软件长什么样
+        /// 的前面。放在主窗口起来之后问，用户至少已经知道这是个什么东西。
+        ///
+        /// <para><b>关掉窗口（点 X 而不选按钮）视为"不参与"，并且记为已问过</b></para>
+        /// 两条理由：没有明确同意就绝不上报，这是硬底线；而不记"已问过"就意味着每次启动
+        /// 再弹一遍，对一个习惯性关弹窗的用户等于永久骚扰。代价是有一部分只是随手关掉的人
+        /// 被算成了退出——这个方向的误差是可接受的那一侧，他们随时能在设置里打开。
+        ///
+        /// <para><b>整段不允许影响启动</b></para>
+        /// 判定、弹窗、心跳启动全部包在 try 里；心跳本身跑在线程池上，这里一行都不等它。
+        /// </summary>
+        private void StartTelemetry()
+        {
+            try
+            {
+                var telemetry = ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>();
+                if (telemetry == null) return;
+
+                var decision = TelemetryService.CurrentConsent();
+                Console.WriteLine($"[Telemetry] {decision}");
+
+                if (decision.ShouldAsk)
+                {
+                    var choice = CyberMessageBox.Show(this,
+                        "UEModManager 会在启动时看一眼有没有新版本，顺手带上一个随机编号和版本号，" +
+                        "好让我们知道有多少人在用。登录过的话还会带上邮箱算出来的一串乱码" +
+                        "（还原不回邮箱），用来去掉重复的人。\n\n" +
+                        "不会发送：你的邮箱、电脑名、文件路径、装了哪些 MOD。\n\n" +
+                        "随时可以在「设置 → 常规参数」里关掉。",
+                        "想知道有多少人在用",
+                        MessageBoxButton.YesNo, MessageBoxImage.Information,
+                        yesText: "可以", noText: "不用了");
+
+                    UiPreferences.SaveTelemetryConsent(choice == MessageBoxResult.Yes);
+                }
+
+                telemetry.StartHeartbeat();
+            }
+            catch (Exception ex)
+            {
+                // 统计是我们的需求，不是用户的。它出任何问题都不该在界面上留下一个字。
+                _logger?.LogDebug(ex, "[Telemetry] 启动失败");
+            }
+        }
+
+        /// <summary>
+        /// 数据目录搬迁未彻底完成时告知用户一次。
+        ///
+        /// <para>
+        /// 判据必须是 <c>ShouldNotifyUser</c> 而不是 <c>Completed</c>：后者的语义是
+        /// "可以打数据布局版本标记了"，有推迟项时也是 false。搬迁总开关关着的当下，
+        /// 每台老用户机器都有推迟项——照 <c>Completed</c> 提示等于给全体用户天天报警，
+        /// 报的还是一件根本没开始做的事。
+        /// </para>
+        ///
+        /// <para>
+        /// 迁移方案要求这里是"非模态提示"，本实现用的是一次性对话框，是有意偏离：
+        /// 项目没有非模态提示基础设施，而主界面有 1:1 原型约束，新增常驻提示条要动布局。
+        /// 对话框在主窗口显示之后弹出，点掉即继续，并不阻断任何功能——方案那句话的实质
+        /// 诉求（迁移失败绝不拦人）仍然满足。真要做成提示条时，改这一处即可。
+        /// </para>
+        /// </summary>
+        private void NotifyDataMigrationIfNeeded()
+        {
+            try
+            {
+                var outcome = _dataMigrator?.LastOutcome;
+                if (outcome?.ShouldNotifyUser != true) return;
+
+                CyberMessageBox.Show(this, outcome.UserMessage, "数据目录",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                // 提示失败不能反过来影响启动——数据本身还在旧位置好好待着
+                _logger?.LogError(ex, "[DataMigration] 提示用户失败");
             }
         }
 
@@ -291,10 +411,173 @@ namespace UEModManager
 
         private void Cleanup()
         {
-            _statsTimer?.Stop();
             _searchDebounceTimer?.Stop();
-            DisposeTrayIcon();
+
+            // 静态事件是 GC root，必须显式退订，否则窗口连同整棵视觉树永远无法回收
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+            BackgroundManager.BackgroundChanged -= OnBackgroundChanged;
+
+            // DeploymentService 是单例，同理必须退订
+            if (_deployService != null)
+            {
+                _deployService.DegradationDetected -= OnDeploymentDegraded;
+            }
+
+            // ProfileService 是单例，退订后 ViewModel 才能被回收。
+            // 本窗口自己已不再订阅它的事件，退订由 MainViewModel.Dispose 完成。
+            _vm.Dispose();
         }
+
+        // ═════════════════════════════════════════
+        //  部署降级告知
+        // ═════════════════════════════════════════
+
+        /// <summary>
+        /// 部署成功但"没能按用户选的方式做"时告知一次。
+        ///
+        /// <para>
+        /// 典型场景：用户在设置里选了「硬链接」，而包仓库默认在系统盘、游戏装在别的盘。
+        /// 硬链接建不了跨盘，后端逐个文件降级为复制——部署成功、MOD 能用、空间一点没省，
+        /// 而此前整个过程在界面上不留一个字，只有日志里一行 LogWarning。
+        /// </para>
+        ///
+        /// <para>
+        /// 事件可能在部署线程上抛出，且此刻还在 <c>ExecuteAsync</c> 的 finally 里：
+        /// 直接弹框会把部署的收尾卡在一个等用户点确定的模态窗口上。
+        /// 丢回 UI 队列末尾再弹，让部署流程和列表刷新先跑完。
+        /// </para>
+        /// </summary>
+        private void OnDeploymentDegraded(DeploymentTransaction transaction)
+        {
+            var summaries = transaction.Degradations.ToList();
+            if (summaries.Count == 0) return;
+
+            Dispatcher.BeginInvoke(DispatcherPriority.Background,
+                new Action(() => ShowDeploymentDegradationNotice(summaries)));
+        }
+
+        /// <summary>
+        /// 真正弹这条提示。
+        ///
+        /// <para>
+        /// <b>不走 <c>SafeEvent.Run</c></b>：它的失败呈现是一个"操作失败"的错误框，
+        /// 而这里整体只是一条提示——为一条没弹出来的提示再弹一个错误框是荒唐的。
+        /// 本方法自带 try/catch，失败只留痕，事务日志里那条降级记录仍然在。
+        /// </para>
+        /// </summary>
+        private void ShowDeploymentDegradationNotice(IReadOnlyList<DeploymentDegradationSummary> summaries)
+        {
+            // 批量启用会连着部署 N 次、抛 N 次告知。第一条弹出来的时候后面几条已经排在队列里了
+            // （签名要等这一条弹完才存得下去），靠这个标志挡住，否则用户要连点 N 个一模一样的框。
+            if (_degradationNoticeShowing) return;
+
+            try
+            {
+                // "什么时候值得说一次"的判定在 Core：同一种情形（原因 + 哪两个盘）只说一次，
+                // 用户换了存放位置或换了别的盘上的游戏才会再说。
+                var decision = DeploymentDegradationNotice.Decide(
+                    summaries, UiPreferences.LoadDeployDegradationNotice());
+
+                _logger?.LogInformation("[Deploy] 降级告知 shouldNotify={Should}：{Reason}",
+                    decision.ShouldNotify, decision.Reason);
+                if (!decision.ShouldNotify) return;
+
+                var content = DeploymentDegradationNotice.BuildContent(summaries);
+
+                _degradationNoticeShowing = true;
+                MessageBoxResult choice;
+                try
+                {
+                    // 能一键修时给两个按钮，否则退回单个"知道了"。
+                    //
+                    // 只告知不给动作，对相当一部分玩家等于没告知——他们会关掉弹窗然后放弃；
+                    // 而照着"你自己去设置里改"做的那些人，此前还会撞上"改位置只改指针不搬数据"，
+                    // MOD 当场从界面上消失。所以发现问题的这个位置就得给出解决。
+                    choice = content.CanFixInPlace
+                        ? CyberMessageBox.Show(this, content.Message, content.Title,
+                            MessageBoxButton.YesNo, MessageBoxImage.Information,
+                            yesText: content.FixButtonText, noText: "先这样")
+                        : CyberMessageBox.Show(this, content.Message, content.Title,
+                            MessageBoxButton.OK, MessageBoxImage.Information, okText: "知道了");
+                }
+                finally
+                {
+                    _degradationNoticeShowing = false;
+                }
+
+                // 先记账再看用户选了什么：无论他点哪个，这套盘的组合都已经告知过了。
+                // 反过来（只在"先这样"时记账）会让点了"帮我搬"却中途取消的用户下次部署
+                // 再被弹一次，而他刚刚才明确表达过"现在不想搬"。
+                UiPreferences.SaveDeployDegradationNotice(decision.Signature);
+
+                if (choice == MessageBoxResult.Yes && content.CanFixInPlace)
+                {
+                    StartOneKeyRelocation(content.FixTargetVolumeRoot!);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "[UI] 显示部署降级提示失败");
+            }
+        }
+
+        /// <summary>
+        /// 一键换盘：把 MOD 存放位置搬到游戏所在的盘。
+        ///
+        /// <para>
+        /// 落点是 <c>&lt;游戏所在盘&gt;\UEModManager\Repository</c>——盘根几乎必然非空，
+        /// 于是 <see cref="RepositoryLocationValidator.ResolveRepositoryPath"/> 会自动
+        /// 退到这个专用子目录，正是想要的结果（绝不能把盘根本身当成仓库根）。
+        /// </para>
+        ///
+        /// <para>
+        /// 走的是<b>与设置界面完全相同</b>的服务与窗口。一个功能一条路径：
+        /// 留一条只改指针的旁路，用户从别处改照样丢 MOD。
+        /// </para>
+        /// </summary>
+        private void StartOneKeyRelocation(string gameVolumeRoot)
+        {
+            SafeEvent.Run(this, () =>
+            {
+                var relocation = ((App)Application.Current).ServiceProvider
+                    ?.GetService<RepositoryRelocationService>();
+                if (relocation == null)
+                {
+                    _logger?.LogWarning("[UI] 搬移服务不可用，一键换盘无法进行");
+                    return Task.CompletedTask;
+                }
+
+                var resolved = RepositoryLocationValidator.ResolveRepositoryPath(
+                    gameVolumeRoot, directoryHasContent: true);
+                var plan = relocation.Plan(resolved);
+
+                // 这条入口的前提就是"刚刚部署过"，所以结果页一定要提醒重新装一次：
+                // 已装进游戏目录的文件是指向旧仓库的硬链接或副本，搬完游戏照常能玩，
+                // 但旧盘上那份空间要重新部署一次才腾得出来。
+                var window = new Views.RepositoryRelocationWindow(
+                    relocation, plan, anyDeployed: true, _logger)
+                {
+                    Owner = this,
+                };
+                window.ShowDialog();
+
+                if (window.Switched)
+                {
+                    // 存放位置变了，列表要按新仓库重建一遍；同时把降级告知的记账清掉——
+                    // 盘的组合已经变了，下次若仍有降级，那是一个新情况，值得再说一次。
+                    UiPreferences.SaveDeployDegradationNotice(null);
+                    return _vm.RefreshFromRepositoryAsync();
+                }
+
+                return Task.CompletedTask;
+            }, _logger, "一键搬移 MOD 存放位置");
+        }
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnLanguageChanged(bool isEnglish) => Dispatcher.Invoke(ApplyLocalization);
+
+        /// <summary>静态事件的具名 handler（必须具名，lambda 无法退订）。</summary>
+        private void OnBackgroundChanged(BackgroundSettings bg) => Dispatcher.Invoke(() => ApplyBackground(bg));
 
         // ═════════════════════════════════════════
         //  窗口控制 (Chrome + WM_GETMINMAXINFO)
@@ -325,12 +608,17 @@ namespace UEModManager
                     Marshal.StructureToPtr(mmi, lParam, true);
                     handled = true;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 结构上就该吞：这是 Win32 消息回调，异常不能穿过非托管边界，
+                    // 且失败只意味着最大化尺寸回落到系统默认，不影响功能。
+                    // 但留一条调试痕迹，免得排查窗口尺寸异常时完全无从下手。
+                    Debug.WriteLine($"[MainWindow] WM_GETMINMAXINFO 处理失败: {ex.Message}");
+                }
             }
             return IntPtr.Zero;
         }
 
-        private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e) { }
 
         // ═════════════════════════════════════════
         //  认证 & 用户状态
@@ -379,25 +667,47 @@ namespace UEModManager
                                 new AccountSettingsWindow { Owner = this }.ShowDialog();
                                 UpdateUserStatusDisplay();
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                // 窗口构造 / XAML 解析 / DI 解析失败原先全部静默，
+                                // 用户点了"账户设置"什么都不发生且日志里毫无痕迹
+                                _logger?.LogError(ex, "[UI] 打开账户设置窗口失败");
+                                CyberMessageBox.Show(this, $"打开账户设置失败：{ex.Message}",
+                                    "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
                         };
                         menu.Items.Add(accountItem);
 
                         if (_localAuthService.CurrentUser?.IsAdmin == true)
                         {
                             var adminItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Admin Panel" : "管理面板", Style = FindResource("CyberMenuItem") as Style };
-                            adminItem.Click += (_, _) => { try { new AdminDashboardWindow { Owner = this }.ShowDialog(); } catch { } };
+                            adminItem.Click += (_, _) =>
+                            {
+                                try
+                                {
+                                    new AdminDashboardWindow { Owner = this }.ShowDialog();
+                                }
+                                catch (Exception ex)
+                                {
+                                    // 管理员入口原先静默失败，"后台打不开"没有任何线索可查
+                                    _logger?.LogError(ex, "[UI] 打开管理面板失败");
+                                    CyberMessageBox.Show(this, $"打开管理面板失败：{ex.Message}",
+                                        "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                                }
+                            };
                             menu.Items.Add(adminItem);
                         }
 
                         menu.Items.Add(new Separator { Style = FindResource("CyberMenuSeparator") as Style });
 
                         var logoutItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Log Out" : "退出登录", Style = FindResource("CyberMenuItemDanger") as Style };
-                        logoutItem.Click += async (_, _) =>
+                        logoutItem.Click += (_, _) => SafeEvent.Run(this, async () =>
                         {
-                            try { await _localAuthService.LogoutAsync(); UpdateUserStatusDisplay(); }
-                            catch { }
-                        };
+                            // 原先是 try { ... } catch { } 的裸 async void：退出登录失败
+                            // 既不弹窗也不留日志，界面还停在已登录状态，用户只会觉得"点了没反应"。
+                            await _localAuthService.LogoutAsync();
+                            UpdateUserStatusDisplay();
+                        }, _logger, "退出登录");
                         menu.Items.Add(logoutItem);
 
                         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
@@ -508,7 +818,9 @@ namespace UEModManager
 
                 var addItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Add New Game..." : "添加新游戏...", Style = FindResource("CyberMenuItem") as Style,
                                              Foreground = FindResource("PrimaryBrush") as Brush };
-                addItem.Click += async (_, _) =>
+                // 裸 async void lambda 抛出去只能落到全局 DispatcherUnhandledException——
+                // 能弹窗，但不带"添加新游戏"这个上下文，日志里也看不出是哪一步失败的。
+                addItem.Click += (_, _) => SafeEvent.Run(this, async () =>
                 {
                     var dialog = new AddCustomGameDialog { Owner = this };
                     if (dialog.ShowDialog() == true)
@@ -523,7 +835,7 @@ namespace UEModManager
 
                         ShowGamePathDialog(dialog.GameName);
                     }
-                };
+                }, _logger, "添加新游戏");
                 menu.Items.Add(addItem);
 
                 menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
@@ -549,33 +861,13 @@ namespace UEModManager
                 profileWindow.LoadForGame(_gameConfig.CurrentGameName);
                 profileWindow.ShowDialog();
 
-                // 关闭方案管理窗口后刷新
-                UpdateProfileSelector();
+                // 关闭方案管理窗口后刷新（方案可能被改名/切换/删除）
+                _vm.RefreshProfileDisplay();
                 _ = _vm.RefreshFromRepositoryAsync();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Profile] 打开方案管理失败: {ex.Message}");
-            }
-        }
-
-        private void OnProfileSelectorUpdate(Models.InstanceProfile? profile)
-        {
-            Dispatcher.Invoke(UpdateProfileSelector);
-        }
-
-        private void UpdateProfileSelector()
-        {
-            var profile = _vm.ProfileService.CurrentProfile;
-            if (profile != null)
-            {
-                ProfileSelectorName.Text = profile.Name;
-                ProfileSelectorSummary.Text = $"{profile.EnabledCount}/{profile.TotalCount} 已启用";
-            }
-            else
-            {
-                ProfileSelectorName.Text = "未选择";
-                ProfileSelectorSummary.Text = "";
             }
         }
 
@@ -607,10 +899,16 @@ namespace UEModManager
             if (dialog.ShowDialog() == true)
             {
                 var backupPath = dialog.BackupPath;
-                if (string.IsNullOrEmpty(backupPath) || backupPath.Contains("AppData") || backupPath.StartsWith("C:\\Users"))
+                if (string.IsNullOrEmpty(backupPath))
                 {
-                    backupPath = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups", $"{gameName}_备份");
-                    Directory.CreateDirectory(backupPath);
+                    // 兜底值跟随 MOD 备份根。此前是 {安装目录}\Backups，与服务层实际使用的
+                    // 备份根是两个互不相干的目录，装在 Program Files 下时还根本建不出来。
+                    //
+                    // 同时删掉了原来"路径含 AppData 或位于 C:\Users 下就判为非法"的两个条件：
+                    // 备份根现在正是 %LOCALAPPDATA%\UEModManager\Backups\Mods，判据整个反了过来，
+                    // 留着只会把用户在个人目录下亲手选的备份位置无声改掉。
+                    backupPath = IOPath.Combine(AppPaths.ModBackupsDirectory, $"{gameName}_备份");
+                    AppPaths.TryEnsureDirectory(backupPath);
                 }
 
                 await _gameConfig.SwitchGameAsync(gameName, dialog.GamePath, dialog.ModPath, backupPath);
@@ -628,9 +926,6 @@ namespace UEModManager
                 try
                 {
                     await _vm.InitializeAsync();
-                    ModsCardView.ItemsSource = _vm.ModList.Mods;
-                    ModsListView.ItemsSource = _vm.ModList.Mods;
-                    CategoryList.ItemsSource = _vm.Categories.Categories;
                     UpdateNavCounts();
                     UpdateModCountText();
 
@@ -710,15 +1005,31 @@ namespace UEModManager
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _searchDebounceTimer?.Stop();
-            _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-            _searchDebounceTimer.Tick += (_, _) =>
-            {
-                _searchDebounceTimer.Stop();
-                _vm.ModList.SearchText = SearchBox.Text;
-                UpdateModCountText();
-            };
+            // 只重置计时，不再每次击键 new 一个 timer。
+            // 原实现的 Tick 闭包读的是字段 _searchDebounceTimer 而不是它自己那个实例，
+            // 于是某个旧 timer 若抢先触发，它 Stop 掉的是**新** timer ——
+            // 表现为"搜索偶发不生效"。Cleanup 里也只 Stop 得到最后一个实例，其余全泄漏。
+            EnsureSearchDebounceTimer();
+            _searchDebounceTimer!.Stop();
             _searchDebounceTimer.Start();
+        }
+
+        /// <summary>
+        /// 惰性创建唯一的搜索防抖计时器，Tick 只订阅一次。
+        /// </summary>
+        private void EnsureSearchDebounceTimer()
+        {
+            if (_searchDebounceTimer != null) return;
+
+            _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _searchDebounceTimer.Tick += OnSearchDebounceTick;
+        }
+
+        private void OnSearchDebounceTick(object? sender, EventArgs e)
+        {
+            _searchDebounceTimer?.Stop();
+            _vm.ModList.SearchText = SearchBox.Text;
+            UpdateModCountText();
         }
 
         // ═════════════════════════════════════════
@@ -740,37 +1051,40 @@ namespace UEModManager
             }
         }
 
-        private async void AddCategory_Click(object sender, MouseButtonEventArgs e)
+        private void AddCategory_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            var name = CyberInputDialog.Show(this, "新增分类", "请输入分类名称:");
-            if (!string.IsNullOrWhiteSpace(name))
-                await _vm.Categories.AddCategoryAsync(name.Trim());
-        }
-
-        private void CategoryContextMenu_Opened(object sender, RoutedEventArgs e) { }
-
-        private async void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+            SafeEvent.Run(this, async () =>
             {
-                var newName = CyberInputDialog.Show(this, "重命名分类", "请输入新名称:", cat.DisplayText);
-                if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
-                    await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
-            }
+                var name = CyberInputDialog.Show(this, "新增分类", "请输入分类名称:");
+                if (!string.IsNullOrWhiteSpace(name))
+                    await _vm.Categories.AddCategoryAsync(name.Trim());
+            }, _logger, "新增分类");
         }
 
-        private async void DeleteCategoryMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+
+        private void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                var r = CyberMessageBox.Show(this, $"确认删除分类 '{cat.DisplayText}'？", "确认", MessageBoxButton.YesNo);
-                if (r == MessageBoxResult.Yes)
-                    await _vm.Categories.DeleteCategoryAsync(cat);
-            }
-        }
+                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                {
+                    var newName = CyberInputDialog.Show(this, "重命名分类", "请输入新名称:", cat.DisplayText);
+                    if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
+                        await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
+                }
+            }, _logger, "重命名分类");
 
-        private void CategoryList_ContextMenuOpening(object sender, ContextMenuEventArgs e) { }
+        private void DeleteCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                {
+                    var r = CyberMessageBox.Show(this, $"确认删除分类 '{cat.DisplayText}'？", "确认", MessageBoxButton.YesNo);
+                    if (r == MessageBoxResult.Yes)
+                        await _vm.Categories.DeleteCategoryAsync(cat);
+                }
+            }, _logger, "删除分类");
+
 
         // ── 分类拖拽 ──
 
@@ -803,13 +1117,16 @@ namespace UEModManager
             var draggedCat = (CategoryItem)e.Data.GetData(typeof(CategoryItem));
             var items = _vm.Categories.Categories;
             var target = GetCategoryItemAtPosition(e.GetPosition(CategoryList));
-            if (target != null && target != draggedCat)
-            {
-                var oldIdx = items.IndexOf(draggedCat);
-                var newIdx = items.IndexOf(target);
-                if (oldIdx >= 0 && newIdx >= 0)
-                    items.Move(oldIdx, newIdx);
-            }
+            if (target == null || target == draggedCat) return;
+
+            var newIdx = items.IndexOf(target);
+            if (newIdx < 0 || items.IndexOf(draggedCat) < 0) return;
+
+            // 走服务而不是直接 items.Move：直接移动只改内存，用户排好的顺序重启就没了。
+            // 服务那边落盘失败会把顺序移回原位并上抛，这里用 SafeEvent.Run 接住弹窗——
+            // 否则失败的表现是"拖完看着好好的，下次启动又乱了"。
+            SafeEvent.Run(this, () => _vm.Categories.ReorderCategoryAsync(draggedCat, newIdx),
+                _logger, "调整分类顺序");
         }
 
         private CategoryItem? GetCategoryItemAtPosition(Point pos)
@@ -847,12 +1164,6 @@ namespace UEModManager
             }
         }
 
-        private void OnModSelected(ModInfo? mod)
-        {
-            _vm.ModDetail.CurrentMod = mod;
-            _vm.IsDetailPanelOpen = mod != null;
-        }
-
         private void OpenModDetailWindow(ModInfo mod)
         {
             var detailWin = new ModDetailWindow(
@@ -871,13 +1182,13 @@ namespace UEModManager
             }
         }
 
-        private async void ModToggle_MouseDown(object sender, MouseButtonEventArgs e)
+        private void ModToggle_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod == null) return;
 
-            await ToggleModFromUiAsync(mod, !mod.IsEnabled);
+            SafeEvent.Run(this, () => ToggleModFromUiAsync(mod, !mod.IsEnabled), _logger, "切换 MOD 启用状态");
         }
 
         // ── MOD 导入 (v2.0: ImportDialog → ImportConfirmDialog) ──
@@ -944,8 +1255,15 @@ namespace UEModManager
 
                     if (UiPreferences.LoadAutoDeploy())
                     {
+                        // 自动部署失败过去被整个丢掉：包导进了仓库，文件没进游戏目录，
+                        // 用户看到 MOD 显示为"已启用"却不生效。汇总后一次性告知。
+                        var deployResults = new List<OperationResult>();
                         foreach (var package in importedPackages)
-                            await _vm.DeployToggleAsync(package.PackageKey, true);
+                            deployResults.Add(await _vm.DeployToggleAsync(package.PackageKey, true));
+
+                        var deployResult = OperationResult.Aggregate(deployResults);
+                        if (!deployResult.Success)
+                            ShowOperationFailure(deployResult, "导入后自动部署失败");
                     }
 
                     await _vm.RefreshFromRepositoryAsync();
@@ -977,58 +1295,123 @@ namespace UEModManager
 
         // ── 右键菜单事件 ──
 
-        private void ModContextMenu_Opened(object sender, RoutedEventArgs e) { }
 
-        private async void EnableModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null && !mod.IsEnabled)
-                await ToggleModFromUiAsync(mod, true);
-        }
+        private void EnableModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null && !mod.IsEnabled)
+                    await ToggleModFromUiAsync(mod, true);
+            }, _logger, "启用 MOD");
 
-        private async void DisableModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null && mod.IsEnabled)
-                await ToggleModFromUiAsync(mod, false);
-        }
+        private void DisableModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null && mod.IsEnabled)
+                    await ToggleModFromUiAsync(mod, false);
+            }, _logger, "禁用 MOD");
 
-        private async void RenameModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await RenameModFromUiAsync(mod);
-        }
+        private void RenameModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await RenameModFromUiAsync(mod);
+            }, _logger, "重命名 MOD");
 
-        private async void ChangePreviewMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await ChangePreviewFromUiAsync(mod);
-        }
+        private void ChangePreviewMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await ChangePreviewFromUiAsync(mod);
+            }, _logger, "更换 MOD 预览图");
 
-        private async void DeleteModMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var mod = GetModFromContextMenu(sender);
-            if (mod != null)
-                await DeleteModFromUiAsync(mod);
-        }
+        private void DeleteModMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                var mod = GetModFromContextMenu(sender);
+                if (mod != null)
+                    await DeleteModFromUiAsync(mod);
+            }, _logger, "删除 MOD");
+
+        private void MoveToCategoryMenuItem_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                // 子项由 ItemsSource 生成，每一项的 DataContext 就是它代表的分类。
+                if (sender is not MenuItem { DataContext: CategoryItem category }) return;
+
+                var mod = GetModFromContextMenu(sender);
+                if (mod == null) return;
+
+                var result = await _vm.MoveModToCategoryAsync(mod, category.Name);
+                if (!result.Success)
+                {
+                    ShowOperationFailure(result, "移动到分类失败");
+                    return;
+                }
+
+                UpdateNavCounts();
+                UpdateModCountText();
+            }, _logger, "移动 MOD 到分类");
 
         private ModInfo? GetModFromContextMenu(object sender)
         {
-            if (sender is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement fe)
-                return fe.DataContext as ModInfo ?? fe.Tag as ModInfo;
+            // 一路往上找 ContextMenu，而不是只看一层 Parent：子菜单项（"移动到分类"下面的
+            // 每个分类）的 Parent 是它的父 MenuItem，只看一层就永远找不到 ContextMenu。
+            var current = sender as DependencyObject;
+            while (current != null)
+            {
+                if (current is ContextMenu cm)
+                {
+                    // 卡片模式：PlacementTarget 是卡片 Border，DataContext 就是这个 MOD。
+                    if (cm.PlacementTarget is FrameworkElement fe
+                        && (fe.DataContext as ModInfo ?? fe.Tag as ModInfo) is { } fromTarget)
+                        return fromTarget;
+
+                    // 列表模式：菜单挂在 ListView 上，PlacementTarget 给不出具体某一行，
+                    // 只能回落到选中项（右键会先选中该行）。此前这里直接返回 null，
+                    // 列表模式下整个右键菜单点了都没反应。
+                    break;
+                }
+
+                current = current is FrameworkElement f && f.Parent != null
+                    ? f.Parent
+                    : LogicalTreeHelper.GetParent(current);
+            }
+
             return _vm.ModList.SelectedMod;
         }
 
         private async Task<bool> ToggleModFromUiAsync(ModInfo mod, bool enable)
         {
-            if (!await _vm.ToggleModAsync(mod, enable)) return false;
+            var result = await _vm.ToggleModAsync(mod, enable);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, enable ? "启用 MOD 失败" : "禁用 MOD 失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
             UpdateEmptyState();
             return true;
+        }
+
+        /// <summary>
+        /// 把操作失败的原因呈现给用户。
+        /// 这些操作过去只返回 bool，失败原因（部署事务的 ErrorMessage、异常消息）
+        /// 只进日志就被丢掉，用户看到的是"开关弹回原位，什么都没说"。
+        /// 用户主动取消不是失败，不弹框。
+        /// </summary>
+        private void ShowOperationFailure(OperationResult result, string title)
+        {
+            if (result.IsCancelled) return;
+
+            CyberMessageBox.Show(this,
+                result.Error ?? OperationResult.DefaultError,
+                title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
         private async Task RenameModFromUiAsync(ModInfo mod)
@@ -1041,7 +1424,12 @@ namespace UEModManager
 
         private async Task<bool> RenameModFromUiAsync(ModInfo mod, string newName)
         {
-            if (!await _vm.RenameModAsync(mod, newName)) return false;
+            var result = await _vm.RenameModAsync(mod, newName);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "重命名 MOD 失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
@@ -1056,8 +1444,15 @@ namespace UEModManager
                 Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*"
             };
 
+            // 用户在文件对话框里点了取消——不是失败，直接退出，不能弹错误框
             if (dialog.ShowDialog(this) != true) return false;
-            if (!await _vm.ChangePreviewAsync(mod, dialog.FileName)) return false;
+
+            var result = await _vm.ChangePreviewAsync(mod, dialog.FileName);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "更换预览图失败");
+                return false;
+            }
 
             UpdateNavCounts();
             UpdateModCountText();
@@ -1069,10 +1464,16 @@ namespace UEModManager
             if (confirm)
             {
                 var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                // 用户选择"否"——不是失败，直接退出，不能弹错误框
                 if (r != MessageBoxResult.Yes) return false;
             }
 
-            if (!await _vm.DeletePackageModAsync(mod)) return false;
+            var result = await _vm.DeletePackageModAsync(mod);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, "删除 MOD 失败");
+                return false;
+            }
 
             _vm.ModList.SelectedMod = null;
             UpdateNavCounts();
@@ -1185,7 +1586,6 @@ namespace UEModManager
                 OpenModDetailWindow(mod);
         }
 
-        private void MainContentArea_PreviewMouseDown(object sender, MouseButtonEventArgs e) { }
 
         // ── 卡片悬停遮罩动画 ──
 
@@ -1254,20 +1654,20 @@ namespace UEModManager
 
         // ── 悬停遮罩上的直接操作按钮 ──
 
-        private async void ChangePreviewDirect_MouseDown(object sender, MouseButtonEventArgs e)
+        private void ChangePreviewDirect_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-                await ChangePreviewFromUiAsync(mod);
+                SafeEvent.Run(this, () => ChangePreviewFromUiAsync(mod), _logger, "更换 MOD 预览图");
         }
 
-        private async void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
+        private void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod != null)
-                await DeleteModFromUiAsync(mod);
+                SafeEvent.Run(this, () => DeleteModFromUiAsync(mod), _logger, "删除 MOD");
         }
 
         private void ModMore_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1305,21 +1705,16 @@ namespace UEModManager
         }
 
         /// <summary>v2.0 冲突面板：使用 ConflictAnalyzer 分析结果。</summary>
-        private async void OpenConflictPanel()
-        {
-            try
+        private void OpenConflictPanel()
+            => SafeEvent.Run(this, async () =>
             {
+                // 此前这里 catch 后"回退到旧版冲突检测"，而回退目标已在重构中被掏空成
+                // 空方法 —— 分析失败时用户得不到任何反馈（那个空方法已随死代码清理删除）。
+                // 现改由 SafeEvent 统一记日志 + 弹窗。
                 var result = await _vm.ConflictAnalysis.AnalyzeAsync();
                 var win = new Views.ConflictResultWindow(_vm.ConflictAnalysis, result.Conflicts) { Owner = this };
                 win.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Conflict] v2.0 冲突分析失败: {ex.Message}");
-                // 回退到旧版冲突检测
-                ConflictCheckButton_Click(null, new RoutedEventArgs());
-            }
-        }
+            }, _logger, "冲突检测");
 
         /// <summary>打开管理中心窗口。</summary>
         private void ManagementCenter_Click(object sender, MouseButtonEventArgs e)
@@ -1351,7 +1746,16 @@ namespace UEModManager
                 UpdateNavCounts();
                 UpdateModCountText();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 刷新失败若继续静默，列表会停在旧状态且用户毫不知情，
+                // 之后的操作全都基于已失效的 ModInfo 引用 —— 这正是"幽灵 MOD"类
+                // 难复现故障的来源。必须让用户知道界面已经不可信。
+                _logger?.LogError(ex, "[UI] 管理中心操作后刷新列表失败");
+                CyberMessageBox.Show(this,
+                    $"MOD 列表刷新失败，当前显示的内容可能已过期，建议重新打开本窗口。\n{ex.Message}",
+                    "刷新失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void LaunchGame_Click(object sender, MouseButtonEventArgs e)
@@ -1400,8 +1804,10 @@ namespace UEModManager
                     CurrentGameIconPlaceholder.Visibility = Visibility.Visible;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // 有明确回退（隐藏图标、显示占位符），结构不动；留一条调试痕迹
+                Debug.WriteLine($"[MainWindow] 加载游戏图标失败: {ex.Message}");
                 CurrentGameIcon.Visibility = Visibility.Collapsed;
                 CurrentGameIconPlaceholder.Visibility = Visibility.Visible;
             }
@@ -1479,10 +1885,11 @@ namespace UEModManager
         {
             try
             {
-                ModsCardView.ItemsSource = null;
-                ModsCardView.ItemsSource = _vm.ModList.Mods;
-                ModsListView.ItemsSource = null;
-                ModsListView.ItemsSource = _vm.ModList.Mods;
+                // 这里曾经是 ItemsSource = null 再重新赋值的"拔插"。
+                // ModList.Mods 是 ObservableCollection 且实例从不替换，增删改本就会
+                // 经 INotifyCollectionChanged 自动反映到界面，拔插不增加任何正确性，
+                // 却会强制重建全部容器 —— 滚动位置归零、选中项丢失、悬停动画被打断。
+                // 现在数据源在 XAML 绑定，这里只负责刷新那些不参与绑定的统计文字。
                 UpdateNavCounts();
                 UpdateModCountText();
                 UpdateEmptyState();
@@ -1609,8 +2016,10 @@ namespace UEModManager
                             BgSolidLayer.Opacity = bg.Opacity;
                             BgSolidLayer.Visibility = Visibility.Visible;
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            // 有明确回退（回落到默认底色），结构不动；留一条调试痕迹
+                            Debug.WriteLine($"[MainWindow] 背景纯色解析失败，回落默认: {ex.Message}");
                             BgSolidLayer.Background = new SolidColorBrush(Color.FromRgb(3, 3, 3));
                             BgSolidLayer.Visibility = Visibility.Visible;
                         }
@@ -1632,35 +2041,15 @@ namespace UEModManager
         //  控制台输出重定向
         // ═════════════════════════════════════════
 
-        private void RedirectConsoleOutput()
-        {
-            try
-            {
-                var logPath = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "console.log");
-                var fs = new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-                var writer = new StreamWriter(fs) { AutoFlush = true };
-                Console.SetOut(writer);
-                Console.SetError(writer);
-            }
-            catch { }
-        }
 
         // ═════════════════════════════════════════
         //  辅助方法
         // ═════════════════════════════════════════
-
-        private static string NormalizeGameName(string? name)
-        {
-            if (string.IsNullOrEmpty(name)) return "";
-            return name.Replace("（", "(").Replace("）", ")").Replace("·", "·").Trim();
-        }
 
         // 窗口命令处理
         private void OnMinimizeWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
         private void OnMaximizeWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
         private void OnRestoreWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.RestoreWindow(this);
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => SystemCommands.CloseWindow(this);
-        private void ConflictCheckButton_Click(object sender, RoutedEventArgs e) { }
-        private void DisposeTrayIcon() { }
     }
 }

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>爱酱MOD管理器 v2.0.4 测试版 | 多引擎游戏 MOD 一键管理工具</title>
-  <meta name="description" content="爱酱MOD管理器 v2.0.4 测试版，为多引擎游戏打造的本地优先 MOD 管理工具，支持导入、启用禁用、配置合并、冲突检查、离线使用与老版本一键迁移。">
+  <title>爱酱MOD管理器 v2.1.0 | 多引擎游戏 MOD 一键管理工具</title>
+  <meta name="description" content="爱酱MOD管理器 v2.1.0，为多引擎游戏打造的本地优先 MOD 管理工具，支持导入、启用禁用、配置合并、冲突检查、离线使用与老版本一键迁移；用户数据独立存放，换盘一键搬迁。">
   <meta name="theme-color" content="#030303">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://www.modmanger.com/">
@@ -14,13 +14,13 @@
   <link rel="stylesheet" href="styles.css">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="爱酱MOD管理器 v2.0.4 测试版">
-  <meta property="og:description" content="为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、老版本一键迁移。">
+  <meta property="og:title" content="爱酱MOD管理器 v2.1.0">
+  <meta property="og:description" content="为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、换盘一键搬迁。">
   <meta property="og:image" content="https://www.modmanger.com/assets/hero-panel.png">
   <meta property="og:url" content="https://www.modmanger.com/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="爱酱MOD管理器 v2.0.4 测试版">
-  <meta name="twitter:description" content="本地优先的多引擎 MOD 管理工具，导入/启停/迁移一站搞定。">
+  <meta name="twitter:title" content="爱酱MOD管理器 v2.1.0">
+  <meta name="twitter:description" content="本地优先的多引擎 MOD 管理工具，导入/启停/换盘搬迁一站搞定。">
   <meta name="twitter:image" content="https://www.modmanger.com/assets/hero-panel.png">
 
   <script type="application/ld+json">
@@ -30,9 +30,9 @@
     "name": "爱酱MOD管理器",
     "operatingSystem": "Windows 10, Windows 11",
     "applicationCategory": "UtilitiesApplication",
-    "softwareVersion": "2.0.4-beta",
-    "fileSize": "56MB",
-    "description": "为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、老版本一键迁移。",
+    "softwareVersion": "2.1.0",
+    "fileSize": "50MB",
+    "description": "为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、换盘一键搬迁、老版本一键迁移。",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
   }
   </script>
@@ -41,10 +41,14 @@
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      { "@type": "Question", "name": "v2.0.4 测试版和旧版本有什么区别？", "acceptedAnswer": { "@type": "Answer", "text": "v2.0.4 重点整理了 MOD 仓库、部署事务、配置合并、高级管理和迁移流程，更适合长期维护大量 MOD。" } },
-      { "@type": "Question", "name": "不登录账号能不能使用？", "acceptedAnswer": { "@type": "Answer", "text": "可以。v2.0.4 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。" } },
+      { "@type": "Question", "name": "v2.1.0 相比 2.0 版本有什么变化？", "acceptedAnswer": { "@type": "Answer", "text": "主要是三件事：从这一版起 MOD 清单、方案、分类和设置写在系统用户数据目录，不再落在安装目录里，卸载或覆盖安装不会连着删掉；想换个盘存 MOD 时程序自己把数据搬过去；分类丢失、右键菜单点不动、保存失败不提示这些老问题都已修复。" } },
+      { "@type": "Question", "name": "我的 MOD 和设置存在哪里？卸载会不会一起删掉？", "acceptedAnswer": { "@type": "Answer", "text": "从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录（%LOCALAPPDATA%\\UEModManager），不再落在安装目录里，卸载或覆盖安装不会连用户数据一起删掉。从旧版本升级的话，请先按页面上方的「迁移说明」运行一次一键迁移脚本。MOD 包本身放在包仓库，位置可以自己选，也可以随时换盘。" } },
+      { "@type": "Question", "name": "软件会收集我的哪些信息？可以关掉吗？", "acceptedAnswer": { "@type": "Answer", "text": "启动时会检查有没有新版本，同时发送一个随机生成的设备编号、软件版本号和 Windows 版本号；登录过账号的话还会带一段由邮箱算出来的字符串，只用来统计有多少人在用，还原不回邮箱。不发送邮箱明文、电脑名、文件路径，也不发送你装了哪些 MOD。首次启动会先问过你，随时可以在「设置 → 常规参数 → 检查更新与匿名统计」里关掉。" } },
+      { "@type": "Question", "name": "不登录账号能不能使用？", "acceptedAnswer": { "@type": "Answer", "text": "可以。v2.1.0 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。" } },
       { "@type": "Question", "name": "登录账号会不会同步我的 MOD 文件？", "acceptedAnswer": { "@type": "Answer", "text": "不会。当前账号能力不负责同步插件/MOD 文件，MOD 文件仍以本地仓库和游戏目录为准。" } },
-      { "@type": "Question", "name": "如何迁移旧版本数据？", "acceptedAnswer": { "@type": "Answer", "text": "关闭旧版本程序，安装 v2.0.4 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。" } },
+      { "@type": "Question", "name": "如何迁移旧版本数据？", "acceptedAnswer": { "@type": "Answer", "text": "关闭旧版本程序，安装 v2.1.0 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。" } },
+      { "@type": "Question", "name": "选了硬链接部署，怎么知道有没有真的省到空间？", "acceptedAnswer": { "@type": "Answer", "text": "包仓库和游戏必须在同一个盘，硬链接才能生效；不在同一个盘时只能退回复制，会实打实多占一份空间。v2.1.0 遇到这种情况会直接提示，并给出一键把 MOD 仓库搬到游戏所在盘的按钮。" } },
+      { "@type": "Question", "name": "MOD 启用失败怎么办？", "acceptedAnswer": { "@type": "Answer", "text": "先查看高级管理中的安装记录和诊断导出；如果涉及路径、权限或冲突，请通过使用说明书查找对应处理步骤。" } },
       { "@type": "Question", "name": "支持哪些游戏？", "acceptedAnswer": { "@type": "Answer", "text": "围绕剑星、黑神话悟空、识质存在、33号远征队、生化危机9、暗黑破坏神等单机游戏插件场景设计，并持续扩展更多游戏适配。" } }
     ]
   }
@@ -56,16 +60,17 @@
       <a class="brand" href="#top" aria-label="返回首页">
         <img src="assets/mnlogo.ico" alt="" class="brand-icon">
         <span class="brand-text">爱酱MOD管理器</span>
-        <span class="version-pill">v2.0.4-beta</span>
+        <span class="version-pill">v2.1.0</span>
       </a>
       <nav class="site-nav" data-nav>
         <a href="#features">功能</a>
-        <a href="#v2">v2.0亮点</a>
+        <a href="#v2">v2.1亮点</a>
         <a href="#migration">迁移说明</a>
         <a href="#download">下载</a>
+        <a href="#privacy">隐私</a>
         <a href="#faq">FAQ</a>
       </nav>
-      <a class="header-cta" href="#download">下载测试版</a>
+      <a class="header-cta" href="#download">立即下载</a>
       <button class="menu-toggle" type="button" aria-label="打开菜单" aria-expanded="false" data-menu-toggle>
         <span></span><span></span><span></span>
       </button>
@@ -75,16 +80,16 @@
       <section class="hero section-grid">
         <div class="hero-copy reveal">
           <div class="eyebrow">单机游戏插件管理 · 本地安全部署 · 一键迁移</div>
-          <h1>爱酱MOD管理器<br><span>v2.0.4 测试版</span></h1>
-          <p class="hero-lead">为多引擎游戏打造的专业 MOD 管理工具。导入、启用、禁用、配置合并、冲突检查和老版本迁移，都放进一个更安全、更清晰的工作流。</p>
+          <h1>爱酱MOD管理器<br><span>v2.1.0</span></h1>
+          <p class="hero-lead">为多引擎游戏打造的专业 MOD 管理工具。导入、启用、禁用、配置合并、冲突检查和老版本迁移，都放进一个更安全、更清晰的工作流。这一版把用户数据从安装目录里独立出来，换盘存 MOD 也变成了一键操作。</p>
           <div class="hero-actions">
-            <a class="btn primary" href="#download">下载 v2.0.4 测试版</a>
+            <a class="btn primary" href="#download">下载 v2.1.0</a>
             <a class="btn secondary" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">查看使用说明书</a>
           </div>
           <div class="hero-notes">
             <span>Windows 10 / 11</span>
             <span>本地离线可用</span>
-            <span>测试版建议保留备份</span>
+            <span>首次使用建议先备份存档</span>
           </div>
         </div>
 
@@ -112,39 +117,41 @@
           </article>
           <article class="feature-card">
             <span class="card-icon">03</span>
-            <h3>本地数据隔离</h3>
-            <p>程序文件、用户数据、MOD 仓库和游戏目录分离，降低互相污染风险。</p>
+            <h3>用户数据独立存放</h3>
+            <p>从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录，不再落在安装目录里；卸载或覆盖安装不会连着删掉，装在 C 盘 Program Files 里也不会因为没有写权限出问题。</p>
           </article>
           <article class="feature-card">
             <span class="card-icon">04</span>
-            <h3>启用禁用更安全</h3>
-            <p>部署前生成计划，执行中记录事务，异常时可恢复或回滚。</p>
+            <h3>MOD 存哪个盘你说了算</h3>
+            <p>首次运行会问你想把 MOD 放在哪个盘，并列出每个盘的可用空间；之后想换盘，程序自己把数据搬过去——先复制、核对无误才删原件，中途关机断电也不会丢。</p>
           </article>
           <article class="feature-card">
             <span class="card-icon">05</span>
-            <h3>配置合并与冲突治理</h3>
-            <p>面对 ini 等配置插件时，提供合并、预览和冲突检查思路。</p>
+            <h3>启用禁用更安全</h3>
+            <p>部署前生成计划，执行中记录事务，异常时可恢复或回滚；保存失败会当场告诉你，不会界面上显示成功、重启后数据却没了。</p>
           </article>
           <article class="feature-card">
             <span class="card-icon">06</span>
-            <h3>老版本一键迁移</h3>
-            <p>安装目录内提供迁移脚本，尽量减少手动搬文件和误删数据。</p>
+            <h3>配置合并与冲突治理</h3>
+            <p>面对 ini 等配置插件时，提供合并、预览和冲突检查思路。</p>
           </article>
         </div>
       </section>
 
       <section id="v2" class="section split-section reveal">
         <div>
-          <p class="eyebrow">v2.0.4 测试版亮点</p>
-          <h2>更丝滑的单机游戏插件管理</h2>
-          <p>v2.0.4 不只是换界面，也把导入、保存、启用、恢复、诊断这些关键环节整理得更清晰。</p>
-          <a class="text-link" href="#download">获取测试版 →</a>
+          <p class="eyebrow">v2.1.0 更新亮点</p>
+          <h2>数据放得更稳，空间省得更明白</h2>
+          <p>v2.1.0 集中解决了三类最容易让人吃亏的问题：数据被误删、空间白占、失败没人告诉你。</p>
+          <a class="text-link" href="#download">下载新版本 →</a>
         </div>
         <div class="timeline">
-          <div class="timeline-item"><strong>插件统一保存</strong><span>已导入的插件单独保存，不直接混进游戏目录。</span></div>
-          <div class="timeline-item"><strong>高级管理中心</strong><span>查看已导入插件、安装记录、配置合并和临时文件。</span></div>
-          <div class="timeline-item"><strong>异常自动检查</strong><span>启动时识别上次未完成的操作，避免失败状态被悄悄吞掉。</span></div>
-          <div class="timeline-item"><strong>问题反馈包</strong><span>报 bug 时可导出日志和数据快照，敏感信息会脱敏。</span></div>
+          <div class="timeline-item"><strong>数据不再写进安装目录</strong><span>从这一版起，MOD 清单、方案、分类、设置和日志都放在系统的用户数据目录，卸载或覆盖安装不会连着删掉。</span></div>
+          <div class="timeline-item"><strong>换盘一键完成</strong><span>想把 MOD 换到空间更大的盘，程序自己搬——先复制、核对无误才删原件，中途断电也不会丢。</span></div>
+          <div class="timeline-item"><strong>省空间到底有没有生效，会告诉你</strong><span>MOD 仓库和游戏不在同一个盘时省不了空间，以前会悄悄变成复制，现在会明确提示并可一键改到同一个盘。</span></div>
+          <div class="timeline-item"><strong>首次运行先问你放哪</strong><span>列出每个盘的可用空间让你挑，不用等 MOD 攒到几十 GB 再手动搬家。</span></div>
+          <div class="timeline-item"><strong>保存失败不再悄悄咽下去</strong><span>设置、分类、MOD 清单写入失败会当场报错，不会界面显示成功、重启后却没了。</span></div>
+          <div class="timeline-item"><strong>分类相关问题修复</strong><span>自定义分类重启后消失、「移动到分类」点了没反应、列表模式下右键菜单失效，都已修好。</span></div>
         </div>
       </section>
 
@@ -155,7 +162,7 @@
           <p>展示主界面、高级管理、导入流程、启动中心和迁移说明。</p>
         </div>
         <div class="preview-hero-card">
-          <img src="assets/prototype-main.png" alt="爱酱MOD管理器 v2.0 主界面原型截图" loading="lazy">
+          <img src="assets/prototype-main.png" alt="爱酱MOD管理器主界面原型截图" loading="lazy">
           <div class="preview-caption">
             <strong>主界面</strong>
             <span>左侧分类、使用说明书入口、MOD 卡片、导入、高级管理和启动游戏入口。</span>
@@ -185,7 +192,7 @@
           <article class="preview-card">
             <img src="assets/prototype-migration.png" alt="老版本迁移说明原型截图" loading="lazy">
             <strong>一键迁移说明</strong>
-            <span>用普通用户能看懂的步骤解释 v2.0 升级迁移。</span>
+            <span>用普通用户能看懂的步骤解释老版本升级迁移。</span>
           </article>
         </div>
       </section>
@@ -210,10 +217,10 @@
           <div>
             <p class="eyebrow">老用户升级</p>
             <h2>老用户一键升级</h2>
-            <p>v2.0 安装后，安装目录会包含“一键迁移老版本数据.bat”。关闭旧版本程序后双击运行，脚本会尝试备份并迁移旧数据。</p>
+            <p>安装 v2.1.0 后，安装目录会包含“一键迁移老版本数据.bat”。关闭旧版本程序后双击运行，脚本会尝试备份并迁移旧数据。</p>
           </div>
           <ol class="steps">
-            <li><span>1</span><strong>安装 v2.0 测试版</strong><small>建议先保留旧版本数据。</small></li>
+            <li><span>1</span><strong>安装 v2.1.0</strong><small>建议先保留旧版本数据。</small></li>
             <li><span>2</span><strong>运行一键迁移脚本</strong><small>脚本会创建备份，减少误操作。</small></li>
             <li><span>3</span><strong>打开新版本检查</strong><small>确认游戏路径、MOD 列表和启用状态。</small></li>
           </ol>
@@ -223,15 +230,15 @@
       <section id="download" class="section download-section reveal">
         <div class="download-card">
           <p class="eyebrow">下载与文档</p>
-          <h2>获取爱酱MOD管理器 v2.0.4 测试版</h2>
-          <p>当前为测试版，建议首次使用前保留重要 MOD 和配置备份。扫描下方二维码任选一个网盘下载。</p>
+          <h2>获取爱酱MOD管理器 v2.1.0</h2>
+          <p>扫描下方二维码任选一个网盘下载。首次使用前建议对重要 MOD 和游戏存档留一份备份。</p>
           <div class="download-actions">
             <a class="btn secondary" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明书</a>
           </div>
           <div class="download-meta">
             <span>系统：Windows 10 / 11</span>
-            <span>版本：v2.0.4-beta</span>
-            <span>安装包：约 56 MB</span>
+            <span>版本：v2.1.0</span>
+            <span>安装包：UEModManager_v2.1.0_Setup.exe · 约 50 MB</span>
           </div>
           <div class="download-methods-grid inline-downloads">
             <article class="download-method">
@@ -255,6 +262,24 @@
               <span class="meta-muted">无需提取码</span>
             </article>
           </div>
+        </div>
+      </section>
+
+      <!-- 隐私说明：v2.1.0 新增的更新检查会顺带上报匿名统计，页面上必须把
+           「发什么、不发什么、怎么关」写清楚，措辞对普通玩家可读。 -->
+      <section id="privacy" class="section reveal">
+        <div class="migration-card">
+          <div>
+            <p class="eyebrow">隐私说明</p>
+            <h2>会上传什么，怎么关掉</h2>
+            <p>v2.1.0 启动时会检查有没有新版本，同时告诉我们“有多少人在用”。这两件事是同一个请求，首次启动会先明确问过你，在你回答之前一个字节都不会发送。</p>
+            <p>这些信息只用来统计使用人数和版本分布，不用于广告，也不会提供给第三方。</p>
+          </div>
+          <ol class="steps">
+            <li><span>1</span><strong>会发送这些</strong><small>一个随机生成的设备编号（跟你的电脑、账号都对不上）、软件版本号、Windows 版本号；登录过账号的话，还有一段由邮箱算出来的字符串，只用于区分“是不是同一个人”，还原不回你的邮箱。</small></li>
+            <li><span>2</span><strong>不会发送这些</strong><small>邮箱明文、电脑名和用户名、任何文件路径和游戏目录、你装了哪些 MOD——这些一律不出你的电脑。</small></li>
+            <li><span>3</span><strong>随时可以关</strong><small>打开「设置 → 常规参数 → 检查更新与匿名统计」，关掉即可。关掉后更新检查也会一起停，因为它们本来就是同一个请求。</small></li>
+          </ol>
         </div>
       </section>
 
@@ -300,20 +325,32 @@
         </div>
         <div class="faq-list">
           <details open>
-            <summary>v2.0.4 测试版和旧版本有什么区别？</summary>
-            <p>v2.0.4 重点整理了 MOD 仓库、部署事务、配置合并、高级管理和迁移流程，更适合长期维护大量 MOD。</p>
+            <summary>v2.1.0 相比 2.0 版本有什么变化？</summary>
+            <p>主要是三件事：从这一版起 MOD 清单、方案、分类和设置写在系统用户数据目录，不再落在安装目录里，卸载或覆盖安装不会连着删掉；想换个盘存 MOD 时程序自己把数据搬过去；分类丢失、右键菜单点不动、保存失败不提示这些老问题都已修复。</p>
+          </details>
+          <details>
+            <summary>我的 MOD 和设置存在哪里？卸载会不会一起删掉？</summary>
+            <p>从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录（%LOCALAPPDATA%\UEModManager），不再落在安装目录里，卸载或覆盖安装不会连用户数据一起删掉。从旧版本升级的话，请先按页面上方的「迁移说明」运行一次一键迁移脚本。MOD 包本身放在包仓库，位置可以自己选，也可以随时换盘。</p>
+          </details>
+          <details>
+            <summary>软件会收集我的哪些信息？可以关掉吗？</summary>
+            <p>启动时会检查有没有新版本，同时发送一个随机生成的设备编号、软件版本号和 Windows 版本号；登录过账号的话还会带一段由邮箱算出来的字符串，只用来统计有多少人在用，还原不回邮箱。不发送邮箱明文、电脑名、文件路径，也不发送你装了哪些 MOD。首次启动会先问过你，随时可以在「设置 → 常规参数 → 检查更新与匿名统计」里关掉。详见上方<a class="text-link" href="#privacy">隐私说明</a>。</p>
           </details>
           <details>
             <summary>不登录账号能不能使用？</summary>
-            <p>可以。v2.0.4 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。</p>
+            <p>可以。v2.1.0 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。</p>
           </details>
           <details>
             <summary>登录账号会不会同步我的 MOD 文件？</summary>
-            <p>不会。当前账号能力不负责同步插件/MOD 文件，MOD 文件仍以本地仓库和游戏目录为准。测试版建议重要文件先备份。</p>
+            <p>不会。当前账号能力不负责同步插件/MOD 文件，MOD 文件仍以本地仓库和游戏目录为准。重要文件建议自己也留一份备份。</p>
           </details>
           <details>
             <summary>如何迁移旧版本数据？</summary>
-            <p>关闭旧版本程序，安装 v2.0.4 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。</p>
+            <p>关闭旧版本程序，安装 v2.1.0 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。</p>
+          </details>
+          <details>
+            <summary>选了硬链接部署，怎么知道有没有真的省到空间？</summary>
+            <p>包仓库和游戏必须在同一个盘，硬链接才能生效；不在同一个盘时只能退回复制，会实打实多占一份空间。v2.1.0 遇到这种情况会直接提示，并给出一键把 MOD 仓库搬到游戏所在盘的按钮。</p>
           </details>
           <details>
             <summary>MOD 启用失败怎么办？</summary>

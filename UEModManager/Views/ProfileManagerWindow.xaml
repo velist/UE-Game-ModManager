@@ -1,6 +1,7 @@
 <Window x:Class="UEModManager.Views.ProfileManagerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:UEModManager.Views"
         Title="方案管理" Height="650" Width="900"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberDarkWindow}">
@@ -11,6 +12,191 @@
         <CommandBinding Command="{x:Static SystemCommands.RestoreWindowCommand}" Executed="OnRestoreWindow"/>
         <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
     </Window.CommandBindings>
+
+    <Window.Resources>
+        <!-- 优先级列显示为 #1 起始（Priority 从 0 开始）。
+             通用转换器都在 ValueConverters.cs，但那是主题任务的文件，故就近放在本窗口的 code-behind。 -->
+        <views:PriorityDisplayConverter x:Key="PriorityDisplay"/>
+
+        <!--
+            方案卡片容器：清掉 ListBoxItem 的默认内边距、选中高亮与焦点框，
+            卡片自身的选中态由 DataTemplate 里的 DataTrigger 表达。
+        -->
+        <Style x:Key="ProfileCardItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <EventSetter Event="MouseDoubleClick" Handler="ProfileCard_MouseDoubleClick"/>
+        </Style>
+
+        <!-- 方案卡片（1:1 还原原型） -->
+        <DataTemplate x:Key="ProfileCardTemplate">
+            <Border x:Name="Card"
+                    CornerRadius="10" Padding="14,12,14,12" Margin="0,0,0,8" Cursor="Hand"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderThickness="1"
+                    BorderBrush="{StaticResource CyberBorderBrush}">
+                <StackPanel>
+                    <!-- 第一行：图标 + 名称 + 活跃标签 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <Border Width="32" Height="32" CornerRadius="8"
+                                Background="#1a06b6d4" Margin="0,0,10,0">
+                            <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Text100Brush}"
+                                   VerticalAlignment="Center"/>
+
+                        <Border x:Name="CardActiveBadge"
+                                Background="#1a22c55e" CornerRadius="4" Padding="6,2,6,2"
+                                Margin="8,0,0,0" VerticalAlignment="Center"
+                                Visibility="Collapsed">
+                            <TextBlock Text="活跃" FontSize="10"
+                                       Foreground="{StaticResource StatusGreenBrush}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 第二行：描述 -->
+                    <TextBlock x:Name="CardDescription"
+                               Text="{Binding Description}" FontSize="11"
+                               Foreground="{StaticResource Text500Brush}"
+                               Margin="0,0,0,6" TextTrimming="CharacterEllipsis"/>
+
+                    <!-- 第三行：统计信息 -->
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                            <TextBlock FontSize="10" Foreground="{StaticResource PrimaryBrush}"
+                                       Text="{Binding ModCount, StringFormat={}{0} MOD}"/>
+                        </Border>
+                        <Border x:Name="CardPluginBadge"
+                                Background="#1aa855f7" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                            <TextBlock FontSize="10" Foreground="{StaticResource PluginPurpleBrush}"
+                                       Text="{Binding PluginCount, StringFormat={}{0} 插件}"/>
+                        </Border>
+                        <Border x:Name="CardConfigBadge"
+                                Background="#1af59e0b" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                            <TextBlock FontSize="10" Foreground="{StaticResource ConfigAmberBrush}"
+                                       Text="{Binding ConfigCount, StringFormat={}{0} 配置}"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <!-- 选中态：与原程序化实现的取色一致 -->
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                             Value="True">
+                    <Setter TargetName="Card" Property="Background" Value="#1a06b6d4"/>
+                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter TargetName="CardActiveBadge" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+
+                <!-- 描述为 null 或空串时整行不占位（原实现是不创建该 TextBlock） -->
+                <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                    <Setter TargetName="CardDescription" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Description}" Value="">
+                    <Setter TargetName="CardDescription" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+
+                <!-- 插件/配置数为 0 时不显示对应徽章 -->
+                <DataTrigger Binding="{Binding PluginCount}" Value="0">
+                    <Setter TargetName="CardPluginBadge" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ConfigCount}" Value="0">
+                    <Setter TargetName="CardConfigBadge" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- MOD 清单行 -->
+        <DataTemplate x:Key="ProfilePackageRowTemplate">
+            <Border x:Name="Row" Padding="12,8,12,8" Background="#08ffffff">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="50"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="60"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 优先级 -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Priority, Converter={StaticResource PriorityDisplay}}"
+                               FontSize="12" Foreground="{StaticResource Text400Brush}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- 名称 -->
+                    <TextBlock Grid.Column="1" Text="{Binding PackageKey}"
+                               FontSize="12" Foreground="{StaticResource Text200Brush}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+
+                    <!-- 类型标签 -->
+                    <Border Grid.Column="2" x:Name="TypeBadge"
+                            Background="{StaticResource ModCyanBgBrush}" CornerRadius="4" Padding="8,2,8,2"
+                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <TextBlock x:Name="TypeBadgeText" Text="MOD" FontSize="11"
+                                   Foreground="{StaticResource PrimaryBrush}"/>
+                    </Border>
+
+                    <!-- 大小（占位，与原实现一致） -->
+                    <TextBlock Grid.Column="3" Text="-" FontSize="11"
+                               Foreground="{StaticResource Text500Brush}"
+                               TextAlignment="Right" VerticalAlignment="Center"/>
+
+                    <!-- 启用开关（仅展示状态，原实现同样不可点击） -->
+                    <Border Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Cursor="Hand">
+                        <Border x:Name="ToggleTrack" Width="36" Height="20" CornerRadius="10"
+                                Background="{StaticResource BorderLightBrush}">
+                            <Border x:Name="ToggleThumb" Width="16" Height="16" CornerRadius="8"
+                                    Background="White" Margin="2"
+                                    HorizontalAlignment="Left"/>
+                        </Border>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <!-- 奇数行透明，与原来的 i % 2 == 0 判定一致 -->
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex)}"
+                             Value="1">
+                    <Setter TargetName="Row" Property="Background" Value="Transparent"/>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding Kind}" Value="Plugin">
+                    <Setter TargetName="TypeBadge" Property="Background" Value="{StaticResource PluginPurpleBgBrush}"/>
+                    <Setter TargetName="TypeBadgeText" Property="Text" Value="插件"/>
+                    <Setter TargetName="TypeBadgeText" Property="Foreground" Value="{StaticResource PluginPurpleBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Config">
+                    <Setter TargetName="TypeBadge" Property="Background" Value="{StaticResource ConfigAmberBgBrush}"/>
+                    <Setter TargetName="TypeBadgeText" Property="Text" Value="配置"/>
+                    <Setter TargetName="TypeBadgeText" Property="Foreground" Value="{StaticResource ConfigAmberBrush}"/>
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                    <Setter TargetName="ToggleTrack" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                    <Setter TargetName="ToggleThumb" Property="HorizontalAlignment" Value="Right"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -40,7 +226,7 @@
                                    Foreground="{StaticResource Text100Brush}"/>
                         <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
                                 VerticalAlignment="Center">
-                            <TextBlock x:Name="ProfileCountText" Text="3 个方案" FontSize="11"
+                            <TextBlock Text="{Binding Profiles.Count, StringFormat={}{0} 个方案}" FontSize="11"
                                        Foreground="{StaticResource PrimaryBrush}"/>
                         </Border>
                     </StackPanel>
@@ -48,9 +234,15 @@
             </Border>
 
             <!-- 方案卡片列表 -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,8,12,8">
-                <StackPanel x:Name="ProfileCardList" Margin="0,4,0,4"/>
-            </ScrollViewer>
+            <ListBox Grid.Row="1" x:Name="ProfileCardList"
+                     ItemsSource="{Binding Profiles}"
+                     SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                     ItemContainerStyle="{StaticResource ProfileCardItemStyle}"
+                     ItemTemplate="{StaticResource ProfileCardTemplate}"
+                     Background="Transparent" BorderThickness="0" Padding="12"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="False"/>
 
             <!-- 底部新建按钮 -->
             <Border Grid.Row="2" Padding="12,8,12,12" BorderBrush="#27272a" BorderThickness="0,1,0,0">
@@ -91,6 +283,15 @@
              右栏：选中方案详情
              ═══════════════════════════════════════════ -->
         <Grid Grid.Column="2" x:Name="DetailPanel">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedProfile}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -107,12 +308,22 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="DetailProfileName" Text="默认 MOD 方案"
+                        <TextBlock x:Name="DetailProfileName" Text="{Binding SelectedProfile.Name}"
                                    FontSize="17" FontWeight="SemiBold"
                                    Foreground="{StaticResource Text100Brush}"/>
                         <Border x:Name="ActiveBadge" Background="#1a22c55e" CornerRadius="4"
                                 Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="活跃" FontSize="11" Foreground="#22c55e"/>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedProfile.IsActive}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                         </Border>
                     </StackPanel>
 
@@ -202,7 +413,8 @@
                     <!-- MOD 数量 -->
                     <Border Background="#0d06b6d4" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="StatModCount" Text="12" FontSize="16" FontWeight="Bold"
+                            <TextBlock x:Name="StatModCount" Text="{Binding SelectedProfile.ModCount}"
+                                       FontSize="16" FontWeight="Bold"
                                        Foreground="#06b6d4" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="MOD文件" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                        VerticalAlignment="Center"/>
@@ -211,7 +423,8 @@
                     <!-- 插件数量 -->
                     <Border Background="#0da855f7" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="StatPluginCount" Text="2" FontSize="16" FontWeight="Bold"
+                            <TextBlock x:Name="StatPluginCount" Text="{Binding SelectedProfile.PluginCount}"
+                                       FontSize="16" FontWeight="Bold"
                                        Foreground="#a855f7" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="插件" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                        VerticalAlignment="Center"/>
@@ -220,7 +433,8 @@
                     <!-- 启动配置 -->
                     <Border Background="#0df59e0b" CornerRadius="6" Padding="12,6" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="StatConfigCount" Text="1" FontSize="16" FontWeight="Bold"
+                            <TextBlock x:Name="StatConfigCount" Text="{Binding SelectedProfile.ConfigCount}"
+                                       FontSize="16" FontWeight="Bold"
                                        Foreground="#f59e0b" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="配置项" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                        VerticalAlignment="Center"/>
@@ -268,14 +482,27 @@
 
                     <!-- 表内容 -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="ModListPanel"/>
+                        <ItemsControl x:Name="ModListPanel"
+                                      ItemsSource="{Binding SelectedProfile.Packages}"
+                                      ItemTemplate="{StaticResource ProfilePackageRowTemplate}"
+                                      AlternationCount="2"/>
                     </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>
 
         <!-- 空状态（无选中方案时显示） -->
-        <Grid Grid.Column="2" x:Name="EmptyState" Visibility="Collapsed">
+        <Grid Grid.Column="2" x:Name="EmptyState">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SelectedProfile}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <TextBlock Text="选择一个方案查看详情" FontSize="14"
                            Foreground="{StaticResource Text500Brush}" TextAlignment="Center"/>

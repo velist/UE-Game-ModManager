@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -14,12 +15,17 @@ namespace UEModManager.Views
     {
         private readonly PackageRepository _packageRepo;
         private readonly ProfileService _profileService;
+        private readonly RepositoryReclaimService _reclaim;
 
-        public RepositoryManagerWindow(PackageRepository packageRepo, ProfileService profileService)
+        public RepositoryManagerWindow(
+            PackageRepository packageRepo,
+            ProfileService profileService,
+            RepositoryReclaimService reclaim)
         {
             InitializeComponent();
             _packageRepo = packageRepo;
             _profileService = profileService;
+            _reclaim = reclaim;
             Loaded += (_, _) => RefreshUI();
         }
 
@@ -157,22 +163,27 @@ namespace UEModManager.Views
 
         // ─── 事件处理 ───
 
-        private async void CheckIntegrity_Click(object sender, RoutedEventArgs e)
-        {
-            try
+        private void CheckIntegrity_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
+                // 正向检查（索引 → 磁盘）与反向扫描（磁盘 → 索引）必须一起做：
+                // 只查索引永远看不到"磁盘上有、索引里没有"的导入残留，那正是用户既看不见
+                // 也删不掉、却实实在在占着几十 GB 的那部分。
                 var issues = await _packageRepo.CheckIntegrityAsync();
-                var msg = issues.Count == 0
+                var plan = _reclaim.BuildPlan();
+                var lines = issues.Select(i => $"[{i.packageKey}] {i.issue}")
+                    .Concat(RepositoryReclaimPrompt.DescribeIssues(plan))
+                    .ToList();
+
+                var msg = lines.Count == 0
                     ? "所有 MOD 文件都能正常找到"
-                    : $"发现 {issues.Count} 个文件问题:\n" + string.Join("\n", issues.Take(5).Select(i => $"[{i.packageKey}] {i.issue}"));
+                    : $"发现 {lines.Count} 个问题:\n" + string.Join("\n", lines.Take(5));
                 CyberMessageBox.Show(this, msg, "检查缺失文件",
-                    MessageBoxButton.OK, issues.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
-            }
-            catch (Exception ex)
-            {
-                CyberMessageBox.Show(this, $"检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+                    MessageBoxButton.OK, lines.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+                if (RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, plan))
+                    RefreshUI();
+            }, null, "检查仓库完整性");
 
         private void MergeDuplicates_Click(object sender, RoutedEventArgs e)
         {
@@ -194,33 +205,34 @@ namespace UEModManager.Views
             }
         }
 
-        private async void CleanupOrphans_Click(object sender, RoutedEventArgs e)
-        {
-            // 收集引用 keys
-            var referencedKeys = _profileService.GetProfiles()
-                .SelectMany(p => p.Packages.Select(e2 => e2.PackageKey));
-            var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
-            if (orphans.Count == 0)
+        private void CleanupOrphans_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
             {
-                CyberMessageBox.Show(this, "没有未使用的 MOD 文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var totalSize = orphans.Sum(p => p.TotalSize);
-            var result = CyberMessageBox.Show(this,
-                $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize)}）。\n此操作不可撤销，确认继续？",
-                "清理未使用文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                var allProfiles = _profileService.GetProfiles();
-                foreach (var pkg in orphans)
+                // 收集引用 keys
+                var referencedKeys = _profileService.GetProfiles()
+                    .SelectMany(p => p.Packages.Select(e2 => e2.PackageKey));
+                var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
+                if (orphans.Count == 0)
                 {
-                    await _packageRepo.DeletePackageAsync(pkg.PackageKey, allProfiles, force: false);
+                    CyberMessageBox.Show(this, "没有未使用的 MOD 文件", "清理", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
                 }
-                RefreshUI();
-            }
-        }
+
+                var totalSize = orphans.Sum(p => p.TotalSize);
+                var result = CyberMessageBox.Show(this,
+                    $"将删除 {orphans.Count} 个未被任何方案使用的 MOD 文件（释放 {UEModManager.Core.Utils.FileSizeFormatter.Format(totalSize)}）。\n此操作不可撤销，确认继续？",
+                    "清理未使用文件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    var allProfiles = _profileService.GetProfiles();
+                    foreach (var pkg in orphans)
+                    {
+                        await _packageRepo.DeletePackageAsync(pkg.PackageKey, allProfiles, force: false);
+                    }
+                    RefreshUI();
+                }
+            }, null, "清理未使用的 MOD 文件");
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
     }

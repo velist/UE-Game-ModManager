@@ -1,122 +1,467 @@
 @echo off
-chcp 65001 > nul
-setlocal enabledelayedexpansion
+REM ============================================================
+REM  ENCODING WARNING - keep this file in GBK (codepage 936).
+REM  Do NOT re-save it as UTF-8. cmd.exe miscounts line offsets in
+REM  a batch file that mixes "chcp 65001" with non-ASCII text and
+REM  starts executing the tail of a line as a command.
+REM  See the sibling cleanup script for the same warning.
+REM ============================================================
+chcp 936 > nul
+setlocal EnableExtensions EnableDelayedExpansion
 
 REM ============================================================
-REM   UE Mod Manager - ä¸€é”®è¿ç§»è€ç‰ˆæœ¬æ•°æ®
+REM   UE Mod Manager - Ò»¼üÇ¨ÒÆÀÏ°æ±¾Êý¾Ý
 REM ============================================================
-REM   åšä»€ä¹ˆï¼š
-REM   1) è‡ªåŠ¨å¤‡ä»½ %APPDATA%\UEModManager æ•´ä¸ªç›®å½•
-REM   2) å¯åŠ¨ç®¡ç†å™¨ï¼ˆå¦‚æœ‰è€æ•°æ®ä¼šè‡ªåŠ¨å¼¹"è¿ç§»å‘å¯¼"ï¼‰
-REM   3) å¤±è´¥æ—¶å¤‡ä»½ä¿ç•™ï¼Œå¯éšæ—¶è¿˜åŽŸ
+REM   ×öÊ²Ã´£º
+REM   1) °ÑÈý´¦ÓÃ»§Êý¾ÝÀï"¶ªÁË¾Í»Ø²»À´"µÄ²¿·Ö¸´ÖÆÒ»·ÝÁôµ×
+REM   2) Æô¶¯¹ÜÀíÆ÷£¨ÓÐÀÏÊý¾ÝÊ±»á×Ô¶¯Íê³ÉÇ¨ÒÆ£©
+REM   3) Ê§°ÜÊ±±¸·Ý±£Áô£¬¿ÉËæÊ±»¹Ô­
+REM ============================================================
+REM
+REM   Éè¼ÆËµÃ÷£¨¸ÄÕâ¸ö½Å±¾Ç°ÏÈ¶Á£©
+REM
+REM   Ò»¡¢Ê±¼ä´ÁÔõÃ´È¡
+REM   ÀÏ°æ±¾ÓÃ `wmic OS Get localdatetime`¡£wmic ÔÚ Windows 11 24H2 ÆðÒÑ±»ÒÆ³ý£¬
+REM   È¡²»µ½ÖµÊ±±äÁ¿Îª¿Õ£¬±¸·ÝÄ¿Â¼Ãû»á±ä³Éº¬Ã°ºÅµÄ·Ç·¨´®£¬xcopy µ±³¡Ê§°Ü¡ª¡ª
+REM   Ò²¾ÍÊÇËµÕâ¸ö½Å±¾ÔÚÐÂ»úÆ÷ÉÏ¸ù±¾ÅÜ²»ÆðÀ´¡£
+REM   ÏÖÔÚ°´Èý¼¶½µ¼¶È¡Ê±¼ä£º
+REM     1. powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"
+REM        Ê×Ñ¡Ëü£¬ÊÇÒòÎªÊä³ö¸ñÊ½ÓÉ×Ô¼ºÖ¸¶¨£¬²»ÊÜÏµÍ³ÇøÓòÉèÖÃÓ°Ïì£¬ÄÃµ½¾ÍÄÜÖ±½Ó
+REM        µ±Ä¿Â¼ÃûÓÃ¡£´ú¼ÛÊÇÆô¶¯Ô¼ 0.3 Ãë£¬Õû¸ö½Å±¾Ö»µ÷Á½´Î£¬¿ÉÒÔ½ÓÊÜ¡£
+REM     2. DATE / TIME »·¾³±äÁ¿¡£²»×÷Ê×Ñ¡£º¸ñÊ½ËæÇøÓòÉèÖÃ±ä£¨2026/07/28 Óë
+REM        28-07-2026 ¶¼¿ÉÄÜ£©£¬Ð¡Ê±ÊýÐ¡ÓÚ 10 Ê± TIME Ç°Ãæ»¹ÊÇ¿Õ¸ñ£¬Ö±½ÓÆ´»áÄÃµ½
+REM        º¬¿Õ¸ñÉõÖÁº¬Ð±¸ÜµÄÄ¿Â¼Ãû¡£ËùÒÔÕâÀïÖ»°ÑÆäÖÐµÄÊý×Ö¿Ù³öÀ´ÓÃ£¬Ë³ÐòÎ´±ØÊÇ
+REM        ÄêÔÂÈÕ£¬µ«Î¨Ò»ÐÔ¹»ÓÃ£¬ÕæÊµÊ±¼äÁí¼ÇÔÚ±¸·ÝÄ¿Â¼µÄËµÃ÷ÎÄ¼þÀï¡£
+REM     3. Ç°Á½Ìõ¶¼²»³ÉÊ±ÓÃ¹Ì¶¨ºó×º no-timestamp¡£
+REM   ÎÞÂÛ×ßÄÄÌõ£¬Æ´ºÃµÄºó×º¶¼ÒªÔÙ¹ýÒ»±é°×Ãûµ¥£¨Ö»ÔÊÐíÊý×Ö×ÖÄ¸Á¬×Ö·û£©£¬
+REM   È»ºó¼ì²éÄ¿Â¼ÊÇ·ñÒÑ´æÔÚ£¬´æÔÚ¾ÍÍùºó¼Ó -2 / -3£¬
+REM   ËùÒÔÍ¬Ò»ÃëÄÚÅÜÁ½´ÎÒ²²»»á»¥Ïà¸²¸Ç¡£È¡Ê±¼äÊ§°Ü¾ø²»ÖÐÖ¹½Å±¾¡ª¡ª
+REM   Áôµ×µÄÄ¿Â¼ÃûÄÑ¿´Ò»µã£¬Ò²±ÈÃ»ÓÐÁôµ×Ç¿¡£
+REM
+REM   ¶þ¡¢±¸·ÝÄÄÐ©¡¢²»±¸·ÝÄÄÐ©
+REM   ÓÃ»§Êý¾ÝÏÖÔÚ·Ö²¼ÔÚÈý´¦£¨¶ÔÓ¦ AppPaths / AppDataLayout£©£º
+REM     A. LOCALAPPDATA\UEModManager   ÐÂÎ»ÖÃ£ºconfig.json¡¢Data\¡¢Logs\
+REM     B. APPDATA\UEModManager        ÂþÓÎ£ºui_config.json¡¢Avatars\¡¢
+REM                                    Backgrounds\¡¢config\¡¢local.db
+REM     C. °²×°Ä¿Â¼                    ÀÏ°æ±¾²ÐÁô£ºData\¡¢UserData\¡¢config.json
+REM   Èý´¦¶¼±¸·Ý£¬µ«Ò»ÂÉÌø¹ý Repository\ Overwrites\ Backups\ ÕâÈýÀàÄ¿Â¼£º
+REM   ËüÃÇ×°µÄÊÇ MOD °ü±¾ÌåºÍÎÄ¼þ¸±±¾£¬³£¼û¼¸Ê® GB£¬ÓÃ»§»¹¿ÉÄÜ°ÑËüÃÇÖ¸µ½±ðµÄÅÌ
+REM   £¨Î»ÖÃ¼ÇÔÚ ui_config.json µÄ RepositoryRoot / OverwritesRoot / BackupsRoot£©¡£
+REM   ÎÞÄÔÈ«Á¿¸´ÖÆ»áÈÃ"Áôµ×"±ä³ÉÈûÂú´ÅÅÌ¡¢ÅÜ¼¸Ð¡Ê±µÄÊÂ¹Ê¡£
+REM   ÅÐ¾ÝÊÇ"¶ªÁË»¹ÄÜ²»ÄÜÄÃ»ØÀ´"£º°ü±¾Ìå¿ÉÒÔÖØÐÂµ¼Èë£¬±¸·Ý¸±±¾¿ÉÒÔÖØÐÂ±¸·Ý£¬
+REM   ¶ø MOD Çåµ¥¡¢·½°¸¡¢·ÖÀà¡¢Ë÷Òý¡¢ÅäÖÃ¶ªÁË¾ÍÕæÃ»ÁË¡ª¡ªºóÕß²ÅÊÇÁôµ×Òª±£»¤µÄ£¬
+REM   Ìå»ýÍ¨³£Ö»ÓÐ¼¸Ê® MB¡£±»Ìø¹ýµÄÄ¿Â¼µÄµ±Ç°Î»ÖÃ»áÐ´½ø±¸·ÝÀïµÄËµÃ÷ÎÄ¼þ£¬
+REM   ÃâµÃÓÃ»§»¹Ô­Íê²»ÖªµÀ¸ÃÈ¥ÄÄÕÒ¡£
+REM
+REM   Èý¡¢¼¸¸öÈÝÒ×²ÈµÄ¿Ó
+REM   - ÍùÎÄ¼þÀï echo Ê±£¬`>>` Ç°Ãæ±ØÐëÁôÒ»¸ö¿Õ¸ñ¡£·ñÔòÒ»µ©ÕâÐÐÄ©Î²ÊÇÊý×Ö£¬
+REM     cmd »á°ÑËüµ±³ÉÖØ¶¨Ïò¾ä±úºÅ³Ôµô£¨echo abc1>>f Ð´½øÈ¥µÄÊÇ abc£©¡£
+REM   - ÅÅ³ýÄ¿Â¼ÓÃ robocopy µÄ /XD£¬²»ÓÃ xcopy µÄ /EXCLUDE£ººóÕßÖ»½ÓÊÜÒ»¸öÇåµ¥
+REM     ÎÄ¼þ£¬¶øÄÇ¸ö²ÎÊý²»Ö§³Ö´ø¿Õ¸ñµÄÂ·¾¶£¬ÓÃ»§Ãû´ø¿Õ¸ñ¾Í·ÏÁË¡£
+REM   - robocopy ·µ»ØÂë 0-7 ¶¼Ëã³É¹¦£¬8 Æð²ÅÊÇÕæ³ö´í£¬²»ÄÜÕÕ xcopy ÅÐ errorlevel 1¡£
 REM ============================================================
 
-title UE Mod Manager - ä¸€é”®è¿ç§»è€ç‰ˆæœ¬æ•°æ®
+title UE Mod Manager - Ò»¼üÇ¨ÒÆÀÏ°æ±¾Êý¾Ý
 
 echo.
 echo ============================================================
-echo   UE Mod Manager - ä¸€é”®è¿ç§»è€ç‰ˆæœ¬æ•°æ®
+echo   UE Mod Manager - Ò»¼üÇ¨ÒÆÀÏ°æ±¾Êý¾Ý
 echo ============================================================
 echo.
-echo   è¿™ä¸ªè„šæœ¬ä¼šåšä¸¤ä»¶äº‹ï¼š
+echo   Õâ¸ö½Å±¾»á×öÁ½¼þÊÂ£º
 echo.
-echo     1. æŠŠä½ çŽ°åœ¨çš„å­˜æ¡£å®Œæ•´å¤åˆ¶ä¸€ä»½ç•™åº•
-echo     2. å¯åŠ¨ç®¡ç†å™¨ï¼Œè®©å®ƒè‡ªåŠ¨æ£€æµ‹å¹¶è¿ç§»è€æ•°æ®
+echo     1. °ÑÄãµÄÉèÖÃ¡¢MOD Çåµ¥¡¢·½°¸¡¢·ÖÀà¸´ÖÆÒ»·ÝÁôµ×
+echo     2. Æô¶¯¹ÜÀíÆ÷£¬ÈÃËü°ÑÀÏÊý¾Ý°áµ½ÐÂÎ»ÖÃ
 echo.
-echo   å…¨ç¨‹ä¸ä¼šåŠ¨ä½ çš„æ¸¸æˆç›®å½•ã€ä¸ä¼šåˆ é™¤ä»»ä½•è€æ–‡ä»¶ã€‚
-echo   å³ä½¿è¿ç§»å¤±è´¥ï¼Œå¤‡ä»½ä»åœ¨ï¼Œå¯éšæ—¶æ‰‹å·¥è¿˜åŽŸã€‚
-echo.
-echo ============================================================
-echo.
-
-set "USERDATA=%APPDATA%\UEModManager"
-for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value 2^>nul') do set "DT=%%a"
-set "STAMP=%DT:~0,8%-%DT:~8,6%"
-set "BACKUP=%APPDATA%\UEModManager-backup-%STAMP%"
-
-REM â”€â”€ æ­¥éª¤ 1: æ£€æŸ¥å­˜æ¡£æ˜¯å¦å­˜åœ¨ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-if not exist "%USERDATA%\" (
-    echo [ä¿¡æ¯] æ²¡æœ‰å‘çŽ°è€å­˜æ¡£ç›®å½•ï¼š
-    echo        %USERDATA%
-    echo        è¯´æ˜Žä½ æ˜¯é¦–æ¬¡ä½¿ç”¨ï¼Œæ— éœ€è¿ç§»ã€‚ç›´æŽ¥å¯åŠ¨ç®¡ç†å™¨å³å¯ã€‚
-    echo.
-    pause
-    goto LAUNCH
-)
-
-echo [æ­¥éª¤ 1/3] å‡†å¤‡å¤‡ä»½ä½ çš„å­˜æ¡£ç›®å½•...
-echo           æºç›®å½•: %USERDATA%
-echo           å¤‡ä»½åˆ°: %BACKUP%
-echo.
-choice /c YN /n /m "ç¡®è®¤å¼€å§‹ï¼Ÿ(Y=ç»§ç»­ / N=å–æ¶ˆ): "
-if errorlevel 2 (
-    echo.
-    echo å·²å–æ¶ˆï¼Œæœªåšä»»ä½•æ“ä½œã€‚
-    pause
-    exit /b 0
-)
-
-REM â”€â”€ æ­¥éª¤ 2: å¤åˆ¶å¤‡ä»½ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-echo.
-echo [æ­¥éª¤ 2/3] æ­£åœ¨å¤åˆ¶å¤‡ä»½ï¼Œè¯·ç¨å€™...
-xcopy "%USERDATA%" "%BACKUP%\" /E /I /H /Y /Q > "%TEMP%\uemm-migrate.log" 2>&1
-if errorlevel 1 (
-    echo.
-    echo [å¤±è´¥] å¤‡ä»½è¿‡ç¨‹å‡ºé”™ï¼Œè¯¦ç»†æ—¥å¿—ï¼š
-    echo        %TEMP%\uemm-migrate.log
-    echo.
-    echo å·²ä¸­æ­¢ã€‚åŽŸæ•°æ®æœªå˜åŠ¨ï¼Œå¯é‡è¯•æˆ–è”ç³»å¼€å‘è€…ã€‚
-    pause
-    exit /b 1
-)
-
-echo [å®Œæˆ] å¤‡ä»½æˆåŠŸã€‚
-echo.
-echo        å¦‚éœ€è¿˜åŽŸï¼ŒæŠŠä»¥ä¸‹ä¸¤ä¸ªç›®å½•äº¤æ¢åå­—å³å¯ï¼š
-echo          %USERDATA%
-echo          %BACKUP%
-echo.
-
-REM â”€â”€ æ­¥éª¤ 3: å¯åŠ¨ç®¡ç†å™¨ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-:LAUNCH
-echo [æ­¥éª¤ 3/3] å¯åŠ¨ UE Mod Manager...
-echo.
-echo           å¦‚æžœæ£€æµ‹åˆ°è€æ•°æ®ï¼Œç¨‹åºä¼šè‡ªåŠ¨å¼¹å‡º"è¿ç§»å‘å¯¼"ï¼ŒæŒ‰æç¤ºæ“ä½œå³å¯ã€‚
-echo           5 æ­¥å…¨è‡ªåŠ¨ï¼šæ‰«æ â†’ æ•´ç† â†’ è¿ç§» â†’ æ ¡éªŒ â†’ å®Œæˆã€‚
-echo.
-
-REM å°è¯•åœ¨å¤šä¸ªå¯èƒ½ä½ç½®å¯åŠ¨ä¸»ç¨‹åº
-set "EXE="
-if exist "%~dp0UEModManager.exe" set "EXE=%~dp0UEModManager.exe"
-if "%EXE%"=="" if exist "%ProgramFiles%\UEModManager\UEModManager.exe" set "EXE=%ProgramFiles%\UEModManager\UEModManager.exe"
-if "%EXE%"=="" if exist "%ProgramFiles(x86)%\UEModManager\UEModManager.exe" set "EXE=%ProgramFiles(x86)%\UEModManager\UEModManager.exe"
-if "%EXE%"=="" if exist "%LocalAppData%\Programs\UEModManager\UEModManager.exe" set "EXE=%LocalAppData%\Programs\UEModManager\UEModManager.exe"
-
-if "%EXE%"=="" (
-    echo [æ‰¾ä¸åˆ°] UEModManager.exe
-    echo.
-    echo è¯·æŠŠè¿™ä¸ª .bat æ–‡ä»¶æ”¾åˆ°ç®¡ç†å™¨å®‰è£…ç›®å½•ä¸‹å†åŒå‡»è¿è¡Œï¼Œ
-    echo æˆ–æ‰‹åŠ¨å¯åŠ¨ç®¡ç†å™¨ï¼ˆå¼€å§‹èœå• / æ¡Œé¢å¿«æ·æ–¹å¼ï¼‰ã€‚
-    echo.
-    echo æç¤ºï¼šå¤‡ä»½å·²å®Œæˆï¼Œå¯åŠ¨ç®¡ç†å™¨åŽä¼šè‡ªåŠ¨å¼¹è¿ç§»å‘å¯¼ã€‚
-    pause
-    exit /b 0
-)
-
-echo æ‰¾åˆ°ä¸»ç¨‹åº: %EXE%
-echo.
-start "" "%EXE%"
-
+echo   È«³Ì²»»á¶¯ÄãµÄÓÎÏ·Ä¿Â¼£¬Ò²²»»áÉ¾ÈÎºÎ¶«Î÷¡£
+echo   ÍòÒ»Ç¨ÒÆ³öÎÊÌâ£¬Áôµ×»¹ÔÚ£¬ÕÕ×ÅËµÃ÷ÎÄ¼þ·Å»ØÈ¥¾ÍÐÐ¡£
 echo.
 echo ============================================================
-echo   ä¸€åˆ‡å°±ç»ª
-echo ============================================================
 echo.
-echo   - å¤‡ä»½ä½ç½®: %BACKUP%
-echo   - ç¨‹åºå·²å¯åŠ¨ï¼ŒæŒ‰æç¤ºå®Œæˆè¿ç§»å³å¯
-echo   - è¿ç§»æˆåŠŸä¸€å‘¨åŽå¯æ‰‹åŠ¨åˆ é™¤å¤‡ä»½ç›®å½•é‡Šæ”¾ç©ºé—´
+
+REM ©¤©¤ ÕÒ³öÈý´¦Êý¾ÝÔÚÄÄ£¨Ö»¶Á£¬²»¸ÄÈÎºÎ¶«Î÷£© ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+set "ROAMING_DIR=%APPDATA%\UEModManager"
+set "LOCAL_DIR=%LOCALAPPDATA%\UEModManager"
+
+set "SCRIPT_DIR=%~dp0"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
+
+REM ÀÏ°æ±¾°ÑÊý¾ÝÐ´ÔÚ exe ÅÔ±ß¡£°²×°Ä¿Â¼¿ÉÄÜÔÚºÃ¼¸¸öÎ»ÖÃ£¬Öð¸öÊÔ¡£
+set "INSTALL_DIR="
+call :TryInstallDir "!SCRIPT_DIR!" require-exe
+call :TryInstallDir "%LOCALAPPDATA%\Programs\UEModManager"
+call :TryInstallDir "%ProgramFiles%\UEModManager"
+call :TryInstallDir "%ProgramFiles(x86)%\UEModManager"
+
+set "HAS_ANY="
+if exist "!ROAMING_DIR!\" set "HAS_ANY=1"
+if exist "!LOCAL_DIR!\" set "HAS_ANY=1"
+if defined INSTALL_DIR set "HAS_ANY=1"
+if not defined HAS_ANY goto NOTHING_TO_BACKUP
+
+REM ©¤©¤ ¶Á³öÓÃ»§×Ô¶¨ÒåµÄ´óÄ¿Â¼Î»ÖÃ£¨Ö»¶Á£¬²»¸Ä£© ©¤©¤©¤©¤©¤©¤©¤©¤
+set "UI_CONFIG=!ROAMING_DIR!\ui_config.json"
+call :ReadJsonString "!UI_CONFIG!" RepositoryRoot CUSTOM_REPO
+call :ReadJsonString "!UI_CONFIG!" OverwritesRoot CUSTOM_OVER
+call :ReadJsonString "!UI_CONFIG!" BackupsRoot CUSTOM_BACKUPS
+
+call :ResolveBigRoot "!CUSTOM_REPO!" Repository REPO_PATH
+call :ResolveBigRoot "!CUSTOM_OVER!" Overwrites OVER_PATH
+call :ResolveBigRoot "!CUSTOM_BACKUPS!" Backups BACKUPS_PATH
+
+REM ©¤©¤ ¾ö¶¨±¸·Ý·ÅÄÄ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+call :ResolveStamp
+set "BACKUP_BASE=%USERPROFILE%\UEModManager-backup-!STAMP!"
+call :MakeUniquePath
+
+REM ©¤©¤ °Ñ´òËã×öµÄÊÂÌ¯¿ª¸øÓÃ»§¿´ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+echo [²½Öè 1/3] ×¼±¸Áôµ×¡£
 echo.
-echo   å‡ºé—®é¢˜ï¼ŸæŠŠå¤‡ä»½ç›®å½•è¿˜åŽŸå›ž %USERDATA%
-echo   æˆ–è”ç³»å¼€å‘è€…ï¼šmr.xzuo@foxmail.com
+echo   »á±¸·Ý£¨Ìå»ýÐ¡£¬¶ªÁË¾Í»Ø²»À´£©£º
+if exist "!LOCAL_DIR!\" echo     - !LOCAL_DIR!
+if exist "!ROAMING_DIR!\" echo     - !ROAMING_DIR!
+if defined INSTALL_DIR echo     - !INSTALL_DIR! ÀïµÄ Data\ UserData\ config.json
+echo.
+echo   ²»»á±¸·Ý£¨Ìå»ý¿ÉÄÜ¼¸Ê® GB£¬¶ªÁË»¹ÄÜÖØÐÂµ¼Èë»òÖØÐÂ±¸·Ý£©£º
+echo     - MOD °ü±¾Ìå£º     !REPO_PATH!
+echo     - ²¿ÊðÉú³ÉÎï£º     !OVER_PATH!
+echo     - MOD Óë²¿Êð±¸·Ý£º !BACKUPS_PATH!
+if defined INSTALL_DIR if exist "!INSTALL_DIR!\Backups\" echo     - ¾É°æ±¸·Ý£º       !INSTALL_DIR!\Backups
+echo.
+echo     Õâ¼¸¸öÎ»ÖÃ»á¼Ç½ø±¸·ÝÄ¿Â¼ÀïµÄËµÃ÷ÎÄ¼þ£¬ÐèÒªÊ±ÕÕ×ÅÕÒ¼´¿É¡£
+echo.
+echo   Áôµ×·ÅÔÚ£º
+echo     !BACKUP_BASE!
+echo.
+choice /c YN /n /m "È·ÈÏ¿ªÊ¼£¿(Y=¼ÌÐø / N=È¡Ïû): "
+if errorlevel 2 goto USER_CANCEL
+
+REM ©¤©¤ ¹ÜÀíÆ÷»¹¿ª×ÅµÄ»°£¬local.db Ö®ÀàµÄÎÄ¼þ¸´ÖÆ²»³öÀ´ ©¤©¤
+tasklist /FI "IMAGENAME eq UEModManager.exe" 2>nul | findstr /I "UEModManager.exe" >nul
+if errorlevel 1 goto NOT_RUNNING
+echo.
+echo [ÌáÐÑ] ¹ÜÀíÆ÷ÕýÔÚÔËÐÐ£¬ËüÕ¼×ÅµÄÎÄ¼þ¸´ÖÆ²»³öÀ´¡£
+choice /c YN /n /m "ÏÖÔÚ¹ØµôËüÔÙ¼ÌÐøÂð£¿(Y=¹Øµô / N=²»¹Ø£¬¿ÉÄÜÓÐÎÄ¼þ±¸·Ý²»È«): "
+if errorlevel 2 goto NOT_RUNNING
+taskkill /IM UEModManager.exe /F >nul 2>nul
+REM ½ø³ÌÍË³öºóÎÄ¼þ¾ä±úÊÍ·ÅÒªÒ»µãÊ±¼ä£¬µÈÁ½ÃëÔÙ¸´ÖÆ
+ping -n 3 127.0.0.1 >nul 2>nul
+echo        ÒÑ¹Ø±Õ¡£
+:NOT_RUNNING
+
+REM ©¤©¤ ¿Õ¼ä¹»²»¹» ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+call :CheckFreeSpace
+if defined SPACE_ABORT goto USER_CANCEL
+
+REM ©¤©¤ ¿ªÊ¼¸´ÖÆ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+echo.
+echo [²½Öè 2/3] ÕýÔÚ¸´ÖÆ£¬ÇëÉÔºò...
+echo.
+
+md "!BACKUP_BASE!" >nul 2>nul
+if exist "!BACKUP_BASE!\" goto BACKUP_DIR_OK
+echo [Ê§°Ü] ½¨²»³ö±¸·ÝÄ¿Â¼£º
+echo        !BACKUP_BASE!
+echo.
+echo ¿ÉÄÜÊÇ´ÅÅÌÂúÁË»òÕßÃ»ÓÐÐ´ÈëÈ¨ÏÞ¡£Ô­Êý¾ÝÃ»ÓÐÈÎºÎ±ä¶¯£¬
+echo ´¦ÀíÍêÔÙÅÜÒ»´Î¾ÍÐÐ¡£
 echo.
 pause
+exit /b 1
+:BACKUP_DIR_OK
+
+set "LOGFILE=!BACKUP_BASE!\±¸·ÝÈÕÖ¾.txt"
+echo UEModManager ±¸·ÝÈÕÖ¾ > "!LOGFILE!"
+
+set "COPY_FAILED="
+call :CopyTree "!LOCAL_DIR!" "!BACKUP_BASE!\Local" "±¾»úÊý¾Ý£¨ÅäÖÃÓë MOD Çåµ¥£©"
+call :CopyTree "!ROAMING_DIR!" "!BACKUP_BASE!\Roaming" "ÂþÓÎÊý¾Ý£¨½çÃæÉèÖÃÓëÕËºÅ£©"
+if not defined INSTALL_DIR goto INSTALL_COPIED
+call :CopyTree "!INSTALL_DIR!\Data" "!BACKUP_BASE!\Install\Data" "¾É°æ MOD Çåµ¥"
+call :CopyTree "!INSTALL_DIR!\UserData" "!BACKUP_BASE!\Install\UserData" "¾É°æÍ·ÏñµÈ"
+call :CopyFile "!INSTALL_DIR!\config.json" "!BACKUP_BASE!\Install" "¾É°æÖ÷ÅäÖÃ"
+:INSTALL_COPIED
+
+call :WriteReadme
+
+echo.
+if defined COPY_FAILED goto COPY_PARTIAL
+echo [Íê³É] Áôµ××öºÃÁË£º
+echo        !BACKUP_BASE!
+echo.
+echo        ÔõÃ´·Å»ØÈ¥£¬Ð´ÔÚÀïÃæµÄ"ÇëÏÈ¶ÁÎÒ.txt"¡£
+goto BACKUP_FINISHED
+
+:COPY_PARTIAL
+echo [×¢Òâ] ÓÐÄÚÈÝÃ»ÄÜ¸´ÖÆÍêÕû£¬ÏêÇé¼û£º
+echo        !LOGFILE!
+echo.
+echo        ³£¼ûÔ­ÒòÊÇÎÄ¼þ±»±ðµÄ³ÌÐòÕ¼×Å£¬»òÕß´ÅÅÌ¿Õ¼ä²»¹»¡£
+echo        ÄãµÄÔ­Êý¾ÝÈÔÈ»ÍêºÃ¡¢Ã»ÓÐ±»¸Ä¶¯£¬¹ÜÀíÆ÷ÕÕ³£ÄÜÓÃ¡£
+echo        ½¨ÒéÏÈ´¦ÀíµôÔ­ÒòÔÙÅÜÒ»´Î±¾½Å±¾£¬È·ÈÏÁôµ×ÍêÕûÁËÔÙÇ¨ÒÆ¡£
+echo.
+choice /c YN /n /m "ÈÔÈ»¼ÌÐøÆô¶¯¹ÜÀíÆ÷¿ªÊ¼Ç¨ÒÆÂð£¿(Y=¼ÌÐø / N=ÏÈ²»Ç¨ÒÆ): "
+if errorlevel 2 goto STOP_AFTER_PARTIAL
+goto BACKUP_FINISHED
+
+:STOP_AFTER_PARTIAL
+echo.
+echo ÒÑ¾­Í£ÔÚÕâÀï£¬Ã»ÓÐÆô¶¯¹ÜÀíÆ÷£¬Ô­Êý¾ÝÒ²Ã»ÓÐÈÎºÎ±ä¶¯¡£
+echo ²»ÍêÕûµÄÁôµ×ÁôÔÚ£º!BACKUP_BASE!
+echo.
+pause
+exit /b 1
+
+:BACKUP_FINISHED
+set "BACKUP_DONE=1"
+REM ±¸·ÝÄ¿Â¼ÔÚÓÃ»§Ö÷ÎÄ¼þ¼ÐÀï£¬²»Ö÷¶¯µ¯Ò»ÏÂÃ»¼¸¸öÈËÕÒµÃµ½
+start "" explorer "!BACKUP_BASE!"
+goto LAUNCH
+
+:NOTHING_TO_BACKUP
+echo [ÐÅÏ¢] Ã»ÓÐÕÒµ½ÈÎºÎ´æµµ£¬ËµÃ÷ÄãÊÇµÚÒ»´ÎÓÃ£¬²»ÐèÒªÇ¨ÒÆ¡£
+echo.
+echo        ÕÒ¹ýÕâÐ©Î»ÖÃ£º
+echo          !ROAMING_DIR!
+echo          !LOCAL_DIR!
+echo          ³ÌÐò°²×°Ä¿Â¼
+echo.
+echo        Èç¹ûÄãÈ·¶¨×°¹ýÀÏ°æ±¾£¬°ÑÕâ¸ö½Å±¾¸´ÖÆµ½ÀÏ°æ±¾µÄ°²×°Ä¿Â¼Àï
+echo        ÔÙË«»÷Ò»´Î£¬Ëü¾ÍÄÜÕÒµ½ÁË¡£
+echo.
+pause
+goto LAUNCH
+
+:USER_CANCEL
+echo.
+echo ÒÑÈ¡Ïû£¬Ê²Ã´¶¼Ã»¶¯¡£
+echo.
+pause
+exit /b 0
+
+REM ©¤©¤ Æô¶¯¹ÜÀíÆ÷ ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+:LAUNCH
+echo.
+if defined BACKUP_DONE echo [²½Öè 3/3] Æô¶¯ UE Mod Manager...
+if not defined BACKUP_DONE echo [Æô¶¯] Æô¶¯ UE Mod Manager...
+echo.
+echo         ¹ÜÀíÆ÷Æô¶¯Ê±»á×Ô¼º°ÑÀÏÊý¾Ý°áµ½ÐÂÎ»ÖÃ£¬Äã²»ÓÃ¹Ü£¬ÕÕ³£ÓÃ¾ÍÐÐ¡£
+echo.
+
+set "EXE="
+if defined INSTALL_DIR if exist "!INSTALL_DIR!\UEModManager.exe" set "EXE=!INSTALL_DIR!\UEModManager.exe"
+if not defined EXE if exist "!SCRIPT_DIR!\UEModManager.exe" set "EXE=!SCRIPT_DIR!\UEModManager.exe"
+if not defined EXE if exist "%LOCALAPPDATA%\Programs\UEModManager\UEModManager.exe" set "EXE=%LOCALAPPDATA%\Programs\UEModManager\UEModManager.exe"
+if not defined EXE if exist "%ProgramFiles%\UEModManager\UEModManager.exe" set "EXE=%ProgramFiles%\UEModManager\UEModManager.exe"
+if not defined EXE if exist "%ProgramFiles(x86)%\UEModManager\UEModManager.exe" set "EXE=%ProgramFiles(x86)%\UEModManager\UEModManager.exe"
+if defined EXE goto LAUNCH_EXE
+
+echo [ÕÒ²»µ½] UEModManager.exe
+echo.
+echo ´Ó¿ªÊ¼²Ëµ¥»ò×ÀÃæ¿ì½Ý·½Ê½Æô¶¯¹ÜÀíÆ÷¾ÍÐÐ£¬Ð§¹ûÒ»Ñù¡£
+if defined BACKUP_DONE echo Áôµ×ÒÑ¾­×öºÃÁË£¬·ÅÔÚ£º!BACKUP_BASE!
+echo.
+pause
+exit /b 0
+
+:LAUNCH_EXE
+echo ÕÒµ½Ö÷³ÌÐò£º!EXE!
+start "" "!EXE!"
+
+echo.
+echo ============================================================
+echo   Ò»ÇÐ¾ÍÐ÷
+echo ============================================================
+echo.
+if defined BACKUP_DONE echo   - Áôµ×Î»ÖÃ£º!BACKUP_BASE!
+if defined BACKUP_DONE echo   - È·ÈÏÓÃÁËÒ»ÖÜÃ»ÎÊÌâ£¬¿ÉÒÔÊÖ¶¯É¾µôËüÊÍ·Å¿Õ¼ä
+if not defined BACKUP_DONE echo   - Õâ´ÎÃ»ÓÐÐèÒªÁôµ×µÄÊý¾Ý
+echo   - ¹ÜÀíÆ÷ÒÑ¾­Æô¶¯£¬Õý³£ÓÃ¼´¿É
+echo.
+echo   ³öÎÊÌâ£¿´ò¿ªÁôµ×Ä¿Â¼ÀïµÄ"ÇëÏÈ¶ÁÎÒ.txt"ÕÕ×Å·Å»ØÈ¥£¬
+echo   »òÕßÁªÏµ¿ª·¢Õß£ºmr.xzuo@foxmail.com
+echo.
+pause
+exit /b 0
+
+
+REM ============================================================
+REM   ×Ó¹ý³Ì
+REM ============================================================
+
+:TryInstallDir
+REM %~1 = ºòÑ¡°²×°Ä¿Â¼£»%~2 = require-exe Ê±ÒªÇóÄ¿Â¼ÀïÈ·ÊµÓÐ UEModManager.exe¡£
+REM Ö»ÈÏµÚÒ»¸öÃüÖÐµÄºòÑ¡¡£
+if defined INSTALL_DIR exit /b 0
+set "CAND=%~1"
+if "!CAND!"=="" exit /b 0
+if not exist "!CAND!\" exit /b 0
+REM ±¾½Å±¾Ëæ°²×°°ü·Ö·¢£¬Ò²³£±»¸´ÖÆµ½×ÀÃæ¡£×ÀÃæÉÏÇ¡ºÃÓÐ¸ö Data ÎÄ¼þ¼ÐµÄÈË²»ÔÚÉÙÊý£¬
+REM ËùÒÔÄÃ½Å±¾×ÔÉíËùÔÚÄ¿Â¼µ±°²×°Ä¿Â¼Ê±£¬±ØÐë¿´µ½ UEModManager.exe ²Å×÷Êý¡£
+if /I "%~2"=="require-exe" if not exist "!CAND!\UEModManager.exe" exit /b 0
+set "HIT="
+if exist "!CAND!\Data\" set "HIT=1"
+if exist "!CAND!\config.json" set "HIT=1"
+if exist "!CAND!\UserData\" set "HIT=1"
+if not defined HIT exit /b 0
+set "INSTALL_DIR=!CAND!"
+exit /b 0
+
+:ResolveStamp
+REM Èý¼¶½µ¼¶£¬Ïê¼ûÎÄ¼þÍ·µÄÉè¼ÆËµÃ÷¡£
+set "STAMP="
+for /f "usebackq delims=" %%t in (`powershell -NoProfile -NonInteractive -Command "Get-Date -Format yyyyMMdd-HHmmss" 2^>nul`) do set "STAMP=%%t"
+REM PowerShell ÔÚÊÜÏÞ»·¾³Àï¿ÉÄÜÍÂ³öÒ»ÐÐÌáÊ¾¶ø²»ÊÇÊ±¼ä£¬¸ñÊ½¶Ô²»ÉÏ¾Íµ±Ã»ÄÃµ½¡£
+if defined STAMP echo(!STAMP!| findstr /r /c:"^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]$" >nul || set "STAMP="
+if defined STAMP exit /b 0
+
+REM ÍËÂ· 1£º°Ñ DATE / TIME ÀïµÄÊý×Ö¿Ù³öÀ´¡£Ë³ÐòÎ´±ØÊÇÄêÔÂÈÕ£¬Î¨Ò»ÐÔ¹»ÓÃ¡£
+set "RAW=%DATE%%TIME%"
+set "CLEAN="
+for /l %%i in (0,1,39) do (
+    set "CH=!RAW:~%%i,1!"
+    if not "!CH!"=="" for %%d in (0 1 2 3 4 5 6 7 8 9) do if "!CH!"=="%%d" set "CLEAN=!CLEAN!%%d"
+)
+REM ÕâÒ»¾ä²»ÄÜÊ¡£º±äÁ¿Ã»¶¨ÒåÊ± !CLEAN:~13,1! Õ¹¿ª³öÀ´µÄ²»ÊÇ¿Õ´®£¬¶øÊÇ×ÖÃæÁ¿
+REM ~13,1£¬ÏÂÃæÁ½Ìõ³¤¶ÈÅÐ¶Ï»áÈ«²¿ÅÐ·´£¬×îºóÆ´³öÒ»¸ö´øÃ°ºÅµÄ·Ç·¨Ä¿Â¼Ãû¡ª¡ª
+REM ºÍÀÏ°æ±¾ wmic È¡²»µ½ÖµÊ±ÔÔµÄÊÇÍ¬Ò»¸ö¿Ó¡£
+if not defined CLEAN goto NoStamp
+if not "!CLEAN:~13,1!"=="" set "STAMP=!CLEAN:~0,8!-!CLEAN:~8,6!" & goto CheckStamp
+if not "!CLEAN:~7,1!"=="" set "STAMP=!CLEAN!" & goto CheckStamp
+
+REM ÍËÂ· 2£ºÁ¬ÈÕÆÚ¶¼È¡²»µ½¡£Ä¿Â¼ÖØÃûÓÉ MakeUniquePath ¶µ×¡¡£
+:NoStamp
+set "STAMP=no-timestamp"
+exit /b 0
+
+:CheckStamp
+REM ×îºóÔÙÑéÒ»µÀ£ºÖ»·ÅÐÐÊý×Ö¡¢×ÖÄ¸ºÍÁ¬×Ö·û¡£ÉÏÃæÈÎºÎÒ»²½³öÒâÍâ£¬Ò²²»ÄÜÈÃ
+REM Ã°ºÅÖ®ÀàµÄ·Ç·¨×Ö·û½øµ½Ä¿Â¼ÃûÀïÈ¥¡£
+echo(!STAMP!| findstr /r /c:"^[-0-9A-Za-z][-0-9A-Za-z]*$" >nul || set "STAMP=no-timestamp"
+exit /b 0
+
+:MakeUniquePath
+REM Ä¿±êÒÑ´æÔÚ¾ÍÍùºó¼ÓÐòºÅ£¬¾ø²»¸²¸ÇÒÑÓÐµÄÁôµ×¡£
+set "UNIQ_BASE=!BACKUP_BASE!"
+set /a UNIQ_N=1
+:MU_LOOP
+if not exist "!BACKUP_BASE!" exit /b 0
+set /a UNIQ_N+=1
+if !UNIQ_N! GTR 99 set "BACKUP_BASE=!UNIQ_BASE!-!RANDOM!" & exit /b 0
+set "BACKUP_BASE=!UNIQ_BASE!-!UNIQ_N!"
+goto :MU_LOOP
+
+:ReadJsonString
+REM %~1 = json ÎÄ¼þ£¬%~2 = ¼üÃû£¬%~3 = Êä³ö±äÁ¿Ãû¡£
+REM ui_config.json ÊÇËõ½ø¹ýµÄ£¬Ò»ÐÐÒ»¸ö¼ü£¬¹»¼òµ¥£¬²»ÖµµÃÎªËüÒýÒ»¸ö json ½âÎöÆ÷¡£
+REM ¶Á²»³öÀ´²»µ±´íÎó£ºµ÷ÓÃ·½»áÍË»ØÄ¬ÈÏÎ»ÖÃ¡£
+set "%~3="
+if not exist "%~1" exit /b 0
+set "JV="
+for /f "usebackq tokens=1,* delims=:" %%a in (`findstr /c:"%~2" "%~1" 2^>nul`) do set "JV=%%b"
+if not defined JV exit /b 0
+REM È¥µôÇ°µ¼¿Õ¸ñ
+for /l %%i in (1,1,8) do if defined JV if "!JV:~0,1!"==" " set "JV=!JV:~1!"
+if not defined JV exit /b 0
+REM È¥µôÐÐÎ²¶ººÅ
+if "!JV:~-1!"=="," set "JV=!JV:~0,-1!"
+if not defined JV exit /b 0
+if /i "!JV!"=="null" exit /b 0
+REM °þµô°ü¹üµÄÒýºÅ¡£ÓÃ for µÄ ~ ÐÞÊÎ·û¶ø²»ÊÇ×Ö·û´®Ìæ»»£ºÂ·¾¶Àï¿ÉÄÜÓÐ & Ö®ÀàµÄ
+REM ×Ö·û£¬Ìæ»»ÒªÐ´³É²»´øÒýºÅµÄ set£¬ÄÇÖÖÐ´·¨Ò»Óöµ½ & ¾ÍÓï·¨´íÎó¡£
+for %%v in (!JV!) do set "JV=%%~v"
+if not defined JV exit /b 0
+REM json ÀïµÄ·´Ð±¸ÜÊÇ×ªÒå¹ýµÄ
+set "JV=!JV:\\=\!"
+set "%~3=!JV!"
+exit /b 0
+
+:ResolveBigRoot
+REM %~1 = ÓÃ»§×Ô¶¨ÒåÖµ£¨¿É¿Õ£©£¬%~2 = Ä¿Â¼Ãû£¬%~3 = Êä³ö±äÁ¿Ãû¡£
+REM Ã»×Ô¶¨ÒåÊ±°´"ÐÂÎ»ÖÃÓÅÏÈ¡¢Æä´ÎÀÏÎ»ÖÃ"±¨¸æ£¬Á½´¦¶¼Ã»ÓÐ¾ÍËµÃ÷»¹Ã»ÓÃµ½¡£
+if not "%~1"=="" set "%~3=%~1" & exit /b 0
+if exist "!LOCAL_DIR!\%~2\" set "%~3=!LOCAL_DIR!\%~2" & exit /b 0
+if exist "!ROAMING_DIR!\%~2\" set "%~3=!ROAMING_DIR!\%~2" & exit /b 0
+set "%~3=»¹Ã»ÓÃµ½£¨Ä¬ÈÏ»á½¨ÔÚ !LOCAL_DIR!\%~2£©"
+exit /b 0
+
+:CheckFreeSpace
+REM Ö»ÊÇÌá¸öÐÑ£ºÌø¹ý´óÄ¿Â¼Ö®ºó±¸·ÝÍ¨³£Ö»ÓÐ¼¸Ê® MB£¬¿Õ¼ä¼¸ºõ²»¿ÉÄÜ²»¹»¡£
+REM ²é²»µ½¾Í²»²é£¬±ðÎªÁËÒ»¸öÌáÊ¾°Ñ½Å±¾¿¨×¡¡£
+set "SPACE_ABORT="
+set "FREE_MB="
+set "DRV=!BACKUP_BASE:~0,1!"
+for /f "usebackq delims=" %%f in (`powershell -NoProfile -NonInteractive -Command "[int]((Get-PSDrive -Name '!DRV!').Free/1MB)" 2^>nul`) do set "FREE_MB=%%f"
+if not defined FREE_MB exit /b 0
+echo(!FREE_MB!| findstr /r /c:"^[0-9][0-9]*$" >nul || exit /b 0
+echo   ±¸·ÝËùÔÚ´ÅÅÌÊ£Óà !FREE_MB! MB¡£
+if !FREE_MB! GEQ 512 exit /b 0
+echo.
+echo   [ÌáÐÑ] Ê£Óà¿Õ¼äÆ«ÉÙ£¬±¸·Ý¿ÉÄÜ×ö²»ÍêÕû¡£
+choice /c YN /n /m "ÈÔÒª¼ÌÐøÂð£¿(Y=¼ÌÐø / N=È¡Ïû): "
+if errorlevel 2 set "SPACE_ABORT=1"
+exit /b 0
+
+:CopyTree
+REM %~1 = Ô´Ä¿Â¼£¬%~2 = Ä¿±êÄ¿Â¼£¬%~3 = ¸øÓÃ»§¿´µÄÃû×Ö¡£
+if not exist "%~1\" echo   [Ìø¹ý] Ã»ÓÐÕâ¸öÄ¿Â¼£º%~1& exit /b 0
+echo   ÕýÔÚ¸´ÖÆ %~3 ...
+robocopy "%~1" "%~2" /E /XJ /XD Repository Overwrites Backups /R:1 /W:2 /NFL /NDL /NJH /NJS /NP >> "!LOGFILE!" 2>&1
+if errorlevel 8 set "COPY_FAILED=1" & echo   [Ê§°Ü] %~3& exit /b 0
+echo   [Íê³É] %~3
+exit /b 0
+
+:CopyFile
+REM %~1 = Ô´ÎÄ¼þ£¬%~2 = Ä¿±êÄ¿Â¼£¬%~3 = ¸øÓÃ»§¿´µÄÃû×Ö¡£
+if not exist "%~1" echo   [Ìø¹ý] Ã»ÓÐÕâ¸öÎÄ¼þ£º%~1& exit /b 0
+if not exist "%~2\" md "%~2" >nul 2>nul
+copy /Y "%~1" "%~2\" >> "!LOGFILE!" 2>&1
+if errorlevel 1 set "COPY_FAILED=1" & echo   [Ê§°Ü] %~3& exit /b 0
+echo   [Íê³É] %~3
+exit /b 0
+
+:WriteReadme
+REM ×¢Òâ£ºÏÂÃæÃ¿¸ö >> Ç°ÃæµÄ¿Õ¸ñ¶¼ÊÇ±ØÐëµÄ£¬·ñÔòÐÐÎ²ÊÇÊý×ÖÊ±»á±»µ±³ÉÖØ¶¨Ïò¾ä±ú¡£
+set "RM=!BACKUP_BASE!\ÇëÏÈ¶ÁÎÒ.txt"
+set "NOW="
+for /f "usebackq delims=" %%t in (`powershell -NoProfile -NonInteractive -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'" 2^>nul`) do set "NOW=%%t"
+if not defined NOW set "NOW=%DATE% %TIME%"
+
+echo UE Mod Manager Êý¾ÝÁôµ× > "!RM!"
+echo ============================================================ >> "!RM!"
+echo. >> "!RM!"
+echo ±¸·ÝÊ±¼ä£º!NOW! >> "!RM!"
+echo µçÄÔÃû³Æ£º%COMPUTERNAME% >> "!RM!"
+echo Windows ÓÃ»§£º%USERNAME% >> "!RM!"
+echo. >> "!RM!"
+echo ¡¾±¸·ÝÁËÊ²Ã´¡¿ >> "!RM!"
+echo ÕâÀïÃæÊÇÄãµÄÉèÖÃ¡¢MOD Çåµ¥¡¢·½°¸¡¢·ÖÀà¡¢ÕËºÅÐÅÏ¢ºÍÈÕÖ¾£¬ >> "!RM!"
+echo ¶¼ÊÇ¶ªÁË¾ÍÃ»·¨×Ô¶¯»Ö¸´µÄ¶«Î÷¡£¶ÔÓ¦¹ØÏµ£º >> "!RM!"
+echo. >> "!RM!"
+echo   Local\    À´×Ô  !LOCAL_DIR! >> "!RM!"
+echo   Roaming\  À´×Ô  !ROAMING_DIR! >> "!RM!"
+if defined INSTALL_DIR echo   Install\  À´×Ô  !INSTALL_DIR!  ^(Ö»È¡ Data\ UserData\ config.json^) >> "!RM!"
+echo. >> "!RM!"
+echo ¡¾Ã»±¸·ÝÊ²Ã´£¬ËüÃÇÏÖÔÚÔÚÄÄ¡¿ >> "!RM!"
+echo ÏÂÃæÕâÐ©ÊÇ MOD °ü±¾ÌåºÍÎÄ¼þ¸±±¾£¬¶¯éü¼¸Ê® GB£¬¸´ÖÆÒ»±éÒªÅÜºÜ¾Ã¡¢ >> "!RM!"
+echo »¹¿ÉÄÜ°Ñ´ÅÅÌÈûÂú£¬ËùÒÔÃ»ÓÐ·Å½øÕâ·ÝÁôµ×¡£ËüÃÇÒ²²»Ì«ÐèÒªÁôµ×£º >> "!RM!"
+echo °ü±¾ÌåÖØÐÂµ¼Èë¾ÍÓÐ£¬±¸·Ý¸±±¾ÖØÐÂ±¸·Ý¾ÍÓÐ¡£ >> "!RM!"
+echo ±¾½Å±¾Ã»ÓÐÉ¾¹ý¡¢¶¯¹ýËüÃÇ£¬¾ÍÔÚÔ­µØ£º >> "!RM!"
+echo. >> "!RM!"
+echo   MOD °ü±¾Ìå£º     !REPO_PATH! >> "!RM!"
+echo   ²¿ÊðÉú³ÉÎï£º     !OVER_PATH! >> "!RM!"
+echo   MOD Óë²¿Êð±¸·Ý£º !BACKUPS_PATH! >> "!RM!"
+if defined INSTALL_DIR if exist "!INSTALL_DIR!\Backups\" echo   ¾É°æ±¸·Ý£º       !INSTALL_DIR!\Backups >> "!RM!"
+echo. >> "!RM!"
+echo ¡¾ÔõÃ´·Å»ØÈ¥¡¿ >> "!RM!"
+echo 1. ÏÈÍêÈ«ÍË³ö UE Mod Manager¡£ >> "!RM!"
+echo 2. °ÑÏÂÃæµÄÄ¿Â¼Õû¸ö¸´ÖÆ»ØÈ¥£¬Óöµ½Í¬ÃûÎÄ¼þÑ¡¸²¸Ç£º >> "!RM!"
+echo      ±¾Ä¿Â¼\Local\    ¸´ÖÆ»Ø  !LOCAL_DIR! >> "!RM!"
+echo      ±¾Ä¿Â¼\Roaming\  ¸´ÖÆ»Ø  !ROAMING_DIR! >> "!RM!"
+if defined INSTALL_DIR echo      ±¾Ä¿Â¼\Install\  ¸´ÖÆ»Ø  !INSTALL_DIR! >> "!RM!"
+echo 3. ÖØÐÂ´ò¿ª¹ÜÀíÆ÷¡£ >> "!RM!"
+echo. >> "!RM!"
+echo ·Å»ØÈ¥Ö®Ç°ÏëÔÙÁô¸öºóÊÖµÄ»°£¬ÏÈ°ÑÉÏÃæÄÇ¼¸¸öÄ¿Â¼¸Ä¸öÃû×Ö¡£ >> "!RM!"
+echo. >> "!RM!"
+echo ÓÐÎÊÌâÁªÏµ¿ª·¢Õß£ºmr.xzuo@foxmail.com >> "!RM!"
+exit /b 0

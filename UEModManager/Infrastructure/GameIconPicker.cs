@@ -21,7 +21,7 @@ public static class GameIconPicker
             return null;
         }
 
-        var iconsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "GameIcons");
+        var iconsDir = AppPaths.GameIconsDirectory;
         Directory.CreateDirectory(iconsDir);
 
         var ext = Path.GetExtension(dialog.FileName);

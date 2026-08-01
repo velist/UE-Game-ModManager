@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Conflict;
 using UEModManager.Services.Persistence;
@@ -33,7 +34,7 @@ namespace UEModManager.Services
 
         // 持久化路径
         private string OverridesFilePath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data",
+            Path.Combine(AppPaths.DataDirectory,
                 $"{_currentGameName}_conflict_overrides.json");
 
         /// <summary>最近一次分析结果。</summary>

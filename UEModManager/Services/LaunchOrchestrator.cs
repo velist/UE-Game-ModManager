@@ -6,8 +6,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Launch;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -53,9 +55,8 @@ namespace UEModManager.Services
             _deployService = deployService;
             _conflictAnalyzer = conflictAnalyzer;
 
-            _sessionLogDir = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "Data", "LaunchSessions");
-            Directory.CreateDirectory(_sessionLogDir);
+            _sessionLogDir = AppPaths.LaunchSessionsDirectory;
+            AppPaths.TryEnsureDirectory(_sessionLogDir);
         }
 
         /// <summary>
@@ -298,6 +299,14 @@ namespace UEModManager.Services
 
         // ─── 辅助 ───
 
+        /// <summary>
+        /// 解析要启动的可执行文件。
+        ///
+        /// 检测逻辑复用 <see cref="GameConfigService.AutoDetectExecutablePath"/>：
+        /// 此处原本是 GetFiles(TopDirectoryOnly).FirstOrDefault()，没有任何排除，
+        /// 结果由目录枚举顺序决定，可能直接启动 unins000.exe / launcher.exe，
+        /// 且与主界面「启动游戏」用的是两套逻辑、行为不一致。
+        /// </summary>
         private string FindExecutable(AppConfig config)
         {
             if (!string.IsNullOrEmpty(config.ExecutableName) && !string.IsNullOrEmpty(config.GamePath))
@@ -306,12 +315,10 @@ namespace UEModManager.Services
                 if (File.Exists(fullPath)) return fullPath;
             }
 
-            // 在游戏目录中查找 .exe
-            if (!string.IsNullOrEmpty(config.GamePath) && Directory.Exists(config.GamePath))
+            if (!string.IsNullOrEmpty(config.GamePath))
             {
-                var exe = Directory.GetFiles(config.GamePath, "*.exe", SearchOption.TopDirectoryOnly)
-                    .FirstOrDefault();
-                if (exe != null) return exe;
+                var detected = _gameConfig.AutoDetectExecutablePath(config.GamePath, config.GameName ?? "");
+                if (!string.IsNullOrEmpty(detected)) return detected;
             }
 
             return config.ExecutableName ?? "";
@@ -323,7 +330,7 @@ namespace UEModManager.Services
             {
                 var path = Path.Combine(_sessionLogDir, $"{session.Id:N}.json");
                 var json = JsonConvert.SerializeObject(session, Formatting.Indented);
-                await File.WriteAllTextAsync(path, json);
+                await AtomicFileWriter.WriteAllTextAsync(path, json);
             }
             catch (Exception ex)
             {

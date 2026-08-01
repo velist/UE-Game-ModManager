@@ -115,7 +115,27 @@
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         CornerRadius="{StaticResource RadiusSm}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="RepoPackageList"/>
+                        <ItemsControl x:Name="RepoPackageList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="16,10" BorderBrush="{StaticResource CyberBorderBrush}"
+                                            BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       Foreground="{StaticResource Text200Brush}" FontSize="12"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                                       Foreground="{Binding StatusBrush}" FontSize="11"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </ScrollViewer>
                 </Border>
 
@@ -140,7 +160,43 @@
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         CornerRadius="{StaticResource RadiusSm}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="DeployHistoryList"/>
+                        <Grid>
+                            <ItemsControl x:Name="DeployHistoryList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="16,12" BorderBrush="{StaticResource CyberBorderBrush}"
+                                                BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding TimeText}"
+                                                               Foreground="{StaticResource Text200Brush}" FontSize="12"/>
+                                                    <TextBlock Text="{Binding SummaryText}"
+                                                               Foreground="{StaticResource Text500Brush}" FontSize="11"
+                                                               Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                                           Foreground="{Binding StatusBrush}" FontSize="11"
+                                                           VerticalAlignment="Center" Margin="12,0"/>
+                                                <Button Grid.Column="2" Content="回滚"
+                                                        Style="{StaticResource CyberSecondaryButton}"
+                                                        Visibility="{Binding RollbackVisibility}"
+                                                        Tag="{Binding Transaction}"
+                                                        Click="RollbackTransaction_Click"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="DeployHistoryEmptyText" Text="暂无安装记录"
+                                       Foreground="{StaticResource Text500Brush}" FontSize="13"
+                                       HorizontalAlignment="Center" Margin="0,40,0,0"
+                                       Visibility="Collapsed"/>
+                        </Grid>
                     </ScrollViewer>
                 </Border>
             </Grid>
@@ -212,7 +268,50 @@
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         CornerRadius="{StaticResource RadiusSm}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="GenFileList"/>
+                        <Grid>
+                            <ItemsControl x:Name="GenFileList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="16,10" BorderBrush="{StaticResource CyberBorderBrush}"
+                                                BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               Foreground="{StaticResource Text200Brush}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding SummaryText}"
+                                                               Foreground="{StaticResource Text500Brush}" FontSize="11"
+                                                               Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                                           Foreground="{Binding StatusBrush}" FontSize="11"
+                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                <Button Grid.Column="2" Content="转为MOD"
+                                                        Style="{StaticResource CyberSecondaryButton}"
+                                                        Margin="4,0,0,0" Padding="8,2" FontSize="11"
+                                                        Tag="{Binding ArtifactId}"
+                                                        Click="GenPromote_Click"/>
+                                                <Button Grid.Column="3" Content="删除"
+                                                        Style="{StaticResource CyberSecondaryButton}"
+                                                        Margin="4,0,0,0" Padding="8,2" FontSize="11"
+                                                        Tag="{Binding ArtifactId}"
+                                                        Click="GenDelete_Click"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="GenFileEmptyText" Text="暂无临时文件"
+                                       Foreground="{StaticResource Text500Brush}" FontSize="13"
+                                       HorizontalAlignment="Center" Margin="0,40,0,0"
+                                       Visibility="Collapsed"/>
+                        </Grid>
                     </ScrollViewer>
                 </Border>
 

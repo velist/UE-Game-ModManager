@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Extensions.Logging;
+using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Config;
@@ -273,11 +274,14 @@ namespace UEModManager.Views
             });
         }
 
-        private async void PreviewMerge_Click(object sender, MouseButtonEventArgs e)
+        private void PreviewMerge_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            if (_vm.SelectedFile != null)
-                await _vm.LoadFileEntriesAsync(_vm.SelectedFile);
+            SafeEvent.Run(this, async () =>
+            {
+                if (_vm.SelectedFile != null)
+                    await _vm.LoadFileEntriesAsync(_vm.SelectedFile);
+            }, null, "预览配置合并");
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();

@@ -184,6 +184,84 @@ public class StructuredLogWriterTests
     }
 
     [Fact]
+    public void Write_String_WithEmbeddedNewlines_EmitsEachLine()
+    {
+        var inner = new StringWriter();
+        var writer = new StructuredLogWriter(inner);
+
+        writer.Write("[App] first\n[ERROR] [Auth] second\n");
+        writer.Flush();
+
+        var lines = inner.ToString().Trim().Split(inner.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.Contains("[INFO] [App] first", lines[0]);
+        Assert.Contains("[ERROR] [Auth] second", lines[1]);
+    }
+
+    [Fact]
+    public void Write_String_CarriageReturnIgnored()
+    {
+        var inner = new StringWriter();
+        var writer = new StructuredLogWriter(inner);
+
+        writer.Write("[App] crlf line\r\n");
+        writer.Flush();
+
+        var output = inner.ToString().Trim();
+        Assert.Contains("[INFO] [App] crlf line", output);
+        Assert.DoesNotContain("\r", output);
+    }
+
+    [Fact]
+    public void Write_CharArraySegment_HonorsIndexAndCount()
+    {
+        var inner = new StringWriter();
+        var writer = new StructuredLogWriter(inner);
+        var buffer = "XX[App] hi\nYY".ToCharArray();
+
+        writer.Write(buffer, 2, 9); // "[App] hi\n"
+        writer.Flush();
+
+        var output = inner.ToString().Trim();
+        Assert.Contains("[INFO] [App] hi", output);
+        Assert.DoesNotContain("XX", output);
+        Assert.DoesNotContain("YY", output);
+    }
+
+    [Fact]
+    public void Write_CharArray_BuffersUntilNewline()
+    {
+        var inner = new StringWriter();
+        var writer = new StructuredLogWriter(inner);
+
+        writer.Write("[App] part1 ".ToCharArray());
+        writer.Write("part2\n".ToCharArray());
+        writer.Flush();
+
+        Assert.Contains("[INFO] [App] part1 part2", inner.ToString());
+    }
+
+    [Fact]
+    public void Write_CharArray_NullBuffer_Throws()
+    {
+        var writer = new StructuredLogWriter(new StringWriter());
+
+        Assert.Throws<ArgumentNullException>(() => writer.Write(null!, 0, 0));
+    }
+
+    [Theory]
+    [InlineData(-1, 1)]
+    [InlineData(0, -1)]
+    [InlineData(3, 2)] // index + count 超出缓冲区
+    public void Write_CharArray_InvalidRange_Throws(int index, int count)
+    {
+        var writer = new StructuredLogWriter(new StringWriter());
+        var buffer = new char[4];
+
+        Assert.ThrowsAny<ArgumentException>(() => writer.Write(buffer, index, count));
+    }
+
+    [Fact]
     public void Constructor_NullInner_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => new StructuredLogWriter(null!));

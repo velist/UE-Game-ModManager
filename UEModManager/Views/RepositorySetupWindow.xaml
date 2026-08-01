@@ -1,0 +1,144 @@
+<Window x:Class="UEModManager.Views.RepositorySetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择 MOD 存放位置"
+        Width="560" Height="640"
+        WindowStartupLocation="CenterScreen"
+        Style="{StaticResource CyberModalWindow}">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 标题 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 说明 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 磁盘列表 -->
+            <RowDefinition Height="*"/>
+            <!-- 落点与提示 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 按钮 -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ 标题 ═══ -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,20,24,8">
+            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                       Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"
+                       VerticalAlignment="Center"/>
+            <TextBlock Text="MOD 存放在哪个盘？" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- ═══ 说明 ═══ -->
+        <StackPanel Grid.Row="1" Margin="24,0,24,12">
+            <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20"
+                       Foreground="{StaticResource Text400Brush}"
+                       Text="这个文件夹用来保存你导入的 MOD 原文件。单个 MOD 常见几十 MB，整合包能到好几 GB，装久了占掉几十 GB 很正常。"/>
+            <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Margin="0,6,0,0"
+                       Foreground="{StaticResource Text400Brush}"
+                       Text="不选也没关系，默认放在系统盘。如果 C 盘不宽裕，现在挑一个空间大的盘会省事很多。"/>
+        </StackPanel>
+
+        <!-- ═══ 磁盘列表 ═══ -->
+        <Border Grid.Row="2" Margin="24,0,24,12"
+                Background="{StaticResource BgBaseBrush}"
+                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                CornerRadius="{StaticResource RadiusSm}">
+            <ListBox x:Name="DriveList" Background="Transparent" BorderThickness="0"
+                     Padding="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ItemContainerStyle="{StaticResource CyberListBoxItem}"
+                     SelectionChanged="DriveList_SelectionChanged">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Width="450">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DisplayName}"
+                                       FontSize="13" FontWeight="Medium"
+                                       Foreground="{StaticResource Text200Brush}"/>
+
+                            <Border Grid.Row="0" Grid.Column="1" Padding="6,1"
+                                    CornerRadius="{StaticResource RadiusSm}"
+                                    Visibility="{Binding BadgeVisibility}"
+                                    Background="{StaticResource SurfaceHoverBrush}">
+                                <TextBlock Text="{Binding BadgeText}" FontSize="11"
+                                           Foreground="{Binding BadgeBrush}"/>
+                            </Border>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0">
+                                <ProgressBar Style="{StaticResource CyberProgressBar}"
+                                             Minimum="0" Maximum="100" Value="{Binding UsedPercent, Mode=OneWay}"
+                                             Foreground="{Binding UsageBrush}"/>
+                                <TextBlock Text="{Binding CapacityText}" FontSize="11" Margin="0,4,0,0"
+                                           Foreground="{StaticResource Text500Brush}"/>
+                                <!-- 与游戏同一个盘：单独一行，不和角标抢位置。
+                                     拿不到游戏路径（首次运行的常态）时整行 Collapsed。 -->
+                                <TextBlock Text="{Binding GameVolumeText}" FontSize="11" Margin="0,3,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding GameVolumeVisibility}"
+                                           Foreground="{Binding GameVolumeBrush}"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- ═══ 落点与提示 ═══ -->
+        <StackPanel Grid.Row="3" Margin="24,0,24,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="MOD 会存放在" Style="{StaticResource CyberLabel}"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="选择其它文件夹…" Height="28" Padding="12,0"
+                        Style="{StaticResource CyberGhostButton}" Click="BrowseFolder_Click"/>
+            </Grid>
+
+            <TextBlock x:Name="ResolvedPathText" Margin="0,6,0,0" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{StaticResource PrimaryLightBrush}"/>
+
+            <ItemsControl x:Name="IssueList" Margin="0,8,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                       Foreground="{Binding Brush}" Margin="0,2,8,0" VerticalAlignment="Top"/>
+                            <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap"
+                                       MaxWidth="430" Foreground="{Binding Brush}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{StaticResource Text500Brush}"
+                       Text="以后可以在「设置 → 部署与仓库」里随时更改，程序会把已经导入的 MOD 一起搬过去。"/>
+        </StackPanel>
+
+        <!-- ═══ 按钮 ═══ -->
+        <Border Grid.Row="4" Background="{StaticResource TitlebarBrush}"
+                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,1,0,0"
+                Padding="24,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="以后再说" Width="96" Height="34" Margin="0,0,8,0"
+                        Style="{StaticResource CyberSecondaryButton}" Click="Skip_Click"/>
+                <Button x:Name="ConfirmButton" Content="就用这个位置" Width="120" Height="34"
+                        Style="{StaticResource CyberPrimaryButton}" Click="Confirm_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -113,27 +113,9 @@ namespace UEModManager.Services.Conflict
         }
 
         /// <summary>
-        /// 根据包类型计算 Artifact 在游戏目录中的目标绝对路径。
-        /// - 非 MOD → gamePath/TargetRootPath/PackageKey/RelativeTargetPath
-        /// - MOD → modPath/PackageKey/RelativeTargetPath
-        /// </summary>
-        public static string ComputeTargetPath(
-            PackageArtifact artifact,
-            Package package,
-            ProfilePackageEntry entry,
-            string modPath,
-            string gamePath)
-        {
-            if (package.Kind != PackageKind.Mod)
-            {
-                var targetRootPath = entry.TargetRootPath ?? package.TargetRootPath ?? "";
-                return Path.Combine(gamePath, targetRootPath, package.PackageKey, artifact.RelativeTargetPath);
-            }
-            return Path.Combine(modPath, package.PackageKey, artifact.RelativeTargetPath);
-        }
-
-        /// <summary>
-        /// 计算"加载顺序冲突"的归一化 key。与 <see cref="ComputeTargetPath"/> 不同，
+        /// 计算"加载顺序冲突"的归一化 key。与实际部署路径
+        /// （<see cref="UEModManager.Services.DeploymentPlanning.DeploymentTargetPathBuilder.ComputeTargetPath"/>，
+        /// 含 PackageKey 子目录）不同，
         /// 这里**不包含 PackageKey 子目录**，因此多个包声明相同 RelativeTargetPath 时会归为同一 key
         /// （即引擎按加载顺序会发生覆盖的潜在冲突）。
         ///

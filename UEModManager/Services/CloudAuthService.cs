@@ -36,6 +36,12 @@ namespace UEModManager.Services
             // 配置HTTP客户端
             _httpClient.BaseAddress = new Uri(_config.ApiBaseUrl);
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.5-beta");
+
+            // CloudConfig.RequestTimeoutSeconds 此前从未被读取，实际生效的是 HttpClient
+            // 默认的 100 秒超时。由于会话恢复在主窗口显示之前同步执行，网关黑洞时
+            // 应用会在首屏出现前假死最长 100 秒。此处让配置真正生效。
+            _httpClient.Timeout = TimeSpan.FromSeconds(
+                _config.RequestTimeoutSeconds > 0 ? _config.RequestTimeoutSeconds : 30);
         }
 
         /// <summary>

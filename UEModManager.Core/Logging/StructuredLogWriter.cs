@@ -47,21 +47,50 @@ namespace UEModManager.Logging
         {
             lock (_lock)
             {
-                if (value == '\n')
-                {
-                    FlushLine();
-                }
-                else if (value != '\r')
-                {
-                    _lineBuffer.Append(value);
-                }
+                AppendChar(value);
             }
         }
 
         public override void Write(string? value)
         {
             if (string.IsNullOrEmpty(value)) return;
-            foreach (var ch in value) Write(ch);
+
+            // 整串只加一次锁：旧实现逐字符转调 Write(char)，一条 200 字符的日志
+            // 就是 200 次 lock acquire/release。日志是热路径（Console.Out 已被换成本类）。
+            lock (_lock)
+            {
+                foreach (var ch in value) AppendChar(ch);
+            }
+        }
+
+        /// <summary>
+        /// 必须重写：TextWriter 基类的 char[] 实现同样是逐字符调用 Write(char)，
+        /// 不重写就等于把上面省下的锁又还回去。
+        /// </summary>
+        public override void Write(char[] buffer, int index, int count)
+        {
+            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (index < 0) throw new ArgumentOutOfRangeException(nameof(index));
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+            if (buffer.Length - index < count) throw new ArgumentException("缓冲区长度不足以容纳指定的写入范围", nameof(count));
+
+            lock (_lock)
+            {
+                for (var i = 0; i < count; i++) AppendChar(buffer[index + i]);
+            }
+        }
+
+        /// <summary>把单个字符并入行缓冲。调用方必须已持有 <see cref="_lock"/>。</summary>
+        private void AppendChar(char value)
+        {
+            if (value == '\n')
+            {
+                FlushLine();
+            }
+            else if (value != '\r')
+            {
+                _lineBuffer.Append(value);
+            }
         }
 
         public override void WriteLine(string? value)

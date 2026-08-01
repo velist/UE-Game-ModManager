@@ -121,8 +121,9 @@ namespace UEModManager.Services
         {
             try
             {
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                var dbPath = Path.Combine(appData, "UEModManager", "local.db");
+                // 必须与 LocalDbContext 实际打开的是同一个文件，否则"检查通过"只是在
+                // 报告另一个碰巧存在的库，等于没查。
+                var dbPath = Infrastructure.AppPaths.LocalDatabaseFile;
                 if (!File.Exists(dbPath))
                     return new("SqliteDb", HealthStatus.Warning, $"数据库文件不存在: {dbPath}");
                 var size = new FileInfo(dbPath).Length;
@@ -138,7 +139,7 @@ namespace UEModManager.Services
         {
             try
             {
-                var backupsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Backups");
+                var backupsDir = Infrastructure.AppPaths.DeploymentBackupsDirectory;
                 Directory.CreateDirectory(backupsDir);
                 var probePath = Path.Combine(backupsDir, ".health_probe");
                 File.WriteAllText(probePath, "ok");

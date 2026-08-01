@@ -274,7 +274,7 @@ namespace UEModManager.Views
             var targetRootPath = NormalizeTargetPath(TargetPathTextBox.Text);
             if (selectedEntries.Any(f => f.Kind != PackageKind.Mod) && string.IsNullOrWhiteSpace(targetRootPath))
             {
-                MessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
+                CyberMessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
                 TargetPathTextBox.Focus();
                 return;
             }
@@ -283,17 +283,47 @@ namespace UEModManager.Views
             try
             {
                 ImportResults = await _importService.ImportAsync(toImport, targetRootPath);
+                ReportFailedImports(ImportResults);
                 DialogResult = true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"导入失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, $"导入失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 ConfirmButton.IsEnabled = true;
             }
             Close();
+        }
+
+        /// <summary>
+        /// 逐文件的导入失败必须在这里说出来。
+        ///
+        /// ImportAsync 是"每个文件各自 try"的结构，任何一个文件失败都不会抛，只会在返回的
+        /// PackageImportResult 里留一条 ErrorMessage。而调用方只统计 Success 的个数——
+        /// 于是"仓库目录不可写导致索引写不进去"这类失败，用户看到的是对话框正常关闭、
+        /// 列表里少了几个 MOD，没有任何解释。原因去重后逐行列出：一次导入 20 个文件
+        /// 若都因同一个原因失败，不该弹出 20 行一模一样的文字。
+        /// </summary>
+        private void ReportFailedImports(List<PackageImportResult> results)
+        {
+            var reasons = results
+                .Where(r => !r.Success)
+                .Select(r => string.IsNullOrWhiteSpace(r.ErrorMessage) ? "原因未知，详细信息请查看日志。" : r.ErrorMessage!)
+                .Distinct()
+                .ToList();
+
+            if (reasons.Count == 0) return;
+
+            var succeeded = results.Count(r => r.Success);
+            var header = succeeded > 0
+                ? $"{results.Count} 个文件中有 {results.Count - succeeded} 个导入失败："
+                : "导入失败：";
+
+            CyberMessageBox.Show(this,
+                header + Environment.NewLine + string.Join(Environment.NewLine, reasons),
+                "导入未全部完成", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();

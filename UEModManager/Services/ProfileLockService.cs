@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Lock;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services
 {
@@ -283,6 +284,11 @@ namespace UEModManager.Services
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
             if (!File.Exists(zipPath)) throw new FileNotFoundException("整合包文件不存在", zipPath);
 
+            // 整合包导入是直接往仓库目录 ExtractToFile，不经过 ObjectStore 的写方法，
+            // 所以自己问一次搬移闸门，而且要在开始解压<b>之前</b>问：一个整合包可能几 GB，
+            // 解压完再撞上闸门，用户白等一遍还得看着那批文件随旧位置被清空。
+            _packageRepo.Store.ThrowIfRelocating("导入整合包");
+
             var localKeys = new HashSet<string>(
                 _packageRepo.GetAllPackages().Select(p => p.PackageKey),
                 StringComparer.OrdinalIgnoreCase);
@@ -294,20 +300,48 @@ namespace UEModManager.Services
                 {
                     if (localKeys.Contains(pkg.PackageKey)) continue;
 
+                    // PackageKey 来自整合包内的 profile.lock.json（完全不可信），
+                    // 非法键直接跳过该包，不能让它参与任何路径拼接。
+                    string pkgDir;
+                    try
+                    {
+                        pkgDir = _packageRepo.Store.GetPackageDirectory(pkg.PackageKey);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "[Lock] Rejected unsafe package key in bundle: {Key}", pkg.PackageKey);
+                        continue;
+                    }
+
                     var prefix = $"{BundlePackagesPrefix}{pkg.PackageKey}/";
                     var bundled = archive.Entries
                         .Where(e => e.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                         .ToList();
                     if (bundled.Count == 0) continue;
 
-                    var pkgDir = _packageRepo.Store.GetPackageDirectory(pkg.PackageKey);
+                    // 目录是否本来就在磁盘上：只有本次自己创建的才允许在失败时删掉。
+                    // localKeys 已经排除了索引里有记录的键，但索引里没有、磁盘上有的残留
+                    // （上一次整合包导入失败留下的）仍可能存在。
+                    var pkgDirPreexisted = Directory.Exists(pkgDir);
                     Directory.CreateDirectory(pkgDir);
 
                     foreach (var entry in bundled)
                     {
                         var rel = entry.FullName[prefix.Length..];
                         if (string.IsNullOrWhiteSpace(rel)) continue;
-                        var outPath = Path.Combine(pkgDir, rel);
+
+                        // zip 条目名同样不可信：SafeCombine 会拒绝 .. 上跳与绝对路径，
+                        // 并二次校验结果确实落在 pkgDir 内。
+                        string outPath;
+                        try
+                        {
+                            outPath = PathSanitizer.SafeCombine(pkgDir, rel);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            _logger.LogWarning(ex, "[Lock] Rejected unsafe bundle entry: {Entry}", entry.FullName);
+                            continue;
+                        }
 
                         // 目录条目（FullName 以 / 结尾）跳过
                         if (entry.FullName.EndsWith('/'))
@@ -322,8 +356,12 @@ namespace UEModManager.Services
                     }
                     extracted++;
 
-                    // 从解压出的 manifest.json 注册 Package
+                    // 从解压出的 manifest.json 注册 Package。
+                    // 注册不成 = 文件已经解进仓库、索引里却没有记录，正是导入路径上那种
+                    // "用户看不见也删不掉"的孤儿目录，故这里补上与 PackageImportService
+                    // 对称的补偿删除：只删本次自己解出来的目录。
                     var manifestPath = _packageRepo.Store.GetManifestPath(pkg.PackageKey);
+                    var registeredThisPackage = false;
                     if (File.Exists(manifestPath))
                     {
                         try
@@ -335,6 +373,7 @@ namespace UEModManager.Services
                                 var newPkg = manifest.ToPackage();
                                 await _packageRepo.RegisterPackageAsync(newPkg);
                                 registered++;
+                                registeredThisPackage = true;
                             }
                         }
                         catch (Exception ex)
@@ -342,6 +381,14 @@ namespace UEModManager.Services
                             _logger.LogWarning(ex, "[Lock] Failed to register package from bundle: {Key}", pkg.PackageKey);
                         }
                     }
+                    else
+                    {
+                        // 整合包里这个包缺 manifest.json —— 解出来的文件永远不会被登记。
+                        _logger.LogWarning("[Lock] Bundle package has no manifest.json: {Key}", pkg.PackageKey);
+                    }
+
+                    if (!registeredThisPackage)
+                        CleanupUnregisteredBundleDirectory(pkg.PackageKey, pkgDir, pkgDirPreexisted);
                 }
             }
 
@@ -352,11 +399,47 @@ namespace UEModManager.Services
             return await ApplyImportAsync(lockFile);
         }
 
+        /// <summary>
+        /// 整合包里的某个包解出来了、却没能登记进索引时，删掉本次自己解出来的目录。
+        ///
+        /// <para>
+        /// 不这么做的话磁盘上就多出一个"有文件、索引里没记录"的目录：用户在界面上看不见它，
+        /// 也就没有任何入口能删掉它，只能靠 <see cref="RepositoryReclaimService"/> 事后回收，
+        /// 而带 manifest 的残留连事后回收都不会碰（那条判据保守到只提示不删）。
+        /// </para>
+        /// <para>
+        /// 目录在本次导入之前就存在时不删：那可能是别的包/别的游戏的数据，
+        /// 判据不足就不动手 —— 与 <c>PackageImportService.CleanupPartialImport</c> 一致。
+        /// </para>
+        /// </summary>
+        private void CleanupUnregisteredBundleDirectory(string packageKey, string pkgDir, bool preexisted)
+        {
+            if (preexisted)
+            {
+                _logger.LogWarning(
+                    "[Lock] Package dir existed before import, skip cleanup: {Key}", packageKey);
+                return;
+            }
+
+            try
+            {
+                if (Directory.Exists(pkgDir)) Directory.Delete(pkgDir, true);
+                _logger.LogInformation("[Lock] Cleaned up unregistered bundle package dir: {Key}", packageKey);
+            }
+            catch (Exception ex)
+            {
+                // 删不掉不阻断整合包导入的其余部分；残留会被 RepositoryReclaimService 找出来。
+                _logger.LogWarning(ex, "[Lock] Failed to clean up bundle package dir: {Key}", packageKey);
+            }
+        }
+
         // ─── ZIP 工具 ───
 
         private static async Task AddDirectoryToZipAsync(ZipArchive archive, string sourceDir, string entryRoot)
         {
-            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+            // 惰性枚举：一个包可能有上千个文件，没必要先把全部路径物化。
+            // 目标 zip 在仓库之外（导出路径由用户选择），不会枚举到正在写入的自身。
+            foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(sourceDir, file).Replace('\\', '/');
                 var entryName = $"{entryRoot}/{rel}";

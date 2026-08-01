@@ -66,18 +66,23 @@
                 <TextBlock Text="常规参数" FontSize="18" FontWeight="Bold"
                            Foreground="{StaticResource Text100Brush}" Margin="0,0,0,28"/>
 
-                <!-- 自动更新 -->
+                <!-- 检查更新与匿名统计。
+                     两件事共用一个开关是有意的：它们本来就是同一个网络请求
+                     （客户端问"有没有新版本"，服务端顺手记一笔"有多少人在用"）。
+                     拆成两个开关会逼用户去理解一件他不需要理解的事，
+                     而"关掉统计但保留更新检查"在实现上根本不是两条链路。 -->
                 <Grid Margin="0,0,0,28">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="自动更新" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
-                        <TextBlock Text="启动时自动检查并安装更新" FontSize="12"
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="检查更新与匿名统计" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                        <TextBlock Text="启动时看一眼有没有新版本，同时发送一个随机编号和版本号，让我们知道有多少人在用。不含邮箱、电脑名、文件路径和 MOD 信息。"
+                                   FontSize="12" TextWrapping="Wrap"
                                    Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
                     </StackPanel>
-                    <CheckBox x:Name="AutoUpdateToggle" Grid.Column="1"
+                    <CheckBox x:Name="UpdateAndStatsToggle" Grid.Column="1"
                               Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"/>
                 </Grid>
                 <Border Height="1" Background="#99272727"/>
