@@ -113,6 +113,37 @@ namespace UEModManager.Infrastructure
         /// <summary>MOD 备份。</summary>
         public static string ModBackupsDirectory => Layout.ModBackupsDirectory;
 
+        /// <summary>
+        /// 新游戏的默认 MOD 备份目录。已有配置里的 BackupPath 不会经过这里，
+        /// 因此用户手动指定过的位置保持不变。
+        /// </summary>
+        public static string GetDefaultModBackupPath(string? gamePath, string gameName)
+        {
+            var volumeRoot = GetFullyQualifiedVolumeRoot(gamePath);
+            var backupRoot = volumeRoot == null || Layout.IsOverridden(DataRoot.Backups)
+                ? ModBackupsDirectory
+                : Path.Combine(volumeRoot, AppFolderName, "Backups", "Mods");
+
+            return Path.Combine(backupRoot, $"{gameName.Trim()}_备份");
+        }
+
+        private static string? GetFullyQualifiedVolumeRoot(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+
+            try
+            {
+                var fullPath = Path.GetFullPath(path.Trim());
+                var root = Path.GetPathRoot(fullPath);
+                return string.IsNullOrWhiteSpace(root) ? null : root;
+            }
+            catch (Exception ex)
+            {
+                LogFailure($"解析游戏所在卷失败: {path}", ex);
+                return null;
+            }
+        }
+
         // ─── 漫游数据 ───
 
         /// <summary>

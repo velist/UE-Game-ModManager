@@ -229,18 +229,16 @@ namespace UEModManager.Views
                 // 默认备份位置 = MOD 备份根下按游戏分目录。此前指向 {安装目录}\Backups，
                 // 与服务层实际读写的备份根是两处互不相干的目录，用户看到的默认值根本
                 // 不是备份真正的落点；装在 Program Files 下时还建不出来。
-                var defaultPath = Path.Combine(AppPaths.ModBackupsDirectory, $"{GameName}_备份");
+                var defaultPath = AppPaths.GetDefaultModBackupPath(GamePath, GameName);
                 if (AppPaths.TryEnsureDirectory(defaultPath))
                 {
                     BackupPath = defaultPath;
                 }
                 else
                 {
-                    // 按游戏分的子目录建不出来就退到备份根，仍在同一个根内。
-                    // 不再像以前那样一路退回安装目录本身——那正是本次迁移要甩掉的位置，
-                    // 退过去只是把失败推迟到真正备份的时候。
-                    AppPaths.TryEnsureDirectory(AppPaths.ModBackupsDirectory);
-                    BackupPath = AppPaths.ModBackupsDirectory;
+                    // 保留同盘目标路径，让确认/保存流程把失败明确反馈给用户，
+                    // 绝不能悄悄退回系统盘。
+                    BackupPath = defaultPath;
                 }
             }
         }

@@ -24,6 +24,7 @@ namespace UEModManager.Views
         private string _executableName = "";
         private string _gameIconPath = "";
         private bool _isPathsValid;
+        private bool _backupPathIsCustom;
 
         public string GameName
         {
@@ -61,6 +62,11 @@ namespace UEModManager.Views
                 _gamePath = value;
                 OnPropertyChanged(nameof(GamePath));
                 ValidatePaths();
+                if (!_backupPathIsCustom)
+                {
+                    BackupPath = ResolveBackupPath(GameName, value);
+                    BackupPathTextBox.Text = BackupPath;
+                }
             }
         }
 
@@ -309,7 +315,7 @@ namespace UEModManager.Views
                 }
             }
 
-            var backupPath = ResolveBackupPath(gameName);
+            var backupPath = ResolveBackupPath(gameName, foundGamePath);
             return new AutoSearchResult
             {
                 GamePath = foundGamePath,
@@ -348,23 +354,14 @@ namespace UEModManager.Views
             SearchStatusText.Text = result.StatusText;
         }
 
-        private string ResolveBackupPath(string gameName)
+        private string ResolveBackupPath(string gameName, string? gamePath = null)
         {
-            // 备份根归口 AppPaths：此前拼的是 {安装目录}\Backups，和服务层读写的备份根
-            // 各是一处，用户在这里看到的默认值与实际备份落点对不上；安装在 Program Files
-            // 下时这个目录还建不出来，只能一路退到最后返回安装目录本身。
-            var backupRoot = AppPaths.ModBackupsDirectory;
-            var backupDir = Path.Combine(backupRoot, $"{gameName}_\u5907\u4efd");
-
-            if (AppPaths.TryEnsureDirectory(backupDir))
-            {
-                return backupDir;
-            }
-
-            // 按游戏分的子目录建不出来就退到备份根，仍在同一个根内；不再退回安装目录——
-            // 那正是本次迁移要甩掉的位置，退过去只是把失败推迟到真正备份的时候。
-            AppPaths.TryEnsureDirectory(backupRoot);
-            return backupRoot;
+            // 新游戏的默认备份根跟随游戏所在卷，避免安装在 D 盘却把大文件写进 C 盘。
+            // 目录创建失败时仍保留这个目标路径，让保存流程把失败明确反馈给用户，
+            // 绝不能悄悄退回系统盘。
+            var backupDir = AppPaths.GetDefaultModBackupPath(gamePath, gameName);
+            AppPaths.TryEnsureDirectory(backupDir);
+            return backupDir;
         }
 
         private string ResolveCommonModPath(string gameBasePath, EngineType engineType)
@@ -1083,10 +1080,10 @@ namespace UEModManager.Views
             string initialPath = BackupPath;
             if (string.IsNullOrEmpty(initialPath))
             {
-                // 备份路径为空时，选择器从 MOD 备份根起步；先建出来，否则
+                // 备份路径为空时，选择器从游戏所在卷的默认目录起步；先建出来，否则
                 // FolderBrowserDialog 拿到不存在的路径会直接忽略 SelectedPath，
                 // 把用户丢回"此电脑"重新翻。
-                initialPath = AppPaths.ModBackupsDirectory;
+                initialPath = ResolveBackupPath(GameName, GamePath);
                 AppPaths.TryEnsureDirectory(initialPath);
             }
             
@@ -1099,6 +1096,7 @@ namespace UEModManager.Views
 
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
+                _backupPathIsCustom = true;
                 BackupPath = dialog.SelectedPath;
                 BackupPathTextBox.Text = dialog.SelectedPath;
             }
@@ -1515,4 +1513,3 @@ namespace UEModManager.Views
 
     }
 }
-

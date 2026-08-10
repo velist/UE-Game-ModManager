@@ -41,25 +41,43 @@ public sealed class AppPathsTests
     [Fact]
     public void RoamingSideDirectories_StayUnderRoamingRoot()
     {
-        // 这三项的磁盘位置是历史遗留，归口 AppPaths 时不得顺手搬家——搬了老用户数据就失联
+        // 这三项是历史遗留，归口 AppPaths 时不得顺手搬家——搬了老用户数据就失联
         Assert.Equal(Path.Combine(AppPaths.RoamingRoot, "config"), AppPaths.SecretsDirectory);
         Assert.Equal(Path.Combine(AppPaths.RoamingRoot, "Backgrounds"), AppPaths.BackgroundsDirectory);
         Assert.Equal(Path.Combine(AppPaths.RoamingRoot, "local.db"), AppPaths.LocalDatabaseFile);
     }
 
     /// <summary>
-    /// 设备标识必须在**本机**层，不能漫游。
-    ///
-    /// <para>
-    /// 漫游目录在域环境里会在多台机器之间同步。设备标识一旦跟着同步过去，两台机器共用
-    /// 一个"设备"，累计设备数和在线数会一起塌掉——而且塌得毫无痕迹：看板上只是数字偏小，
-    /// 没有任何异常可查。这条判据没有别的地方能兜住，只能钉在这里。
-    /// </para>
+    /// 设备标识必须在本机层，不能漫游。
     /// </summary>
     [Fact]
     public void DeviceIdFile_StaysUnderLocalRoot_NotRoaming()
     {
         Assert.Equal(Path.Combine(AppPaths.LocalRoot, "device.id"), AppPaths.DeviceIdFile);
         Assert.DoesNotContain(AppPaths.RoamingRoot, AppPaths.DeviceIdFile);
+    }
+
+    [Fact]
+    public void NewGameBackupPath_FollowsTheGameVolume()
+    {
+        var path = AppPaths.GetDefaultModBackupPath(
+            @"D:\Steam\steamapps\common\ExampleGame",
+            "示例游戏");
+
+        Assert.StartsWith(@"D:\UEModManager\Backups\Mods\", path,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(@"示例游戏_备份", path, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void NewGameBackupPath_WithoutGamePathUsesConfiguredAppBackupRoot(string? gamePath)
+    {
+        var path = AppPaths.GetDefaultModBackupPath(gamePath, "示例游戏");
+
+        Assert.Equal(
+            Path.Combine(AppPaths.ModBackupsDirectory, "示例游戏_备份"),
+            path);
     }
 }

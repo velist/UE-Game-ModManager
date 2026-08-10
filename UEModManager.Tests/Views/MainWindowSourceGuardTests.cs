@@ -56,6 +56,29 @@ public class MainWindowSourceGuardTests
     }
 
     [Fact]
+    public void 添加重复自定义游戏会明确提示()
+    {
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+
+        Assert.Contains("IsCustomGame(requestedGameName)", view);
+        Assert.Contains("Cannot Add Game", view);
+        Assert.Contains("无法添加", view);
+    }
+
+    [Fact]
+    public void 未明确同意匿名统计不会弹窗或启动()
+    {
+        var view = ReadMainWindow("MainWindow.xaml.cs");
+        var start = view.IndexOf("private void StartTelemetry()", StringComparison.Ordinal);
+        var next = view.IndexOf("private void NotifyDataMigrationIfNeeded()", start, StringComparison.Ordinal);
+
+        Assert.True(start >= 0 && next > start, "找不到 StartTelemetry 方法边界");
+        var method = view[start..next];
+        Assert.Matches(@"if\s*\(decision\.ShouldReport\)\s*telemetry\.StartHeartbeat\(\)", method);
+        Assert.DoesNotContain("CyberMessageBox.Show", method);
+    }
+
+    [Fact]
     public void 方案选择器的文字只由绑定驱动()
     {
         // 事故原型：VM 写 CurrentProfileName/CurrentProfileSummary（当时没人绑定，纯空转），

@@ -26,7 +26,6 @@ using UEModManager.Services.Recovery;
 using UEModManager.Views;
 using UEModManager.Infrastructure;
 
-using IOPath = System.IO.Path;
 
 namespace UEModManager
 {
@@ -229,20 +228,8 @@ namespace UEModManager
         }
 
         /// <summary>
-        /// 匿名统计的告知与启动。
-        ///
-        /// <para><b>为什么告知框在主窗口之后、而不是在启动序列里</b></para>
-        /// 全新安装的用户在见到主界面之前已经可能被拦两次（仓库位置引导、登录窗口）。
-        /// 再插一个"能不能统计你"进去，是把一个我们自己的需求排到用户还没看到软件长什么样
-        /// 的前面。放在主窗口起来之后问，用户至少已经知道这是个什么东西。
-        ///
-        /// <para><b>关掉窗口（点 X 而不选按钮）视为"不参与"，并且记为已问过</b></para>
-        /// 两条理由：没有明确同意就绝不上报，这是硬底线；而不记"已问过"就意味着每次启动
-        /// 再弹一遍，对一个习惯性关弹窗的用户等于永久骚扰。代价是有一部分只是随手关掉的人
-        /// 被算成了退出——这个方向的误差是可接受的那一侧，他们随时能在设置里打开。
-        ///
-        /// <para><b>整段不允许影响启动</b></para>
-        /// 判定、弹窗、心跳启动全部包在 try 里；心跳本身跑在线程池上，这里一行都不等它。
+        /// 启动匿名统计。
+        /// 新用户不再被弹窗打断；只有已经明确选择参与统计的用户才会上报。
         /// </summary>
         private void StartTelemetry()
         {
@@ -254,22 +241,8 @@ namespace UEModManager
                 var decision = TelemetryService.CurrentConsent();
                 Console.WriteLine($"[Telemetry] {decision}");
 
-                if (decision.ShouldAsk)
-                {
-                    var choice = CyberMessageBox.Show(this,
-                        "UEModManager 会在启动时看一眼有没有新版本，顺手带上一个随机编号和版本号，" +
-                        "好让我们知道有多少人在用。登录过的话还会带上邮箱算出来的一串乱码" +
-                        "（还原不回邮箱），用来去掉重复的人。\n\n" +
-                        "不会发送：你的邮箱、电脑名、文件路径、装了哪些 MOD。\n\n" +
-                        "随时可以在「设置 → 常规参数」里关掉。",
-                        "想知道有多少人在用",
-                        MessageBoxButton.YesNo, MessageBoxImage.Information,
-                        yesText: "可以", noText: "不用了");
-
-                    UiPreferences.SaveTelemetryConsent(choice == MessageBoxResult.Yes);
-                }
-
-                telemetry.StartHeartbeat();
+                if (decision.ShouldReport)
+                    telemetry.StartHeartbeat();
             }
             catch (Exception ex)
             {
@@ -825,6 +798,18 @@ namespace UEModManager
                     var dialog = new AddCustomGameDialog { Owner = this };
                     if (dialog.ShowDialog() == true)
                     {
+                        var requestedGameName = dialog.GameName?.Trim() ?? string.Empty;
+                        if (_gameConfig.IsCustomGame(requestedGameName))
+                        {
+                            CyberMessageBox.Show(this,
+                                LanguageManager.IsEnglish
+                                    ? $"The custom game '{requestedGameName}' has already been added."
+                                    : $"游戏“{requestedGameName}”已经添加过了。",
+                                LanguageManager.IsEnglish ? "Cannot Add Game" : "无法添加",
+                                MessageBoxButton.OK, MessageBoxImage.Information);
+                            return;
+                        }
+
                         // 先把游戏名写入 CustomGames。此前这里只保存引擎类型，
                         // 导致新游戏本次能配置、重启后却从游戏列表消失。
                         var gameName = await _gameConfig.AddCustomGameAsync(dialog.GameName);
@@ -943,13 +928,12 @@ namespace UEModManager
                 var backupPath = dialog.BackupPath;
                 if (string.IsNullOrEmpty(backupPath))
                 {
-                    // 兜底值跟随 MOD 备份根。此前是 {安装目录}\Backups，与服务层实际使用的
+                    // 兜底值跟随游戏所在卷。此前是 {安装目录}\Backups，与服务层实际使用的
                     // 备份根是两个互不相干的目录，装在 Program Files 下时还根本建不出来。
                     //
                     // 同时删掉了原来"路径含 AppData 或位于 C:\Users 下就判为非法"的两个条件：
-                    // 备份根现在正是 %LOCALAPPDATA%\UEModManager\Backups\Mods，判据整个反了过来，
-                    // 留着只会把用户在个人目录下亲手选的备份位置无声改掉。
-                    backupPath = IOPath.Combine(AppPaths.ModBackupsDirectory, $"{gameName}_备份");
+                    // 默认备份根现在跟随游戏所在卷；已有手动选择的备份路径不经过这里。
+                    backupPath = AppPaths.GetDefaultModBackupPath(dialog.GamePath, gameName);
                     AppPaths.TryEnsureDirectory(backupPath);
                 }
 

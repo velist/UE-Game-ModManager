@@ -37,10 +37,10 @@
         <StackPanel Grid.Row="1" Margin="24,0,24,12">
             <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20"
                        Foreground="{StaticResource Text400Brush}"
-                       Text="这个文件夹用来保存你导入的 MOD 原文件。单个 MOD 常见几十 MB，整合包能到好几 GB，装久了占掉几十 GB 很正常。"/>
+                       Text="选择一个空间充足的位置保存 MOD。"/>
             <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Margin="0,6,0,0"
                        Foreground="{StaticResource Text400Brush}"
-                       Text="不选也没关系，默认放在系统盘。如果 C 盘不宽裕，现在挑一个空间大的盘会省事很多。"/>
+                       Text="建议选择游戏所在盘或其它空间充足的盘。"/>
         </StackPanel>
 
         <!-- ═══ 磁盘列表 ═══ -->
@@ -126,7 +126,7 @@
 
             <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
                        Foreground="{StaticResource Text500Brush}"
-                       Text="以后可以在「设置 → 部署与仓库」里随时更改，程序会把已经导入的 MOD 一起搬过去。"/>
+                       Text="以后可在设置中更改位置。"/>
         </StackPanel>
 
         <!-- ═══ 按钮 ═══ -->
