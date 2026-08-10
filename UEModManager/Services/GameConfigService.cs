@@ -10,6 +10,7 @@ using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Persistence;
+using UEModManager.Services.Security;
 using AppConfig = UEModManager.Models.AppConfig;
 
 namespace UEModManager.Services
@@ -147,6 +148,23 @@ namespace UEModManager.Services
 
                 Config = config;
 
+                // 配置文件可能来自旧版本、手工编辑或外部导入，不能假设其中的
+                // GameName 已经满足文件名规则。清空非法当前游戏，让用户重新选择，
+                // 避免启动初始化时把它拼进 Profile/索引路径。
+                if (!string.IsNullOrEmpty(Config.GameName))
+                {
+                    try
+                    {
+                        Config.GameName = ValidateGameName(Config.GameName);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning(ex, "配置中的当前游戏名非法，已要求重新选择: {Name}", Config.GameName);
+                        Config.GameName = null;
+                        Config.ExecutableName = null;
+                    }
+                }
+
                 // 修复旧版本备份路径
                 if (!string.IsNullOrEmpty(Config.BackupPath) && Config.BackupPath.Contains("net6.0-windows"))
                 {
@@ -246,20 +264,41 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SwitchGameAsync(string gameName, string gamePath, string modPath, string backupPath)
         {
-            Config.GameName = gameName;
-            Config.GamePath = gamePath;
-            Config.ModPath = modPath;
-            Config.BackupPath = backupPath;
-            Config.ExecutableName = null; // 重置，让自动检测重新查找
+            var safeGameName = ValidateGameName(gameName);
+            var oldGameName = Config.GameName;
+            var oldGamePath = Config.GamePath;
+            var oldModPath = Config.ModPath;
+            var oldBackupPath = Config.BackupPath;
+            var oldExecutableName = Config.ExecutableName;
 
-            // 确保备份目录存在
-            if (!string.IsNullOrEmpty(backupPath) && !Directory.Exists(backupPath))
-                Directory.CreateDirectory(backupPath);
+            try
+            {
+                Config.GameName = safeGameName;
+                Config.GamePath = gamePath?.Trim();
+                Config.ModPath = modPath?.Trim();
+                Config.BackupPath = backupPath?.Trim();
+                Config.ExecutableName = null; // 重置，让自动检测重新查找
 
-            await SaveConfigAsync();
-            ConfigChanged?.Invoke();
+                // 确保备份目录存在
+                if (!string.IsNullOrEmpty(Config.BackupPath) && !Directory.Exists(Config.BackupPath))
+                    Directory.CreateDirectory(Config.BackupPath);
 
-            _logger.LogInformation("已切换到游戏: {Game}", gameName);
+                await SaveConfigAsync();
+                ConfigChanged?.Invoke();
+
+                _logger.LogInformation("已切换到游戏: {Game}", safeGameName);
+            }
+            catch
+            {
+                // 配置写失败时不能让当前进程误以为已经切换成功，否则随后加载的
+                // Profile/仓库会落到新游戏名，而重启后又回到旧游戏，形成两套状态。
+                Config.GameName = oldGameName;
+                Config.GamePath = oldGamePath;
+                Config.ModPath = oldModPath;
+                Config.BackupPath = oldBackupPath;
+                Config.ExecutableName = oldExecutableName;
+                throw;
+            }
         }
 
         /// <summary>
@@ -283,41 +322,122 @@ namespace UEModManager.Services
                 "杀戮尖塔2"
             };
 
-            if (Config.CustomGames?.Count > 0)
+            foreach (var custom in GetCustomGames())
             {
-                foreach (var custom in Config.CustomGames)
-                {
-                    if (!builtIn.Contains(custom))
-                        builtIn.Add(custom);
-                }
+                if (!builtIn.Contains(custom, StringComparer.OrdinalIgnoreCase))
+                    builtIn.Add(custom);
             }
 
             return builtIn;
         }
 
+        /// <summary>获取配置中有效的自定义游戏名称，不返回内置游戏或重复项。</summary>
+        public IReadOnlyList<string> GetCustomGames()
+        {
+            if (Config.CustomGames == null || Config.CustomGames.Count == 0)
+                return Array.Empty<string>();
+
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var rawName in Config.CustomGames)
+            {
+                try
+                {
+                    var name = ValidateGameName(rawName);
+                    if (IsBuiltInGame(name) || !seen.Add(name)) continue;
+                    result.Add(name);
+                }
+                catch (ArgumentException ex)
+                {
+                    _logger.LogWarning(ex, "忽略配置中的非法自定义游戏名: {Name}", rawName);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>判断游戏是否来自用户自定义列表。</summary>
+        public bool IsCustomGame(string gameName)
+            => GetCustomGames().Any(name =>
+                string.Equals(name, gameName, StringComparison.OrdinalIgnoreCase));
+
         /// <summary>
         /// 添加自定义游戏。
         /// </summary>
-        public async Task AddCustomGameAsync(string name)
+        public async Task<string> AddCustomGameAsync(string name)
         {
+            var safeName = ValidateGameName(name);
+            if (IsBuiltInGame(safeName))
+                throw new ArgumentException("不能把内置游戏重复添加为自定义游戏", nameof(name));
+
+            var oldGames = Config.CustomGames == null
+                ? null
+                : new List<string>(Config.CustomGames);
             Config.CustomGames ??= new List<string>();
-            if (!Config.CustomGames.Contains(name))
+            var existing = Config.CustomGames.FirstOrDefault(existingName =>
+                string.Equals(existingName?.Trim(), safeName, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+                return existing.Trim();
+
+            try
             {
-                Config.CustomGames.Add(name);
+                Config.CustomGames.Add(safeName);
                 await SaveConfigAsync();
-                _logger.LogInformation("已添加自定义游戏: {Name}", name);
+                ConfigChanged?.Invoke();
+                _logger.LogInformation("已添加自定义游戏: {Name}", safeName);
+                return safeName;
+            }
+            catch
+            {
+                Config.CustomGames = oldGames ?? new List<string>();
+                throw;
             }
         }
 
         /// <summary>
         /// 移除自定义游戏。
         /// </summary>
-        public async Task RemoveCustomGameAsync(string name)
+        public async Task<bool> RemoveCustomGameAsync(string name)
         {
-            if (Config.CustomGames?.Remove(name) == true)
+            var safeName = ValidateGameName(name);
+            var existing = Config.CustomGames?.FirstOrDefault(existingName =>
+                string.Equals(existingName?.Trim(), safeName, StringComparison.OrdinalIgnoreCase));
+            if (existing == null || IsBuiltInGame(safeName))
+                return false;
+
+            if (string.Equals(CurrentGameName.Trim(), existing.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("不能删除当前正在使用的游戏，请先切换到其他游戏");
+
+            var oldGames = new List<string>(Config.CustomGames!);
+            var oldIcons = Config.GameIcons == null
+                ? null
+                : new Dictionary<string, string>(Config.GameIcons);
+            var oldEngines = Config.GameEngines == null
+                ? null
+                : new Dictionary<string, string>(Config.GameEngines);
+            var oldPluginPaths = Config.PluginPaths == null
+                ? null
+                : new Dictionary<string, string>(Config.PluginPaths);
+
+            try
             {
+                Config.CustomGames.RemoveAll(existingName =>
+                    string.Equals(existingName?.Trim(), existing, StringComparison.OrdinalIgnoreCase));
+                RemoveGameMetadata(Config.GameIcons, existing);
+                RemoveGameMetadata(Config.GameEngines, existing);
+                RemoveGameMetadata(Config.PluginPaths, existing);
                 await SaveConfigAsync();
-                _logger.LogInformation("已移除自定义游戏: {Name}", name);
+                ConfigChanged?.Invoke();
+                _logger.LogInformation("已移除自定义游戏: {Name}", existing);
+                return true;
+            }
+            catch
+            {
+                Config.CustomGames = oldGames;
+                Config.GameIcons = oldIcons ?? new Dictionary<string, string>();
+                Config.GameEngines = oldEngines ?? new Dictionary<string, string>();
+                Config.PluginPaths = oldPluginPaths ?? new Dictionary<string, string>();
+                throw;
             }
         }
 
@@ -630,11 +750,13 @@ namespace UEModManager.Services
             if (gameName == "生化危机9" || gameName == "识质存在") return EngineType.REEngine;
             if (gameName == "暗黑破坏神4") return EngineType.Diablo4Engine;
 
-            if (BuiltInGames.Contains(gameName)) return EngineType.UnrealEngine;
+            if (IsBuiltInGame(gameName)) return EngineType.UnrealEngine;
 
             Config.GameEngines ??= new Dictionary<string, string>();
-            return Config.GameEngines.TryGetValue(gameName, out var engineStr)
-                ? EngineProfile.Parse(engineStr)
+            var engineEntry = Config.GameEngines.FirstOrDefault(entry =>
+                string.Equals(entry.Key, gameName, StringComparison.OrdinalIgnoreCase));
+            return !string.IsNullOrEmpty(engineEntry.Key)
+                ? EngineProfile.Parse(engineEntry.Value)
                 : EngineType.UnrealEngine;
         }
 
@@ -643,10 +765,29 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetGameEngineAsync(string gameName, EngineType engine)
         {
+            var safeGameName = ValidateGameName(gameName);
+            var oldEngines = Config.GameEngines == null
+                ? null
+                : new Dictionary<string, string>(Config.GameEngines);
             Config.GameEngines ??= new Dictionary<string, string>();
-            Config.GameEngines[gameName] = engine.ToString();
-            await SaveConfigAsync();
-            _logger.LogInformation("已设置游戏 '{Name}' 的引擎类型为 {Engine}", gameName, engine);
+            try
+            {
+                // 旧配置可能保留了不同大小写的同名键；先清理等价键，避免
+                // "My Game" 与 "my game" 在读取和保存时出现两套引擎设置。
+                var equivalentKeys = Config.GameEngines.Keys
+                    .Where(key => string.Equals(key, safeGameName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                foreach (var key in equivalentKeys)
+                    Config.GameEngines.Remove(key);
+                Config.GameEngines[safeGameName] = engine.ToString();
+                await SaveConfigAsync();
+                _logger.LogInformation("已设置游戏 '{Name}' 的引擎类型为 {Engine}", safeGameName, engine);
+            }
+            catch
+            {
+                Config.GameEngines = oldEngines ?? new Dictionary<string, string>();
+                throw;
+            }
         }
 
         /// <summary>
@@ -715,5 +856,42 @@ namespace UEModManager.Services
         /// </summary>
         public static string NormalizeGameName(string name)
             => GameNameNormalizer.Normalize(name);
+
+        public static bool IsBuiltInGameName(string name)
+            => !string.IsNullOrWhiteSpace(name) && IsBuiltInGame(name.Trim());
+
+        private static bool IsBuiltInGame(string name)
+            => BuiltInGames.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 校验会参与配置/方案/包索引文件名拼接的游戏名。
+        /// </summary>
+        public static string ValidateGameName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("游戏名称不能为空", nameof(name));
+
+            var trimmed = name.Trim();
+            if (trimmed.Length < 2)
+                throw new ArgumentException("游戏名称至少需要 2 个字符", nameof(name));
+            if (trimmed.Length > 100)
+                throw new ArgumentException("游戏名称不能超过 100 个字符", nameof(name));
+            if (trimmed.Any(char.IsControl))
+                throw new ArgumentException("游戏名称不能包含控制字符", nameof(name));
+
+            // 游戏名会参与 profile/index 文件名拼接，必须限制为单段安全名称。
+            return PathSanitizer.SanitizeSegment(trimmed, nameof(name));
+        }
+
+        private static void RemoveGameMetadata<T>(IDictionary<string, T>? values, string gameName)
+        {
+            if (values == null) return;
+
+            var keys = values.Keys
+                .Where(key => string.Equals(key?.Trim(), gameName.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var key in keys)
+                values.Remove(key);
+        }
     }
 }

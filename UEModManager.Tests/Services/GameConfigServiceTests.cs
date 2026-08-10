@@ -56,6 +56,87 @@ public sealed class GameConfigServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AddCustomGameAsync_PersistsTrimmedNameAndAppearsAfterReload()
+    {
+        var configPath = Path.Combine(_gameRoot, "custom-game.json");
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+
+        var addedName = await service.AddCustomGameAsync("  我的测试游戏  ");
+
+        Assert.Equal("我的测试游戏", addedName);
+        Assert.Contains("我的测试游戏", service.GetAvailableGames());
+
+        var reloaded = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+        await reloaded.LoadConfigAsync();
+
+        Assert.Contains("我的测试游戏", reloaded.GetAvailableGames());
+        Assert.True(reloaded.IsCustomGame("我的测试游戏"));
+    }
+
+    [Fact]
+    public async Task AddCustomGameAsync_RejectsUnsafeAndBuiltInNames()
+    {
+        var service = new GameConfigService(
+            NullLogger<GameConfigService>.Instance,
+            Path.Combine(_gameRoot, "custom-game-validation.json"));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.AddCustomGameAsync("../outside"));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.AddCustomGameAsync("剑星"));
+        Assert.Empty(service.Config.CustomGames);
+    }
+
+    [Fact]
+    public async Task LoadConfigAsync_UnsafeCurrentGameName_IsClearedBeforeUse()
+    {
+        var configPath = CreateConfigFile(
+            "{\"GameName\":\"..\\\\outside\",\"ExecutableName\":\"old.exe\"}");
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+
+        await service.LoadConfigAsync();
+
+        Assert.Equal(string.Empty, service.CurrentGameName);
+        Assert.Equal(string.Empty, service.CurrentExecutableName);
+    }
+
+    [Fact]
+    public async Task RemoveCustomGameAsync_RefusesCurrentGameAndPreservesData()
+    {
+        var configPath = Path.Combine(_gameRoot, "custom-game-remove-current.json");
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+        var gameName = await service.AddCustomGameAsync("我的测试游戏");
+        service.Config.GameName = gameName;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RemoveCustomGameAsync(gameName));
+
+        Assert.True(service.IsCustomGame(gameName));
+    }
+
+    [Fact]
+    public async Task RemoveCustomGameAsync_RemovesOnlyMetadataNotGameData()
+    {
+        var configPath = Path.Combine(_gameRoot, "custom-game-remove.json");
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+        var gameName = await service.AddCustomGameAsync("我的测试游戏");
+        service.Config.GameIcons[gameName] = "icon.png";
+        service.Config.GameEngines[gameName] = "Unity";
+        service.Config.PluginPaths[gameName] = "Plugins";
+        await service.SaveConfigAsync();
+
+        Assert.True(await service.RemoveCustomGameAsync(gameName));
+        Assert.False(service.IsCustomGame(gameName));
+        Assert.DoesNotContain(gameName, service.Config.GameIcons.Keys);
+        Assert.DoesNotContain(gameName, service.Config.GameEngines.Keys);
+        Assert.DoesNotContain(gameName, service.Config.PluginPaths.Keys);
+
+        var reloaded = new GameConfigService(NullLogger<GameConfigService>.Instance, configPath);
+        await reloaded.LoadConfigAsync();
+        Assert.False(reloaded.IsCustomGame(gameName));
+    }
+
+    [Fact]
     public async Task SaveConfigAsync_AfterCorruptLoad_OriginalConfigSurvivesInBackup()
     {
         // 数据丢失链：config.json 损坏 → Config 停在默认空对象 → 下一次保存用空配置全量覆盖。

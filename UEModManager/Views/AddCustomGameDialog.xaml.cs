@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -100,15 +101,28 @@ namespace UEModManager.Views
 
         private void ConfirmButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(GameName) && GameName.Length >= 2)
+            try
             {
+                var safeName = GameConfigService.ValidateGameName(GameName);
+                if (GameConfigService.IsBuiltInGameName(safeName))
+                {
+                    ShowValidation("这个游戏已在内置列表中，无需重复添加");
+                    return;
+                }
+
+                GameName = safeName;
                 DialogResult = true;
             }
-            else
+            catch (ArgumentException ex)
             {
-                ValidationMessage = "游戏名称不能为空，至少需要2个字符";
-                this.ValidationMessageText.Visibility = Visibility.Visible;
+                ShowValidation(ex.Message);
             }
+        }
+
+        private void ShowValidation(string message)
+        {
+            ValidationMessage = message;
+            ValidationMessageText.Visibility = Visibility.Visible;
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -154,4 +168,4 @@ namespace UEModManager.Views
             }
         }
     }
-} 
+}

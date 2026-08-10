@@ -825,18 +825,44 @@ namespace UEModManager
                     var dialog = new AddCustomGameDialog { Owner = this };
                     if (dialog.ShowDialog() == true)
                     {
+                        // 先把游戏名写入 CustomGames。此前这里只保存引擎类型，
+                        // 导致新游戏本次能配置、重启后却从游戏列表消失。
+                        var gameName = await _gameConfig.AddCustomGameAsync(dialog.GameName);
+
                         // 保存自定义游戏的引擎类型
                         var engineType = dialog.IsAutoDetect
                             ? GameConfigService.AutoDetectEngine(dialog.GamePathTextBox.Text)
                             : dialog.SelectedEngineType;
                         if (engineType == Models.EngineType.Unknown)
                             engineType = Models.EngineType.UnrealEngine; // 无法识别时默认 UE
-                        await _gameConfig.SetGameEngineAsync(dialog.GameName, engineType);
+                        await _gameConfig.SetGameEngineAsync(gameName, engineType);
 
-                        ShowGamePathDialog(dialog.GameName);
+                        ShowGamePathDialog(gameName);
                     }
                 }, _logger, "添加新游戏");
                 menu.Items.Add(addItem);
+
+                var customGames = _gameConfig.GetCustomGames();
+                if (customGames.Count > 0)
+                {
+                    var removeMenu = new MenuItem
+                    {
+                        Header = LanguageManager.IsEnglish ? "Remove Custom Game" : "删除自定义游戏",
+                        Style = FindResource("CyberMenuItemSubmenuHeader") as Style
+                    };
+                    foreach (var customGame in customGames)
+                    {
+                        var removeItem = new MenuItem
+                        {
+                            Header = customGame,
+                            Tag = customGame,
+                            Style = FindResource("CyberMenuItem") as Style
+                        };
+                        removeItem.Click += RemoveCustomGameMenuItem_Click;
+                        removeMenu.Items.Add(removeItem);
+                    }
+                    menu.Items.Add(removeMenu);
+                }
 
                 menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 menu.PlacementTarget = target;
@@ -889,6 +915,22 @@ namespace UEModManager
 
                 ShowGamePathDialog(gameName);
             }
+        }
+
+        private void RemoveCustomGameMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem { Tag: string gameName }) return;
+
+            SafeEvent.Run(this, async () =>
+            {
+                var result = CyberMessageBox.Show(this,
+                    $"确定从游戏列表中移除“{gameName}”吗？\n\n不会删除游戏文件、MOD、方案或仓库数据。",
+                    "移除自定义游戏", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "移除", noText: "取消");
+                if (result != MessageBoxResult.Yes) return;
+
+                await _gameConfig.RemoveCustomGameAsync(gameName);
+            }, _logger, "移除自定义游戏");
         }
 
         private void ShowGamePathDialog(string gameName)

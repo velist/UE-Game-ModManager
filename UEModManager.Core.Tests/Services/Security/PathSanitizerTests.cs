@@ -72,6 +72,12 @@ public class PathSanitizerTests
     [InlineData("foo\\bar")]
     [InlineData("C:evil")]
     [InlineData("bad|name")]
+    [InlineData("bad:name")]
+    [InlineData("bad?name")]
+    [InlineData("bad*name")]
+    [InlineData("CON")]
+    [InlineData("con.txt")]
+    [InlineData("LPT1.log")]
     [InlineData("trailing ")]
     [InlineData("trailing.")]
     public void SanitizeSegment_RejectsAnythingButASingleSafeName(string? input)
