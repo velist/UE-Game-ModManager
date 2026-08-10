@@ -32,7 +32,9 @@ public sealed class PackageRepositoryIntegrityTests : IDisposable
         await AddPackageAsync(store, repository, "integrity", "payload");
 
         var filesDir = store.GetPackageFilesDirectory("integrity");
-        await File.WriteAllTextAsync(Path.Combine(filesDir, "payload.pak"), "changed");
+        // AddPackageAsync 把已登记文件放在 nested/ 下；篡改它才能同时验证
+        // 哈希不符与额外文件，而不是把两个新文件都误判为未登记。
+        await File.WriteAllTextAsync(Path.Combine(filesDir, "nested", "payload.pak"), "changed");
         await File.WriteAllTextAsync(Path.Combine(filesDir, "unregistered.bin"), "extra");
 
         var issues = await repository.CheckIntegrityAsync();
