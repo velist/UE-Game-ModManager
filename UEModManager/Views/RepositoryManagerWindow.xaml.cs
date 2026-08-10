@@ -185,23 +185,40 @@ namespace UEModManager.Views
                     RefreshUI();
             }, null, "检查仓库完整性");
 
-        private void MergeDuplicates_Click(object sender, RoutedEventArgs e)
+        private async void MergeDuplicates_Click(object sender, RoutedEventArgs e)
         {
-            var groups = _packageRepo.GetDuplicateGroups().ToList();
-            if (groups.Count == 0)
+            try
             {
-                CyberMessageBox.Show(this, "未发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+                var groups = _packageRepo.GetDuplicateGroups();
+                if (groups.Count == 0)
+                {
+                    CyberMessageBox.Show(this, "未发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
-            var result = CyberMessageBox.Show(this,
-                $"发现 {groups.Count} 组相同文件，是否合并？\n合并会保留最新导入的文件，并删除旧副本。",
-                "合并相同文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var result = CyberMessageBox.Show(this,
+                    $"发现 {groups.Count} 组相同文件，是否合并？\n每组保留最新导入的文件，并删除未被方案引用的旧副本。",
+                    "合并相同文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-            if (result == MessageBoxResult.Yes)
-            {
-                // TODO: 实际合并逻辑
+                if (result != MessageBoxResult.Yes) return;
+
+                var merge = await _packageRepo.MergeDuplicateGroupsAsync(_profileService.GetProfiles());
+                var message = $"合并完成，已删除 {merge.DeletedCount} 个旧副本。";
+                if (merge.Skipped.Count > 0)
+                {
+                    message += $"\n跳过 {merge.Skipped.Count} 个：\n"
+                        + string.Join("\n", merge.Skipped.Take(5));
+                    if (merge.Skipped.Count > 5) message += "\n……";
+                }
+
+                CyberMessageBox.Show(this, message, "合并相同文件", MessageBoxButton.OK,
+                    merge.Skipped.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
                 RefreshUI();
+            }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, $"合并失败: {ex.Message}", "合并相同文件",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

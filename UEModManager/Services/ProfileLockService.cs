@@ -95,6 +95,8 @@ namespace UEModManager.Services
                 throw new InvalidOperationException(
                     $"Lock 文件版本 {lockFile.LockVersion} 高于当前应用支持的 {ProfileLockSchema.CurrentVersion}");
 
+            ValidateLockFile(lockFile);
+
             var localPackages = _packageRepo.GetAllPackages()
                 .ToDictionary(p => p.PackageKey, p => p, StringComparer.OrdinalIgnoreCase);
 
@@ -114,6 +116,7 @@ namespace UEModManager.Services
         public async Task<InstanceProfile> ApplyImportAsync(ProfileLock lockFile)
         {
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
+            ValidateLockFile(lockFile);
 
             var localKeys = new HashSet<string>(
                 _packageRepo.GetAllPackages().Select(p => p.PackageKey),
@@ -252,6 +255,8 @@ namespace UEModManager.Services
                 throw new InvalidOperationException(
                     $"整合包 lock 版本 {lockFile.LockVersion} 高于当前应用支持的 {ProfileLockSchema.CurrentVersion}");
 
+            ValidateLockFile(lockFile);
+
             // 列出整合包内的包目录（packages/{key}/...）
             var bundleKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in archive.Entries)
@@ -283,6 +288,7 @@ namespace UEModManager.Services
         {
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
             if (!File.Exists(zipPath)) throw new FileNotFoundException("整合包文件不存在", zipPath);
+            ValidateLockFile(lockFile);
 
             // 整合包导入是直接往仓库目录 ExtractToFile，不经过 ObjectStore 的写方法，
             // 所以自己问一次搬移闸门，而且要在开始解压<b>之前</b>问：一个整合包可能几 GB，
@@ -319,10 +325,129 @@ namespace UEModManager.Services
                         .ToList();
                     if (bundled.Count == 0) continue;
 
+                    // manifest 必须先于任何落盘动作验证。否则攻击者可以让目录名使用 A，
+                    // manifest 却声明 B，随后注册流程会把 B 的元数据写进索引，
+                    // 而实际文件仍躺在 A 目录里。
+                    var manifestEntry = bundled.FirstOrDefault(e =>
+                        string.Equals(e.FullName, $"{prefix}manifest.json", StringComparison.OrdinalIgnoreCase));
+                    if (manifestEntry == null)
+                    {
+                        _logger.LogWarning("[Lock] Bundle package has no manifest entry: {Key}", pkg.PackageKey);
+                        continue;
+                    }
+
+                    PackageManifest? manifest;
+                    try
+                    {
+                        using var manifestReader = new StreamReader(manifestEntry.Open());
+                        var manifestJson = await manifestReader.ReadToEndAsync();
+                        manifest = JsonSerializer.Deserialize<PackageManifest>(manifestJson, JsonOptions);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[Lock] Failed to read package manifest: {Key}", pkg.PackageKey);
+                        continue;
+                    }
+
+                    if (manifest == null
+                        || manifest.Artifacts == null
+                        || !string.Equals(
+                            manifest.PackageKey, pkg.PackageKey, StringComparison.Ordinal))
+                    {
+                        _logger.LogWarning(
+                            "[Lock] Manifest key does not match lock key: {ManifestKey} vs {LockKey}",
+                            manifest?.PackageKey, pkg.PackageKey);
+                        continue;
+                    }
+
+                    var invalidArtifact = false;
+                    var expectedEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        $"{prefix}manifest.json"
+                    };
+                    foreach (var artifact in manifest.Artifacts)
+                    {
+                        var sourcePath = artifact.RelativeSourcePath?.Replace('\\', '/');
+                        var artifactPrefix = $"{pkg.PackageKey}/files/";
+                        if (string.IsNullOrWhiteSpace(sourcePath)
+                            || !sourcePath.StartsWith(artifactPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogWarning(
+                                "[Lock] Manifest artifact escapes package directory: {Key} -> {Path}",
+                                pkg.PackageKey, artifact.RelativeSourcePath);
+                            invalidArtifact = true;
+                            break;
+                        }
+
+                        try
+                        {
+                            var artifactRelativePath = sourcePath[artifactPrefix.Length..];
+                            _ = PathSanitizer.SafeCombine(
+                                _packageRepo.Store.GetPackageFilesDirectory(pkg.PackageKey),
+                                artifactRelativePath);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            _logger.LogWarning(
+                                ex, "[Lock] Manifest artifact path is unsafe: {Key} -> {Path}",
+                                pkg.PackageKey, sourcePath);
+                            invalidArtifact = true;
+                            break;
+                        }
+
+                        var artifactEntryName = $"{BundlePackagesPrefix}{sourcePath}";
+                        if (!expectedEntries.Add(artifactEntryName))
+                        {
+                            _logger.LogWarning(
+                                "[Lock] Manifest contains duplicate artifact path: {Key} -> {Path}",
+                                pkg.PackageKey, sourcePath);
+                            invalidArtifact = true;
+                            break;
+                        }
+
+                        if (!bundled.Any(e => string.Equals(
+                                e.FullName, artifactEntryName, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _logger.LogWarning(
+                                "[Lock] Manifest artifact missing from bundle: {Key} -> {Path}",
+                                pkg.PackageKey, artifactEntryName);
+                            invalidArtifact = true;
+                            break;
+                        }
+                    }
+
+                    if (invalidArtifact) continue;
+
+                    // 只允许 manifest 和清单中登记的 artifact。否则攻击者可以把额外文件
+                    // 解进一个看似正常的包，后续部署/回收行为会被未登记实体污染。
+                    var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in bundled)
+                    {
+                        if (!seenEntries.Add(entry.FullName)
+                            || !expectedEntries.Contains(entry.FullName))
+                        {
+                            _logger.LogWarning(
+                                "[Lock] Bundle contains duplicate or unregistered entry: {Entry}",
+                                entry.FullName);
+                            invalidArtifact = true;
+                            break;
+                        }
+                    }
+
+                    if (invalidArtifact) continue;
+
                     // 目录是否本来就在磁盘上：只有本次自己创建的才允许在失败时删掉。
                     // localKeys 已经排除了索引里有记录的键，但索引里没有、磁盘上有的残留
                     // （上一次整合包导入失败留下的）仍可能存在。
                     var pkgDirPreexisted = Directory.Exists(pkgDir);
+                    if (pkgDirPreexisted)
+                    {
+                        _logger.LogWarning(
+                            "[Lock] Package directory already exists but is not indexed, skip import: {Key}",
+                            pkg.PackageKey);
+                        continue;
+                    }
+
                     Directory.CreateDirectory(pkgDir);
 
                     foreach (var entry in bundled)
@@ -356,35 +481,62 @@ namespace UEModManager.Services
                     }
                     extracted++;
 
-                    // 从解压出的 manifest.json 注册 Package。
+                    // 解压后核对尺寸和已有短哈希；只有实体与 manifest 一致才允许进索引。
+                    var artifactVerificationFailed = false;
+                    foreach (var artifact in manifest.Artifacts)
+                    {
+                        var sourcePath = artifact.RelativeSourcePath.Replace('\\', '/');
+                        var artifactPrefix = $"{pkg.PackageKey}/files/";
+                        var artifactRelativePath = sourcePath[artifactPrefix.Length..];
+                        var artifactPath = PathSanitizer.SafeCombine(
+                            _packageRepo.Store.GetPackageFilesDirectory(pkg.PackageKey),
+                            artifactRelativePath);
+
+                        if (!File.Exists(artifactPath)
+                            || (artifact.FileSize >= 0 && new FileInfo(artifactPath).Length != artifact.FileSize))
+                        {
+                            _logger.LogWarning(
+                                "[Lock] Bundle artifact size/presence check failed: {Key} -> {Path}",
+                                pkg.PackageKey, artifactRelativePath);
+                            artifactVerificationFailed = true;
+                            break;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(artifact.FileHash))
+                        {
+                            var actualHash = await ObjectStore.ComputeFileHashAsync(artifactPath);
+                            if (!string.Equals(actualHash, artifact.FileHash, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogWarning(
+                                    "[Lock] Bundle artifact hash check failed: {Key} -> {Path}",
+                                    pkg.PackageKey, artifactRelativePath);
+                                artifactVerificationFailed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (artifactVerificationFailed)
+                    {
+                        CleanupUnregisteredBundleDirectory(pkg.PackageKey, pkgDir, pkgDirPreexisted);
+                        continue;
+                    }
+
+                    // 从已验证过的 manifest.json 注册 Package。
                     // 注册不成 = 文件已经解进仓库、索引里却没有记录，正是导入路径上那种
                     // "用户看不见也删不掉"的孤儿目录，故这里补上与 PackageImportService
                     // 对称的补偿删除：只删本次自己解出来的目录。
-                    var manifestPath = _packageRepo.Store.GetManifestPath(pkg.PackageKey);
                     var registeredThisPackage = false;
-                    if (File.Exists(manifestPath))
+                    try
                     {
-                        try
-                        {
-                            var manifestJson = await File.ReadAllTextAsync(manifestPath);
-                            var manifest = JsonSerializer.Deserialize<PackageManifest>(manifestJson, JsonOptions);
-                            if (manifest != null)
-                            {
-                                var newPkg = manifest.ToPackage();
-                                await _packageRepo.RegisterPackageAsync(newPkg);
-                                registered++;
-                                registeredThisPackage = true;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "[Lock] Failed to register package from bundle: {Key}", pkg.PackageKey);
-                        }
+                        var newPkg = manifest.ToPackage();
+                        await _packageRepo.RegisterPackageAsync(newPkg);
+                        registered++;
+                        registeredThisPackage = true;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // 整合包里这个包缺 manifest.json —— 解出来的文件永远不会被登记。
-                        _logger.LogWarning("[Lock] Bundle package has no manifest.json: {Key}", pkg.PackageKey);
+                        _logger.LogWarning(ex, "[Lock] Failed to register package from bundle: {Key}", pkg.PackageKey);
                     }
 
                     if (!registeredThisPackage)
@@ -430,6 +582,33 @@ namespace UEModManager.Services
             {
                 // 删不掉不阻断整合包导入的其余部分；残留会被 RepositoryReclaimService 找出来。
                 _logger.LogWarning(ex, "[Lock] Failed to clean up bundle package dir: {Key}", packageKey);
+            }
+        }
+
+        private static void ValidateLockFile(ProfileLock lockFile)
+        {
+            if (lockFile.Packages == null)
+                throw new InvalidOperationException("Lock 文件缺少 packages 列表");
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var package in lockFile.Packages)
+            {
+                if (package == null || string.IsNullOrWhiteSpace(package.PackageKey))
+                    throw new InvalidOperationException("Lock 文件包含空的 PackageKey");
+
+                try
+                {
+                    PathSanitizer.SanitizeSegment(package.PackageKey, nameof(package.PackageKey));
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Lock 文件包含非法 PackageKey: {package.PackageKey}", ex);
+                }
+
+                if (!seen.Add(package.PackageKey))
+                    throw new InvalidOperationException(
+                        $"Lock 文件包含重复 PackageKey: {package.PackageKey}");
             }
         }
 

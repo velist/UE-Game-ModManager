@@ -31,6 +31,37 @@ function json(data, init = {}) {
 function bad(code, message, extra) {
   return json({ code, message, ...extra }, { status: code });
 }
+
+const ALLOWED_REDIRECT_ORIGINS = new Set([
+  "https://modmanger.com",
+  "https://www.modmanger.com"
+]);
+
+/**
+ * 只允许回到官方 HTTPS 页面。redirect_to 会进入密码重置或 magic-link，
+ * 不能把它当成普通的展示参数直接转发，否则接口会变成开放跳转/钓鱼放大器。
+ */
+function normalizeRedirectTo(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") return null;
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") return null;
+    if (!ALLOWED_REDIRECT_ORIGINS.has(parsed.origin)) return null;
+    if (parsed.username || parsed.password || parsed.port) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function requireSafeRedirect(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const normalized = normalizeRedirectTo(value);
+  if (!normalized) throw new Error("invalid redirect_to");
+  return normalized;
+}
 async function rateLimit(env, key, limit, windowSec) {
   const bucket = `rl:${key}:${Math.floor(Date.now() / (windowSec * 1e3))}`;
   const currentRaw = await env.RATE_LIMIT.get(bucket);
@@ -194,17 +225,24 @@ async function forwardSupabase(env, path, init) {
   return { status: resp.status, headers: resp.headers, data };
 }
 async function generateSupabaseLinkOrOtp(env, email, mode, redirect_to) {
+  let safeRedirect;
+  try {
+    safeRedirect = requireSafeRedirect(redirect_to);
+  } catch {
+    return { ok: false, status: 400, data: { message: "invalid redirect_to" } };
+  }
+
   const supabaseUrl = (env.SUPABASE_URL || "").trim().replace(/[\r\n]/g, "");
   const serviceKey = (env.SUPABASE_SERVICE_KEY || "").trim().replace(/[\r\n]/g, "");
   const headers = new Headers({ "content-type": "application/json" });
   headers.set("apikey", serviceKey);
   headers.set("authorization", `Bearer ${serviceKey}`);
   const payload = { email, type: mode === "magiclink" ? "magiclink" : mode === "recovery" ? "recovery" : "signup" };
-  if (redirect_to) {
+  if (safeRedirect) {
     if (mode === "recovery") {
-      payload.redirect_to = redirect_to;
+      payload.redirect_to = safeRedirect;
     } else {
-      payload.options = { email_redirect_to: redirect_to };
+      payload.options = { email_redirect_to: safeRedirect };
     }
   }
   const resp = await fetch(new URL("/auth/v1/admin/generate_link", supabaseUrl).toString(), { method: "POST", headers, body: JSON.stringify(payload) });
@@ -217,10 +255,10 @@ async function generateSupabaseLinkOrOtp(env, email, mode, redirect_to) {
   }
   if (!resp.ok) return { ok: false, status: resp.status, data };
   let link = data?.action_link;
-  if (link && redirect_to && mode === "recovery") {
+  if (link && safeRedirect && mode === "recovery") {
     try {
       const url = new URL(link);
-      url.searchParams.set("redirect_to", redirect_to);
+      url.searchParams.set("redirect_to", safeRedirect);
       link = url.toString();
     } catch {
     }
@@ -862,6 +900,12 @@ async function handleRequest(request, env) {
       const body = await request.json().catch(() => ({}));
       const { email, type = "email", redirect_to, channel = "auto" } = body;
       if (!email) return bad(400, "email required");
+      let safeRedirect;
+      try {
+        safeRedirect = requireSafeRedirect(redirect_to);
+      } catch {
+        return bad(400, "invalid redirect_to");
+      }
       const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
       const rl1 = await rateLimit(env, `otp_ip:${ip}`, 10, 60);
       const rl2 = await rateLimit(env, `otp_em:${email.toLowerCase()}`, 6, 300);
@@ -875,7 +919,7 @@ async function handleRequest(request, env) {
           headers.set("apikey", serviceKey);
           headers.set("authorization", `Bearer ${serviceKey}`);
           const payload = { email, type, create_user: true };
-          if (type === "magiclink" && redirect_to) payload.options = { email_redirect_to: redirect_to };
+          if (type === "magiclink" && safeRedirect) payload.options = { email_redirect_to: safeRedirect };
           const resp = await fetch(new URL("/auth/v1/otp", supabaseUrl).toString(), { method: "POST", headers, body: JSON.stringify(payload) });
           const text = await resp.text();
           let data;
@@ -890,7 +934,7 @@ async function handleRequest(request, env) {
         }
       }
       try {
-        const gen = await generateSupabaseLinkOrOtp(env, email, type === "magiclink" ? "magiclink" : "email", redirect_to);
+        const gen = await generateSupabaseLinkOrOtp(env, email, type === "magiclink" ? "magiclink" : "email", safeRedirect);
         if (!gen.ok) {
           console.error("[auth/otp/send] generate_link failed:", gen.status, JSON.stringify(gen.data));
           return json({ code: 502, message: "generate_link_failed" }, { status: 502 });
@@ -927,6 +971,12 @@ async function handleRequest(request, env) {
       const body = await request.json().catch(() => ({}));
       const { email, redirect_to } = body;
       if (!email) return bad(400, "email required");
+      let safeRedirect;
+      try {
+        safeRedirect = requireSafeRedirect(redirect_to);
+      } catch {
+        return bad(400, "invalid redirect_to");
+      }
       const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
       const rl = await rateLimit(env, `reset:${ip}`, 5, 60);
       if (!rl.allowed) return bad(429, "too many requests");
@@ -937,7 +987,7 @@ async function handleRequest(request, env) {
       headers.set("authorization", `Bearer ${serviceKey}`);
       try {
         const payload = { email };
-        if (redirect_to) payload.options = { email_redirect_to: redirect_to };
+        if (safeRedirect) payload.options = { email_redirect_to: safeRedirect };
         const resp = await fetch(new URL("/auth/v1/recover", supabaseUrl).toString(), { method: "POST", headers, body: JSON.stringify(payload) });
         const text = await resp.text();
         let data;
@@ -951,7 +1001,7 @@ async function handleRequest(request, env) {
       }
       let layer2Error;
       try {
-        const gen = await generateSupabaseLinkOrOtp(env, email, "recovery", redirect_to);
+        const gen = await generateSupabaseLinkOrOtp(env, email, "recovery", safeRedirect);
         if (gen.ok && gen.link) {
           try {
             const cn = `\u70B9\u51FB\u4E0B\u65B9\u94FE\u63A5\u91CD\u7F6E\u5BC6\u7801\uFF1A<br/><a href="${gen.link}">${gen.link}</a>`;
@@ -1019,7 +1069,7 @@ async function handleRequest(request, env) {
   }
 }
 export {
-  index_default as default
+  index_default as default,
+  normalizeRedirectTo
 };
 //# sourceMappingURL=index.js.map
-

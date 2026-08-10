@@ -351,29 +351,18 @@ namespace UEModManager.Views
                     return;
                 }
 
-                int merged = 0;
-                var allProfiles = _profileService.GetProfiles();
-                foreach (var group in dupGroups)
+                var merge = await _packageRepo.MergeDuplicateGroupsAsync(_profileService.GetProfiles());
+
+                var message = $"合并完成，已删除 {merge.DeletedCount} 个旧副本。";
+                if (merge.Skipped.Count > 0)
                 {
-                    foreach (var dup in group.Skip(1))
-                    {
-                        var (success, plan) = await _packageRepo.DeletePackageAsync(
-                            dup.PackageKey, allProfiles, force: false);
-                        if (success)
-                        {
-                            merged++;
-                        }
-                        else if (plan != null)
-                        {
-                            // 重复包仍在某 Profile 中启用 — 跳过，提示用户
-                            CyberMessageBox.Show(this,
-                                $"跳过 {dup.PackageKey}: {plan.Explanation}",
-                                "跳过删除", MessageBoxButton.OK, MessageBoxImage.Information);
-                        }
-                    }
+                    message += $"\n跳过 {merge.Skipped.Count} 个：\n"
+                        + string.Join("\n", merge.Skipped.Take(5));
+                    if (merge.Skipped.Count > 5) message += "\n……";
                 }
 
-                CyberMessageBox.Show(this, $"合并了 {merged} 个相同文件", "合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, message, "合并完成", MessageBoxButton.OK,
+                    merge.Skipped.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
                 await LoadModLibAsync();
             }
             catch (Exception ex)

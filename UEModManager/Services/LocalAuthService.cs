@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using UEModManager.Data;
 using UEModManager.Models;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -27,6 +28,13 @@ namespace UEModManager.Services
         private const int LOCKOUT_DURATION_MINUTES = 30;
         private const int MIN_PASSWORD_LENGTH = 8;
         private const int SESSION_TIMEOUT_DAYS = 30;
+        private const int PASSWORD_ITERATIONS = 210_000;
+        private const int LEGACY_PASSWORD_ITERATIONS = 10_000;
+        private const int MAX_PASSWORD_ITERATIONS = 1_000_000;
+        private const int REMEMBER_TOKEN_BYTES = 32;
+        private const int REMEMBER_TOKEN_VERSION = 2;
+        private static readonly byte[] RememberTokenEntropy =
+            Encoding.UTF8.GetBytes("UEModManager.RememberMe.v2");
 
         public LocalAuthService(LocalDbContext dbContext, ILogger<LocalAuthService> logger)
         {
@@ -145,6 +153,12 @@ namespace UEModManager.Services
                     }
                     
                     return LocalAuthResult.Failed($"邮箱或密码错误，还有 {remainingAttempts} 次尝试机会");
+                }
+
+                if (NeedsPasswordRehash(user.PasswordHash))
+                {
+                    user.PasswordHash = HashPassword(password);
+                    _logger.LogInformation("已升级本地账户密码哈希参数: {Email}", email);
                 }
 
                 // 登录成功，清除失败记录
@@ -331,46 +345,39 @@ namespace UEModManager.Services
             var salt = GenerateSalt();
             
             // 使用PBKDF2进行密码哈希
-            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA256);
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, PASSWORD_ITERATIONS, HashAlgorithmName.SHA256);
             var hash = pbkdf2.GetBytes(32);
             
-            // 组合盐值和哈希值
-            var hashBytes = new byte[48]; // 16字节盐值 + 32字节哈希值
-            Array.Copy(salt, 0, hashBytes, 0, 16);
-            Array.Copy(hash, 0, hashBytes, 16, 32);
-            
-            return Convert.ToBase64String(hashBytes);
+            return $"pbkdf2-sha256${PASSWORD_ITERATIONS}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
         }
 
         private static bool VerifyPassword(string password, string hashedPassword)
         {
             try
             {
+                if (hashedPassword.StartsWith("pbkdf2-sha256$", StringComparison.Ordinal))
+                {
+                    var parts = hashedPassword.Split('$');
+                    if (parts.Length != 4 || !int.TryParse(parts[1], out var iterations)) return false;
+                    var salt = Convert.FromBase64String(parts[2]);
+                    var storedHash = Convert.FromBase64String(parts[3]);
+                    return VerifyPbkdf2(password, salt, storedHash, iterations);
+                }
+
                 var hashBytes = Convert.FromBase64String(hashedPassword);
-                
-                // 检查是否是新格式（PBKDF2）
                 if (hashBytes.Length == 48)
                 {
-                    // 提取盐值和哈希值
-                    var salt = new byte[16];
-                    var storedHash = new byte[32];
-                    Array.Copy(hashBytes, 0, salt, 0, 16);
-                    Array.Copy(hashBytes, 16, storedHash, 0, 32);
-                    
-                    // 使用相同参数计算哈希
-                    using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA256);
-                    var computedHash = pbkdf2.GetBytes(32);
-                    
-                    return CryptographicOperations.FixedTimeEquals(storedHash, computedHash);
+                    var salt = hashBytes[..16];
+                    var storedHash = hashBytes[16..];
+                    return VerifyPbkdf2(password, salt, storedHash, LEGACY_PASSWORD_ITERATIONS);
                 }
-                else
-                {
-                    // 兼容旧格式（SHA256）
-                    using var sha256 = SHA256.Create();
-                    var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "UEModManager_Salt_2024"));
-                    var oldHash = Convert.ToBase64String(hashedBytes);
-                    return hashedPassword == oldHash;
-                }
+
+                // 兼容最早版本的固定盐 SHA-256，成功登录后会升级。
+                using var sha256 = SHA256.Create();
+                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "UEModManager_Salt_2024"));
+                var oldHash = Convert.ToBase64String(hashedBytes);
+                return CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(hashedPassword), Encoding.UTF8.GetBytes(oldHash));
             }
             catch
             {
@@ -675,17 +682,16 @@ namespace UEModManager.Services
                     return true;
                 }
 
-                // 生成安全的记住我令牌
-                var token = GenerateRememberMeToken();
-                var encryptedToken = EncryptToken(token);
-                
-                // 保存到安全的配置文件
+                var token = RandomNumberGenerator.GetBytes(REMEMBER_TOKEN_BYTES);
+                var tokenHash = Convert.ToBase64String(SHA256.HashData(token));
                 var tokenData = new
                 {
-                    Email = email,
-                    Token = encryptedToken,
-                    ExpiresAt = DateTime.Now.AddDays(30), // 30天有效期
-                    CreatedAt = DateTime.Now,
+                    Version = REMEMBER_TOKEN_VERSION,
+                    Email = email.ToLowerInvariant(),
+                    Token = Convert.ToBase64String(token),
+                    TokenHash = tokenHash,
+                    ExpiresAt = DateTimeOffset.UtcNow.AddDays(30),
+                    CreatedAt = DateTimeOffset.UtcNow,
                     DeviceFingerprint = GetDeviceFingerprint()
                 };
 
@@ -696,8 +702,12 @@ namespace UEModManager.Services
                 var tokenFile = Path.Combine(configDir, "remember.dat");
                 var json = System.Text.Json.JsonSerializer.Serialize(tokenData);
                 
-                // 使用文件加密保存
-                await File.WriteAllTextAsync(tokenFile, Convert.ToBase64String(Encoding.UTF8.GetBytes(json)));
+                // DPAPI 绑定当前 Windows 用户，防止同机其他用户或篡改进程伪造令牌。
+                var protectedBytes = System.Security.Cryptography.ProtectedData.Protect(
+                    Encoding.UTF8.GetBytes(json), RememberTokenEntropy,
+                    System.Security.Cryptography.DataProtectionScope.CurrentUser);
+                await AtomicFileWriter.WriteAllTextAsync(
+                    tokenFile, Convert.ToBase64String(protectedBytes));
                 
                 _logger.LogInformation($"记住我令牌已保存: {email}");
                 return true;
@@ -722,25 +732,33 @@ namespace UEModManager.Services
                 if (!File.Exists(tokenFile))
                     return LocalAuthResult.Failed("未找到记住我令牌");
 
-                var encryptedData = await File.ReadAllTextAsync(tokenFile);
-                var json = Encoding.UTF8.GetString(Convert.FromBase64String(encryptedData));
+                var protectedData = await File.ReadAllTextAsync(tokenFile);
+                var json = Encoding.UTF8.GetString(
+                    System.Security.Cryptography.ProtectedData.Unprotect(
+                        Convert.FromBase64String(protectedData), RememberTokenEntropy,
+                        System.Security.Cryptography.DataProtectionScope.CurrentUser));
                 
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
                 var email = root.GetProperty("Email").GetString();
-                var encryptedToken = root.GetProperty("Token").GetString();
-                var expiresAt = root.GetProperty("ExpiresAt").GetDateTime();
+                var version = root.GetProperty("Version").GetInt32();
+                var tokenText = root.GetProperty("Token").GetString();
+                var tokenHash = root.GetProperty("TokenHash").GetString();
+                var expiresAt = root.GetProperty("ExpiresAt").GetDateTimeOffset();
                 var deviceFingerprint = root.GetProperty("DeviceFingerprint").GetString();
 
-                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(encryptedToken))
+                if (version != REMEMBER_TOKEN_VERSION
+                    || string.IsNullOrEmpty(email)
+                    || string.IsNullOrEmpty(tokenText)
+                    || string.IsNullOrEmpty(tokenHash))
                 {
                     await ClearRememberMeTokenAsync();
                     return LocalAuthResult.Failed("令牌数据无效");
                 }
 
                 // 检查令牌是否过期
-                if (expiresAt <= DateTime.Now)
+                if (expiresAt <= DateTimeOffset.UtcNow)
                 {
                     await ClearRememberMeTokenAsync();
                     return LocalAuthResult.Failed("记住我令牌已过期");
@@ -764,14 +782,18 @@ namespace UEModManager.Services
                     return LocalAuthResult.Failed("用户账户不存在或已禁用");
                 }
 
-                // 解密并验证令牌
+                // 验证令牌长度和哈希。DPAPI 已保证文件内容未被篡改，哈希再绑定
+                // 令牌字段，避免未来扩展字段时误把“能解包”当成“令牌有效”。
                 try
                 {
-                    var decryptedToken = DecryptToken(encryptedToken);
-                    if (string.IsNullOrEmpty(decryptedToken))
+                    var token = Convert.FromBase64String(tokenText);
+                    var expectedHash = SHA256.HashData(token);
+                    var storedHash = Convert.FromBase64String(tokenHash);
+                    if (token.Length != REMEMBER_TOKEN_BYTES
+                        || !CryptographicOperations.FixedTimeEquals(expectedHash, storedHash))
                     {
                         await ClearRememberMeTokenAsync();
-                        return LocalAuthResult.Failed("令牌解密失败");
+                        return LocalAuthResult.Failed("令牌校验失败");
                     }
                 }
                 catch
@@ -800,6 +822,9 @@ namespace UEModManager.Services
 
                 _currentUser = user;
                 _currentSession = session;
+
+                // 每次恢复后轮换令牌，缩短旧文件泄露后的有效窗口。
+                await SaveRememberMeTokenAsync(email!, rememberMe: true);
 
                 _logger.LogInformation($"记住我自动登录成功: {email}");
                 OnAuthStateChanged(new LocalAuthEventArgs(LocalAuthEventType.SessionRestored, user));
@@ -839,91 +864,32 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>
-        /// 生成记住我令牌
-        /// </summary>
-        private static string GenerateRememberMeToken()
+        private static bool VerifyPbkdf2(string password, byte[] salt, byte[] storedHash, int iterations)
         {
-            var tokenData = new
+            // 只接受本应用产生过的参数范围，避免损坏的本地数据库触发极端
+            // 迭代次数造成登录线程长时间占用；旧版本的 10,000 次仍需兼容迁移。
+            if (iterations < LEGACY_PASSWORD_ITERATIONS
+                || iterations > MAX_PASSWORD_ITERATIONS
+                || salt.Length != 16
+                || storedHash.Length != 32)
             {
-                Random = GenerateSessionToken(),
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                Machine = Environment.MachineName,
-                User = Environment.UserName
-            };
+                return false;
+            }
 
-            var json = System.Text.Json.JsonSerializer.Serialize(tokenData);
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
+            var computed = pbkdf2.GetBytes(32);
+            return CryptographicOperations.FixedTimeEquals(storedHash, computed);
         }
 
-        /// <summary>
-        /// 加密令牌
-        /// </summary>
-        private static string EncryptToken(string token)
+        private static bool NeedsPasswordRehash(string storedHash)
         {
-            try
-            {
-                var key = GetEncryptionKey();
-                using var aes = Aes.Create();
-                aes.Key = key;
-                aes.GenerateIV();
+            if (!storedHash.StartsWith("pbkdf2-sha256$", StringComparison.Ordinal))
+                return true;
 
-                using var encryptor = aes.CreateEncryptor();
-                var tokenBytes = Encoding.UTF8.GetBytes(token);
-                var encrypted = encryptor.TransformFinalBlock(tokenBytes, 0, tokenBytes.Length);
-
-                // 组合IV和加密数据
-                var result = new byte[aes.IV.Length + encrypted.Length];
-                Array.Copy(aes.IV, 0, result, 0, aes.IV.Length);
-                Array.Copy(encrypted, 0, result, aes.IV.Length, encrypted.Length);
-
-                return Convert.ToBase64String(result);
-            }
-            catch
-            {
-                throw new InvalidOperationException("令牌加密失败");
-            }
-        }
-
-        /// <summary>
-        /// 解密令牌
-        /// </summary>
-        private static string DecryptToken(string encryptedToken)
-        {
-            try
-            {
-                var key = GetEncryptionKey();
-                var data = Convert.FromBase64String(encryptedToken);
-
-                using var aes = Aes.Create();
-                aes.Key = key;
-
-                // 分离IV和加密数据
-                var iv = new byte[16];
-                var encrypted = new byte[data.Length - 16];
-                Array.Copy(data, 0, iv, 0, 16);
-                Array.Copy(data, 16, encrypted, 0, encrypted.Length);
-
-                aes.IV = iv;
-                using var decryptor = aes.CreateDecryptor();
-                var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
-
-                return Encoding.UTF8.GetString(decrypted);
-            }
-            catch
-            {
-                throw new InvalidOperationException("令牌解密失败");
-            }
-        }
-
-        /// <summary>
-        /// 获取加密密钥（基于机器和用户信息）
-        /// </summary>
-        private static byte[] GetEncryptionKey()
-        {
-            var keySource = $"UEModManager_{Environment.MachineName}_{Environment.UserName}_SecureKey_2024";
-            using var sha256 = SHA256.Create();
-            return sha256.ComputeHash(Encoding.UTF8.GetBytes(keySource));
+            var parts = storedHash.Split('$');
+            return parts.Length != 4
+                || !int.TryParse(parts[1], out var iterations)
+                || iterations != PASSWORD_ITERATIONS;
         }
 
         /// <summary>

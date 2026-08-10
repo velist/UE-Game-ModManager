@@ -9,9 +9,15 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Repository;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services
 {
+    public sealed record DuplicateMergeResult(
+        int GroupCount,
+        int DeletedCount,
+        IReadOnlyList<string> Skipped);
+
     /// <summary>
     /// 包仓库管理服务。
     /// 管理 Package 的全生命周期：注册、查询、更新、删除、引用计数。
@@ -365,10 +371,63 @@ namespace UEModManager.Services
         {
             return _packages
                 .Where(p => !string.IsNullOrEmpty(p.ContentHash))
-                .GroupBy(p => p.ContentHash!)
+                .GroupBy(p => p.ContentHash!, StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1)
-                .Select(g => g.ToList())
+                // 不依赖索引写入顺序。重复合并的保留规则是：最新导入，
+                // 再按最后修改时间和 PackageKey 稳定决胜。
+                .Select(g => g
+                    .OrderByDescending(p => p.ImportedAt)
+                    .ThenByDescending(p => p.LastModified)
+                    .ThenBy(p => p.PackageKey, StringComparer.Ordinal)
+                    .ThenBy(p => p.Id)
+                    .ToList())
                 .ToList();
+        }
+
+        /// <summary>
+        /// 合并所有重复包，保留每组最新的包。
+        ///
+        /// 删除必须经过统一的引用保护流程；被 Profile 引用的旧包会被跳过，
+        /// 而不是为了让统计数字好看而强制删除。
+        /// </summary>
+        public async Task<DuplicateMergeResult> MergeDuplicateGroupsAsync(
+            IEnumerable<InstanceProfile> allProfiles)
+        {
+            var groups = GetDuplicateGroups();
+            var profileSnapshot = allProfiles?.ToList() ?? new List<InstanceProfile>();
+            var skipped = new List<string>();
+            var deleted = 0;
+
+            foreach (var group in groups)
+            {
+                // GetDuplicateGroups 已按保留规则排序，第一项就是规范包。
+                foreach (var duplicate in group.Skip(1))
+                {
+                    try
+                    {
+                        var (success, plan) = await DeletePackageAsync(
+                            duplicate.PackageKey, profileSnapshot, force: false)
+                            .ConfigureAwait(false);
+
+                        if (success)
+                        {
+                            deleted++;
+                        }
+                        else
+                        {
+                            var reason = plan?.Explanation ?? "包不存在或删除失败";
+                            skipped.Add($"{duplicate.PackageKey}: {reason}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "合并重复包时跳过删除: {Key}", duplicate.PackageKey);
+                        skipped.Add($"{duplicate.PackageKey}: {ex.Message}");
+                    }
+                }
+            }
+
+            return new DuplicateMergeResult(groups.Count, deleted, skipped);
         }
 
         /// <summary>
@@ -388,7 +447,7 @@ namespace UEModManager.Services
         /// 那是数据丢失而不是垃圾，删掉只会让用户连"曾经有这个包"都看不到。
         /// </para>
         /// </summary>
-        public Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
+        public async Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
         {
             var issues = new List<(string, string)>();
             foreach (var pkg in _packages)
@@ -399,13 +458,99 @@ namespace UEModManager.Services
                     continue;
                 }
 
-                var files = _objectStore.GetPackageFiles(pkg.PackageKey);
-                var expectedCount = pkg.Artifacts.Count;
-                if (files.Count < expectedCount)
-                    issues.Add((pkg.PackageKey, $"文件缺失: 期望 {expectedCount}, 实际 {files.Count}"));
+                var filesDir = _objectStore.GetPackageFilesDirectory(pkg.PackageKey);
+                var expectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var packageIssues = new List<string>();
+
+                foreach (var artifact in pkg.Artifacts)
+                {
+                    string? sourcePath = artifact.RelativeSourcePath?.Replace('\\', '/');
+                    var sourcePrefix = $"{pkg.PackageKey}/files/";
+                    string expectedPath;
+                    try
+                    {
+                        // RelativeTargetPath 是部署到游戏目录的目标位置，不能用于定位仓库实体。
+                        // 仓库源路径必须明确落在当前包的 files/ 目录内。
+                        if (string.IsNullOrWhiteSpace(sourcePath)
+                            || !sourcePath.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new ArgumentException("仓库源路径不属于当前包的 files 目录");
+                        }
+
+                        expectedPath = PathSanitizer.SafeCombine(
+                            filesDir, sourcePath[sourcePrefix.Length..]);
+                    }
+                    catch (ArgumentException)
+                    {
+                        packageIssues.Add($"非法仓库源路径: {artifact.RelativeSourcePath}");
+                        continue;
+                    }
+
+                    if (!expectedPaths.Add(Path.GetFullPath(expectedPath)))
+                    {
+                        packageIssues.Add($"重复登记文件: {artifact.RelativeSourcePath}");
+                        continue;
+                    }
+
+                    if (!File.Exists(expectedPath))
+                    {
+                        packageIssues.Add($"文件缺失: {sourcePath}");
+                        continue;
+                    }
+
+                    if (artifact.FileSize >= 0)
+                    {
+                        try
+                        {
+                            var actualSize = new FileInfo(expectedPath).Length;
+                            if (actualSize != artifact.FileSize)
+                                packageIssues.Add($"文件大小不符: {sourcePath}（期望 {artifact.FileSize}, 实际 {actualSize}）");
+                        }
+                        catch (Exception ex)
+                        {
+                            packageIssues.Add($"无法读取文件: {sourcePath}（{ex.Message}）");
+                            continue;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(artifact.FileHash))
+                    {
+                        try
+                        {
+                            var actualHash = await ObjectStore.ComputeFileHashAsync(expectedPath)
+                                .ConfigureAwait(false);
+                            if (!string.Equals(actualHash, artifact.FileHash,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                packageIssues.Add($"文件哈希不符: {sourcePath}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            packageIssues.Add($"无法校验文件: {sourcePath}（{ex.Message}）");
+                        }
+                    }
+                }
+
+                var actualPaths = Directory.Exists(filesDir)
+                    ? Directory.EnumerateFiles(filesDir, "*", SearchOption.AllDirectories)
+                        .Select(Path.GetFullPath)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                var extraCount = actualPaths.Except(expectedPaths, StringComparer.OrdinalIgnoreCase).Count();
+                if (extraCount > 0)
+                    packageIssues.Add($"发现 {extraCount} 个未登记文件");
+
+                if (packageIssues.Count > 0)
+                {
+                    var detail = string.Join("；", packageIssues.Take(5));
+                    if (packageIssues.Count > 5) detail += $"；另有 {packageIssues.Count - 5} 项";
+                    issues.Add((pkg.PackageKey, detail));
+                }
             }
 
-            return Task.FromResult(issues);
+            return issues;
         }
 
         // ─── 持久化 ───
