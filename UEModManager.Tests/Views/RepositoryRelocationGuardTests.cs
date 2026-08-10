@@ -402,6 +402,6 @@ public class RepositoryRelocationGuardTests
         var xaml = ReadSource("Views", "RepositorySetupWindow.xaml");
 
         Assert.DoesNotContain("需要自己搬过去", xaml);
-        Assert.Contains("一起搬过去", xaml);
+        Assert.Contains("空间充足", xaml);
     }
 }
