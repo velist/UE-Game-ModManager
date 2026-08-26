@@ -42,15 +42,22 @@
             <converters:WinnerLoserBrushConverter x:Key="WinnerLoserBrushConverter"/>
             <converters:WinnerLoserBgBrushConverter x:Key="WinnerLoserBgBrushConverter"/>
 
-            <!-- 全局默认字体: Inter（嵌入） + 文本渲染优化 -->
+            <!-- 全局默认字体：思源黑体 SC（内嵌，资源 key 沿用 InterFont 旧名） + 文本渲染优化。
+                 FontWeight 默认给 Medium：思源的 Regular 字干比微软雅黑细，
+                 而本项目正文集中在 11-12px（各 100 处以上），叠上
+                 TextFormattingMode 的像素对齐后整体发虚。Medium 字形本来就已内嵌。
+                 Window 上也设一份——TextBlock 的 Style 只管独立 TextBlock，
+                 Button/TextBox 等控件的文字走属性继承，得从 Window 往下流。 -->
             <Style TargetType="{x:Type Window}">
                 <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-                <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+                <Setter Property="FontWeight" Value="Medium"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
                 <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
             </Style>
             <Style TargetType="{x:Type TextBlock}">
                 <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-                <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+                <Setter Property="FontWeight" Value="Medium"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
                 <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
             </Style>
 

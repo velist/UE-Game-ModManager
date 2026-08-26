@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +45,15 @@ namespace UEModManager
             AttachGlobalExceptionHandlers();
 
             Console.WriteLine("[App] OnStartup 开始");
+
+            // 给所有窗口套上 Win11 系统圆角。挂 Window 的类级 Loaded 处理器，
+            // 一处覆盖主窗口和全部对话框——此时 hwnd 已创建。
+            // 详见 Infrastructure/WindowCorners.cs 里为什么不能改 WindowChrome.CornerRadius。
+            EventManager.RegisterClassHandler(
+                typeof(Window),
+                FrameworkElement.LoadedEvent,
+                new RoutedEventHandler((s, _) => WindowCorners.ApplyRounded(s as Window)));
+
             base.OnStartup(e);
 
             // 读取UI语言偏好并提前应用

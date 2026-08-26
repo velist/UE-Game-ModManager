@@ -44,7 +44,7 @@
                 <StackPanel x:Name="NormalDropState"
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <!-- 上传图标 -->
-                    <Border Width="56" Height="56" CornerRadius="12"
+                    <Border Width="56" Height="56" CornerRadius="14"
                             Background="#0d06b6d4" HorizontalAlignment="Center" Margin="0,0,0,16">
                         <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="24"
                                    Foreground="{StaticResource PrimaryBrush}"
@@ -112,7 +112,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#06b6d4" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="MOD 文件" FontSize="13" FontWeight="Medium"
+                            <TextBlock Text="MOD 文件" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
                         <TextBlock Text="MOD &#x6587;&#x4EF6; / ZIP &#x538B;&#x7F29;&#x5305;" FontSize="11"
@@ -128,7 +128,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#a855f7" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="插件" FontSize="13" FontWeight="Medium"
+                            <TextBlock Text="插件" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
                         <TextBlock Text=".dll" FontSize="11"
@@ -144,7 +144,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#f59e0b" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="配置" FontSize="13" FontWeight="Medium"
+                            <TextBlock Text="配置" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
                         <TextBlock Text=".ini .json .cfg" FontSize="11"

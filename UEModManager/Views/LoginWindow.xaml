@@ -38,7 +38,7 @@
                 <!-- ── 头部区域 ── -->
                 <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="32">
                     <!-- 图标 -->
-                    <Border Width="48" Height="48" CornerRadius="12"
+                    <Border Width="48" Height="48" CornerRadius="14"
                             Background="#1a06b6d4" HorizontalAlignment="Center"
                             Margin="0,0,0,8">
                         <Border.BorderBrush>

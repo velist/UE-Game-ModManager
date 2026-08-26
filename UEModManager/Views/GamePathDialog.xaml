@@ -32,7 +32,7 @@
         <!-- 路径输入 -->
         <StackPanel Grid.Row="1">
             <!-- 游戏图标（非必填） -->
-            <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+            <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                     Padding="16" Margin="0,0,0,20">
                 <Grid>
@@ -43,7 +43,7 @@
 
                     <!-- 图标预览框 -->
                     <Border Grid.Column="0" x:Name="GameIconBorder" Width="64" Height="64"
-                            CornerRadius="12" Background="{StaticResource BgBaseBrush}"
+                            CornerRadius="14" Background="{StaticResource BgBaseBrush}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                             ClipToBounds="True" Cursor="Hand"
                             MouseLeftButtonDown="GameIcon_Click">
@@ -60,7 +60,7 @@
                     <!-- 图标信息 -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
                         <TextBlock Text="游戏图标" Foreground="{StaticResource Text200Brush}"
-                                   FontSize="13" FontWeight="Medium"/>
+                                   FontSize="13" FontWeight="SemiBold"/>
                         <TextBlock Text="支持 PNG/JPG（非必选）" Foreground="{StaticResource Text500Brush}"
                                    FontSize="11" Margin="0,4,0,8"/>
                         <StackPanel Orientation="Horizontal">

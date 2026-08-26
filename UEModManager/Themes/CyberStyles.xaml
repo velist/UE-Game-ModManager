@@ -101,7 +101,7 @@
                             Background="{TemplateBinding Background}"
                             UseLayoutRounding="True"
                             SnapsToDevicePixels="True"
-                            TextOptions.TextFormattingMode="Display"
+                            TextOptions.TextFormattingMode="Ideal"
                             TextOptions.TextRenderingMode="ClearType">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -124,7 +124,7 @@
                                         <Image Source="pack://application:,,,/mnlogo.ico" Width="18" Height="18" Margin="0,0,8,0"
                                                RenderOptions.BitmapScalingMode="HighQuality"/>
                                         <TextBlock Text="{TemplateBinding Title}" Foreground="{StaticResource Text400Brush}"
-                                                   FontSize="12" FontWeight="Medium" VerticalAlignment="Center"/>
+                                                   FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     </StackPanel>
 
                                     <!-- 窗口控制按钮 -->
@@ -204,7 +204,7 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             Background="{TemplateBinding Background}"
                             UseLayoutRounding="True" SnapsToDevicePixels="True"
-                            TextOptions.TextFormattingMode="Display"
+                            TextOptions.TextFormattingMode="Ideal"
                             TextOptions.TextRenderingMode="ClearType">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -255,7 +255,7 @@
         <Setter Property="ResizeMode" Value="NoResize"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
-        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
         <Setter Property="shell:WindowChrome.WindowChrome">
             <Setter.Value>
@@ -520,7 +520,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type CheckBox}">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="checkBorder" Width="18" Height="18" CornerRadius="4"
+                        <Border x:Name="checkBorder" Width="18" Height="18" CornerRadius="6"
                                 Background="{StaticResource BgBaseBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 Margin="0,0,8,0" VerticalAlignment="Center">

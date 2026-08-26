@@ -25,7 +25,7 @@
                 <StackPanel DockPanel.Dock="Top" Margin="16,20,16,0">
                     <TextBlock Text="配置文件" FontSize="11" FontWeight="Bold"
                                Foreground="{StaticResource Text600Brush}" Margin="0,0,0,4"/>
-                    <Border CornerRadius="8" Background="{StaticResource BgBaseBrush}"
+                    <Border CornerRadius="10" Background="{StaticResource BgBaseBrush}"
                             Padding="10,7" Margin="0,8,0,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="12"
@@ -61,7 +61,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock x:Name="FileNameText" Text="未选择文件" FontSize="17" FontWeight="Bold"
                                        Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
-                            <Border x:Name="FormatBadge" CornerRadius="4" Padding="8,3" Margin="12,0,0,0"
+                            <Border x:Name="FormatBadge" CornerRadius="6" Padding="8,3" Margin="12,0,0,0"
                                     Background="#1a06b6d4" VerticalAlignment="Center" Visibility="Collapsed">
                                 <TextBlock x:Name="FormatText" Text="INI" FontSize="10" FontWeight="Bold"
                                            Foreground="{StaticResource PrimaryBrush}"/>
@@ -76,7 +76,7 @@
                         <TextBlock x:Name="StatsText" Text="" FontSize="12"
                                    Foreground="{StaticResource Text400Brush}" VerticalAlignment="Center"
                                    Margin="0,0,16,0"/>
-                        <Border CornerRadius="8" Padding="14,8" Cursor="Hand"
+                        <Border CornerRadius="10" Padding="14,8" Cursor="Hand"
                                 MouseLeftButtonDown="PreviewMerge_Click">
                             <Border.Style>
                                 <Style TargetType="Border">

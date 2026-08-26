@@ -11,10 +11,10 @@
         <!-- 标题 -->
         <TextBlock x:Name="PromptText" Text="请输入内容:"
                    Foreground="{StaticResource Text200Brush}"
-                   FontSize="14" FontWeight="Medium" Margin="0,0,0,16"/>
+                   FontSize="14" FontWeight="SemiBold" Margin="0,0,0,16"/>
 
         <!-- 输入框 -->
-        <Border CornerRadius="8" Background="{StaticResource SurfaceBrush}"
+        <Border CornerRadius="10" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                 Padding="12,10">
             <TextBox x:Name="InputBox" Background="Transparent" BorderThickness="0"

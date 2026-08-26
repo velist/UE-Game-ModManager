@@ -65,7 +65,7 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DisplayName}"
-                                       FontSize="13" FontWeight="Medium"
+                                       FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
 
                             <Border Grid.Row="0" Grid.Column="1" Padding="6,1"

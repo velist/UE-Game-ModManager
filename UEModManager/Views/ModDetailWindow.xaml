@@ -36,7 +36,7 @@
                     <!-- 状态标签 (左上角) -->
                     <Border x:Name="StatusBadge" HorizontalAlignment="Left" VerticalAlignment="Top"
                             Margin="16,16,0,0" CornerRadius="6" Padding="10,4">
-                        <TextBlock x:Name="StatusText" FontSize="12" FontWeight="Medium"/>
+                        <TextBlock x:Name="StatusText" FontSize="12" FontWeight="SemiBold"/>
                     </Border>
 
                     <!-- 关闭按钮 (右上角) -->
@@ -68,7 +68,7 @@
                                TextWrapping="Wrap" Margin="0,0,0,16"/>
 
                     <!-- 信息网格 -->
-                    <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                    <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                             Padding="16" Margin="0,0,0,16">
                         <Grid>
@@ -130,7 +130,7 @@
                     <!-- 描述 (可选) -->
                     <StackPanel x:Name="DescriptionPanel" Visibility="Collapsed" Margin="0,0,0,16">
                         <TextBlock Text="描述" Foreground="{StaticResource Text500Brush}"
-                                   FontSize="12" FontWeight="Medium" Margin="0,0,0,6"/>
+                                   FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/>
                         <TextBlock x:Name="DescriptionText" Foreground="{StaticResource Text300Brush}"
                                    FontSize="13" TextWrapping="Wrap"/>
                     </StackPanel>

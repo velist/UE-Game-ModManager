@@ -47,7 +47,7 @@
                 <StackPanel>
                     <!-- 第一行：图标 + 名称 + 活跃标签 -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                        <Border Width="32" Height="32" CornerRadius="8"
+                        <Border Width="32" Height="32" CornerRadius="10"
                                 Background="#1a06b6d4" Margin="0,0,10,0">
                             <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                        Foreground="{StaticResource PrimaryBrush}"
@@ -59,7 +59,7 @@
                                    VerticalAlignment="Center"/>
 
                         <Border x:Name="CardActiveBadge"
-                                Background="#1a22c55e" CornerRadius="4" Padding="6,2,6,2"
+                                Background="#1a22c55e" CornerRadius="6" Padding="6,2,6,2"
                                 Margin="8,0,0,0" VerticalAlignment="Center"
                                 Visibility="Collapsed">
                             <TextBlock Text="活跃" FontSize="10"
@@ -75,17 +75,17 @@
 
                     <!-- 第三行：统计信息 -->
                     <StackPanel Orientation="Horizontal">
-                        <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                        <Border Background="#1a06b6d4" CornerRadius="6" Padding="6,2,6,2" Margin="0,0,6,0">
                             <TextBlock FontSize="10" Foreground="{StaticResource PrimaryBrush}"
                                        Text="{Binding ModCount, StringFormat={}{0} MOD}"/>
                         </Border>
                         <Border x:Name="CardPluginBadge"
-                                Background="#1aa855f7" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                                Background="#1aa855f7" CornerRadius="6" Padding="6,2,6,2" Margin="0,0,6,0">
                             <TextBlock FontSize="10" Foreground="{StaticResource PluginPurpleBrush}"
                                        Text="{Binding PluginCount, StringFormat={}{0} 插件}"/>
                         </Border>
                         <Border x:Name="CardConfigBadge"
-                                Background="#1af59e0b" CornerRadius="4" Padding="6,2,6,2" Margin="0,0,6,0">
+                                Background="#1af59e0b" CornerRadius="6" Padding="6,2,6,2" Margin="0,0,6,0">
                             <TextBlock FontSize="10" Foreground="{StaticResource ConfigAmberBrush}"
                                        Text="{Binding ConfigCount, StringFormat={}{0} 配置}"/>
                         </Border>
@@ -148,7 +148,7 @@
 
                     <!-- 类型标签 -->
                     <Border Grid.Column="2" x:Name="TypeBadge"
-                            Background="{StaticResource ModCyanBgBrush}" CornerRadius="4" Padding="8,2,8,2"
+                            Background="{StaticResource ModCyanBgBrush}" CornerRadius="6" Padding="8,2,8,2"
                             HorizontalAlignment="Left" VerticalAlignment="Center">
                         <TextBlock x:Name="TypeBadgeText" Text="MOD" FontSize="11"
                                    Foreground="{StaticResource PrimaryBrush}"/>
@@ -224,7 +224,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="方案列表" FontSize="15" FontWeight="SemiBold"
                                    Foreground="{StaticResource Text100Brush}"/>
-                        <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
+                        <Border Background="#1a06b6d4" CornerRadius="6" Padding="6,2" Margin="10,0,0,0"
                                 VerticalAlignment="Center">
                             <TextBlock Text="{Binding Profiles.Count, StringFormat={}{0} 个方案}" FontSize="11"
                                        Foreground="{StaticResource PrimaryBrush}"/>
@@ -255,7 +255,7 @@
                             <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="8" Padding="0">
+                                    CornerRadius="10" Padding="0">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                             VerticalAlignment="Center">
                                     <TextBlock Text="+" FontSize="16" Foreground="{StaticResource Text400Brush}"
@@ -311,7 +311,7 @@
                         <TextBlock x:Name="DetailProfileName" Text="{Binding SelectedProfile.Name}"
                                    FontSize="17" FontWeight="SemiBold"
                                    Foreground="{StaticResource Text100Brush}"/>
-                        <Border x:Name="ActiveBadge" Background="#1a22c55e" CornerRadius="4"
+                        <Border x:Name="ActiveBadge" Background="#1a22c55e" CornerRadius="6"
                                 Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="活跃" FontSize="11" Foreground="#22c55e"/>
                             <Border.Style>

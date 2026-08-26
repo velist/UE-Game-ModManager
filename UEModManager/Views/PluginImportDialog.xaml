@@ -29,7 +29,7 @@
                        Foreground="{StaticResource Text500Brush}" Margin="0,4,0,8"/>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <Border CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
+                <Border CornerRadius="10" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
                         BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                         Cursor="Hand" Margin="0,0,10,0" MouseLeftButtonDown="SelectFiles_Click">
                     <StackPanel Orientation="Horizontal">
@@ -45,7 +45,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
+                <Border CornerRadius="10" Background="{StaticResource SurfaceHoverBrush}" Padding="8,8"
                         BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                         Cursor="Hand" MouseLeftButtonDown="SelectFolder_Click">
                     <StackPanel Orientation="Horizontal">
@@ -63,7 +63,7 @@
             </StackPanel>
 
             <!-- 文件列表预览 -->
-            <Border x:Name="FileListPanel" CornerRadius="8" Background="{StaticResource BgBaseBrush}" Padding="12"
+            <Border x:Name="FileListPanel" CornerRadius="10" Background="{StaticResource BgBaseBrush}" Padding="12"
                     BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                     Margin="0,0,0,20" Visibility="Collapsed" MaxHeight="120">
                 <StackPanel>
@@ -103,7 +103,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" CornerRadius="8" Background="{StaticResource BgBaseBrush}"
+                <Border Grid.Column="0" CornerRadius="10" Background="{StaticResource BgBaseBrush}"
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         Padding="12,0" Height="36" Margin="0,0,8,0">
                     <TextBox x:Name="TargetPathBox" Background="Transparent" BorderThickness="0"
@@ -111,7 +111,7 @@
                              CaretBrush="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
                 </Border>
 
-                <Border Grid.Column="1" CornerRadius="8" Background="{StaticResource SurfaceHoverBrush}"
+                <Border Grid.Column="1" CornerRadius="10" Background="{StaticResource SurfaceHoverBrush}"
                         BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                         Padding="14,8" Cursor="Hand" MouseLeftButtonDown="BrowseTarget_Click">
                     <StackPanel Orientation="Horizontal">

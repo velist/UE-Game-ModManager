@@ -155,7 +155,7 @@
                            FontSize="12" Foreground="{StaticResource Text500Brush}" Margin="0,0,0,24"/>
 
                 <!-- 游戏图标（非必填） -->
-                <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         Padding="16" Margin="0,0,0,20">
                     <Grid>
@@ -165,7 +165,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0" x:Name="SettingsGameIconBorder" Width="64" Height="64"
-                                CornerRadius="12" Background="{StaticResource BgBaseBrush}"
+                                CornerRadius="14" Background="{StaticResource BgBaseBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 ClipToBounds="True" Cursor="Hand"
                                 MouseLeftButtonDown="SettingsGameIcon_Click">
@@ -182,7 +182,7 @@
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
                             <TextBlock Text="游戏图标" Foreground="{StaticResource Text200Brush}"
-                                       FontSize="13" FontWeight="Medium"/>
+                                       FontSize="13" FontWeight="SemiBold"/>
                             <TextBlock Text="支持 PNG/JPG（非必选）" Foreground="{StaticResource Text500Brush}"
                                        FontSize="11" Margin="0,4,0,8"/>
                             <StackPanel Orientation="Horizontal">
@@ -249,7 +249,7 @@
                                Foreground="{StaticResource Text100Brush}" Margin="0,0,0,24"/>
 
                     <!-- 背景模式 -->
-                    <TextBlock x:Name="BgModeLabel" Text="背景模式" FontSize="13" FontWeight="Medium"
+                    <TextBlock x:Name="BgModeLabel" Text="背景模式" FontSize="13" FontWeight="SemiBold"
                                Foreground="{StaticResource Text400Brush}" Margin="0,0,0,12"/>
                     <Grid Margin="0,0,0,20">
                         <Grid.ColumnDefinitions>
@@ -261,7 +261,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- 默认渐变 -->
-                        <Border x:Name="BgModeGradient" Grid.Column="0" CornerRadius="12"
+                        <Border x:Name="BgModeGradient" Grid.Column="0" CornerRadius="14"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderThickness="2" Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="BgModeGradient_Click">
@@ -269,7 +269,7 @@
                                 <SolidColorBrush Color="{StaticResource PrimaryColor}"/>
                             </Border.BorderBrush>
                             <StackPanel>
-                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8" ClipToBounds="True">
+                                <Border Height="52" CornerRadius="10" Margin="0,0,0,8" ClipToBounds="True">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                             <GradientStop Color="#030303" Offset="0"/>
@@ -284,13 +284,13 @@
                         </Border>
 
                         <!-- 自定义图片 -->
-                        <Border x:Name="BgModeImage" Grid.Column="2" CornerRadius="12"
+                        <Border x:Name="BgModeImage" Grid.Column="2" CornerRadius="14"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
                                 Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="BgModeImage_Click">
                             <StackPanel>
-                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8"
+                                <Border Height="52" CornerRadius="10" Margin="0,0,0,8"
                                         Background="{StaticResource BgBaseBrush}">
                                     <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="20"
                                                Foreground="{StaticResource Text600Brush}"
@@ -302,13 +302,13 @@
                         </Border>
 
                         <!-- 纯色背景 -->
-                        <Border x:Name="BgModeSolid" Grid.Column="4" CornerRadius="12"
+                        <Border x:Name="BgModeSolid" Grid.Column="4" CornerRadius="14"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
                                 Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="BgModeSolid_Click">
                             <StackPanel>
-                                <Border Height="52" CornerRadius="8" Margin="0,0,0,8"
+                                <Border Height="52" CornerRadius="10" Margin="0,0,0,8"
                                         Background="#0a0a0f"/>
                                 <TextBlock x:Name="BgModeSolidText" Text="纯色背景" FontSize="11"
                                            Foreground="{StaticResource Text300Brush}" HorizontalAlignment="Center"/>
@@ -400,7 +400,7 @@
 
                     <!-- 捐赠支持 -->
                     <StackPanel HorizontalAlignment="Center">
-                        <Border Width="160" Height="160" CornerRadius="12"
+                        <Border Width="160" Height="160" CornerRadius="14"
                                 Background="#FFFFFFFF" ClipToBounds="True"
                                 HorizontalAlignment="Center">
                             <Image Source="/捐赠.png" Stretch="Uniform" Margin="4"/>
@@ -433,7 +433,7 @@
                                        Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
                             <TextBlock Text="爱酱游戏群全体群友" FontSize="13"
                                        Foreground="{StaticResource PrimaryBrush}" TextAlignment="Center"
-                                       FontWeight="Medium"/>
+                                       FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -486,7 +486,7 @@
                                     <TextBlock Text="文件复制" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
                                                VerticalAlignment="Center"/>
-                                    <Border Background="#1a06b6d4" CornerRadius="4" Padding="6,2" Margin="8,0,0,0">
+                                    <Border Background="#1a06b6d4" CornerRadius="6" Padding="6,2" Margin="8,0,0,0">
                                         <TextBlock Text="推荐" FontSize="10" Foreground="{StaticResource PrimaryBrush}"/>
                                     </Border>
                                 </StackPanel>
@@ -603,12 +603,12 @@
                                Foreground="{StaticResource Text500Brush}" Margin="0,0,0,24"/>
 
                     <!-- 诊断包导出卡片 -->
-                    <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                    <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                             Padding="20,18" Margin="0,0,0,20">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Border Width="32" Height="32" CornerRadius="8"
+                                <Border Width="32" Height="32" CornerRadius="10"
                                         Background="#1a06b6d4" Margin="0,0,12,0">
                                     <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                                Foreground="{StaticResource PrimaryBrush}"
@@ -622,7 +622,7 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <Border Background="#0a0a0f" CornerRadius="8" Padding="14,10" Margin="0,8,0,12">
+                            <Border Background="#0a0a0f" CornerRadius="10" Padding="14,10" Margin="0,8,0,12">
                                 <StackPanel>
                                     <TextBlock x:Name="DiagBundleContentLabel" Text="包内容" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{StaticResource Text400Brush}" Margin="0,0,0,6"/>
@@ -657,7 +657,7 @@
                     </Border>
 
                     <!-- 反馈渠道卡片 -->
-                    <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                    <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                             Padding="20,18">
                         <StackPanel>

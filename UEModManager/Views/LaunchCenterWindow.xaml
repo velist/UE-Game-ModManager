@@ -35,7 +35,7 @@
                 <!-- 导航项 -->
                 <StackPanel DockPanel.Dock="Top" Margin="8,0">
                     <!-- 启动预检（当前页，高亮） -->
-                    <Border CornerRadius="8" Padding="12,10" Margin="0,2"
+                    <Border CornerRadius="10" Padding="12,10" Margin="0,2"
                             Background="#0d06b6d4" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,10,0">
@@ -50,7 +50,7 @@
                     </Border>
 
                     <!-- 启动历史 -->
-                    <Border CornerRadius="8" Padding="12,10" Margin="0,2" Cursor="Hand"
+                    <Border CornerRadius="10" Padding="12,10" Margin="0,2" Cursor="Hand"
                             MouseLeftButtonDown="ShowHistory_Click">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -121,7 +121,7 @@
                            Foreground="{StaticResource Text200Brush}" Margin="0,0,0,16"/>
 
                 <!-- 检查列表 -->
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="12"
+                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="14"
                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                         Padding="20,16" Margin="0,0,0,28">
                     <StackPanel x:Name="CheckListPanel" />

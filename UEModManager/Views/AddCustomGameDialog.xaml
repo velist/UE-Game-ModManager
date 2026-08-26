@@ -22,7 +22,7 @@
                     MouseDown="TitleBar_MouseDown">
                 <Grid Margin="24,20">
                     <StackPanel Orientation="Horizontal">
-                        <Border Width="32" Height="32" CornerRadius="8"
+                        <Border Width="32" Height="32" CornerRadius="10"
                                 Background="#1a06b6d4" Margin="0,0,12,0">
                             <Border.BorderBrush>
                                 <SolidColorBrush Color="#06b6d4" Opacity="0.2"/>
@@ -48,7 +48,7 @@
             <StackPanel Grid.Row="1" Margin="24">
                 <!-- 游戏图标区 -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                    <Border Width="64" Height="64" CornerRadius="12" Background="#060608"
+                    <Border Width="64" Height="64" CornerRadius="14" Background="#060608"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1">
                         <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="24"
                                    Foreground="{StaticResource Text700Brush}"

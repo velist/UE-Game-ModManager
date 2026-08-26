@@ -69,7 +69,7 @@
                                Foreground="{StaticResource Text400Brush}" Margin="0,0,10,0"
                                VerticalAlignment="Center"/>
                     <StackPanel>
-                        <TextBlock x:Name="ArchiveFileName" Text="" FontSize="13" FontWeight="Medium"
+                        <TextBlock x:Name="ArchiveFileName" Text="" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource Text200Brush}"/>
                         <TextBlock x:Name="ArchiveFileInfo" Text="" FontSize="11"
                                    Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
