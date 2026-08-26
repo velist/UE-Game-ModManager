@@ -393,10 +393,17 @@ namespace UEModManager.Services
                 }
                 else
                 {
-                    // 更新现有用户信息
+                    // 更新现有用户信息。
+                    //
+                    // DisplayName 与 Avatar 是本地个性化设置，本地说了算：只有云端确实带了值才覆盖。
+                    // 原先是无条件赋值，而云端目前没有设置昵称/头像的入口、这两个字段基本为空，
+                    // 结果每次云端登录都会把用户在账户设置里设好的名称和头像清成 null。
+                    // Username 仍由云端所有（账号标识，不是个性化设置），保持无条件同步。
                     existingUser.Username = cloudUser.Username;
-                    existingUser.DisplayName = cloudUser.DisplayName;
-                    existingUser.Avatar = cloudUser.Avatar;
+                    if (!string.IsNullOrWhiteSpace(cloudUser.DisplayName))
+                        existingUser.DisplayName = cloudUser.DisplayName;
+                    if (!string.IsNullOrWhiteSpace(cloudUser.Avatar))
+                        existingUser.Avatar = cloudUser.Avatar;
                     existingUser.LastLoginAt = DateTime.Now;
 
                     await _localAuthService.UpdateUserAsync(existingUser);
