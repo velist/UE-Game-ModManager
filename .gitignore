@@ -119,3 +119,7 @@ dashboard-preview.png
 AGENTS.md
 updateplan.pen
 *.pen
+
+# 测试运行产物（dotnet test 生成）
+TestResults/
+**/TestResults/
