@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using System.Threading.Tasks;
@@ -110,7 +111,7 @@ namespace UEModManager
                 if (_localAuthService != null)
                 {
                     _localAuthService.AuthStateChanged += OnLocalAuthStateChanged;
-                    UpdateUserStatusDisplay();
+                    RefreshUserProfile();
                 }
 
                 // 订阅部署降级告知。挂在主窗口而不是各个部署入口上：单个开关、批量开关、
@@ -597,9 +598,36 @@ namespace UEModManager
         //  认证 & 用户状态
         // ═════════════════════════════════════════
 
+        /// <summary>
+        /// 当前用户的个性签名缓存。
+        ///
+        /// <para>
+        /// 签名存在 <c>AppConfiguration</c> 表里，只能异步读；而
+        /// <see cref="UpdateUserStatusDisplay"/> 有 6 个同步调用点（含
+        /// <c>Dispatcher.Invoke</c>），改成异步会牵一大片，在 UI 线程上同步等待又有死锁风险。
+        /// 因此签名走"异步取一次、缓存起来、同步渲染"：资料可能变化的时点调
+        /// <see cref="RefreshUserProfile"/> 刷新缓存，其余调用点照旧同步渲染。
+        /// </para>
+        /// </summary>
+        private string? _userSignature;
+
         private void OnLocalAuthStateChanged(object? sender, LocalAuthEventArgs e)
         {
-            Dispatcher.Invoke(UpdateUserStatusDisplay);
+            Dispatcher.Invoke(RefreshUserProfile);
+        }
+
+        /// <summary>
+        /// 重新拉取用户资料（签名）并刷新左下角显示。登录状态变化、账户设置保存后调用。
+        /// </summary>
+        private void RefreshUserProfile()
+        {
+            SafeEvent.Run(this, async () =>
+            {
+                _userSignature = _localAuthService?.IsLoggedIn == true && _localAuthService != null
+                    ? await _localAuthService.GetUserSignatureAsync()
+                    : null;
+                UpdateUserStatusDisplay();
+            }, _logger, "刷新用户资料");
         }
 
         private void UpdateUserStatusDisplay()
@@ -609,15 +637,77 @@ namespace UEModManager
             {
                 var user = _localAuthService.CurrentUser;
                 UserNameText.Text = user?.DisplayName ?? user?.Email ?? (en ? "Logged in" : "已登录");
-                UserStatusText.Text = en ? "Cloud Online" : "云端在线";
-                UserStatusText.Foreground = FindResource("StatusGreenBrush") as Brush ?? Brushes.Green;
+
+                // 第二行：有签名显示签名，没有才回退成登录状态。
+                var sig = _userSignature?.Trim();
+                if (!string.IsNullOrEmpty(sig))
+                {
+                    UserStatusText.Text = sig;
+                    UserStatusText.ToolTip = sig;   // 签名可能被截断，悬停看全文
+                    UserStatusText.Foreground = FindResource("Text500Brush") as Brush ?? Brushes.Gray;
+                }
+                else
+                {
+                    UserStatusText.Text = en ? "Cloud Online" : "云端在线";
+                    UserStatusText.ToolTip = null;
+                    UserStatusText.Foreground = FindResource("StatusGreenBrush") as Brush ?? Brushes.Green;
+                }
+
+                ApplyUserAvatar(user?.Avatar);
             }
             else
             {
                 UserNameText.Text = en ? "Not Logged In" : "未登录";
                 UserStatusText.Text = en ? "Click to login" : "点击登录账号";
+                UserStatusText.ToolTip = null;
                 UserStatusText.Foreground = FindResource("Text600Brush") as Brush ?? Brushes.Gray;
+                ApplyUserAvatar(null);
             }
+        }
+
+        /// <summary>
+        /// 把头像画到左下角。传 null / 文件不存在 / 解码失败都回退成默认 👤 图标——
+        /// 头像文件是用户选的，随时可能被他删掉或移走，这里绝不能因此抛异常或显示破图。
+        /// </summary>
+        private void ApplyUserAvatar(string? path)
+        {
+            if (UserAvatarBorder == null || UserAvatarIcon == null) return;
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    var bmp = LoadAvatarBitmap(path!, 72);   // 36pt 控件按 2x 解码，够清晰又不吃内存
+                    UserAvatarBorder.Background = new ImageBrush(bmp) { Stretch = Stretch.UniformToFill };
+                    UserAvatarIcon.Visibility = Visibility.Collapsed;
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "[UI] 加载头像失败，回退默认图标: {Path}", path);
+            }
+
+            UserAvatarBorder.Background = FindResource("SurfaceBrush") as Brush ?? Brushes.Transparent;
+            UserAvatarIcon.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// 解码头像位图。<c>CacheOption=OnLoad</c> 是关键：默认的 OnDemand 会一直持有文件句柄，
+        /// 用户之后就删不掉、换不了那张原图。<c>DecodePixelWidth</c> 限制解码尺寸，
+        /// 避免用户随手选了一张 4000px 的图就把几十 MB 常驻在内存里。
+        /// </summary>
+        internal static BitmapImage LoadAvatarBitmap(string path, int decodePixelWidth)
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bmp.DecodePixelWidth = decodePixelWidth;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
         }
 
         private void UserArea_Click(object sender, MouseButtonEventArgs e)
@@ -638,7 +728,7 @@ namespace UEModManager
                             try
                             {
                                 new AccountSettingsWindow { Owner = this }.ShowDialog();
-                                UpdateUserStatusDisplay();
+                                RefreshUserProfile();   // 头像/昵称/签名都可能变了，重新拉一次
                             }
                             catch (Exception ex)
                             {
@@ -712,22 +802,19 @@ namespace UEModManager
         //  捐赠支持
         // ═════════════════════════════════════════
 
-        private void DonateBtn_MouseEnter(object sender, MouseEventArgs e)
-        {
-            DonatePopup.IsOpen = true;
-        }
-
-        private void DonateBtn_MouseLeave(object sender, MouseEventArgs e)
-        {
-            // 如果鼠标移到了 Popup 上，则不关闭
-            if (!DonatePopup.IsMouseOver)
-                DonatePopup.IsOpen = false;
-        }
-
         private void DonateBtn_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            DonatePopup.IsOpen = !DonatePopup.IsOpen;
+            try
+            {
+                new DonateWindow { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "[UI] 打开捐赠窗口失败");
+                CyberMessageBox.Show(this, $"打开捐赠窗口失败：{ex.Message}",
+                    "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         // 使用说明书 — 打开 WPS 云文档
@@ -955,9 +1042,6 @@ namespace UEModManager
                     UpdateNavCounts();
                     UpdateModCountText();
 
-                    CyberMessageBox.Show(this, $"游戏 '{gameName}' 配置完成！\n\n" +
-                        $"MOD路径: {_gameConfig.CurrentModPath}\n已扫描到 {_vm.ModList.Mods.Count} 个MOD",
-                        "配置成功");
                 }
                 finally { IsEnabled = true; Cursor = Cursors.Arrow; }
             }

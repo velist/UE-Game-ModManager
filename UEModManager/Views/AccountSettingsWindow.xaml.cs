@@ -23,32 +23,64 @@ namespace UEModManager.Views
             _logger = sp.GetService<ILogger<AccountSettingsWindow>>();
 
             var user = _localAuth.CurrentUser;
-            UsernameTextBox.Text = user?.Username ?? string.Empty;
             DisplayNameTextBox.Text = user?.DisplayName ?? user?.Username ?? user?.Email ?? string.Empty;
-            _ = LoadSignatureAsync();
-            try
-            {
-                if (!string.IsNullOrEmpty(user?.Avatar) && System.IO.File.Exists(user.Avatar))
-                {
-                    AvatarPreview.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(user.Avatar, UriKind.Absolute));
-                }
-            }
-            catch { }
+            ShowAvatar(user?.Avatar);
+
+            Infrastructure.SafeEvent.Run(this, LoadSignatureAsync, _logger, "读取个性签名");
         }
 
-        private System.Threading.Tasks.Task LoadSignatureAsync()
+        /// <summary>
+        /// 显示头像预览，返回是否真的画上了。传 null / 文件不存在 / 解码失败都退回 👤 占位图标。
+        /// 用 Background=ImageBrush 而不是 Image 子元素，这样才能被 CornerRadius 裁成圆形。
+        /// </summary>
+        private bool ShowAvatar(string? path)
         {
             try
             {
-                var sig = string.Empty; // 暂不从本地读取签名（方法未提供）
-                SignatureTextBox.Text = sig ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path))
+                {
+                    // 80pt 控件按 2x 解码；OnLoad 避免持有文件句柄导致用户删不掉原图。
+                    var bmp = MainWindow.LoadAvatarBitmap(path!, 160);
+                    AvatarPreviewBorder.Background = new System.Windows.Media.ImageBrush(bmp)
+                    {
+                        Stretch = System.Windows.Media.Stretch.UniformToFill
+                    };
+                    AvatarPlaceholder.Visibility = Visibility.Collapsed;
+                    return true;
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "[AccountSettings] 加载头像失败，回退占位图标: {Path}", path);
+            }
 
-            return System.Threading.Tasks.Task.CompletedTask;
+            AvatarPreviewBorder.Background =
+                FindResource("SurfaceBrush") as System.Windows.Media.Brush
+                ?? System.Windows.Media.Brushes.Transparent;
+            AvatarPlaceholder.Visibility = Visibility.Visible;
+            return false;
         }
 
-        private void ChangeAvatar_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 读回已保存的个性签名。签名存在 <c>AppConfiguration</c> 表，键 <c>UserSignature.{UserId}</c>。
+        /// （此处原先是个空壳，注释写"方法未提供"，实际 <c>LocalAuthService</c> 一直有这个方法，
+        /// 结果签名存得进去、读不回来，每次打开都是空白。）
+        /// </summary>
+        private async System.Threading.Tasks.Task LoadSignatureAsync()
+        {
+            SignatureTextBox.Text = await _localAuth.GetUserSignatureAsync() ?? string.Empty;
+        }
+
+        /// <summary>点击头像本身也能换头像，与"更换头像"按钮同一入口。</summary>
+        private void AvatarArea_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            PickAvatar();
+        }
+
+        private void ChangeAvatar_Click(object sender, RoutedEventArgs e) => PickAvatar();
+
+        private void PickAvatar()
         {
             try
             {
@@ -61,8 +93,16 @@ namespace UEModManager.Views
                 };
                 if (ofd.ShowDialog() == true)
                 {
+                    // 先验证能不能解码，再认这张图：选到损坏文件或改了扩展名的非图片时，
+                    // 要在这里就告诉用户，而不是等保存完、下次启动才发现头像是空的。
+                    if (!ShowAvatar(ofd.FileName))
+                    {
+                        CyberMessageBox.Show(this, "这个文件无法作为图片打开，请换一张。",
+                            "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
                     _selectedAvatarTemp = ofd.FileName;
-                    try { AvatarPreview.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(ofd.FileName, UriKind.Absolute)); } catch { }
                 }
             }
             catch (Exception ex)
@@ -83,7 +123,6 @@ namespace UEModManager.Views
             try
             {
                 var name = (DisplayNameTextBox.Text ?? string.Empty).Trim();
-                var uname = (UsernameTextBox.Text ?? string.Empty).Trim();
                 var sig = (SignatureTextBox.Text ?? string.Empty).Trim();
                 if (_localAuth.CurrentUser == null)
                 {
@@ -94,31 +133,24 @@ namespace UEModManager.Views
                 string? avatarPath = _localAuth.CurrentUser.Avatar;
                 if (!string.IsNullOrEmpty(_selectedAvatarTemp))
                 {
-                    var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                    var avatarsDir = System.IO.Path.Combine(baseDir, "UserData", "Avatars");
-                    try
-                    {
-                        System.IO.Directory.CreateDirectory(avatarsDir);
-                        var ext = System.IO.Path.GetExtension(_selectedAvatarTemp);
-                        var fileName = $"{_localAuth.CurrentUser.Id}_{DateTime.Now:yyyyMMddHHmmss}{ext}";
-                        var dest = System.IO.Path.Combine(avatarsDir, fileName);
-                        System.IO.File.Copy(_selectedAvatarTemp, dest, true);
-                        avatarPath = dest;
-                    }
-                    catch
-                    {
-                        var appDataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UEModManager", "Avatars");
-                        System.IO.Directory.CreateDirectory(appDataDir);
-                        var ext = System.IO.Path.GetExtension(_selectedAvatarTemp);
-                        var fileName = $"{_localAuth.CurrentUser.Id}_{DateTime.Now:yyyyMMddHHmmss}{ext}";
-                        var dest = System.IO.Path.Combine(appDataDir, fileName);
-                        System.IO.File.Copy(_selectedAvatarTemp, dest, true);
-                        avatarPath = dest;
-                    }
+                    // 头像仍写在安装目录下（AppPaths.Legacy.AvatarsDirectory），**这是有意的**。
+                    // 绝对路径存在 SQLite 的 Users.Avatar 列里，光改写入目录会让老用户
+                    // 数据库里的指针指向旧文件、新旧两处各存一份且谁也不知道哪份算数；
+                    // 要正确迁移必须同时补一个改写 Users.Avatar 的数据库侧改写器。
+                    // 这件事归属未定（认证体系是否保留待拍板），详见
+                    // AppPaths.Legacy.AvatarsDirectory 的注释。
+                    // 这里只做两件不越界的事：路径经 AppPaths 表达（将来只需改一个符号），
+                    // 以及去掉原先静默回退到 %APPDATA% 的分支——那会造出第三个位置。
+                    var avatarsDir = Infrastructure.AppPaths.Legacy.AvatarsDirectory;
+                    System.IO.Directory.CreateDirectory(avatarsDir);
+                    var ext = System.IO.Path.GetExtension(_selectedAvatarTemp);
+                    var fileName = $"{_localAuth.CurrentUser.Id}_{DateTime.Now:yyyyMMddHHmmss}{ext}";
+                    var dest = System.IO.Path.Combine(avatarsDir, fileName);
+                    System.IO.File.Copy(_selectedAvatarTemp, dest, true);
+                    avatarPath = dest;
                 }
 
                 if (!string.IsNullOrEmpty(name)) _localAuth.CurrentUser.DisplayName = name;
-                if (!string.IsNullOrEmpty(uname)) _localAuth.CurrentUser.Username = uname;
                 if (!string.IsNullOrEmpty(avatarPath)) _localAuth.CurrentUser.Avatar = avatarPath;
 
                 var okUser = await _localAuth.UpdateUserAsync(_localAuth.CurrentUser);

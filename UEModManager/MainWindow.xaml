@@ -64,7 +64,7 @@
                     <!-- UserArea (底部固定) -->
                     <Border DockPanel.Dock="Bottom" Padding="16"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,1,0,0">
-                        <Border x:Name="UserBtn" CornerRadius="12" Padding="8" Cursor="Hand"
+                        <Border x:Name="UserBtn" CornerRadius="14" Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="UserArea_Click">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -73,22 +73,26 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- 用户头像 -->
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
+                                <!-- 用户头像。设置了头像时由 code-behind 把 Background 换成 ImageBrush
+                                     并隐藏 UserAvatarIcon；未设置 / 加载失败时保持默认的 👤 图标样式。 -->
+                                <Border x:Name="UserAvatarBorder" Grid.Column="0" Width="36" Height="36" CornerRadius="18"
                                         Background="{StaticResource SurfaceBrush}"
                                         BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1">
-                                    <TextBlock x:Name="UserAvatarIcon" Text="👤" FontSize="14"
-                                               Foreground="{StaticResource Text500Brush}"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Image x:Name="UserAvatarIcon" Width="22" Height="22"
+                                           Source="pack://application:,,,/mnlogo.ico"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
 
-                                <!-- 用户信息 -->
+                                <!-- 用户信息。第二行优先显示个性签名，没设签名才回退成登录状态文案。 -->
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
                                     <TextBlock x:Name="UserNameText" Text="未登录"
                                                Foreground="{StaticResource Text300Brush}"
-                                               FontSize="13" FontWeight="Medium"/>
+                                               FontSize="13" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"/>
                                     <TextBlock x:Name="UserStatusText" Text="点击登录账号"
-                                               Foreground="{StaticResource Text600Brush}" FontSize="11"/>
+                                               Foreground="{StaticResource Text600Brush}" FontSize="11"
+                                               TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
 
                                 <!-- 设置图标 (齿轮) -->
@@ -119,7 +123,7 @@
                                               StrokeLineJoin="Round"/>
                                     </Canvas>
                                 </Viewbox>
-                                <TextBlock Text="使用说明书" FontSize="12" FontWeight="Medium"
+                                <TextBlock Text="使用说明书" FontSize="12" FontWeight="SemiBold"
                                            Foreground="{StaticResource Text400Brush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
@@ -128,61 +132,23 @@
 
                     <!-- DonateArea (底部固定，在 UserArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,12,16,8">
-                        <Grid>
-                            <Border x:Name="DonateBtn" CornerRadius="10" Padding="10,8" Cursor="Hand"
-                                    Background="Transparent"
-                                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                                    MouseEnter="DonateBtn_MouseEnter"
-                                    MouseLeave="DonateBtn_MouseLeave"
-                                    MouseLeftButtonDown="DonateBtn_Click">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <!-- 爱心图标 -->
-                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                                                  Fill="#F43F5E"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="捐赠支持" FontSize="12" FontWeight="Medium"
-                                               Foreground="{StaticResource Text400Brush}"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- 捐赠二维码 Popup -->
-                            <Popup x:Name="DonatePopup" Placement="Right" PlacementTarget="{Binding ElementName=DonateBtn}"
-                                   HorizontalOffset="12" VerticalOffset="-80"
-                                   AllowsTransparency="True" PopupAnimation="Fade"
-                                   StaysOpen="False">
-                                <Border CornerRadius="16" Padding="20"
-                                        Background="{StaticResource SurfaceBrush}"
-                                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1">
-                                    <Border.Effect>
-                                        <DropShadowEffect ShadowDepth="0" BlurRadius="24"
-                                                          Color="{StaticResource PrimaryColor}" Opacity="0.25"/>
-                                    </Border.Effect>
-                                    <StackPanel Width="220">
-                                        <!-- 标题 -->
-                                        <TextBlock Text="支持MOD管理器开发" FontSize="14" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource Text100Brush}"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                        <TextBlock Text="请我喝一杯咖啡~" FontSize="12"
-                                                   Foreground="{StaticResource Text500Brush}"
-                                                   HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                                        <!-- 二维码 -->
-                                        <Border CornerRadius="12" Background="White" Padding="12"
-                                                HorizontalAlignment="Center">
-                                            <Image Source="捐赠.png" Width="180" Height="180"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                                        </Border>
-                                        <!-- 底部提示 -->
-                                        <TextBlock Text="微信扫一扫" FontSize="11"
-                                                   Foreground="{StaticResource Text600Brush}"
-                                                   HorizontalAlignment="Center" Margin="0,10,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                        </Grid>
+                        <Border x:Name="DonateBtn" CornerRadius="10" Padding="10,8" Cursor="Hand"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                                MouseLeftButtonDown="DonateBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <!-- 爱心图标 -->
+                                <Viewbox Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                                              Fill="#F43F5E"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="捐赠支持" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Text400Brush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                     </Border>
 
                     <!-- 侧边栏可滚动内容 -->
@@ -208,8 +174,8 @@
                                 <!-- GameSwitcher -->
                                 <StackPanel>
                                     <TextBlock x:Name="CurrentGameLabel" Text="当前游戏" Foreground="{StaticResource Text600Brush}"
-                                               FontSize="11" FontWeight="Medium" Margin="0,0,0,6"/>
-                                    <Border x:Name="GameSwitcherBtn" CornerRadius="12" Padding="12,8"
+                                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                    <Border x:Name="GameSwitcherBtn" CornerRadius="14" Padding="12,8"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
                                             MouseLeftButtonDown="GameSwitcher_Click">
@@ -219,7 +185,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <Border Grid.Column="0" Width="32" Height="32" CornerRadius="8"
+                                            <Border Grid.Column="0" Width="32" Height="32" CornerRadius="10"
                                                     Background="{StaticResource SurfaceHoverBrush}" ClipToBounds="True">
                                                 <Grid>
                                                     <Image x:Name="CurrentGameIcon" Stretch="UniformToFill"
@@ -230,7 +196,7 @@
                                             </Border>
                                             <TextBlock x:Name="CurrentGameName" Grid.Column="1" Text="请选择游戏"
                                                        Foreground="{StaticResource Text200Brush}"
-                                                       FontSize="13" FontWeight="Medium"
+                                                       FontSize="13" FontWeight="SemiBold"
                                                        VerticalAlignment="Center" Margin="12,0,0,0"
                                                        TextTrimming="CharacterEllipsis"/>
                                             <Viewbox Grid.Column="2" Width="14" Height="14" VerticalAlignment="Center" Margin="8,0,0,0">
@@ -255,7 +221,7 @@
                                               />
 
                                     <!-- 全部 MOD (active) -->
-                                    <Border x:Name="NavAllMods" CornerRadius="8" Padding="8,8,12,8" Margin="0,0,0,4"
+                                    <Border x:Name="NavAllMods" CornerRadius="10" Padding="8,8,12,8" Margin="0,0,0,4"
                                             Background="{StaticResource SurfaceHoverBrush}" Cursor="Hand"
                                             BorderBrush="#27272A80" BorderThickness="1"
                                             MouseLeftButtonDown="NavItem_Click" Tag="全部">
@@ -273,7 +239,7 @@
                                                     </Canvas>
                                                 </Viewbox>
                                                 <TextBlock x:Name="NavAllModsText" Text="全部 MOD" Foreground="{StaticResource PrimaryLightBrush}"
-                                                           FontSize="13" FontWeight="Medium" VerticalAlignment="Center"/>
+                                                           FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                             <TextBlock x:Name="NavAllCount" Grid.Column="1" Text="0"
                                                        Foreground="{StaticResource PrimaryBrush}"
@@ -282,7 +248,7 @@
                                     </Border>
 
                                     <!-- 已启用 -->
-                                    <Border x:Name="NavEnabled" CornerRadius="8" Padding="8,8,12,8" Margin="0,0,0,4"
+                                    <Border x:Name="NavEnabled" CornerRadius="10" Padding="8,8,12,8" Margin="0,0,0,4"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="NavItem_Click" Tag="已启用">
                                         <Grid>
@@ -308,7 +274,7 @@
                                     </Border>
 
                                     <!-- 已禁用 -->
-                                    <Border x:Name="NavDisabled" CornerRadius="8" Padding="8,8,12,8"
+                                    <Border x:Name="NavDisabled" CornerRadius="10" Padding="8,8,12,8"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="NavItem_Click" Tag="已禁用">
                                         <Grid>
@@ -370,7 +336,7 @@
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="ListBoxItem">
                                                             <Border Name="CatBorder" Background="Transparent"
-                                                                    CornerRadius="8" Padding="8,8,12,8" Margin="0,2">
+                                                                    CornerRadius="10" Padding="8,8,12,8" Margin="0,2">
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*"/>
@@ -425,7 +391,7 @@
                             <Border Margin="24,16,24,24" Padding="0" BorderBrush="#27272a" BorderThickness="0,1,0,0">
                                 <StackPanel Margin="0,16,0,0">
                                     <TextBlock Text="MOD 配置方案" Foreground="{StaticResource Text600Brush}"
-                                               FontSize="11" FontWeight="Medium" Margin="0,0,0,8"/>
+                                               FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8"/>
                                     <Border x:Name="ProfileSelectorBtn" CornerRadius="10" Padding="12,10"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
@@ -437,7 +403,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <!-- 方案图标 -->
-                                            <Border Grid.Column="0" Width="28" Height="28" CornerRadius="7"
+                                            <Border Grid.Column="0" Width="28" Height="28" CornerRadius="10"
                                                     Background="#1a06b6d4">
                                                 <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                                            Foreground="{StaticResource PrimaryBrush}"
@@ -448,7 +414,7 @@
                                             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CurrentProfileName}"
                                                            Foreground="{StaticResource Text200Brush}"
-                                                           FontSize="12" FontWeight="Medium"/>
+                                                           FontSize="12" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{Binding CurrentProfileSummary}"
                                                            Foreground="{StaticResource Text500Brush}"
                                                            FontSize="10" Margin="0,1,0,0"/>
@@ -499,7 +465,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- 搜索框 -->
-                        <Border Grid.Column="0" CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                        <Border Grid.Column="0" CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                                 Padding="12,0" Height="40" Width="320">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Viewbox Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -525,7 +491,7 @@
                         <!-- 右侧操作区 -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- 视图切换 -->
-                            <Border CornerRadius="8" Background="{StaticResource SurfaceBrush}"
+                            <Border CornerRadius="10" Background="{StaticResource SurfaceBrush}"
                                     Padding="4" Margin="0,0,16,0"
                                     BorderBrush="#27272A99" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal">
@@ -555,7 +521,7 @@
                             </Border>
 
                             <!-- 冲突检测 -->
-                            <Border CornerRadius="12" Padding="12,8" Cursor="Hand" Margin="0,0,16,0"
+                            <Border CornerRadius="14" Padding="12,8" Cursor="Hand" Margin="0,0,16,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="ConflictCheck_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -575,7 +541,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,16,0"/>
 
                             <!-- 导入 -->
-                            <Border CornerRadius="12" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
+                            <Border CornerRadius="14" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,16,0"
                                     MouseLeftButtonDown="ImportMod_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -587,7 +553,7 @@
                                         </Canvas>
                                     </Viewbox>
                                     <TextBlock x:Name="ImportModText" Text="导入" Foreground="{StaticResource BgBaseBrush}"
-                                               FontSize="13" FontWeight="Medium" VerticalAlignment="Center"/>
+                                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
 
@@ -595,7 +561,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,16,0"/>
 
                             <!-- 管理中心 -->
-                            <Border CornerRadius="12" Background="{StaticResource SurfaceBrush}" Padding="16,10"
+                            <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,16,0"
                                     BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                                     MouseLeftButtonDown="ManagementCenter_Click">
@@ -608,13 +574,13 @@
                                                   StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                         </Canvas>
                                     </Viewbox>
-                                    <TextBlock Text="高级管理" Foreground="{StaticResource Text200Brush}"
-                                               FontSize="13" FontWeight="Medium" VerticalAlignment="Center"/>
+                                    <TextBlock Text="存储与恢复" Foreground="{StaticResource Text200Brush}"
+                                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
 
                             <!-- 启动游戏 -->
-                            <Border CornerRadius="12" Padding="24,10"
+                            <Border CornerRadius="14" Padding="24,10"
                                     Cursor="Hand" MouseLeftButtonDown="LaunchGame_Click">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -660,7 +626,7 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- 全选 -->
-                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
+                            <Border CornerRadius="10" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SelectAll_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -683,15 +649,15 @@
                                     <TextBlock Text="{Binding ModList.SelectedCount, StringFormat=已选 {0}}"
                                                Foreground="{StaticResource Text300Brush}" FontSize="12"
                                                VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#2238D996" MouseLeftButtonDown="BatchEnable_Click">
                                         <TextBlock x:Name="BatchEnableText" Text="启用" Foreground="{StaticResource StatusGreenBrush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#22A1A1AA" MouseLeftButtonDown="BatchDisable_Click">
                                         <TextBlock x:Name="BatchDisableText" Text="禁用" Foreground="{StaticResource Text300Brush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="7" Padding="9,4" Cursor="Hand"
+                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand"
                                             Background="#33EF4444" MouseLeftButtonDown="BatchDelete_Click">
                                         <TextBlock x:Name="BatchDeleteText" Text="卸载" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
                                     </Border>
@@ -699,7 +665,7 @@
                             </Border>
 
                             <!-- 排序 -->
-                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand"
+                            <Border CornerRadius="10" Padding="8,6" Cursor="Hand"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SortButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -773,7 +739,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Border x:Name="CardRoot" Margin="6" ClipToBounds="True"
-                                            CornerRadius="12" Background="{StaticResource SurfaceBrush}"
+                                            CornerRadius="14" Background="{StaticResource SurfaceBrush}"
                                             BorderThickness="1" Width="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}" Height="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Cursor="Hand" MouseDown="ModCard_MouseDown"
@@ -835,7 +801,7 @@
                                                     <!-- 无图占位 -->
                                                     <Border Visibility="{Binding PreviewImagePath, Converter={StaticResource InverseNullToVisibilityConverter}}"
                                                             Background="#060608"
-                                                            Margin="8" CornerRadius="8"
+                                                            Margin="8" CornerRadius="10"
                                                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1">
                                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.3">
                                                             <Viewbox Width="32" Height="32" HorizontalAlignment="Center">
@@ -977,13 +943,13 @@
                                 <TextBlock Grid.Column="0" Text="" FontSize="12" Foreground="{StaticResource Text600Brush}"
                                            VerticalAlignment="Center" Margin="4,0"/>
                                 <TextBlock Grid.Column="1" Text="名称" FontSize="12" Foreground="{StaticResource Text600Brush}"
-                                           FontWeight="Medium" VerticalAlignment="Center" Margin="12,0"/>
+                                           FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0"/>
                                 <TextBlock Grid.Column="2" Text="状态" FontSize="12" Foreground="{StaticResource Text600Brush}"
-                                           FontWeight="Medium" VerticalAlignment="Center"/>
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="大小" FontSize="12" Foreground="{StaticResource Text600Brush}"
-                                           FontWeight="Medium" VerticalAlignment="Center"/>
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="4" Text="分类" FontSize="12" Foreground="{StaticResource Text600Brush}"
-                                           FontWeight="Medium" VerticalAlignment="Center"/>
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
                             </Grid>
                             <Border Height="1" VerticalAlignment="Top" Margin="0,36,0,0"
                                     Background="{StaticResource CyberBorderBrush}"/>
@@ -1031,7 +997,7 @@
                                         </Grid.ColumnDefinitions>
 
                                         <!-- 缩略图 -->
-                                        <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8"
+                                        <Border Grid.Column="0" Width="40" Height="40" CornerRadius="10"
                                                 Background="{StaticResource SurfaceBrush}" ClipToBounds="True"
                                                 Cursor="Hand" MouseDown="ModCard_MouseDown" Tag="{Binding}">
                                             <Grid>
@@ -1088,7 +1054,7 @@
                                     Visibility="Collapsed" Margin="0,100,0,0">
                             <TextBlock x:Name="EmptyStateIcon" Text="📦" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                             <TextBlock x:Name="EmptyStateTitle" Text="还没有 MOD" Foreground="{StaticResource Text400Brush}"
-                                       FontSize="16" FontWeight="Medium" HorizontalAlignment="Center"/>
+                                       FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                             <TextBlock x:Name="EmptyStateSubtitle" Text="点击「导入 MOD」按钮或拖拽文件到此处" Foreground="{StaticResource Text600Brush}"
                                        FontSize="13" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                         </StackPanel>
