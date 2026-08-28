@@ -74,7 +74,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                    Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="应用并部署" FontSize="13"/>
+                        <TextBlock Text="应用" FontSize="13"/>
                     </StackPanel>
                 </Button>
             </Grid>

@@ -465,24 +465,6 @@ namespace UEModManager.Views
         {
             var primaryBrush = (SolidColorBrush)FindResource("PrimaryBrush");
             var borderBrush = (SolidColorBrush)FindResource("CyberBorderBrush");
-
-            BackendCopy.BorderBrush = _selectedBackend == DeploymentBackendType.Copy ? primaryBrush : borderBrush;
-            BackendHardLink.BorderBrush = _selectedBackend == DeploymentBackendType.HardLink ? primaryBrush : borderBrush;
-
-            BackendCopyRadio.IsChecked = _selectedBackend == DeploymentBackendType.Copy;
-            BackendHardLinkRadio.IsChecked = _selectedBackend == DeploymentBackendType.HardLink;
-        }
-
-        private void BackendCopy_Click(object sender, MouseButtonEventArgs e)
-        {
-            _selectedBackend = DeploymentBackendType.Copy;
-            UpdateBackendUI();
-        }
-
-        private void BackendHardLink_Click(object sender, MouseButtonEventArgs e)
-        {
-            _selectedBackend = DeploymentBackendType.HardLink;
-            UpdateBackendUI();
         }
 
         private void BrowseRepoPath_Click(object sender, RoutedEventArgs e)

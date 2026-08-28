@@ -231,8 +231,7 @@ public static class RepositoryLocationValidator
         if (probe.DirectoryHasContent)
         {
             issues.Add(new RepositoryLocationIssue(RepositoryLocationIssueCode.DirectoryNotEmpty,
-                $"这个文件夹里已经有别的东西了，MOD 包会存到它下面的 "
-                + $"{SubdirectoryName}\\{RepositoryDirectoryName} 里，不会和你原有的文件混在一起。"));
+                $"这个文件夹非空，MOD 会单独存到 {SubdirectoryName}\\{RepositoryDirectoryName} 子目录，不与现有文件混放。"));
         }
 
         var severity = HasWarning(issues)

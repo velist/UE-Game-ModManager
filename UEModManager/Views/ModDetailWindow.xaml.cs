@@ -150,7 +150,7 @@ namespace UEModManager.Views
         private void DeleteBtn_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
             {
-                var r = CyberMessageBox.Show(this, $"确认删除 '{_mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。",
+                var r = CyberMessageBox.Show(this, $"确认删除 '{_mod.Name}'？\n此操作会从当前方案、MOD 文件库和游戏目录中移除此 MOD。",
                     "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
 

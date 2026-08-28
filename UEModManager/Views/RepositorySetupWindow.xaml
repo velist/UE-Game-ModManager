@@ -37,10 +37,8 @@
         <StackPanel Grid.Row="1" Margin="24,0,24,12">
             <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20"
                        Foreground="{StaticResource Text400Brush}"
-                       Text="选择一个空间充足的位置保存 MOD。"/>
-            <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Margin="0,6,0,0"
-                       Foreground="{StaticResource Text400Brush}"
-                       Text="建议选择游戏所在盘或其它空间充足的盘。"/>
+                       Text="建议选游戏所在的盘，空间要够。"/>
+
         </StackPanel>
 
         <!-- ═══ 磁盘列表 ═══ -->
@@ -102,7 +100,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="MOD 会存放在" Style="{StaticResource CyberLabel}"
+                <TextBlock Grid.Column="0" Text="存到这里" Style="{StaticResource CyberLabel}"
                            VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="选择其它文件夹…" Height="28" Padding="12,0"
                         Style="{StaticResource CyberGhostButton}" Click="BrowseFolder_Click"/>
@@ -126,7 +124,7 @@
 
             <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
                        Foreground="{StaticResource Text500Brush}"
-                       Text="以后可在设置中更改位置。"/>
+                       Text="以后可在设置里改。"/>
         </StackPanel>
 
         <!-- ═══ 按钮 ═══ -->

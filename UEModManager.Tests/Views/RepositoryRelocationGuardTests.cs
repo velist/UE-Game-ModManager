@@ -402,6 +402,9 @@ public class RepositoryRelocationGuardTests
         var xaml = ReadSource("Views", "RepositorySetupWindow.xaml");
 
         Assert.DoesNotContain("需要自己搬过去", xaml);
-        Assert.Contains("空间充足", xaml);
+        // 这条是弱正向校验，只为确认"怎么选位置"的指引没被整段删空。
+        // 原先钉的是"空间充足"这个具体措辞，2026-08-27 精简文案时改成了
+        // "空间要够"，断言随之放宽到"空间"——守的是指引在不在，不是某个词在不在。
+        Assert.Contains("空间", xaml);
     }
 }

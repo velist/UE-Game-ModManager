@@ -356,7 +356,7 @@ namespace UEModManager.Views
 
             if (warnings.Count > 0)
             {
-                PathWarningText.Text = $"{string.Join("、", warnings)}路径未配置，部署可能失败";
+                PathWarningText.Text = $"{string.Join("、", warnings)}路径未配置，启用 MOD 可能失败";
                 PathWarningBorder.Visibility = Visibility.Visible;
             }
             else

@@ -24,7 +24,11 @@ namespace UEModManager.Models
         /// <summary>文件复制（默认，最安全）。</summary>
         Copy,
 
-        /// <summary>硬链接（节省空间，同卷限制）。</summary>
+        /// <summary>
+        /// 硬链接。已于 2026-08-28 下线：省空间，但游戏目录与 MOD 库共用同一份数据，
+        /// 任何就地改写会同时改掉 MOD 库那份，牺牲了备份的隔离性。
+        /// 枚举值保留用于反序列化旧事务/配置，运行时自动降级为 Copy。
+        /// </summary>
         HardLink,
 
         /// <summary>

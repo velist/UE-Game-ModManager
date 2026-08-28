@@ -37,7 +37,7 @@
                              Style="{StaticResource CyberNavItem}" Content="外观设置"
                              Tag="&#xE790;" Click="TabButton_Click"/>
                 <RadioButton x:Name="TabDeploy" GroupName="SettingsTabs"
-                             Style="{StaticResource CyberNavItem}" Content="部署与仓库"
+                             Style="{StaticResource CyberNavItem}" Content="MOD 文件与位置"
                              Tag="&#xE835;" Click="TabButton_Click"/>
                 <RadioButton x:Name="TabFeedback" GroupName="SettingsTabs"
                              Style="{StaticResource CyberNavItem}" Content="反馈与诊断"
@@ -456,70 +456,16 @@
             <ScrollViewer x:Name="DeployPanel" Grid.Row="0" Visibility="Collapsed"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="32">
+
+                    <!-- MOD 安装方式的选择已于 2026-08-28 移除，只保留文件复制。
+                         硬链接虽然省空间，但游戏目录与 MOD 库共用同一份数据，任何就地改写都会
+                         同时改掉 MOD 库那份，等于牺牲了备份的隔离性——而备份隔离正是本工具的核心价值。
+                         枚举值 DeploymentBackendType.HardLink 保留用于反序列化旧配置，运行时兜底为 Copy。 -->
                     <TextBlock Text="MOD 安装方式" FontSize="18" FontWeight="Bold"
-                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,4"/>
-                    <TextBlock Text="选择启用 MOD 时，文件如何写入游戏目录" FontSize="12"
-                               Foreground="{StaticResource Text500Brush}" Margin="0,0,0,20"/>
-
-                    <!-- 后端选择 -->
-                    <Grid Margin="0,0,0,28">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- 文件复制 -->
-                        <Border x:Name="BackendCopy" Grid.Column="0" CornerRadius="10" Padding="16,14"
-                                Cursor="Hand" MouseLeftButtonDown="BackendCopy_Click"
-                                BorderThickness="2">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="BackendCopyRadio" GroupName="Backend" IsChecked="True"
-                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="文件复制" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                    <Border Background="#1a06b6d4" CornerRadius="6" Padding="6,2" Margin="8,0,0,0">
-                                        <TextBlock Text="推荐" FontSize="10" Foreground="{StaticResource PrimaryBrush}"/>
-                                    </Border>
-                                </StackPanel>
-                                <TextBlock Text="复制文件到游戏目录，兼容性最好，磁盘占用较大"
-                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 硬链接 -->
-                        <Border x:Name="BackendHardLink" Grid.Column="2" CornerRadius="10" Padding="16,14"
-                                Cursor="Hand" MouseLeftButtonDown="BackendHardLink_Click"
-                                BorderThickness="2">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <RadioButton x:Name="BackendHardLinkRadio" GroupName="Backend"
-                                                 Foreground="{StaticResource Text200Brush}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="节省空间模式" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{StaticResource Text100Brush}" Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <TextBlock Text="不额外复制文件、不占双倍空间；MOD 与游戏需在同一磁盘，跨磁盘时自动改用复制"
-                                           FontSize="11" Foreground="{StaticResource Text500Brush}"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                               Foreground="{StaticResource Text100Brush}" Margin="0,0,0,6"/>
+                    <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,28"
+                               Foreground="{StaticResource Text500Brush}"
+                               Text="启用 MOD 时，文件从 MOD 库复制到游戏目录。MOD 库始终保留独立的一份，游戏目录里发生什么都不会影响它。"/>
 
                     <Border Height="1" Background="#99272727" Margin="0,0,0,28"/>
 
@@ -554,7 +500,7 @@
                     <Border Height="1" Background="#99272727" Margin="0,0,0,28"/>
 
                     <!-- 部署选项 -->
-                    <TextBlock Text="部署选项" FontSize="16" FontWeight="SemiBold"
+                    <TextBlock Text="启用 MOD 时" FontSize="16" FontWeight="SemiBold"
                                Foreground="{StaticResource Text100Brush}" Margin="0,0,0,20"/>
 
                     <!-- 部署前确认 -->
@@ -564,7 +510,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="部署前确认" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                            <TextBlock Text="启用前先确认" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
                             <TextBlock Text="每次应用 MOD 前先显示确认窗口" FontSize="12"
                                        Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
                         </StackPanel>
@@ -582,8 +528,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="启动前自动部署" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
-                            <TextBlock Text="启动游戏时如有变更自动执行部署" FontSize="12"
+                            <TextBlock Text="导入后自动启用" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
+                            <TextBlock Text="导入 MOD 后立即启用并写入游戏目录" FontSize="12"
                                        Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="AutoDeployToggle" Grid.Column="1"
@@ -631,7 +577,7 @@
                                                LineHeight="18">
                                         <Run Text="• console.log + 最近 5 份轮转日志"/><LineBreak/>
                                         <Run Text="• Data/ 目录下的 JSON 索引（profiles / packages / categories ...）"/><LineBreak/>
-                                        <Run Text="• 最近 10 笔部署事务记录"/><LineBreak/>
+                                        <Run Text="• 最近 10 笔变更记录"/><LineBreak/>
                                         <Run Text="• 实时健康检查报告"/><LineBreak/>
                                         <Run Text="• 元数据：版本号、操作系统、.NET 运行时、当前游戏"/>
                                     </TextBlock>
