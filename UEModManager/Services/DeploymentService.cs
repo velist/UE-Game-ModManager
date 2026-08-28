@@ -355,6 +355,17 @@ namespace UEModManager.Services
                                 var targetDir = Path.GetDirectoryName(action.TargetPath);
                                 if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
                                     Directory.CreateDirectory(targetDir);
+                                // 必须先删除目标再复制，不能直接 overwrite。
+                                //
+                                // File.Copy(overwrite:true) 走 Win32 CopyFile 的 CREATE_ALWAYS，它是**原地截断并写入
+                                // 既有文件**、文件标识不变。而硬链接部署下目标与仓库里的 MOD 源文件是同一份数据，
+                                // 于是这次恢复会穿透过去，把仓库源文件的内容改成游戏原版文件——一次失败部署的回滚
+                                // 会把用户仓库里的 MOD 销毁，而仓库正是用户以为的干净备份。
+                                //
+                                // File.Delete 删的是目录项、不碰共享数据，源文件毫发无损。
+                                // HardLinkBackend.DeployFileAsync 建链接前也是这么做的，两处保持一致。
+                                if (File.Exists(action.TargetPath))
+                                    File.Delete(action.TargetPath);
                                 File.Copy(action.BackupPath, action.TargetPath, overwrite: true);
                             }
                             else
