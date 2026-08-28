@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -141,7 +141,7 @@ namespace UEModManager.Views
                     // AppPaths.Legacy.AvatarsDirectory 的注释。
                     // 这里只做两件不越界的事：路径经 AppPaths 表达（将来只需改一个符号），
                     // 以及去掉原先静默回退到 %APPDATA% 的分支——那会造出第三个位置。
-                    var avatarsDir = Infrastructure.AppPaths.Legacy.AvatarsDirectory;
+                    var avatarsDir = Infrastructure.AppPaths.AvatarsDirectory;
                     System.IO.Directory.CreateDirectory(avatarsDir);
                     var ext = System.IO.Path.GetExtension(_selectedAvatarTemp);
                     var fileName = $"{_localAuth.CurrentUser.Id}_{DateTime.Now:yyyyMMddHHmmss}{ext}";

@@ -302,6 +302,7 @@ namespace UEModManager
                     services.AddSingleton<RepositoryReclaimService>();
                     services.AddSingleton<PackageImportService>();
                     services.AddSingleton<DataMigrationService>();
+                    services.AddSingleton<AvatarLocationMigrator>();
 
                     // v2.0 Phase 3: 部署服务
                     //
@@ -312,7 +313,9 @@ namespace UEModManager
                     // 因此自定义实现放在内置实现之后即可替换内置行为。
                     // 注意：后端仍需编译进本项目，没有插件式动态加载。
                     services.AddSingleton<IDeploymentBackend, CopyBackend>();
-                    services.AddSingleton<IDeploymentBackend, HardLinkBackend>();
+                    // HardLinkBackend 已于 2026-08-28 下线，不再注册：DeploymentService.GetBackend
+                    // 找不到已选后端时兜底为 Copy，旧配置里的 HardLink 因此自动降级。
+                    // 类与其测试保留，便于将来带上"备份隔离"防护后重新启用。
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
 
@@ -500,6 +503,19 @@ namespace UEModManager
                 }
 
                 // 初始化默认管理员账户
+                // 头像迁移：把 Users.Avatar 里指向安装目录的旧路径搬到漫游数据目录。
+                // 必须在建库之后（要读 Users 表），且早于任何显示头像的 UI。
+                // 失败不阻断启动，语义与 DataLocationMigrator 一致。
+                try
+                {
+                    Console.WriteLine("[Auth] AvatarLocationMigrator");
+                    var avatarMigrator = ServiceProvider.GetRequiredService<AvatarLocationMigrator>();
+                    await avatarMigrator.RunAsync(localDbContext);
+                }
+                catch (Exception avEx)
+                {
+                    Console.WriteLine($"[Auth] AvatarLocationMigrator failed: {avEx}");
+                }
                 Console.WriteLine("[Auth] Resolve LocalAuthService");
                 var localAuthService = ServiceProvider.GetRequiredService<LocalAuthService>();
                 Console.WriteLine("[Auth] EnsureDefaultAdminAsync");
