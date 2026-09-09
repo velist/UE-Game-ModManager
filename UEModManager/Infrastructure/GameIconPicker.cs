@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using Microsoft.Win32;
+using UEModManager.Localization;
 
 namespace UEModManager.Infrastructure;
 
@@ -12,8 +13,8 @@ public static class GameIconPicker
     {
         var dialog = new OpenFileDialog
         {
-            Title = "\u9009\u62e9\u6e38\u620f\u56fe\u6807",
-            Filter = "\u56fe\u7247\u6587\u4ef6|*.png;*.jpg;*.jpeg;*.bmp;*.ico;*.webp|\u6240\u6709\u6587\u4ef6|*.*"
+            Title = UiText.Get("选择游戏图标"),
+            Filter = UiText.Get("图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.ico;*.webp|所有文件|*.*")
         };
 
         if (dialog.ShowDialog(owner) != true)

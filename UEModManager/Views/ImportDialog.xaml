@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.ImportDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="导入 MOD / 插件" Height="480" Width="520"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;导入 MOD / 插件&#x27;}" Height="480" Width="520"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}"
         AllowDrop="True"
@@ -27,7 +28,7 @@
             <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="18"
                        Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"
                        Margin="0,0,10,0"/>
-            <TextBlock Text="导入 MOD / 插件" FontSize="17" FontWeight="SemiBold"
+            <TextBlock Text="{loc:Text &#x27;导入 MOD / 插件&#x27;}" FontSize="17" FontWeight="SemiBold"
                        Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
         </StackPanel>
 
@@ -51,11 +52,11 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
-                    <TextBlock Text="拖拽文件到此处" FontSize="15" FontWeight="SemiBold"
+                    <TextBlock Text="{loc:Text &#x27;拖拽文件到此处&#x27;}" FontSize="15" FontWeight="SemiBold"
                                Foreground="{StaticResource Text100Brush}"
                                HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="MOD &#x6587;&#x4EF6; / ZIP &#x538B;&#x7F29;&#x5305;"
+                    <TextBlock Text="{loc:Text &#x27;MOD 文件 / ZIP 压缩包&#x27;}"
                                FontSize="12" Foreground="{StaticResource Text500Brush}"
                                HorizontalAlignment="Center" Margin="0,0,0,16"/>
 
@@ -63,7 +64,7 @@
                     <Button x:Name="BrowseButton" Click="BrowseButton_Click"
                             Style="{StaticResource CyberSecondaryButton}"
                             Width="140" Height="36" HorizontalAlignment="Center" Cursor="Hand">
-                        <TextBlock Text="或点击浏览文件" FontSize="13"/>
+                        <TextBlock Text="{loc:Text &#x27;或点击浏览文件&#x27;}" FontSize="13"/>
                     </Button>
                 </StackPanel>
 
@@ -73,7 +74,7 @@
                     <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets" FontSize="36"
                                Foreground="{StaticResource PrimaryLightBrush}"
                                HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                    <TextBlock Text="释放文件即可导入" FontSize="15" FontWeight="SemiBold"
+                    <TextBlock Text="{loc:Text &#x27;释放文件即可导入&#x27;}" FontSize="15" FontWeight="SemiBold"
                                Foreground="{StaticResource PrimaryLightBrush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
@@ -83,7 +84,7 @@
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <ProgressBar IsIndeterminate="True" Width="200" Height="4"
                                  Style="{StaticResource CyberProgressBar}" Margin="0,0,0,12"/>
-                    <TextBlock x:Name="LoadingText" Text="正在分析文件..."
+                    <TextBlock x:Name="LoadingText" Text="{loc:Text &#x27;正在分析文件...&#x27;}"
                                FontSize="13" Foreground="{StaticResource Text400Brush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
@@ -92,7 +93,7 @@
 
         <!-- ═══ 自动类型检测 ═══ -->
         <StackPanel Grid.Row="2">
-            <TextBlock Text="自动类型检测" FontSize="12" Foreground="{StaticResource Text500Brush}"
+            <TextBlock Text="{loc:Text &#x27;自动类型检测&#x27;}" FontSize="12" Foreground="{StaticResource Text500Brush}"
                        Margin="0,0,0,10"/>
 
             <Grid>
@@ -112,10 +113,10 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#06b6d4" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="MOD 文件" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="{loc:Text &#x27;MOD 文件&#x27;}" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
-                        <TextBlock Text="MOD &#x6587;&#x4EF6; / ZIP &#x538B;&#x7F29;&#x5305;" FontSize="11"
+                        <TextBlock Text="{loc:Text &#x27;MOD 文件 / ZIP 压缩包&#x27;}" FontSize="11"
                                    Foreground="{StaticResource Text500Brush}"/>
                     </StackPanel>
                 </Border>
@@ -128,7 +129,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#a855f7" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="插件" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="{loc:Text &#x27;插件&#x27;}" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
                         <TextBlock Text=".dll" FontSize="11"
@@ -144,7 +145,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <Ellipse Width="8" Height="8" Fill="#f59e0b" Margin="0,0,8,0"
                                      VerticalAlignment="Center"/>
-                            <TextBlock Text="配置" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="{loc:Text &#x27;配置&#x27;}" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text200Brush}"/>
                         </StackPanel>
                         <TextBlock Text=".ini .json .cfg" FontSize="11"

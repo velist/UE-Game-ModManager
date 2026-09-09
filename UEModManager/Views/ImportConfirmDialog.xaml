@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.ImportConfirmDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="导入确认" Height="640" Width="500"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;导入确认&#x27;}" Height="640" Width="500"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}">
 
@@ -38,10 +39,10 @@
                     <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"
                                VerticalAlignment="Center"/>
-                    <TextBlock Text="导入确认" FontSize="17" FontWeight="SemiBold"
+                    <TextBlock Text="{loc:Text &#x27;导入确认&#x27;}" FontSize="17" FontWeight="SemiBold"
                                Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
                 </StackPanel>
-                <TextBlock x:Name="StepIndicator" Text="步骤 2/2"
+                <TextBlock x:Name="StepIndicator" Text="{loc:Text &#x27;步骤 2/2&#x27;}"
                            FontSize="12" Foreground="{StaticResource PrimaryBrush}"
                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
@@ -49,7 +50,7 @@
 
         <!-- ═══ 说明文本 + 文件信息 ═══ -->
         <StackPanel Grid.Row="1" Margin="24,0,24,12">
-            <TextBlock Text="检测到以下文件，请确认导入"
+            <TextBlock Text="{loc:Text &#x27;检测到以下文件，请确认导入&#x27;}"
                        FontSize="13" Foreground="{StaticResource Text400Brush}" Margin="0,0,0,12"/>
 
             <!-- 压缩包信息卡片 -->
@@ -73,7 +74,7 @@
         <!-- ═══ 导入到方案 ═══ -->
         <Border Grid.Row="2" Margin="24,0,24,12">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="加入 MOD 方案：" FontSize="13"
+                <TextBlock Text="{loc:Text &#x27;加入 MOD 方案：&#x27;}" FontSize="13"
                            Foreground="{StaticResource Text300Brush}" VerticalAlignment="Center"
                            Margin="0,0,8,0"/>
                 <ComboBox x:Name="ProfileSelector" Width="140" Height="30"
@@ -98,13 +99,13 @@
                         <ColumnDefinition Width="70"/>
                         <ColumnDefinition Width="42"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="文件名" FontSize="11"
+                    <TextBlock Grid.Column="0" Text="{loc:Text &#x27;文件名&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text500Brush}"/>
-                    <TextBlock Grid.Column="1" Text="类型" FontSize="11"
+                    <TextBlock Grid.Column="1" Text="{loc:Text &#x27;类型&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text500Brush}" TextAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Text="大小" FontSize="11"
+                    <TextBlock Grid.Column="2" Text="{loc:Text &#x27;大小&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text500Brush}" TextAlignment="Right"/>
-                    <TextBlock Grid.Column="3" Text="导入" FontSize="11"
+                    <TextBlock Grid.Column="3" Text="{loc:Text &#x27;导入&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text500Brush}" TextAlignment="Center"/>
                 </Grid>
 
@@ -120,9 +121,9 @@
                 Background="#111827" BorderBrush="{StaticResource PluginPurpleBrush}" BorderThickness="1"
                 CornerRadius="{StaticResource RadiusSm}" Padding="16,12" Visibility="Collapsed">
             <StackPanel>
-                <TextBlock Text="插件 / 配置文件安装目录" FontSize="12" FontWeight="SemiBold"
+                <TextBlock Text="{loc:Text &#x27;插件 / 配置文件安装目录&#x27;}" FontSize="12" FontWeight="SemiBold"
                            Foreground="{StaticResource Text200Brush}" Margin="0,0,0,6"/>
-                <TextBlock Text="请输入相对于游戏根目录的路径，例如 Binaries/Win64。导入后启用时会安装到该目录下。"
+                <TextBlock Text="{loc:Text &#x27;请输入相对于游戏根目录的路径，例如 Binaries/Win64。导入后启用时会安装到该目录下。&#x27;}"
                            TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Text500Brush}" Margin="0,0,0,8"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -135,11 +136,11 @@
                     <ComboBox x:Name="TargetPathPresetBox" Grid.Column="2" Height="32"
                               Style="{StaticResource CyberComboBox}"
                               SelectionChanged="TargetPathPresetBox_SelectionChanged">
-                        <ComboBoxItem Content="选择常用路径" Tag="" IsSelected="True"/>
-                        <ComboBoxItem Content="插件目录（Binaries/Win64）" Tag="Binaries/Win64"/>
-                        <ComboBoxItem Content="游戏 MOD 目录（Content/Paks/~mods）" Tag="Content/Paks/~mods"/>
-                        <ComboBoxItem Content="配置目录（Saved/Config/WindowsNoEditor）" Tag="Saved/Config/WindowsNoEditor"/>
-                        <ComboBoxItem Content="Mods 目录（Mods）" Tag="Mods"/>
+                        <ComboBoxItem Content="{loc:Text &#x27;选择常用路径&#x27;}" Tag="" IsSelected="True"/>
+                        <ComboBoxItem Content="{loc:Text &#x27;插件目录（Binaries/Win64）&#x27;}" Tag="Binaries/Win64"/>
+                        <ComboBoxItem Content="{loc:Text &#x27;游戏 MOD 目录（Content/Paks/~mods）&#x27;}" Tag="Content/Paks/~mods"/>
+                        <ComboBoxItem Content="{loc:Text &#x27;配置目录（Saved/Config/WindowsNoEditor）&#x27;}" Tag="Saved/Config/WindowsNoEditor"/>
+                        <ComboBoxItem Content="{loc:Text &#x27;Mods 目录（Mods）&#x27;}" Tag="Mods"/>
                     </ComboBox>
                 </Grid>
             </StackPanel>
@@ -151,7 +152,7 @@
                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                 CornerRadius="{StaticResource RadiusSm}" Padding="16,12">
             <StackPanel>
-                <TextBlock Text="将安装到这些位置" FontSize="12" FontWeight="SemiBold"
+                <TextBlock Text="{loc:Text &#x27;将安装到这些位置&#x27;}" FontSize="12" FontWeight="SemiBold"
                            Foreground="{StaticResource Text200Brush}" Margin="0,0,0,8"/>
 
                 <StackPanel x:Name="ModPathRow" Orientation="Horizontal" Margin="0,0,0,4">
@@ -159,7 +160,7 @@
                              VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="MOD →" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="ModPathText" Text="未配置" FontSize="11"
+                    <TextBlock x:Name="ModPathText" Text="{loc:Text &#x27;未配置&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text300Brush}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
@@ -167,9 +168,9 @@
                 <StackPanel x:Name="PluginPathRow" Orientation="Horizontal" Margin="0,0,0,4">
                     <Ellipse Width="8" Height="8" Fill="{StaticResource PluginPurpleBrush}"
                              VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="插件 →" FontSize="11" Foreground="{StaticResource Text400Brush}"
+                    <TextBlock Text="{loc:Text &#x27;插件 →&#x27;}" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="PluginPathText" Text="未配置" FontSize="11"
+                    <TextBlock x:Name="PluginPathText" Text="{loc:Text &#x27;未配置&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text300Brush}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
@@ -177,14 +178,14 @@
                 <StackPanel x:Name="ConfigPathRow" Orientation="Horizontal" Margin="0,0,0,4">
                     <Ellipse Width="8" Height="8" Fill="{StaticResource ConfigAmberBrush}"
                              VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="配置文件 →" FontSize="11" Foreground="{StaticResource Text400Brush}"
+                    <TextBlock Text="{loc:Text &#x27;配置文件 →&#x27;}" FontSize="11" Foreground="{StaticResource Text400Brush}"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="ConfigPathText" Text="未配置" FontSize="11"
+                    <TextBlock x:Name="ConfigPathText" Text="{loc:Text &#x27;未配置&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text300Brush}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
-                <TextBlock x:Name="EditPathLink" Text="修改路径" FontSize="11"
+                <TextBlock x:Name="EditPathLink" Text="{loc:Text &#x27;修改路径&#x27;}" FontSize="11"
                            Foreground="{StaticResource PrimaryBrush}" Cursor="Hand"
                            Margin="0,4,0,0" MouseLeftButtonDown="EditPath_Click">
                     <TextBlock.TextDecorations>
@@ -209,12 +210,12 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <TextBlock Text="⚠" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"
                                Foreground="{StaticResource ConfigAmberBrush}"/>
-                    <TextBlock x:Name="PathWarningText" Text="路径未配置"
+                    <TextBlock x:Name="PathWarningText" Text="{loc:Text &#x27;路径未配置&#x27;}"
                                FontSize="12" Foreground="{StaticResource ConfigAmberBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="设置路径" Click="ConfigurePath_Click"
+                <Button Grid.Column="1" Content="{loc:Text &#x27;设置路径&#x27;}" Click="ConfigurePath_Click"
                         Style="{StaticResource CyberSecondaryButton}" Padding="12,4"/>
             </Grid>
         </Border>
@@ -228,7 +229,7 @@
                     <TextBlock Text="⚠" FontSize="14" Foreground="#f59e0b"
                                Margin="0,0,8,0" VerticalAlignment="Top"/>
                     <StackPanel>
-                        <TextBlock Text="潜在冲突" FontSize="13" FontWeight="SemiBold"
+                        <TextBlock Text="{loc:Text &#x27;潜在冲突&#x27;}" FontSize="13" FontWeight="SemiBold"
                                    Foreground="#f59e0b" Margin="0,0,0,2"/>
                         <TextBlock x:Name="ConflictWarningText" TextWrapping="Wrap"
                                    FontSize="12" Foreground="{StaticResource Text400Brush}"/>
@@ -247,10 +248,10 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="1" Content="← 返回" Click="BackButton_Click"
+                <Button Grid.Column="1" Content="{loc:Text &#x27;← 返回&#x27;}" Click="BackButton_Click"
                         Style="{StaticResource CyberSecondaryButton}"
                         Width="80" Height="36" Margin="0,0,8,0"/>
-                <Button Grid.Column="2" Content="取消" Click="CancelButton_Click"
+                <Button Grid.Column="2" Content="{loc:Text &#x27;取消&#x27;}" Click="CancelButton_Click"
                         Style="{StaticResource CyberSecondaryButton}"
                         Width="70" Height="36" Margin="0,0,8,0"/>
                 <Button Grid.Column="3" x:Name="ConfirmButton" Click="ConfirmButton_Click"
@@ -259,7 +260,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                    Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="确认导入" FontSize="13"/>
+                        <TextBlock Text="{loc:Text &#x27;确认导入&#x27;}" FontSize="13"/>
                     </StackPanel>
                 </Button>
             </Grid>

@@ -109,7 +109,7 @@ namespace UEModManager.Services.Backends
         /// 免得把一个提示写成一篇说明书。
         /// </summary>
         public static DeploymentDegradationNoticeContent BuildContent(
-            IReadOnlyList<DeploymentDegradationSummary> summaries)
+            IReadOnlyList<DeploymentDegradationSummary> summaries, bool english = false)
         {
             if (summaries is null) throw new ArgumentNullException(nameof(summaries));
             if (summaries.Count == 0) throw new ArgumentException("没有降级就不该生成告知", nameof(summaries));
@@ -120,21 +120,22 @@ namespace UEModManager.Services.Backends
                 .First();
 
             var fixTarget = TryGetFixTargetVolumeRoot(primary);
-            var body = new StringBuilder(DescribePrimary(primary, fixTarget != null));
+            var body = new StringBuilder(english ? DescribePrimaryEnglish(primary, fixTarget != null) : DescribePrimary(primary, fixTarget != null));
 
             foreach (var other in summaries.Where(s => !ReferenceEquals(s, primary)))
             {
                 body.Append(Environment.NewLine).Append(Environment.NewLine)
-                    .Append(DescribeSecondary(other));
+                    .Append(english ? $"Another {other.FileCount} files also used copies because the selected deployment method was unavailable." : DescribeSecondary(other));
             }
 
             body.Append(Environment.NewLine).Append(Environment.NewLine)
-                .Append("同样的情况以后不会再提示，除非你换了存放位置或换了别的盘上的游戏。");
+                .Append(english ? "This notice will not appear again for the same situation, unless you change storage or select a game on another drive."
+                    : "同样的情况以后不会再提示，除非你换了存放位置或换了别的盘上的游戏。");
 
             return new DeploymentDegradationNoticeContent(
-                TitleFor(primary.Kind), body.ToString(),
+                english ? "Deployment used file copies" : TitleFor(primary.Kind), body.ToString(),
                 fixTarget,
-                fixTarget == null ? null : BuildFixButtonText(fixTarget));
+                fixTarget == null ? null : BuildFixButtonText(fixTarget, english));
         }
 
         /// <summary>
@@ -174,8 +175,9 @@ namespace UEModManager.Services.Backends
         /// （帮你搬过去），而不是"要执行什么操作"（迁移包仓库根目录）。
         /// 带上盘名是因为它是这句话里唯一的具体信息，去掉之后用户不知道要搬去哪。
         /// </summary>
-        public static string BuildFixButtonText(string fixTargetVolumeRoot)
+        public static string BuildFixButtonText(string fixTargetVolumeRoot, bool english = false)
         {
+            if (english) return $"Move to {VolumePaths.TryGetVolumeRoot(fixTargetVolumeRoot)?.TrimEnd('\\', '/') ?? "the game drive"}";
             var where = VolumePaths.TryDescribeVolume(fixTargetVolumeRoot);
             return where == null ? "帮我搬到游戏所在的盘" : $"帮我搬到 {where}";
         }
@@ -186,6 +188,25 @@ namespace UEModManager.Services.Backends
             DeploymentDegradationKind.HardLinkUnsupported => "这次没能用上硬链接",
             _ => "部署方式已自动改为复制",
         };
+
+        private static string DescribePrimaryEnglish(DeploymentDegradationSummary summary, bool canFixInPlace)
+        {
+            var reason = summary.Kind switch
+            {
+                DeploymentDegradationKind.HardLinkCrossVolume => "Hard links require the mod repository and game to be on the same drive. They are currently on different drives.",
+                DeploymentDegradationKind.HardLinkUnsupported => "Hard links are unavailable between these locations. The drive format may not support them, as with exFAT or FAT32.",
+                _ => "The selected deployment method was unavailable."
+            };
+            var remedy = summary.Kind switch
+            {
+                DeploymentDegradationKind.HardLinkCrossVolume when canFixInPlace => "Use the button below to move your existing mods to the game drive. The app will move the files and switch storage for you.",
+                DeploymentDegradationKind.HardLinkCrossVolume => "To save space, move mod storage to the game drive in Settings > Mod storage. The app will move the data with it.",
+                DeploymentDegradationKind.HardLinkUnsupported => "To use hard links, keep the game and mod repository on the same NTFS drive.",
+                _ => string.Empty
+            };
+            return reason + $"\n\n{summary.FileCount} files were copied instead. Your mods are ready to play, but these copies use additional disk space."
+                + (remedy.Length > 0 ? "\n\n" + remedy : string.Empty);
+        }
 
         private static string DescribePrimary(DeploymentDegradationSummary summary, bool canFixInPlace)
         {

@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Threading.Tasks;
 using System.Windows;
@@ -32,7 +33,7 @@ namespace UEModManager.Infrastructure
                     try { Console.WriteLine($"[UI] {operationName} failed: {ex}"); } catch { }
                 }
 
-                CyberMessageBox.Show(owner, $"\u64cd\u4f5c\u5931\u8d25\uff1a{ex.Message}", "\u9519\u8bef", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(owner, UiText.Interpolate($"\u64cd\u4f5c\u5931\u8d25\uff1a{ex.Message}"), UiText.Get("\u9519\u8bef"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

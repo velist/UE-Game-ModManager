@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -79,7 +80,7 @@ namespace UEModManager.Views
                     ArchiveInfoCard.Visibility = Visibility.Visible;
                     ArchiveFileName.Text = Path.GetFileName(FilePaths[0]);
                     var fi = new FileInfo(FilePaths[0]);
-                    ArchiveFileInfo.Text = $"压缩包 · {UEModManager.Core.Utils.FileSizeFormatter.Format(fi.Length)}";
+                    ArchiveFileInfo.Text = UiText.Interpolate($"压缩包 · {UEModManager.Core.Utils.FileSizeFormatter.Format(fi.Length)}");
                 }
                 else
                 {
@@ -172,8 +173,8 @@ namespace UEModManager.Views
             };
             var kindLabel = entry.Kind switch
             {
-                PackageKind.Plugin => "插件",
-                PackageKind.Config => "配置",
+                PackageKind.Plugin => UiText.Get("插件"),
+                PackageKind.Config => UiText.Get("配置"),
                 _ => "MOD"
             };
             var kindBadge = new Border
@@ -238,7 +239,7 @@ namespace UEModManager.Views
             {
                 ConflictWarningPanel.Visibility = Visibility.Visible;
                 ConflictWarningText.Text = string.Join("\n",
-                    conflicts.Select(c => $"{c.FileName} 与已有 MOD 存在文件路径冲突"));
+                    conflicts.Select(c => UiText.Interpolate($"{c.FileName} 与已有 MOD 存在文件路径冲突")));
             }
             else
             {
@@ -271,7 +272,7 @@ namespace UEModManager.Views
             var targetRootPath = NormalizeTargetPath(TargetPathTextBox.Text);
             if (selectedEntries.Any(f => f.Kind != PackageKind.Mod) && string.IsNullOrWhiteSpace(targetRootPath))
             {
-                CyberMessageBox.Show(this, "插件/配置文件需要指定安装目录。", "缺少目标目录", MessageBoxButton.OK, MessageBoxImage.Warning);
+                CyberMessageBox.Show(this, UiText.Get("插件/配置文件需要指定安装目录。"), UiText.Get("缺少目标目录"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 TargetPathTextBox.Focus();
                 return;
             }
@@ -285,7 +286,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"导入失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -307,7 +308,7 @@ namespace UEModManager.Views
         {
             var reasons = results
                 .Where(r => !r.Success)
-                .Select(r => string.IsNullOrWhiteSpace(r.ErrorMessage) ? "原因未知，详细信息请查看日志。" : r.ErrorMessage!)
+                .Select(r => string.IsNullOrWhiteSpace(r.ErrorMessage) ? UiText.Get("原因未知，详细信息请查看日志。") : r.ErrorMessage!)
                 .Distinct()
                 .ToList();
 
@@ -315,12 +316,12 @@ namespace UEModManager.Views
 
             var succeeded = results.Count(r => r.Success);
             var header = succeeded > 0
-                ? $"{results.Count} 个文件中有 {results.Count - succeeded} 个导入失败："
-                : "导入失败：";
+                ? UiText.Interpolate($"{results.Count} 个文件中有 {results.Count - succeeded} 个导入失败：")
+                : UiText.Get("导入失败：");
 
             CyberMessageBox.Show(this,
                 header + Environment.NewLine + string.Join(Environment.NewLine, reasons),
-                "导入未全部完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+                UiText.Get("导入未全部完成"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
@@ -330,12 +331,12 @@ namespace UEModManager.Views
         private void UpdateDeployPaths()
         {
             var modPath = _gameConfig.CurrentModPath;
-            ModPathText.Text = string.IsNullOrEmpty(modPath) ? "未配置" : modPath;
+            ModPathText.Text = string.IsNullOrEmpty(modPath) ? UiText.Get("未配置") : modPath;
 
             var gameName = _gameConfig.CurrentGameName;
             var nonModTargetPath = NormalizeTargetPath(TargetPathTextBox.Text);
-            PluginPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? "未配置" : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
-            ConfigPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? "未配置" : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
+            PluginPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
+            ConfigPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
 
             bool hasMod = _fileEntries.Any(f => f.Kind == PackageKind.Mod && f.ShouldImport);
             bool hasPlugin = _fileEntries.Any(f => f.Kind == PackageKind.Plugin && f.ShouldImport);
@@ -349,11 +350,11 @@ namespace UEModManager.Views
             if (hasMod && string.IsNullOrEmpty(modPath))
                 warnings.Add("MOD");
             if ((hasPlugin || hasConfig) && string.IsNullOrEmpty(nonModTargetPath))
-                warnings.Add("插件/配置");
+                warnings.Add(UiText.Get("插件/配置"));
 
             if (warnings.Count > 0)
             {
-                PathWarningText.Text = $"{string.Join("、", warnings)}路径未配置，启用 MOD 可能失败";
+                PathWarningText.Text = UiText.Interpolate($"{string.Join("、", warnings)}路径未配置，启用 MOD 可能失败");
                 PathWarningBorder.Visibility = Visibility.Visible;
             }
             else

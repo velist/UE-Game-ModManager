@@ -10,7 +10,7 @@ using UEModManager.Views;
 
 namespace UEModManager.Tests.Views;
 
-[Collection(ThemeResourceCollection.Name)]
+[Collection(LanguageIntegrationCollection.Name)]
 public sealed class RepositorySetupWindowTests : IDisposable
 {
     private const long GiB = 1024L * 1024 * 1024;
@@ -18,6 +18,48 @@ public sealed class RepositorySetupWindowTests : IDisposable
     private readonly MemoryPreferences _preferences = new();
 
     public RepositorySetupWindowTests() => Directory.CreateDirectory(_root);
+
+    [Fact]
+    public void OpeningWithEnglishSelectedUsesEnglishForStorageSetup()
+    {
+        var previous = LanguageManager.IsEnglish;
+        try
+        {
+            LanguageManager.SetEnglish(true);
+            OnWindow(new[] { Drive("main", 100 * GiB, 500 * GiB) }, window =>
+            {
+                Assert.NotEmpty(window.Title);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", window.Title);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", Control<Button>(window, "ConfirmButton").Content.ToString()!);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", Rows(window, "DriveList")[0].FreeUnitLabel);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", Rows(window, "DriveList")[0].BadgeText);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", Control<TextBlock>(window, "PathHintText").Text);
+            });
+        }
+        finally { LanguageManager.SetEnglish(previous); }
+    }
+
+    [Fact]
+    public void SwitchingLanguagesUpdatesStorageSetupWithoutChangingTheDestination()
+        => OnWindow(new[] { Drive("main", 100 * GiB, 500 * GiB) }, window =>
+        {
+            var previous = LanguageManager.IsEnglish;
+            var originalTitle = window.Title;
+            var destination = DisplayedPath(window);
+            try
+            {
+                LanguageManager.SetEnglish(true);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", window.Title);
+                Assert.DoesNotMatch("[\\u4e00-\\u9fff]", Control<Button>(window, "ConfirmButton").Content.ToString()!);
+                Assert.Equal(destination, DisplayedPath(window));
+                LanguageManager.SetEnglish(false);
+                Assert.Equal(originalTitle, window.Title);
+                Assert.Contains("可用", Rows(window, "DriveList")[0].FreeUnitLabel);
+                Assert.Equal(destination, DisplayedPath(window));
+                Assert.Null(_preferences.RepositoryRoot);
+            }
+            finally { LanguageManager.SetEnglish(previous); }
+        });
 
     [Fact]
     public void SelectingAcrossGroupsAndThenChoosingFolderKeepsOneAccurateDestination()

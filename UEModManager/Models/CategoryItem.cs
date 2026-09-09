@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -34,6 +35,7 @@ namespace UEModManager.Models
                     _name = value;
                     OnPropertyChanged(nameof(Name));
                     OnPropertyChanged(nameof(DisplayText));
+                    RefreshLanguage();
                 }
             }
         }
@@ -51,6 +53,7 @@ namespace UEModManager.Models
                     _displayName = value;
                     OnPropertyChanged(nameof(DisplayName));
                     OnPropertyChanged(nameof(DisplayText));
+                    RefreshLanguage();
                 }
             }
         }
@@ -100,6 +103,7 @@ namespace UEModManager.Models
                 {
                     _isCustom = value;
                     OnPropertyChanged(nameof(IsCustom));
+                    RefreshLanguage();
                 }
             }
         }
@@ -160,6 +164,12 @@ namespace UEModManager.Models
         /// </summary>
         [JsonIgnore]
         public string DisplayText => DisplayName ?? Name;
+
+        [JsonIgnore]
+        public string LocalizedDisplayText => IsCustom || DisplayName != null
+            ? DisplayText : UiText.Get(Name);
+
+        public void RefreshLanguage() => OnPropertyChanged(nameof(LocalizedDisplayText));
 
         // ─── INotifyPropertyChanged ───
 

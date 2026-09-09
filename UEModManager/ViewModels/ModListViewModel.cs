@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -198,7 +199,7 @@ namespace UEModManager.ViewModels
         {
             if (mod == null) return;
             if (_toggleModAsync == null)
-                throw DeploymentServiceNotInitialized("切换 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("切换 MOD"));
 
             var success = await _toggleModAsync(mod, !mod.IsEnabled);
 
@@ -214,7 +215,7 @@ namespace UEModManager.ViewModels
         {
             if (mod == null) return;
             if (_deleteModAsync == null)
-                throw DeploymentServiceNotInitialized("删除 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("删除 MOD"));
 
             var success = await _deleteModAsync(mod);
 
@@ -274,7 +275,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                throw DeploymentServiceNotInitialized("批量启用 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("批量启用 MOD"));
             }
             ModsChanged?.Invoke();
         }
@@ -296,7 +297,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                throw DeploymentServiceNotInitialized("批量禁用 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("批量禁用 MOD"));
             }
             ModsChanged?.Invoke();
         }
@@ -328,7 +329,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                throw DeploymentServiceNotInitialized(enable ? "启用选中 MOD" : "禁用选中 MOD");
+                throw DeploymentServiceNotInitialized(enable ? UiText.Get("启用选中 MOD") : UiText.Get("禁用选中 MOD"));
             }
 
             if (changed)
@@ -356,7 +357,7 @@ namespace UEModManager.ViewModels
             }
             else
             {
-                throw DeploymentServiceNotInitialized("删除选中 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("删除选中 MOD"));
             }
 
             if (changed)
@@ -370,7 +371,7 @@ namespace UEModManager.ViewModels
         private InvalidOperationException DeploymentServiceNotInitialized(string operation)
         {
             _logger.LogError("部署服务未初始化，无法执行操作: {Operation}", operation);
-            return new InvalidOperationException("部署服务未初始化");
+            return new InvalidOperationException(UiText.Get("部署服务未初始化"));
         }
     }
 }

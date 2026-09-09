@@ -1,11 +1,12 @@
 <Window x:Class="UEModManager.Views.RepositorySetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UEModManager.Views"
         mc:Ignorable="d"
-        Title="MOD 存储设置" Width="640" MinWidth="560"
+        Title="{loc:Text &#x27;MOD 存储设置&#x27;}" Width="640" MinWidth="560"
         SizeToContent="Height" MaxHeight="1000"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -132,7 +133,7 @@
                                 </Grid>
                                 <Grid Margin="0,7,0,0" MinHeight="15">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <ProgressBar x:Name="UsedMeter" Value="{Binding UsedPercent, Mode=OneWay}" Style="{StaticResource SetupCapacityMeterStyle}" VerticalAlignment="Center" ToolTip="{Binding UsedDescription}" AutomationProperties.Name="已用空间百分比" />
+                                    <ProgressBar x:Name="UsedMeter" Value="{Binding UsedPercent, Mode=OneWay}" Style="{StaticResource SetupCapacityMeterStyle}" VerticalAlignment="Center" ToolTip="{Binding UsedDescription}" AutomationProperties.Name="{loc:Text &#x27;已用空间百分比&#x27;}" />
                                     <TextBlock Grid.Column="1" Text="{Binding TotalLabel}" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" Margin="14,0,0,0" />
                                 </Grid>
                                 <TextBlock Text="{Binding GameVolumeText}" Visibility="{Binding GameVolumeVisibility}"
@@ -182,11 +183,11 @@
                     <Border Background="Transparent" Padding="3,0"><Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <Viewbox x:Name="ExpandIcon" Width="14" Height="14" RenderTransformOrigin="0.5,0.5"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupChevronGeometry}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox>
-                        <TextBlock x:Name="ExpandText" Grid.Column="1" Text="显示小容量卷" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ExpandText" Grid.Column="1" Text="{loc:Text &#x27;显示小容量卷&#x27;}" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="11" VerticalAlignment="Center" />
                     </Grid></Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ExpandText" Property="Text" Value="收起小容量卷" /><Setter TargetName="ExpandIcon" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90" /></Setter.Value></Setter></Trigger>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ExpandText" Property="Text" Value="{loc:Text &#x27;收起小容量卷&#x27;}" /><Setter TargetName="ExpandIcon" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90" /></Setter.Value></Setter></Trigger>
                         <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource SetupTextBrush}" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -199,46 +200,47 @@
             <Grid.RowDefinitions><RowDefinition Height="44" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Border Grid.Row="0" Background="{DynamicResource SetupTitleBarBrush}" BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,0,0,1" CornerRadius="13,13,0,0" MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
                 <Grid Margin="16,0,0,0">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="17" /><ColumnDefinition Width="*" /><ColumnDefinition Width="44" /></Grid.ColumnDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="17" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="44" /></Grid.ColumnDefinitions>
                     <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24"><Path Data="M12,3 L21,8 L12,13 L3,8 Z M3,12 L12,17 L21,12 M3,16 L12,21 L21,16" Stroke="{DynamicResource SetupAccentBrush}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox>
-                    <TextBlock Grid.Column="1" Text="MOD 存储设置" FontSize="12" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="9,0,0,0" VerticalAlignment="Center" />
-                    <Button Grid.Column="2" Style="{StaticResource SetupCloseButtonStyle}" Click="Close_Click" ToolTip="关闭（Esc）" AutomationProperties.Name="关闭窗口"><Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></Button>
+                    <TextBlock Grid.Column="1" Text="{loc:Text &#x27;MOD 存储设置&#x27;}" FontSize="12" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="9,0,0,0" VerticalAlignment="Center" />
+                    <Button x:Name="LanguageToggle" Grid.Column="2" Content="{loc:Text 'EN'}" Click="LanguageToggle_Click" Style="{StaticResource SetupTextButtonStyle}" MinWidth="48" Margin="0,0,6,0" ToolTip="{loc:Text '语言'}" AutomationProperties.Name="{loc:Text '语言'}" />
+                    <Button Grid.Column="3" Style="{StaticResource SetupCloseButtonStyle}" Click="Close_Click" ToolTip="{loc:Text &#x27;关闭（Esc）&#x27;}" AutomationProperties.Name="{loc:Text &#x27;关闭窗口&#x27;}"><Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></Button>
                 </Grid>
             </Border>
             <ScrollViewer x:Name="BodyScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <StackPanel Margin="28,24,28,22">
-                    <TextBlock Text="给 MOD 找个合适的位置" FontSize="26" FontWeight="SemiBold" LineHeight="36" />
-                    <TextBlock Text="优先选择游戏所在的磁盘，并预留足够的空间。" Foreground="{DynamicResource SetupSecondaryBrush}" FontSize="14" Margin="0,6,0,0" LineHeight="22" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Text &#x27;给 MOD 找个合适的位置&#x27;}" FontSize="26" FontWeight="SemiBold" LineHeight="36" />
+                    <TextBlock Text="{loc:Text &#x27;优先选择游戏所在的磁盘，并预留足够的空间。&#x27;}" Foreground="{DynamicResource SetupSecondaryBrush}" FontSize="14" Margin="0,6,0,0" LineHeight="22" TextWrapping="Wrap" />
                     <Grid Margin="0,22,0,10">
-                        <TextBlock Text="选择磁盘" FontSize="13" FontWeight="SemiBold" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Border Width="12" Height="3" CornerRadius="2" Background="{DynamicResource SetupMeterBrush}" Margin="0,0,6,0" /><TextBlock Text="进度条为已用空间" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" /></StackPanel>
+                        <TextBlock Text="{loc:Text &#x27;选择磁盘&#x27;}" FontSize="13" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Border Width="12" Height="3" CornerRadius="2" Background="{DynamicResource SetupMeterBrush}" Margin="0,0,6,0" /><TextBlock Text="{loc:Text &#x27;进度条为已用空间&#x27;}" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" /></StackPanel>
                     </Grid>
                     <ItemsControl x:Name="DriveList" ItemTemplate="{StaticResource SetupDriveTemplate}" KeyboardNavigation.DirectionalNavigation="Continue" />
-                    <TextBlock x:Name="EmptyDrivesText" Visibility="Collapsed" Text="暂未找到可用磁盘，可以选择其他文件夹。" TextWrapping="Wrap" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="0,4,0,16" />
-                    <ToggleButton x:Name="SmallVolumesToggle" Style="{StaticResource SetupSmallVolumesToggleStyle}" Margin="0,-2,0,0" AutomationProperties.Name="显示或收起小容量卷" />
+                    <TextBlock x:Name="EmptyDrivesText" Visibility="Collapsed" Text="{loc:Text &#x27;暂未找到可用磁盘，可以选择其他文件夹。&#x27;}" TextWrapping="Wrap" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="0,4,0,16" />
+                    <ToggleButton x:Name="SmallVolumesToggle" Style="{StaticResource SetupSmallVolumesToggleStyle}" Margin="0,-2,0,0" AutomationProperties.Name="{loc:Text &#x27;显示或收起小容量卷&#x27;}" />
                     <StackPanel Visibility="{Binding IsChecked, ElementName=SmallVolumesToggle, Converter={StaticResource SetupBoolToVisibility}}" Margin="0,2,0,0">
-                        <TextBlock Text="这些卷容量较小，建议优先选择上方磁盘。" FontSize="12" Foreground="{DynamicResource SetupMutedBrush}" Margin="0,2,0,9" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Text &#x27;这些卷容量较小，建议优先选择上方磁盘。&#x27;}" FontSize="12" Foreground="{DynamicResource SetupMutedBrush}" Margin="0,2,0,9" TextWrapping="Wrap" />
                         <ItemsControl x:Name="SmallDriveList" ItemTemplate="{StaticResource SetupDriveTemplate}" />
                     </StackPanel>
                     <Border BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,17,0,0">
                         <StackPanel>
                             <Grid Height="28">
-                                <TextBlock Text="MOD 将存放在" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Button Content="选择其他文件夹…" HorizontalAlignment="Right" Style="{StaticResource SetupTextButtonStyle}" Click="BrowseFolder_Click" />
+                                <TextBlock Text="{loc:Text &#x27;MOD 将存放在&#x27;}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Content="{loc:Text &#x27;选择其他文件夹…&#x27;}" HorizontalAlignment="Right" Style="{StaticResource SetupTextButtonStyle}" Click="BrowseFolder_Click" />
                             </Grid>
                             <Border Margin="0,7,0,0" MinHeight="46" Padding="12,0" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource SetupLineBrush}" Background="{DynamicResource SetupInputBrush}">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="18" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
                                     <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupFolderGeometry}" Stroke="{DynamicResource SetupMutedBrush}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox>
-                                    <TextBlock x:Name="ResolvedPathText" Grid.Column="2" FontFamily="Consolas" FontSize="13" Margin="0,10,4,10" VerticalAlignment="Center" TextWrapping="Wrap"  AutomationProperties.Name="最终保存路径" AutomationProperties.LiveSetting="Polite"><Run x:Name="PathRootRun" Foreground="{DynamicResource SetupAccentBrush}" /><Run x:Name="PathRemainderRun" /></TextBlock>
-                                    <Button x:Name="CopyPathButton" Grid.Column="3" Width="32" Height="32" Padding="0" Style="{StaticResource SetupTextButtonStyle}" Click="CopyPath_OnClick" ToolTip="复制路径" AutomationProperties.Name="复制保存路径" Foreground="{DynamicResource SetupMutedBrush}"><Viewbox Width="15" Height="15"><Canvas Width="24" Height="24"><Path Data="M10,8 L18,8 Q20,8 20,10 L20,19 Q20,21 18,21 L10,21 Q8,21 8,19 L8,10 Q8,8 10,8 M16,8 L16,5 Q16,3 14,3 L5,3 Q3,3 3,5 L3,14 Q3,16 5,16 L8,16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox></Button>
+                                    <TextBlock x:Name="ResolvedPathText" Grid.Column="2" FontFamily="Consolas" FontSize="13" Margin="0,10,4,10" VerticalAlignment="Center" TextWrapping="Wrap"  AutomationProperties.Name="{loc:Text &#x27;最终保存路径&#x27;}" AutomationProperties.LiveSetting="Polite"><Run x:Name="PathRootRun" Foreground="{DynamicResource SetupAccentBrush}" /><Run x:Name="PathRemainderRun" /></TextBlock>
+                                    <Button x:Name="CopyPathButton" Grid.Column="3" Width="32" Height="32" Padding="0" Style="{StaticResource SetupTextButtonStyle}" Click="CopyPath_OnClick" ToolTip="{loc:Text &#x27;复制路径&#x27;}" AutomationProperties.Name="{loc:Text &#x27;复制保存路径&#x27;}" Foreground="{DynamicResource SetupMutedBrush}"><Viewbox Width="15" Height="15"><Canvas Width="24" Height="24"><Path Data="M10,8 L18,8 Q20,8 20,10 L20,19 Q20,21 18,21 L10,21 Q8,21 8,19 L8,10 Q8,8 10,8 M16,8 L16,5 Q16,3 14,3 L5,3 Q3,3 3,5 L3,14 Q3,16 5,16 L8,16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox></Button>
                                 </Grid>
                             </Border>
                             <Grid x:Name="DefaultPathHint" Margin="0,10,0,0">
                                 <Grid.Style><Style TargetType="Grid"><Setter Property="TextElement.Foreground" Value="{DynamicResource SetupSecondaryBrush}" /></Style></Grid.Style>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="14" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <Viewbox Width="14" Height="14" Margin="0,2,0,0" VerticalAlignment="Top"><Canvas Width="24" Height="24"><Ellipse Width="18" Height="18" Canvas.Left="3" Canvas.Top="3" Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Grid}}" StrokeThickness="1.6" /><Path Data="M12,11 L12,16 M12,7.5 L12.1,7.5" Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Grid}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox>
-                                <TextBlock x:Name="PathHintText" Grid.Column="2" Text="MOD 将独立存放，不会与已有文件混放。" FontSize="12" LineHeight="19" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock x:Name="PathHintText" Grid.Column="2" Text="{loc:Text &#x27;MOD 将独立存放，不会与已有文件混放。&#x27;}" FontSize="12" LineHeight="19" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                             </Grid>
                             <ItemsControl x:Name="IssueList" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite">
                                 <ItemsControl.ItemTemplate>
@@ -263,10 +265,10 @@
             <Border Grid.Row="2" BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,1,0,0" Background="{DynamicResource SetupTitleBarBrush}" Padding="24,17" CornerRadius="0,0,13,13">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="10" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBlock Text="之后可在设置中更改" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Content="以后再说" Style="{StaticResource SetupActionButtonStyle}" Click="Skip_Click" />
-                    <Button x:Name="ConfirmButton" Grid.Column="3" Style="{StaticResource SetupPrimaryButtonStyle}" Click="Confirm_Click" IsDefault="True" AutomationProperties.Name="使用此位置">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="使用此位置" VerticalAlignment="Center" /><Viewbox Width="16" Height="16" Margin="9,0,0,0"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupChevronGeometry}" Stroke="{DynamicResource SetupAccentInkBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></StackPanel>
+                    <TextBlock Text="{loc:Text &#x27;之后可在设置中更改&#x27;}" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="{loc:Text &#x27;以后再说&#x27;}" Style="{StaticResource SetupActionButtonStyle}" Click="Skip_Click" />
+                    <Button x:Name="ConfirmButton" Grid.Column="3" Style="{StaticResource SetupPrimaryButtonStyle}" Click="Confirm_Click" IsDefault="True" AutomationProperties.Name="{loc:Text &#x27;使用此位置&#x27;}">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="{loc:Text &#x27;使用此位置&#x27;}" VerticalAlignment="Center" /><Viewbox Width="16" Height="16" Margin="9,0,0,0"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupChevronGeometry}" Stroke="{DynamicResource SetupAccentInkBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></StackPanel>
                     </Button>
                 </Grid>
             </Border>

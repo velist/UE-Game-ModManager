@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services;
+using UEModManager.Localization;
 
 namespace UEModManager.Views
 {    public partial class LoginWindow : Window
@@ -18,17 +19,31 @@ namespace UEModManager.Views
         private bool _isProcessing = false;
         private int _countdown = 0;
         private DispatcherTimer? _countdownTimer;
-        private bool _isEnglish = false;
+        private string _loadingMessage = UiText.Get("正在处理...");
 
         public LoginWindow()
-        {            InitializeComponent();
-
-            // 解析依赖
-            var sp = (Application.Current as App)?.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider 未初始化");
-            _localAuth = sp.GetRequiredService<LocalAuthService>();
-            _otpService = sp.GetRequiredService<CustomOtpService>();
-            _logger = sp.GetService<ILogger<LoginWindow>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LoginWindow>.Instance;
+            : this(GetServices().GetRequiredService<LocalAuthService>(),
+                GetServices().GetRequiredService<CustomOtpService>(),
+                GetServices().GetService<ILogger<LoginWindow>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LoginWindow>.Instance)
+        {
         }
+
+        internal LoginWindow(LocalAuthService localAuth, CustomOtpService otpService, ILogger<LoginWindow> logger,
+            ResourceDictionary? resources = null)
+        {
+            _localAuth = localAuth ?? throw new ArgumentNullException(nameof(localAuth));
+            _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            if (resources != null) Resources = resources;
+            InitializeComponent();
+            LanguageManager.LanguageChanged += OnLanguageChanged;
+            UpdateLanguage();
+        }
+
+        private static IServiceProvider GetServices()
+            => (Application.Current as App)?.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider 未初始化");
+
+        private void OnLanguageChanged(bool english) => Dispatcher.Invoke(UpdateLanguage);
 
         // 无标题栏窗口拖动支持
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -61,13 +76,13 @@ namespace UEModManager.Views
 
             var email = EmailTextBox.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
-            {                CyberMessageBox.Show(this, "请输入有效的邮箱地址", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            {                CyberMessageBox.Show(this, UiText.Get("请输入有效的邮箱地址"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {                _isProcessing = true;
-                ShowLoading(true, _isEnglish ? "Sending code..." : "正在发送验证码...");
+                ShowLoading(true, "正在发送验证码...");
 
                 var result = await _otpService.SendOtpAsync(email);
 
@@ -78,13 +93,13 @@ namespace UEModManager.Views
                     if (isMagicLink)
                     {                        OtpInputPanel.Visibility = Visibility.Collapsed;
                         VerifyLoginButton.Visibility = Visibility.Collapsed;
-                        CyberMessageBox.Show(this, result.Message, "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                        CyberMessageBox.Show(this, result.Message, UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
                     {                        OtpInputPanel.Visibility = Visibility.Visible;
                         VerifyLoginButton.Visibility = Visibility.Visible;
                         StartCountdown(result.RetryAfterSeconds ?? 60);
-                        CyberMessageBox.Show(this, "验证码已发送，请查收邮件", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                        CyberMessageBox.Show(this, UiText.Get("验证码已发送，请查收邮件"), UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
                         OtpTextBox.Focus();
                     }
                 }
@@ -96,12 +111,12 @@ namespace UEModManager.Views
                         StartCountdown(result.RetryAfterSeconds.Value);
                     }
 
-                    CyberMessageBox.Show(this, $"发送失败：{result.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    CyberMessageBox.Show(this, UiText.Interpolate($"发送失败：{UiText.Get(result.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {                _logger.LogError(ex, "发送验证码失败");
-                CyberMessageBox.Show(this, $"发送失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"发送失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {                _isProcessing = false;
@@ -116,20 +131,20 @@ namespace UEModManager.Views
             var otp = OtpTextBox.Text?.Trim() ?? string.Empty;
 
             if (otp.Length != 6)
-            {                CyberMessageBox.Show(this, "请输入6位验证码", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            {                CyberMessageBox.Show(this, UiText.Get("请输入6位验证码"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {                _isProcessing = true;
-                ShowLoading(true, _isEnglish ? "Verifying..." : "正在验证登录...");
+                ShowLoading(true, "正在验证登录...");
 
                 // 1. 验证验证码
                 var verifyResult = await _otpService.VerifyOtpAsync(email, otp);
 
                 if (!verifyResult.Success)
                 {                    ShowLoading(false);
-                    CyberMessageBox.Show(this, $"验证失败：{verifyResult.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    CyberMessageBox.Show(this, UiText.Interpolate($"验证失败：{UiText.Get(verifyResult.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -148,13 +163,13 @@ namespace UEModManager.Views
                     Close();
                 }
                 else
-                {                    CyberMessageBox.Show(this, "设置登录状态失败，请重试", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                {                    CyberMessageBox.Show(this, UiText.Get("设置登录状态失败，请重试"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {                _logger.LogError(ex, "验证码登录失败");
                 ShowLoading(false);
-                CyberMessageBox.Show(this, $"登录失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"登录失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {                _isProcessing = false;
@@ -194,7 +209,7 @@ namespace UEModManager.Views
         private void StartCountdown(int seconds)
         {            _countdown = seconds;
             SendOtpButton.IsEnabled = false;
-            SendOtpButton.Content = _isEnglish ? $"Resend ({_countdown}s)" : $"重新发送 ({_countdown}s)";
+            UpdateLanguage();
 
             _countdownTimer?.Stop();
             _countdownTimer = new DispatcherTimer
@@ -204,11 +219,11 @@ namespace UEModManager.Views
             _countdownTimer.Tick += (s, e) =>
             {                _countdown--;
                 if (_countdown > 0)
-                {                    SendOtpButton.Content = _isEnglish ? $"Resend ({_countdown}s)" : $"重新发送 ({_countdown}s)";
+                {                    UpdateLanguage();
                 }
                 else
                 {                    _countdownTimer?.Stop();
-                    SendOtpButton.Content = _isEnglish ? "Resend Code" : "重新发送验证码";
+                    UpdateLanguage();
                     SendOtpButton.IsEnabled = true;
                 }
             };
@@ -219,76 +234,32 @@ namespace UEModManager.Views
         private void ShowLoading(bool show, string? text = null)
         {            if (LoadingOverlay == null) return;
             LoadingOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            if (show && !string.IsNullOrWhiteSpace(text) && LoadingText != null)
-            {                LoadingText.Text = text!;
-            }
+            if (show && !string.IsNullOrWhiteSpace(text)) _loadingMessage = text;
+            UpdateLanguage();
         }
 
         // 语言切换
         private void LanguageToggleButton_Click(object sender, RoutedEventArgs e)
-        {            _isEnglish = !_isEnglish;
-            UpdateLanguage();
+        {
+            try { LanguageManager.SaveAndSetEnglish(!LanguageManager.IsEnglish); }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void UpdateLanguage()
-        {            if (_isEnglish)
-            {
-
-                    // 英文
-                LanguageToggleButton.Content = "中文";
-                TitleText.Text = "OTP Login";
-                SmartAuthHint.Text = "💡 New users will be automatically registered";
-                EmailLabel.Text = "Email Address";
-
-                if (_countdown > 0)
-                {                    SendOtpButton.Content = $"Resend ({_countdown}s)";
-                }
-                else if (OtpInputPanel.Visibility == Visibility.Visible)
-                {                    SendOtpButton.Content = "Resend Code";
-                }
-                else
-                {                    SendOtpButton.Content = "Send Code";
-                }
-
-                if (OtpInputPanel.Visibility == Visibility.Visible)
-                {                    OtpTextBox.Text = OtpTextBox.Text; // Keep user input
-                    OtpHintText.Text = "Code sent to your email, valid for 10 minutes";
-                }
-
-                VerifyLoginButton.Content = "Verify Login";
-                LoadingText.Text = "Processing...";
-            }
-            else
-            {
-
-                    // 中文
-                LanguageToggleButton.Content = "EN";
-                TitleText.Text = "验证码登录";
-                SmartAuthHint.Text = "💡 新用户首次登录将自动注册账号";
-                EmailLabel.Text = "邮箱地址";
-
-                if (_countdown > 0)
-                {                    SendOtpButton.Content = $"重新发送 ({_countdown}s)";
-                }
-                else if (OtpInputPanel.Visibility == Visibility.Visible)
-                {                    SendOtpButton.Content = "重新发送验证码";
-                }
-                else
-                {                    SendOtpButton.Content = "发送验证码";
-                }
-
-                if (OtpInputPanel.Visibility == Visibility.Visible)
-                {                    OtpTextBox.Text = OtpTextBox.Text; // Keep user input
-                    OtpHintText.Text = "验证码已发送到您的邮箱，10分钟内有效";
-                }
-
-                VerifyLoginButton.Content = "验证登录";
-                LoadingText.Text = "正在处理...";
-            }
+        {
+            SendOtpButton.Content = _countdown > 0
+                ? UiText.Format("重新发送 ({0}s)", _countdown)
+                : UiText.Get(OtpInputPanel.Visibility == Visibility.Visible ? "重新发送验证码" : "发送验证码");
+            LoadingText.Text = UiText.Get(_loadingMessage);
         }
 
         protected override void OnClosed(EventArgs e)
         {            _countdownTimer?.Stop();
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
             base.OnClosed(e);
         }
     }

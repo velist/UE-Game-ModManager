@@ -16,6 +16,7 @@
   &nbsp; · &nbsp; <a href="https://www.modmanger.com/help">使用帮助</a>
   &nbsp; · &nbsp; <a href="https://github.com/velist/UE-Game-ModManager/issues">反馈问题</a>
   &nbsp; · &nbsp; <a href="#捐赠支持">捐赠支持</a>
+  &nbsp; · &nbsp; <a href="Setup/bundled/Quickstart.en.md">English quick start</a>
 </p>
 
 把导入、分类、启用、方案和恢复放在一处的 **多引擎游戏 MOD 管理器**。MOD 文件与配置保存在本地，核心管理无需登录，可离线使用。
@@ -29,6 +30,8 @@
 1. **选存储位置** — 首次启动选择 MOD 仓库，程序和 MOD 可以分开放。
 2. **选游戏** — 使用内置预设或添加自定义游戏，核对游戏与 MOD 路径。
 3. **导入并启用** — 拖入压缩包或 MOD 文件，确认导入结果，启用后启动游戏。
+
+支持中英文界面。安装器可选择语言，首次启动的存储设置窗口、登录窗口以及 **设置 → 常规 → 语言** 都可切换，重启后保留选择。免安装版在未保存语言偏好时，中文系统使用中文，其他系统使用英文。
 
 ## 支持的游戏
 

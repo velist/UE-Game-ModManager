@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,14 +28,14 @@ namespace UEModManager.Views
 
         private void RefreshUI()
         {
-            ConflictCountText.Text = $"{_conflicts.Count} 个冲突";
+            ConflictCountText.Text = UiText.Interpolate($"{_conflicts.Count} 个冲突");
             ConflictListPanel.Children.Clear();
 
             if (_conflicts.Count == 0)
             {
                 ConflictListPanel.Children.Add(new TextBlock
                 {
-                    Text = "未检测到冲突",
+                    Text = UiText.Get("未检测到冲突"),
                     FontSize = 14,
                     Foreground = (Brush)FindResource("Text500Brush"),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -42,7 +43,7 @@ namespace UEModManager.Views
                 });
                 ConflictCountBadge.Background = new SolidColorBrush(Color.FromArgb(0x28, 0x22, 0xc5, 0x5e));
                 ConflictCountText.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xc5, 0x5e));
-                ConflictCountText.Text = "无冲突";
+                ConflictCountText.Text = UiText.Get("无冲突");
                 return;
             }
 
@@ -115,8 +116,8 @@ namespace UEModManager.Views
                 isWinner: true,
                 displayName: record.WinnerDisplayName,
                 detail: record.Resolution == ResolutionMethod.UserOverride
-                    ? "用户指定"
-                    : $"优先级 #1"
+                    ? UiText.Get("用户指定")
+                    : UiText.Interpolate($"优先级 #1")
             ));
 
             // 败者行
@@ -125,7 +126,7 @@ namespace UEModManager.Views
                 stack.Children.Add(CreateParticipantRow(
                     isWinner: false,
                     displayName: loser.DisplayName,
-                    detail: $"优先级 #{loser.Priority}"
+                    detail: UiText.Interpolate($"优先级 #{loser.Priority}")
                 ));
             }
 
@@ -141,7 +142,7 @@ namespace UEModManager.Views
             var bgColor = isWinner
                 ? Color.FromArgb(0x18, 0x22, 0xc5, 0x5e)
                 : Color.FromArgb(0x18, 0xef, 0x44, 0x44);
-            var prefix = isWinner ? "✓  胜者" : "✕  败者";
+            var prefix = isWinner ? UiText.Get("✓  胜者") : UiText.Get("✕  败者");
 
             var border = new Border
             {
@@ -197,7 +198,7 @@ namespace UEModManager.Views
                 var result = await _conflictAnalyzer.AnalyzeAsync();
                 _conflicts = result.Conflicts;
                 RefreshUI();
-            }, null, "自动解决冲突");
+            }, null, UiText.Get("自动解决冲突"));
 
         private void Apply_Click(object sender, RoutedEventArgs e)
         {

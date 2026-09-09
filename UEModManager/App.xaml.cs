@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -58,11 +59,8 @@ namespace UEModManager
             // 读取UI语言偏好并提前应用
             try
             {
-                if (UEModManager.Services.UiPreferences.TryLoadEnglish(out var isEn))
-                {
-                    UEModManager.Services.LanguageManager.SetEnglish(isEn);
-                    Console.WriteLine($"[App] 已应用UI语言偏好: {(isEn ? "EN" : "ZH")}");
-                }
+                LanguageManager.Initialize();
+                Console.WriteLine($"[App] 已应用UI语言偏好: {(LanguageManager.IsEnglish ? "EN" : "ZH")}");
             }
             catch { }
             
@@ -99,7 +97,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 try { Console.WriteLine($"[FATAL] 应用程序启动失败: {ex}"); } catch { }
-                try { MessageBox.Show($"应用程序启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error); } catch { }
+                try { MessageBox.Show(UiText.Interpolate($"应用程序启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error); } catch { }
                 Shutdown();
             }
         }
@@ -151,9 +149,9 @@ namespace UEModManager
                 try
                 {
                     MessageBox.Show(
-                        $"操作失败：{e.Exception.Message}\n\n" +
-                        $"详细信息已写入日志：\n{_logFilePath}",
-                        "UEModManager 发生错误",
+                        UiText.Interpolate($"操作失败：{e.Exception.Message}\n\n") +
+                        UiText.Interpolate($"详细信息已写入日志：\n{_logFilePath}"),
+                        UiText.Get("UEModManager 发生错误"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                 }
@@ -402,7 +400,7 @@ namespace UEModManager
                 // 添加安全检查防止访问已释放的ServiceProvider
                 if (ServiceProvider == null)
                 {
-                    MessageBox.Show("服务未正确初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(UiText.Get("服务未正确初始化"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                     Shutdown();
                     return;
                 }
@@ -470,8 +468,8 @@ namespace UEModManager
                 if (!databaseReady)
                 {
                     var choice = MessageBox.Show(
-                        "本地数据库初始化失败。可以以离线只读方式继续，但账号登录、会话恢复和本地资料保存可能不可用。\n\n是否继续？",
-                        "数据库初始化失败",
+                        UiText.Get("本地数据库初始化失败。可以以离线只读方式继续，但账号登录、会话恢复和本地资料保存可能不可用。\n\n是否继续？"),
+                        UiText.Get("数据库初始化失败"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Warning);
                     if (choice == MessageBoxResult.Yes)
@@ -555,7 +553,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 try { Console.WriteLine($"[FATAL][Auth] ShowAuthenticationWindow failed: {ex}"); } catch { }
-                MessageBox.Show($"认证窗口启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(UiText.Interpolate($"认证窗口启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
         }
@@ -623,7 +621,7 @@ namespace UEModManager
                 if (ServiceProvider == null)
                 {
                     Console.WriteLine("[App] ServiceProvider 为空，退出应用程序");
-                    MessageBox.Show("服务未正确初始化", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(UiText.Get("服务未正确初始化"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                     Shutdown();
                     return;
                 }
@@ -654,7 +652,7 @@ namespace UEModManager
             {
                 Console.WriteLine($"[App] 主窗口启动失败: {ex.Message}");
                 Console.WriteLine($"[App] 异常详情: {ex}");
-                MessageBox.Show($"主窗口启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(UiText.Interpolate($"主窗口启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
         }

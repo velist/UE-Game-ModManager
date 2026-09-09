@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -62,8 +63,8 @@ namespace UEModManager.ViewModels
         public bool HasMod => CurrentMod != null;
         public string ModName => CurrentMod?.Name ?? string.Empty;
         public string FileName => CurrentMod?.RealName ?? string.Empty;
-        public string Status => CurrentMod?.IsEnabled == true ? "已启用" : "已禁用";
-        public string Category => CurrentMod?.PrimaryCategory ?? "未分类";
+        public string Status => CurrentMod?.IsEnabled == true ? UiText.Get("已启用") : UiText.Get("已禁用");
+        public string Category => CurrentMod?.PrimaryCategory ?? UiText.Get("未分类");
         public string FileSize => CurrentMod?.FormattedSize ?? string.Empty;
         public string InstallDate => CurrentMod?.FormattedInstallDate ?? string.Empty;
         public string Description => CurrentMod?.Description ?? string.Empty;
@@ -112,7 +113,7 @@ namespace UEModManager.ViewModels
         {
             if (CurrentMod == null) return;
             if (_toggleModAsync == null)
-                throw DeploymentServiceNotInitialized("切换 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("切换 MOD"));
 
             var success = await _toggleModAsync(CurrentMod, !CurrentMod.IsEnabled);
 
@@ -132,12 +133,12 @@ namespace UEModManager.ViewModels
         {
             if (CurrentMod == null) return;
             if (_changePreviewAsync == null)
-                throw DeploymentServiceNotInitialized("更换预览图");
+                throw DeploymentServiceNotInitialized(UiText.Get("更换预览图"));
 
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "选择预览图",
-                Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*"
+                Title = UiText.Get("选择预览图"),
+                Filter = UiText.Get("图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*")
             };
 
             if (dialog.ShowDialog() == true)
@@ -158,7 +159,7 @@ namespace UEModManager.ViewModels
         {
             if (CurrentMod == null) return;
             if (_deleteModAsync == null)
-                throw DeploymentServiceNotInitialized("删除 MOD");
+                throw DeploymentServiceNotInitialized(UiText.Get("删除 MOD"));
 
             var success = await _deleteModAsync(CurrentMod);
 
@@ -182,7 +183,7 @@ namespace UEModManager.ViewModels
         private InvalidOperationException DeploymentServiceNotInitialized(string operation)
         {
             _logger.LogError("部署服务未初始化，无法执行操作: {Operation}", operation);
-            return new InvalidOperationException("部署服务未初始化");
+            return new InvalidOperationException(UiText.Get("部署服务未初始化"));
         }
     }
 }

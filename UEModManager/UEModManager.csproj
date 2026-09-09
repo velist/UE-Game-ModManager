@@ -66,5 +66,6 @@
   <ItemGroup>
     <None Update="Assets\GameIcons\*.png;Assets\GameIcons\SOURCES.md"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Localization\en-US.json" />
   </ItemGroup>
 </Project>

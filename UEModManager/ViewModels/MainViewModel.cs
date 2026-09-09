@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -119,7 +120,7 @@ namespace UEModManager.ViewModels
         private string _currentGameName = string.Empty;
 
         [ObservableProperty]
-        private string _userName = "未登录";
+        private string _userName = UiText.Get("未登录");
 
         [ObservableProperty]
         private string _userAvatar = string.Empty;
@@ -253,10 +254,10 @@ namespace UEModManager.ViewModels
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var profile = _profileService.CurrentProfile;
-                CurrentProfileName = profile?.Name ?? "未选择";
+                CurrentProfileName = profile?.Name ?? UiText.Get("未选择");
                 CurrentProfileSummary = profile == null
                     ? string.Empty
-                    : $"{profile.EnabledCount}/{profile.TotalCount} 已启用";
+                    : UiText.Interpolate($"{profile.EnabledCount}/{profile.TotalCount} 已启用");
             });
         }
 
@@ -284,7 +285,7 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public async Task InitializeAsync()
         {
-            using var loading = BeginLoading("加载配置...");
+            using var loading = BeginLoading(UiText.Get("加载配置..."));
             try
             {
 
@@ -294,13 +295,13 @@ namespace UEModManager.ViewModels
                 if (!string.IsNullOrEmpty(CurrentGameName))
                 {
                     // 加载 Profile
-                    LoadingMessage = "加载方案...";
+                    LoadingMessage = UiText.Get("加载方案...");
                     await _profileService.SetCurrentGameAsync(CurrentGameName);
                     // OnProfileListChanged 内部已经带上了 RefreshProfileDisplay
                     OnProfileListChanged();
 
                     // v2.0: 初始化包仓库
-                    LoadingMessage = "加载包仓库...";
+                    LoadingMessage = UiText.Get("加载包仓库...");
                     await _packageRepository.SetCurrentGameAsync(CurrentGameName);
 
                     // v2.0: 初始化冲突分析器
@@ -308,13 +309,13 @@ namespace UEModManager.ViewModels
                     await _overwriteStore.SetCurrentGameAsync(CurrentGameName);
 
                     // 分类：数据文件按游戏名分片，漏掉这一步分类就永远不会从磁盘读回来
-                    LoadingMessage = "加载分类...";
+                    LoadingMessage = UiText.Get("加载分类...");
                     await _categoryService.SetCurrentGameAsync(CurrentGameName);
 
                     // v2.0: 检查并执行数据迁移
                     if (_dataMigrationService.NeedsMigration(CurrentGameName))
                     {
-                        LoadingMessage = "迁移旧数据到 v2.0 格式...";
+                        LoadingMessage = UiText.Get("迁移旧数据到 v2.0 格式...");
                         _logger.LogInformation("检测到需要数据迁移: {Game}", CurrentGameName);
                         var result = await _dataMigrationService.MigrateAsync(CurrentGameName);
                         if (result.Success)
@@ -377,7 +378,7 @@ namespace UEModManager.ViewModels
 
         public Task RefreshFromRepositoryAsync()
         {
-            using var loading = BeginLoading("刷新仓库...");
+            using var loading = BeginLoading(UiText.Get("刷新仓库..."));
             try
             {
 
@@ -435,7 +436,7 @@ namespace UEModManager.ViewModels
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = _gameConfig.CurrentEngineProfile.FileDialogFilter,
+                Filter = UiText.Get(_gameConfig.CurrentEngineProfile.FileDialogFilter),
                 Multiselect = true
             };
 
@@ -465,7 +466,7 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task<OperationResult> ImportModsAsync(string[] filePaths)
         {
-            using var loading = BeginLoading("导入MOD...");
+            using var loading = BeginLoading(UiText.Get("导入MOD..."));
             try
             {
                 var results = await _packageImportService.ImportAsync(filePaths);
@@ -508,7 +509,7 @@ namespace UEModManager.ViewModels
         /// </summary>
         public async Task<OperationResult> DeployToggleAsync(string packageKey, bool enable)
         {
-            using var loading = BeginLoading(enable ? "启用中..." : "禁用中...");
+            using var loading = BeginLoading(enable ? UiText.Get("启用中...") : UiText.Get("禁用中..."));
             try
             {
 
@@ -555,7 +556,7 @@ namespace UEModManager.ViewModels
             var results = new List<OperationResult>();
 
             // 外层遮罩：整批期间常亮，而不是每个 MOD 闪一下
-            using var loading = BeginLoading(enable ? "批量启用..." : "批量禁用...");
+            using var loading = BeginLoading(enable ? UiText.Get("批量启用...") : UiText.Get("批量禁用..."));
 
             // 批处理：循环内每次 DeployToggleAsync 都会写一次 Profile 元数据，
             // 原先就是 N 次完整 profiles JSON 序列化 + 原子写。作用域内只标脏，结束时落盘一次。
@@ -587,7 +588,7 @@ namespace UEModManager.ViewModels
             if (package == null)
             {
                 _logger.LogWarning("重命名失败，仓库中找不到包: {Key}", mod.RealName);
-                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+                return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
             }
 
             package.DisplayName = newName.Trim();
@@ -601,7 +602,7 @@ namespace UEModManager.ViewModels
                 // SafeEvent：同一个方法的其它失败分支都走 OperationResult，混着两种通道
                 // 会让调用方无从判断"返回了就一定没抛"。
                 _logger.LogError(ex, "重命名 MOD 失败: {Key}", mod.RealName);
-                return OperationResult.Fail($"重命名「{mod.Name}」失败：{ex.Message}");
+                return OperationResult.Fail(UiText.Interpolate($"重命名「{mod.Name}」失败：{ex.Message}"));
             }
 
             mod.Name = package.DisplayName;
@@ -622,7 +623,7 @@ namespace UEModManager.ViewModels
             if (!ModCategoryAssignment.IsAssignableTarget(categoryName))
             {
                 _logger.LogWarning("移动分类失败，目标不合法: {Category}", categoryName);
-                return OperationResult.Fail($"「{categoryName}」不是可用的分类目标。");
+                return OperationResult.Fail(UiText.Interpolate($"「{categoryName}」不是可用的分类目标。"));
             }
 
             if (ModCategoryAssignment.IsAlreadyIn(mod.Categories, categoryName))
@@ -632,7 +633,7 @@ namespace UEModManager.ViewModels
             if (package == null)
             {
                 _logger.LogWarning("移动分类失败，仓库中找不到包: {Key}", mod.RealName);
-                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+                return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
             }
 
             var previousTags = package.Tags;
@@ -648,7 +649,7 @@ namespace UEModManager.ViewModels
                 // 增删改失败要回滚内存是同一个道理。
                 package.Tags = previousTags;
                 _logger.LogError(ex, "移动 MOD 分类失败: {Key} -> {Category}", mod.RealName, categoryName);
-                return OperationResult.Fail($"将「{mod.Name}」移动到「{categoryName}」失败：{ex.Message}");
+                return OperationResult.Fail(UiText.Interpolate($"将「{mod.Name}」移动到「{categoryName}」失败：{ex.Message}"));
             }
 
             mod.Categories = ModCategoryAssignment.BuildCategoriesFor(categoryName);
@@ -668,13 +669,13 @@ namespace UEModManager.ViewModels
                 // ObjectStore 现在把真实原因抛上来（仓库目录不可写、磁盘满、源图被占用……），
                 // 直接透传比原来那句"请确认图片文件仍然存在且可读取"的猜测有用得多。
                 _logger.LogError(ex, "更换预览图失败: {Key} ← {Path}", mod.RealName, imagePath);
-                return OperationResult.Fail($"预览图保存失败：{ex.Message}");
+                return OperationResult.Fail(UiText.Interpolate($"预览图保存失败：{ex.Message}"));
             }
 
             if (string.IsNullOrEmpty(storedPath))
             {
                 _logger.LogWarning("更换预览图失败，仓库中找不到包: {Key}", mod.RealName);
-                return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+                return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
             }
 
             mod.PreviewImage = null;
@@ -697,7 +698,7 @@ namespace UEModManager.ViewModels
             var changed = false;
             var results = new List<OperationResult>();
 
-            using var loading = BeginLoading("批量删除...");
+            using var loading = BeginLoading(UiText.Get("批量删除..."));
 
             // 同 ToggleModsAsync：每次删除都会经 RemovePackageReferencesAsync 写一次 Profile
             await using (await _profileService.BeginBatchAsync())
@@ -718,7 +719,7 @@ namespace UEModManager.ViewModels
 
         private async Task<OperationResult> DeletePackageModCoreAsync(ModInfo mod)
         {
-            using var loading = BeginLoading("删除中...");
+            using var loading = BeginLoading(UiText.Get("删除中..."));
             try
             {
 
@@ -726,20 +727,20 @@ namespace UEModManager.ViewModels
                 if (package == null)
                 {
                     _logger.LogWarning("删除失败，仓库中找不到包: {Key}", mod.RealName);
-                    return OperationResult.Fail($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。");
+                    return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
                 }
 
                 // 先卸载已部署的文件；这一步失败就不能继续删仓库，否则游戏目录里会留下孤儿文件
                 var undeploy = await DeployToggleAsync(package.PackageKey, false);
                 if (!undeploy.Success)
-                    return OperationResult.Fail($"无法从游戏目录移除「{mod.Name}」的已部署文件，已中止删除。{Environment.NewLine}{undeploy.Error}");
+                    return OperationResult.Fail(UiText.Interpolate($"无法从游戏目录移除「{mod.Name}」的已部署文件，已中止删除。{Environment.NewLine}{undeploy.Error}"));
 
                 var (success, _) = await _packageRepository.DeletePackageAsync(
                     package.PackageKey, _profileService.GetProfiles(), force: true);
                 if (!success)
                 {
                     _logger.LogWarning("从仓库删除包失败: {Key}", package.PackageKey);
-                    return OperationResult.Fail($"从包仓库删除「{mod.Name}」失败。文件可能被占用或权限不足。");
+                    return OperationResult.Fail(UiText.Interpolate($"从包仓库删除「{mod.Name}」失败。文件可能被占用或权限不足。"));
                 }
 
                 await _profileService.RemovePackageReferencesAsync(package.PackageKey);
@@ -767,9 +768,15 @@ namespace UEModManager.ViewModels
         {
             var enabled = AllMods.Count(m => m.IsEnabled);
             var profileInfo = _profileService.CurrentProfile != null
-                ? $" | 方案: {_profileService.CurrentProfile.Name}"
+                ? UiText.Interpolate($" | 方案: {_profileService.CurrentProfile.Name}")
                 : "";
-            StatusBarText = $"已加载MOD: {enabled}/{AllMods.Count}{profileInfo}";
+            StatusBarText = UiText.Interpolate($"已加载MOD: {enabled}/{AllMods.Count}{profileInfo}");
+        }
+
+        public void RefreshLanguage()
+        {
+            RefreshProfileDisplay();
+            UpdateStatusBar();
         }
 
         // ─── 释放 ───

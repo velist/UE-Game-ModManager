@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.LaunchCenterWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="启动中心" Height="560" Width="760"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;启动中心&#x27;}" Height="560" Width="760"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBaseBrush}"
         Style="{StaticResource CyberDarkWindow}">
@@ -23,9 +24,9 @@
             <DockPanel LastChildFill="True">
                 <!-- Logo/标题 -->
                 <StackPanel DockPanel.Dock="Top" Margin="16,20,16,0">
-                    <TextBlock Text="游戏MOD管理器" FontSize="13" FontWeight="Bold"
+                    <TextBlock Text="{loc:Text &#x27;游戏MOD管理器&#x27;}" FontSize="13" FontWeight="Bold"
                                Foreground="{StaticResource Text100Brush}" Margin="0,0,0,4"/>
-                    <TextBlock x:Name="SidebarProfileText" Text="方案: 默认" FontSize="11"
+                    <TextBlock x:Name="SidebarProfileText" Text="{loc:Text &#x27;方案: 默认&#x27;}" FontSize="11"
                                Foreground="{StaticResource Text400Brush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
@@ -44,7 +45,7 @@
                                           StrokeLineJoin="Round"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="启动预检" FontSize="13" Foreground="{StaticResource PrimaryLightBrush}"
+                            <TextBlock Text="{loc:Text &#x27;启动预检&#x27;}" FontSize="13" Foreground="{StaticResource PrimaryLightBrush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -69,7 +70,7 @@
                                           Stroke="{StaticResource Text400Brush}" StrokeThickness="2" Fill="Transparent"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="启动历史" FontSize="13" Foreground="{StaticResource Text400Brush}"
+                            <TextBlock Text="{loc:Text &#x27;启动历史&#x27;}" FontSize="13" Foreground="{StaticResource Text400Brush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -91,7 +92,7 @@
         <DockPanel Grid.Column="1" Margin="40,32">
             <!-- 标题区 -->
             <StackPanel DockPanel.Dock="Top" HorizontalAlignment="Center" Margin="0,0,0,28">
-                <TextBlock x:Name="TitleText" Text="准备启动" FontSize="26" FontWeight="Bold"
+                <TextBlock x:Name="TitleText" Text="{loc:Text &#x27;准备启动&#x27;}" FontSize="26" FontWeight="Bold"
                            Foreground="{StaticResource Text100Brush}" HorizontalAlignment="Center"
                            FontFamily="{StaticResource InterFont}"/>
                 <TextBlock x:Name="SubtitleText" Text="" FontSize="13"
@@ -102,22 +103,22 @@
             <!-- 底部状态栏 -->
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center"
                         Margin="0,20,0,0">
-                <TextBlock x:Name="LastLaunchText" Text="首次启动" FontSize="11"
+                <TextBlock x:Name="LastLaunchText" Text="{loc:Text &#x27;首次启动&#x27;}" FontSize="11"
                            Foreground="{StaticResource Text500Brush}" Margin="0,0,20,0"/>
                 <Ellipse Width="4" Height="4" Fill="{StaticResource Text600Brush}" VerticalAlignment="Center"
                          Margin="0,0,20,0"/>
-                <TextBlock x:Name="ModCountText" Text="0 个包已启用" FontSize="11"
+                <TextBlock x:Name="ModCountText" Text="{loc:Text &#x27;0 个包已启用&#x27;}" FontSize="11"
                            Foreground="{StaticResource Text500Brush}" Margin="0,0,20,0"/>
                 <Ellipse Width="4" Height="4" Fill="{StaticResource Text600Brush}" VerticalAlignment="Center"
                          Margin="0,0,20,0"/>
-                <TextBlock x:Name="LastEventText" Text="上次事件: 无异常" FontSize="11"
+                <TextBlock x:Name="LastEventText" Text="{loc:Text &#x27;上次事件: 无异常&#x27;}" FontSize="11"
                            Foreground="{StaticResource Text500Brush}"/>
             </StackPanel>
 
             <!-- 中间内容 -->
             <StackPanel VerticalAlignment="Center">
                 <!-- 启动前检查标题 -->
-                <TextBlock Text="启动前检查" FontSize="14" FontWeight="SemiBold"
+                <TextBlock Text="{loc:Text &#x27;启动前检查&#x27;}" FontSize="14" FontWeight="SemiBold"
                            Foreground="{StaticResource Text200Brush}" Margin="0,0,0,16"/>
 
                 <!-- 检查列表 -->
@@ -154,7 +155,7 @@
                                       StrokeLineJoin="Round"/>
                             </Canvas>
                         </Viewbox>
-                        <TextBlock x:Name="LaunchButtonText" Text="启动游戏" FontSize="16" FontWeight="Bold"
+                        <TextBlock x:Name="LaunchButtonText" Text="{loc:Text &#x27;启动游戏&#x27;}" FontSize="16" FontWeight="Bold"
                                    Foreground="{StaticResource BgBaseBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
@@ -165,7 +166,7 @@
                         <ProgressBar x:Name="LaunchProgress" Height="4" IsIndeterminate="True"
                                      Foreground="{StaticResource PrimaryBrush}"
                                      Background="{StaticResource CyberBorderBrush}" BorderThickness="0"/>
-                        <TextBlock x:Name="ProgressText" Text="正在启动..."
+                        <TextBlock x:Name="ProgressText" Text="{loc:Text &#x27;正在启动...&#x27;}"
                                    FontSize="12" Foreground="{StaticResource Text400Brush}"
                                    HorizontalAlignment="Center" Margin="0,8,0,0"/>
                     </StackPanel>

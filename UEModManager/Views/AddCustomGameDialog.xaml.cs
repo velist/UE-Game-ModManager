@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.ComponentModel;
 using System.Windows;
@@ -82,7 +83,7 @@ namespace UEModManager.Views
             GameName = GameNameTextBox.Text;
             if (string.IsNullOrWhiteSpace(GameName) || GameName.Length < 2)
             {
-                ValidationMessage = "游戏名称不能为空，至少需要2个字符";
+                ValidationMessage = UiText.Get("游戏名称不能为空，至少需要2个字符");
                 this.ValidationMessageText.Visibility = Visibility.Visible;
             }
             else
@@ -106,7 +107,7 @@ namespace UEModManager.Views
                 var safeName = GameConfigService.ValidateGameName(GameName);
                 if (GameConfigService.IsBuiltInGameName(safeName))
                 {
-                    ShowValidation("这个游戏已在内置列表中，无需重复添加");
+                    ShowValidation(UiText.Get("这个游戏已在内置列表中，无需重复添加"));
                     return;
                 }
 
@@ -134,7 +135,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择游戏安装路径"
+                Description = UiText.Get("选择游戏安装路径")
             };
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
@@ -156,12 +157,12 @@ namespace UEModManager.Views
                             EngineType.Diablo4Engine => 6,
                             _ => 0
                         };
-                        EngineDetectionHint.Text = $"已自动识别为 {EngineProfile.Get(detected).DisplayName} 引擎";
+                        EngineDetectionHint.Text = UiText.Interpolate($"已自动识别为 {EngineProfile.Get(detected).DisplayName} 引擎");
                         EngineDetectionHint.Visibility = Visibility.Visible;
                     }
                     else
                     {
-                        EngineDetectionHint.Text = "未能自动识别引擎，请手动选择";
+                        EngineDetectionHint.Text = UiText.Get("未能自动识别引擎，请手动选择");
                         EngineDetectionHint.Visibility = Visibility.Visible;
                     }
                 }

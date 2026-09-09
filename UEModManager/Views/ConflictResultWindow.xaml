@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.ConflictResultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="冲突检测结果" Height="540" Width="540"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;冲突检测结果&#x27;}" Height="540" Width="540"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}">
 
@@ -26,12 +27,12 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="⚠" FontSize="18" Foreground="#f59e0b"
                            Margin="0,0,10,0" VerticalAlignment="Center"/>
-                <TextBlock Text="冲突检测结果" FontSize="17" FontWeight="SemiBold"
+                <TextBlock Text="{loc:Text &#x27;冲突检测结果&#x27;}" FontSize="17" FontWeight="SemiBold"
                            Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"
                            Margin="0,0,12,0"/>
                 <Border x:Name="ConflictCountBadge" Background="#28ef4444" CornerRadius="6"
                         Padding="8,3" VerticalAlignment="Center">
-                    <TextBlock x:Name="ConflictCountText" Text="0 个冲突"
+                    <TextBlock x:Name="ConflictCountText" Text="{loc:Text &#x27;0 个冲突&#x27;}"
                                FontSize="12" FontWeight="SemiBold" Foreground="#ef4444"/>
                 </Border>
             </StackPanel>
@@ -39,7 +40,7 @@
 
         <!-- ═══ 说明 ═══ -->
         <TextBlock Grid.Row="1" TextWrapping="Wrap"
-                   Text="以下文件存在多个来源冲突，优先级高的包将覆盖低的"
+                   Text="{loc:Text &#x27;以下文件存在多个来源冲突，优先级高的包将覆盖低的&#x27;}"
                    FontSize="13" Foreground="{StaticResource Text400Brush}"
                    Margin="24,4,24,16"/>
 
@@ -60,7 +61,7 @@
                 <Button Grid.Column="1" x:Name="AutoResolveButton" Click="AutoResolve_Click"
                         Style="{StaticResource CyberSecondaryButton}"
                         Height="36" Padding="14,0" Margin="0,0,10,0">
-                    <TextBlock Text="自动解决全部" FontSize="13"/>
+                    <TextBlock Text="{loc:Text &#x27;自动解决全部&#x27;}" FontSize="13"/>
                 </Button>
                 <Button Grid.Column="2" x:Name="ApplyButton" Click="Apply_Click"
                         Style="{StaticResource CyberPrimaryButton}"
@@ -68,7 +69,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="12"
                                    Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="应用" FontSize="13"/>
+                        <TextBlock Text="{loc:Text &#x27;应用&#x27;}" FontSize="13"/>
                     </StackPanel>
                 </Button>
             </Grid>

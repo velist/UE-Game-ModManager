@@ -1,4 +1,7 @@
 using System;
+using System.ComponentModel;
+using System.Globalization;
+using System.IO;
 
 namespace UEModManager.Services
 {
@@ -9,12 +12,44 @@ namespace UEModManager.Services
     {
         private static bool _isEnglish;
         public static bool IsEnglish => _isEnglish;
+        public static LanguageState State { get; } = new();
         public static event Action<bool>? LanguageChanged;
+
+        public static void Initialize(CultureInfo? systemCulture = null, string? initialLanguage = null)
+        {
+            if (initialLanguage == null)
+            {
+                try
+                {
+                    var marker = Path.Combine(AppContext.BaseDirectory, "initial-language.txt");
+                    if (File.Exists(marker)) initialLanguage = File.ReadAllText(marker).Trim();
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            var defaultEnglish = initialLanguage switch
+            {
+                "en-US" => true,
+                "zh-CN" => false,
+                _ => (systemCulture ?? CultureInfo.CurrentUICulture).TwoLetterISOLanguageName != "zh"
+            };
+            SetEnglish(UiPreferences.TryLoadEnglish(out var saved)
+                ? saved
+                : defaultEnglish);
+        }
+
+        /// <summary>Persist before notifying windows, so a failed save cannot appear successful.</summary>
+        public static void SaveAndSetEnglish(bool english)
+        {
+            UiPreferences.SaveEnglish(english);
+            SetEnglish(english);
+        }
 
         public static void SetEnglish(bool english)
         {
             if (_isEnglish == english) return;
             _isEnglish = english;
+            State.NotifyLanguageChanged();
             RaiseLanguageChanged();
         }
 
@@ -42,5 +77,13 @@ namespace UEModManager.Services
                 }
             }
         }
+    }
+
+    public sealed class LanguageState : INotifyPropertyChanged
+    {
+        public bool IsEnglish => LanguageManager.IsEnglish;
+        public event PropertyChangedEventHandler? PropertyChanged;
+        internal void NotifyLanguageChanged()
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEnglish)));
     }
 }

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Profile;
@@ -618,8 +619,8 @@ namespace UEModManager.Services
             var profile = new InstanceProfile
             {
                 HostGameName = gameName,
-                Name = "默认 MOD 方案",
-                Description = "自动创建的默认 MOD 配置方案",
+                Name = UiText.Get("默认 MOD 方案"),
+                Description = UiText.Get("自动创建的默认 MOD 配置方案"),
                 IconName = "shield",
                 IconColor = "#06b6d4",
                 IsActive = true,

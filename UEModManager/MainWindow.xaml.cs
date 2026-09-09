@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -178,7 +179,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 Console.WriteLine($"MainWindow 构造函数异常: {ex}");
-                CyberMessageBox.Show(IsVisible ? this : null, $"初始化失败: {ex.Message}", "严重错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(IsVisible ? this : null, UiText.Interpolate($"初始化失败: {ex.Message}"), UiText.Get("严重错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 throw;
             }
         }
@@ -193,7 +194,7 @@ namespace UEModManager
                 // 恢复游戏选择
                 if (!string.IsNullOrEmpty(_gameConfig.CurrentGameName))
                 {
-                    CurrentGameName.Text = _gameConfig.CurrentGameName;
+                    CurrentGameName.Text = GameDisplayNames.For(_gameConfig.CurrentGameName);
                     UpdateGameIcon(_gameConfig.CurrentGameName);
                 }
 
@@ -276,7 +277,7 @@ namespace UEModManager
                 var outcome = _dataMigrator?.LastOutcome;
                 if (outcome?.ShouldNotifyUser != true) return;
 
-                CyberMessageBox.Show(this, outcome.UserMessage, "数据目录",
+                CyberMessageBox.Show(this, outcome.UserMessage, UiText.Get("数据目录"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex)
@@ -305,21 +306,21 @@ namespace UEModManager
                 var verifyCount = candidates.Count(c => c.Action == RecoveryAction.VerifyAndResubmit);
 
                 var summary = new System.Text.StringBuilder();
-                summary.AppendLine($"检测到 {candidates.Count} 个未完成的部署事务（可能是上次崩溃留下的）：");
+                summary.AppendLine(UiText.Interpolate($"检测到 {candidates.Count} 个未完成的部署事务（可能是上次崩溃留下的）："));
                 summary.AppendLine();
                 foreach (var c in candidates.Take(5))
                 {
                     summary.AppendLine($"  • {c.CreatedAt:yyyy-MM-dd HH:mm}  [{DisplayNameMapper.DeploymentStatus(c.Status)}]  {c.Reason}");
                 }
-                if (candidates.Count > 5) summary.AppendLine($"  …还有 {candidates.Count - 5} 个");
+                if (candidates.Count > 5) summary.AppendLine(UiText.Interpolate($"  …还有 {candidates.Count - 5} 个"));
                 summary.AppendLine();
-                summary.AppendLine($"建议处理：回滚 {rollbackCount} 个，标记失败 {cleanupCount} 个，人工核查 {manualReviewCount} 个，日志核查 {verifyCount} 个。");
+                summary.AppendLine(UiText.Interpolate($"建议处理：回滚 {rollbackCount} 个，标记失败 {cleanupCount} 个，人工核查 {manualReviewCount} 个，日志核查 {verifyCount} 个。"));
                 summary.AppendLine();
-                summary.Append("请选择要执行的操作。\"本次跳过\"下次启动仍会提醒；\"不再提醒\"会把这些事务标记为已忽略。");
+                summary.Append(UiText.Get("请选择要执行的操作。\"本次跳过\"下次启动仍会提醒；\"不再提醒\"会把这些事务标记为已忽略。"));
 
                 var result = CyberMessageBox.Show(this, summary.ToString(),
-                    "崩溃恢复", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning,
-                    yesText: "恢复", noText: "本次跳过", cancelText: "不再提醒");
+                    UiText.Get("崩溃恢复"), MessageBoxButton.YesNoCancel, MessageBoxImage.Warning,
+                    yesText: UiText.Get("恢复"), noText: UiText.Get("本次跳过"), cancelText: UiText.Get("不再提醒"));
 
                 if (result == MessageBoxResult.Cancel)
                 {
@@ -333,8 +334,8 @@ namespace UEModManager
                     }
 
                     CyberMessageBox.Show(this,
-                        $"已忽略：成功 {dismissed}，失败 {dismissFailed}。",
-                        "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
+                        UiText.Interpolate($"已忽略：成功 {dismissed}，失败 {dismissFailed}。"),
+                        UiText.Get("崩溃恢复"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -350,8 +351,8 @@ namespace UEModManager
                 }
 
                 CyberMessageBox.Show(this,
-                    $"恢复完成：成功 {succeeded}，失败 {failed}。",
-                    "崩溃恢复", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Interpolate($"恢复完成：成功 {succeeded}，失败 {failed}。"),
+                    UiText.Get("崩溃恢复"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -456,7 +457,7 @@ namespace UEModManager
                     decision.ShouldNotify, decision.Reason);
                 if (!decision.ShouldNotify) return;
 
-                var content = DeploymentDegradationNotice.BuildContent(summaries);
+                var content = DeploymentDegradationNotice.BuildContent(summaries, LanguageManager.IsEnglish);
 
                 _degradationNoticeShowing = true;
                 MessageBoxResult choice;
@@ -470,9 +471,9 @@ namespace UEModManager
                     choice = content.CanFixInPlace
                         ? CyberMessageBox.Show(this, content.Message, content.Title,
                             MessageBoxButton.YesNo, MessageBoxImage.Information,
-                            yesText: content.FixButtonText, noText: "先这样")
+                            yesText: content.FixButtonText, noText: UiText.Get("先这样"))
                         : CyberMessageBox.Show(this, content.Message, content.Title,
-                            MessageBoxButton.OK, MessageBoxImage.Information, okText: "知道了");
+                            MessageBoxButton.OK, MessageBoxImage.Information, okText: UiText.Get("知道了"));
                 }
                 finally
                 {
@@ -657,8 +658,8 @@ namespace UEModManager
             }
             else
             {
-                UserNameText.Text = en ? "Not Logged In" : "未登录";
-                UserStatusText.Text = en ? "Click to login" : "点击登录账号";
+                UserNameText.Text = en ? "Not Logged In" : UiText.Get("未登录");
+                UserStatusText.Text = en ? "Click to login" : UiText.Get("点击登录账号");
                 UserStatusText.ToolTip = null;
                 UserStatusText.Foreground = FindResource("Text600Brush") as Brush ?? Brushes.Gray;
                 ApplyUserAvatar(null);
@@ -722,7 +723,7 @@ namespace UEModManager
                     if (_localAuthService?.IsLoggedIn == true)
                     {
                         var menu = new ContextMenu { Style = FindResource("CyberContextMenu") as Style };
-                        var accountItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Account Settings" : "账户设置", Style = FindResource("CyberMenuItem") as Style };
+                        var accountItem = new MenuItem { Header = LanguageManager.IsEnglish ? "Account Settings" : UiText.Get("账户设置"), Style = FindResource("CyberMenuItem") as Style };
                         accountItem.Click += (_, _) =>
                         {
                             try
@@ -735,8 +736,8 @@ namespace UEModManager
                                 // 窗口构造 / XAML 解析 / DI 解析失败原先全部静默，
                                 // 用户点了"账户设置"什么都不发生且日志里毫无痕迹
                                 _logger?.LogError(ex, "[UI] 打开账户设置窗口失败");
-                                CyberMessageBox.Show(this, $"打开账户设置失败：{ex.Message}",
-                                    "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                                CyberMessageBox.Show(this, UiText.Interpolate($"打开账户设置失败：{ex.Message}"),
+                                    UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
                             }
                         };
                         menu.Items.Add(accountItem);
@@ -754,8 +755,8 @@ namespace UEModManager
                                 {
                                     // 管理员入口原先静默失败，"后台打不开"没有任何线索可查
                                     _logger?.LogError(ex, "[UI] 打开管理面板失败");
-                                    CyberMessageBox.Show(this, $"打开管理面板失败：{ex.Message}",
-                                        "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                                    CyberMessageBox.Show(this, UiText.Interpolate($"打开管理面板失败：{ex.Message}"),
+                                        UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
                                 }
                             };
                             menu.Items.Add(adminItem);
@@ -812,8 +813,8 @@ namespace UEModManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[UI] 打开捐赠窗口失败");
-                CyberMessageBox.Show(this, $"打开捐赠窗口失败：{ex.Message}",
-                    "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"打开捐赠窗口失败：{ex.Message}"),
+                    UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -835,8 +836,8 @@ namespace UEModManager
             {
                 _logger?.LogError(ex, "打开使用说明书失败");
                 Views.CyberMessageBox.Show(this,
-                    $"无法打开默认浏览器，请手动复制此链接到浏览器访问：\n\n{HelpDocUrl}",
-                    "打开使用说明书", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Interpolate($"无法打开默认浏览器，请手动复制此链接到浏览器访问：\n\n{HelpDocUrl}"),
+                    UiText.Get("打开使用说明书"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -858,7 +859,7 @@ namespace UEModManager
 
                 foreach (var game in games)
                 {
-                    var item = new MenuItem { Header = game, Style = FindResource("CyberMenuItem") as Style, Tag = game };
+                    var item = new MenuItem { Header = GameDisplayNames.For(game), Style = FindResource("CyberMenuItem") as Style, Tag = game };
                     if (game == _gameConfig.CurrentGameName)
                         item.FontWeight = FontWeights.Bold;
 
@@ -891,8 +892,8 @@ namespace UEModManager
                             CyberMessageBox.Show(this,
                                 LanguageManager.IsEnglish
                                     ? $"The custom game '{requestedGameName}' has already been added."
-                                    : $"游戏“{requestedGameName}”已经添加过了。",
-                                LanguageManager.IsEnglish ? "Cannot Add Game" : "无法添加",
+                                    : UiText.Interpolate($"游戏“{requestedGameName}”已经添加过了。"),
+                                LanguageManager.IsEnglish ? "Cannot Add Game" : UiText.Get("无法添加"),
                                 MessageBoxButton.OK, MessageBoxImage.Information);
                             return;
                         }
@@ -979,7 +980,7 @@ namespace UEModManager
                 {
                     var result = CyberMessageBox.Show(this,
                         LanguageManager.IsEnglish
-                            ? $"Switch from '{_gameConfig.CurrentGameName}' to '{gameName}'?\nCurrent MOD states will be saved."
+                            ? $"Switch from '{GameDisplayNames.For(_gameConfig.CurrentGameName)}' to '{GameDisplayNames.For(gameName)}'?\nCurrent MOD states will be saved."
                             : $"确认从 '{_gameConfig.CurrentGameName}' 切换到 '{gameName}'？\n当前MOD状态会被保存。",
                         LanguageManager.IsEnglish ? "Switch Game" : "切换游戏", MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (result == MessageBoxResult.No) return;
@@ -996,9 +997,9 @@ namespace UEModManager
             SafeEvent.Run(this, async () =>
             {
                 var result = CyberMessageBox.Show(this,
-                    $"确定从游戏列表中移除“{gameName}”吗？\n\n不会删除游戏文件、MOD、方案或仓库数据。",
-                    "移除自定义游戏", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                    yesText: "移除", noText: "取消");
+                    UiText.Interpolate($"确定从游戏列表中移除“{gameName}”吗？\n\n不会删除游戏文件、MOD、方案或仓库数据。"),
+                    UiText.Get("移除自定义游戏"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: UiText.Get("移除"), noText: UiText.Get("取消"));
                 if (result != MessageBoxResult.Yes) return;
 
                 await _gameConfig.RemoveCustomGameAsync(gameName);
@@ -1030,7 +1031,7 @@ namespace UEModManager
                 if (!string.IsNullOrEmpty(dialog.GameIconPath))
                     await _gameConfig.SetGameIconAsync(gameName, dialog.GameIconPath);
 
-                CurrentGameName.Text = gameName;
+                CurrentGameName.Text = GameDisplayNames.For(gameName);
                 UpdateGameIcon(gameName);
 
                 // 重新初始化
@@ -1166,7 +1167,7 @@ namespace UEModManager
             e.Handled = true;
             SafeEvent.Run(this, async () =>
             {
-                var name = CyberInputDialog.Show(this, "新增分类", "请输入分类名称:");
+                var name = CyberInputDialog.Show(this, UiText.Get("新增分类"), UiText.Get("请输入分类名称:"));
                 if (!string.IsNullOrWhiteSpace(name))
                     await _vm.Categories.AddCategoryAsync(name.Trim());
             }, _logger, "新增分类");
@@ -1178,7 +1179,7 @@ namespace UEModManager
             {
                 if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
                 {
-                    var newName = CyberInputDialog.Show(this, "重命名分类", "请输入新名称:", cat.DisplayText);
+                    var newName = CyberInputDialog.Show(this, UiText.Get("重命名分类"), UiText.Get("请输入新名称:"), cat.DisplayText);
                     if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
                         await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
                 }
@@ -1189,7 +1190,7 @@ namespace UEModManager
             {
                 if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
                 {
-                    var r = CyberMessageBox.Show(this, $"确认删除分类 '{cat.DisplayText}'？", "确认", MessageBoxButton.YesNo);
+                    var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除分类 '{cat.DisplayText}'？"), UiText.Get("确认"), MessageBoxButton.YesNo);
                     if (r == MessageBoxResult.Yes)
                         await _vm.Categories.DeleteCategoryAsync(cat);
                 }
@@ -1367,7 +1368,7 @@ namespace UEModManager
 
                         var deployResult = OperationResult.Aggregate(deployResults);
                         if (!deployResult.Success)
-                            ShowOperationFailure(deployResult, "导入后自动部署失败");
+                            ShowOperationFailure(deployResult, UiText.Get("导入后自动部署失败"));
                     }
 
                     await _vm.RefreshFromRepositoryAsync();
@@ -1452,7 +1453,7 @@ namespace UEModManager
                 var result = await _vm.MoveModToCategoryAsync(mod, category.Name);
                 if (!result.Success)
                 {
-                    ShowOperationFailure(result, "移动到分类失败");
+                    ShowOperationFailure(result, UiText.Get("移动到分类失败"));
                     return;
                 }
 
@@ -1493,7 +1494,7 @@ namespace UEModManager
             var result = await _vm.ToggleModAsync(mod, enable);
             if (!result.Success)
             {
-                ShowOperationFailure(result, enable ? "启用 MOD 失败" : "禁用 MOD 失败");
+                ShowOperationFailure(result, enable ? UiText.Get("启用 MOD 失败") : UiText.Get("禁用 MOD 失败"));
                 return false;
             }
 
@@ -1520,7 +1521,7 @@ namespace UEModManager
 
         private async Task RenameModFromUiAsync(ModInfo mod)
         {
-            var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", mod.Name);
+            var newName = CyberInputDialog.Show(this, UiText.Get("编辑MOD"), UiText.Get("请输入MOD显示名称:"), mod.Name);
             if (string.IsNullOrWhiteSpace(newName) || newName == mod.Name) return;
 
             await RenameModFromUiAsync(mod, newName);
@@ -1531,7 +1532,7 @@ namespace UEModManager
             var result = await _vm.RenameModAsync(mod, newName);
             if (!result.Success)
             {
-                ShowOperationFailure(result, "重命名 MOD 失败");
+                ShowOperationFailure(result, UiText.Get("重命名 MOD 失败"));
                 return false;
             }
 
@@ -1544,8 +1545,8 @@ namespace UEModManager
         {
             var dialog = new OpenFileDialog
             {
-                Title = "选择预览图",
-                Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*"
+                Title = UiText.Get("选择预览图"),
+                Filter = UiText.Get("图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*")
             };
 
             // 用户在文件对话框里点了取消——不是失败，直接退出，不能弹错误框
@@ -1554,7 +1555,7 @@ namespace UEModManager
             var result = await _vm.ChangePreviewAsync(mod, dialog.FileName);
             if (!result.Success)
             {
-                ShowOperationFailure(result, "更换预览图失败");
+                ShowOperationFailure(result, UiText.Get("更换预览图失败"));
                 return false;
             }
 
@@ -1567,7 +1568,7 @@ namespace UEModManager
         {
             if (confirm)
             {
-                var r = CyberMessageBox.Show(this, $"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。"), UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 // 用户选择"否"——不是失败，直接退出，不能弹错误框
                 if (r != MessageBoxResult.Yes) return false;
             }
@@ -1575,7 +1576,7 @@ namespace UEModManager
             var result = await _vm.DeletePackageModAsync(mod);
             if (!result.Success)
             {
-                ShowOperationFailure(result, "删除 MOD 失败");
+                ShowOperationFailure(result, UiText.Get("删除 MOD 失败"));
                 return false;
             }
 
@@ -1648,7 +1649,7 @@ namespace UEModManager
                 var count = _vm.ModList.SelectedCount;
                 if (count <= 0) return;
 
-                var r = CyberMessageBox.Show(this, $"\u786e\u8ba4\u5378\u8f7d\u9009\u4e2d\u7684 {count} \u4e2a MOD\uff1f\n\u6b64\u64cd\u4f5c\u4f1a\u4ece\u5f53\u524d\u65b9\u6848\u3001\u5305\u4ed3\u5e93\u548c\u5df2\u90e8\u7f72\u6587\u4ef6\u4e2d\u79fb\u9664\u8fd9\u4e9b MOD\u3002", "\u6279\u91cf\u5378\u8f7d", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"\u786e\u8ba4\u5378\u8f7d\u9009\u4e2d\u7684 {count} \u4e2a MOD\uff1f\n\u6b64\u64cd\u4f5c\u4f1a\u4ece\u5f53\u524d\u65b9\u6848\u3001\u5305\u4ed3\u5e93\u548c\u5df2\u90e8\u7f72\u6587\u4ef6\u4e2d\u79fb\u9664\u8fd9\u4e9b MOD\u3002"), UiText.Get("\u6279\u91cf\u5378\u8f7d"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
 
                 await _vm.ModList.DeleteSelectedAsync();
@@ -1673,8 +1674,7 @@ namespace UEModManager
             if (sender is MenuItem mi && mi.Tag is string sortMode)
             {
                 _vm.ModList.SortMode = sortMode;
-                var label = LanguageManager.IsEnglish ? "Sort" : "排序";
-                SortText.Text = $"{label}: {mi.Header}";
+                UpdateSortText();
             }
         }
 
@@ -1839,8 +1839,8 @@ namespace UEModManager
                 // 难复现故障的来源。必须让用户知道界面已经不可信。
                 _logger?.LogError(ex, "[UI] 管理中心操作后刷新列表失败");
                 CyberMessageBox.Show(this,
-                    $"MOD 列表刷新失败，当前显示的内容可能已过期，建议重新打开本窗口。\n{ex.Message}",
-                    "刷新失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    UiText.Interpolate($"MOD 列表刷新失败，当前显示的内容可能已过期，建议重新打开本窗口。\n{ex.Message}"),
+                    UiText.Get("刷新失败"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -1860,7 +1860,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "打开启动中心失败");
-                CyberMessageBox.Show(this, $"无法打开启动中心：{ex.Message}", "启动失败",
+                CyberMessageBox.Show(this, UiText.Interpolate($"无法打开启动中心：{ex.Message}"), UiText.Get("启动失败"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -1900,9 +1900,9 @@ namespace UEModManager
         private void UpdateModCountText()
         {
             var cat = _vm.Categories.SelectedCategory;
-            var name = cat?.DisplayText;
+            var name = cat?.LocalizedDisplayText;
             if (string.IsNullOrEmpty(name))
-                name = LanguageManager.IsEnglish ? "All MODs" : "全部 MOD";
+                name = LanguageManager.IsEnglish ? "All MODs" : UiText.Get("全部 MOD");
             ModCountText.Text = name;
             UpdateEmptyState();
         }
@@ -1934,10 +1934,10 @@ namespace UEModManager
                 else
                 {
                     EmptyStateIcon.Text = "📦";
-                    EmptyStateTitle.Text = LanguageManager.IsEnglish ? "No MODs yet" : "还没有 MOD";
+                    EmptyStateTitle.Text = LanguageManager.IsEnglish ? "No MODs yet" : UiText.Get("还没有 MOD");
                     EmptyStateSubtitle.Text = LanguageManager.IsEnglish
                         ? "Click \"Import MOD\" or drag files here"
-                        : "点击「导入 MOD」按钮或拖拽文件到此处";
+                        : UiText.Get("点击「导入 MOD」按钮或拖拽文件到此处");
                 }
             }
             else
@@ -1992,60 +1992,28 @@ namespace UEModManager
 
         private void ApplyLocalization()
         {
-            if (LanguageManager.IsEnglish)
-            {
-                Title = "AiJiang MOD Manager";
-                SearchPlaceholder.Text = "Search MOD name...";
-                SidebarLogoText.Text = "AiJiang MOD Manager";
-                CurrentGameLabel.Text = "Current Game";
-                NavLibraryHeader.Text = "Library";
-                NavAllModsText.Text = "All MODs";
-                NavEnabledText.Text = "Enabled";
-                NavDisabledText.Text = "Disabled";
-                NavCategoriesHeader.Text = "Categories";
-                ConflictCheckText.Text = "Conflicts";
-                ImportModText.Text = "Import";
-                LaunchGameText.Text = "Launch";
-                SelectAllText.Text = "Select All";
-                BatchEnableText.Text = "Enable";
-                BatchDisableText.Text = "Disable";
-                BatchDeleteText.Text = "Uninstall";
-                LoadingText.Text = "Loading...";
-                CtxMenuRename.Header = "Rename";
-                CtxMenuDelete.Header = "Delete";
-            }
-            else
-            {
-                Title = "爱酱MOD管理器";
-                SearchPlaceholder.Text = "搜索 MOD 名称...";
-                SidebarLogoText.Text = "爱酱MOD管理器";
-                CurrentGameLabel.Text = "当前游戏";
-                NavLibraryHeader.Text = "库";
-                NavAllModsText.Text = "全部 MOD";
-                NavEnabledText.Text = "已启用";
-                NavDisabledText.Text = "已禁用";
-                NavCategoriesHeader.Text = "分\u2009类\u2009目\u2009录";
-                ConflictCheckText.Text = "冲突检测";
-                ImportModText.Text = "导入";
-                LaunchGameText.Text = "启动游戏";
-                SelectAllText.Text = "全选";
-                BatchEnableText.Text = "启用";
-                BatchDisableText.Text = "禁用";
-                BatchDeleteText.Text = "卸载";
-                LoadingText.Text = "加载中...";
-                CtxMenuRename.Header = "重命名";
-                CtxMenuDelete.Header = "删除";
-            }
-
-            // 更新当前导航标题
+            CurrentGameName.Text = string.IsNullOrEmpty(_gameConfig.CurrentGameName)
+                ? UiText.Get("请选择游戏") : GameDisplayNames.For(_gameConfig.CurrentGameName);
+            foreach (var category in _vm.Categories.Categories) category.RefreshLanguage();
+            _vm.RefreshLanguage();
             UpdateModCountText();
-            // 更新空状态文本
             UpdateEmptyState();
-            // 更新用户状态文本
             UpdateUserStatusDisplay();
-            // 更新排序文本
-            var sortLabel = LanguageManager.IsEnglish ? "Sort: Name" : "排序: 名称";
-            if (SortText != null) SortText.Text = sortLabel;
+            UpdateSortText();
+        }
+
+        private void UpdateSortText()
+        {
+            var key = _vm.ModList.SortMode switch
+            {
+                "Name_Desc" => UiText.Get("名称 ↓"),
+                "Date_Asc" => UiText.Get("安装日期 ↑"),
+                "Date_Desc" => UiText.Get("安装日期 ↓"),
+                "Size_Asc" => UiText.Get("文件大小 ↑"),
+                "Size_Desc" => UiText.Get("文件大小 ↓"),
+                _ => UiText.Get("名称 ↑")
+            };
+            SortText.Text = UiText.Format("排序: {0}", UiText.Get(key));
         }
 
         // ═════════════════════════════════════════

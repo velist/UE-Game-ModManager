@@ -37,6 +37,31 @@ public class RepositoryRelocationPlannerTests
     // ─── 正常路径 ───
 
     [Fact]
+    public void EnglishStorageMessagesKeepCountsShortfallAndRecoveryInstructions()
+    {
+        var plan = RepositoryRelocationPlanner.Plan(Probe());
+        var confirmation = RepositoryRelocationMessages.ConfirmBody(plan, english: true);
+        Assert.Contains("42", confirmation);
+        Assert.Contains("8 GiB", confirmation);
+        Assert.Contains("D:", confirmation);
+        Assert.DoesNotMatch("[\\u4e00-\\u9fff]", confirmation);
+
+        var blocked = RepositoryRelocationPlanner.Plan(Probe(payloadBytes: 10 * Gib, targetAvailableBytes: 4 * Gib));
+        var body = RepositoryRelocationMessages.BlockedBody(blocked, english: true);
+        Assert.Contains("7 GiB", body);
+        Assert.Contains("remain in their original location", body);
+
+        const string detail = @"Access denied: D:\玩家的 MOD";
+        Assert.Contains(detail, RepositoryRelocationMessages.FailureBody(plan, detail, english: true));
+        var deployed = RepositoryRelocationMessages.SuccessBody(plan, anyDeployed: true, english: true);
+        Assert.Contains("deploy", deployed, StringComparison.OrdinalIgnoreCase);
+        var progress = new RepositoryRelocationProgress(RepositoryRelocationStage.Copying, 2 * Gib, 8 * Gib, 10, 40);
+        Assert.Contains("2 GiB", progress.GetStatusText(true));
+        Assert.Contains("8 GiB", progress.GetStatusText(true));
+        Assert.DoesNotMatch("[\\u4e00-\\u9fff]", progress.GetStatusText(true));
+    }
+
+    [Fact]
     public void 空间够时给出搬移计划()
     {
         var plan = RepositoryRelocationPlanner.Plan(Probe());

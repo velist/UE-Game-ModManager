@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services;
 using UEModManager.Services.Paths;
+using UEModManager.Localization;
 
 namespace UEModManager.Views
 {
@@ -40,6 +41,8 @@ namespace UEModManager.Views
         private IReadOnlyList<RepositoryDriveRow> _drives = Array.Empty<RepositoryDriveRow>();
         private RepositoryDriveRow? _selectedDrive;
         private bool _syncingSelection;
+        private string _pathHintSource = string.Empty;
+        private string _feedbackSource = string.Empty;
 
         /// <summary>用户手动挑的文件夹；为 null 时以列表里选中的盘为准。</summary>
         private string? _manualPath;
@@ -68,6 +71,35 @@ namespace UEModManager.Views
             _feedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.6) };
             _feedbackTimer.Tick += (_, _) => ClearFeedback();
             LoadDrives(drives ?? _service.ListDrives());
+            LanguageManager.LanguageChanged += OnLanguageChanged;
+        }
+
+        private void OnLanguageChanged(bool english) => Dispatcher.Invoke(() =>
+        {
+            foreach (var drive in _drives) drive.RefreshLanguage();
+            UpdateVolumeCount();
+            PathHintText.Text = UiText.Get(_pathHintSource);
+            FeedbackText.Text = UiText.Get(_feedbackSource);
+            if (_verdict != null)
+                IssueList.ItemsSource = _verdict.Issues
+                    .Select(i => RepositoryIssueRow.Create(i, _verdict.Severity, FindBrush)).ToList();
+        });
+
+        private void LanguageToggle_Click(object sender, RoutedEventArgs e)
+        {
+            try { LanguageManager.SaveAndSetEnglish(!LanguageManager.IsEnglish); }
+            catch (Exception ex)
+            {
+                CyberMessageBox.Show(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void UpdateVolumeCount()
+        {
+            var count = _drives.Count(d => d.IsSmallVolume);
+            SmallVolumesToggle.Tag = UiText.Format("{0} 个", count);
+            AutomationProperties.SetName(SmallVolumesToggle, UiText.Format("显示或收起 {0} 个小容量卷", count));
         }
 
         // ─── 初始化 ───
@@ -102,8 +134,7 @@ namespace UEModManager.Views
             DriveList.ItemsSource = mainDrives;
             SmallDriveList.ItemsSource = smallDrives;
             SmallVolumesToggle.Visibility = smallDrives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-            SmallVolumesToggle.Tag = $"{smallDrives.Length} 个";
-            AutomationProperties.SetName(SmallVolumesToggle, $"显示或收起 {smallDrives.Length} 个小容量卷");
+            UpdateVolumeCount();
             SmallVolumesToggle.IsChecked = mainDrives.Length == 0 && smallDrives.Length > 0;
             EmptyDrivesText.Visibility = _drives.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -155,7 +186,7 @@ namespace UEModManager.Views
         {
             var dialog = new Microsoft.Win32.OpenFolderDialog
             {
-                Title = "选择一个文件夹存放 MOD",
+                Title = UiText.Get("选择一个文件夹存放 MOD"),
                 Multiselect = false,
             };
             var initialPath = CurrentSelectionRoot();
@@ -238,7 +269,8 @@ namespace UEModManager.Views
             IssueList.ItemsSource = issues;
             IssueList.Visibility = issues.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
             DefaultPathHint.Visibility = issues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            PathHintText.Text = hint;
+            _pathHintSource = hint;
+            PathHintText.Text = UiText.Get(hint);
         }
 
         private void CopyPath_OnClick(object sender, RoutedEventArgs e)
@@ -259,7 +291,8 @@ namespace UEModManager.Views
 
         private void ShowFeedback(string message, bool warning)
         {
-            FeedbackText.Text = message;
+            _feedbackSource = message;
+            FeedbackText.Text = UiText.Get(message);
             FeedbackText.Foreground = (Brush)FindResource(warning ? "SetupWarningBrush" : "SetupSecondaryBrush");
             FeedbackText.Visibility = Visibility.Visible;
         }
@@ -289,11 +322,11 @@ namespace UEModManager.Views
             if (_verdict.NeedsConfirmation)
             {
                 var warnings = string.Join(Environment.NewLine + Environment.NewLine,
-                    _verdict.Issues.Select(i => i.Message));
+                    _verdict.Issues.Select(RepositoryIssueRow.MessageFor));
                 var choice = CyberMessageBox.Show(this,
-                    warnings + Environment.NewLine + Environment.NewLine + "确定要用这个位置吗？",
-                    "请确认", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                    yesText: "确定使用", noText: "换一个");
+                    warnings + Environment.NewLine + Environment.NewLine + UiText.Get("确定要用这个位置吗？"),
+                    UiText.Get("请确认"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: UiText.Get("确定使用"), noText: UiText.Get("换一个"));
                 if (choice != MessageBoxResult.Yes) return;
             }
 
@@ -311,8 +344,8 @@ namespace UEModManager.Views
                 // 用户会以为自己已经把 MOD 换到别的盘了。
                 _logger?.LogError(ex, "[UI] 保存仓库位置失败");
                 CyberMessageBox.Show(this,
-                    $"没能把位置保存下来：{ex.Message}\n\n请换一个文件夹再试，或者先点「以后再说」。",
-                    "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                    UiText.Interpolate($"没能把位置保存下来：{ex.Message}\n\n请换一个文件夹再试，或者先点「以后再说」。"),
+                    UiText.Get("保存失败"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -345,6 +378,7 @@ namespace UEModManager.Views
         protected override void OnClosed(EventArgs e)
         {
             _feedbackTimer.Stop();
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
             foreach (var drive in _drives) drive.PropertyChanged -= Drive_PropertyChanged;
             if (!_settled)
             {
@@ -376,6 +410,7 @@ namespace UEModManager.Views
         private bool _isSelected;
         private long? _availableBytes;
         private long? _totalBytes;
+        private RepositoryDriveOption _option = null!;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -395,15 +430,15 @@ namespace UEModManager.Views
         public bool IsSelectable => _availableBytes is null or > 0;
         public bool IsWarning => _availableBytes is >= 0 and < RepositoryLocationValidator.RecommendedFreeBytes;
         public string FreeText => FormatCapacity(_availableBytes).Value;
-        public string FreeUnitLabel => $"{FormatCapacity(_availableBytes).Unit} 可用".Trim();
-        public string TotalLabel => _totalBytes is > 0 ? $"共 {DiskSpacePrecheck.Humanize(_totalBytes.Value)}" : "总容量未知";
+        public string FreeUnitLabel => UiText.Interpolate($"{FormatCapacity(_availableBytes).Unit} 可用").Trim();
+        public string TotalLabel => _totalBytes is > 0 ? UiText.Interpolate($"共 {DiskSpacePrecheck.Humanize(_totalBytes.Value)}") : UiText.Get("总容量未知");
         public string UsedDescription => _availableBytes is null || _totalBytes is null or <= 0
-            ? "已用空间未知" : $"已用 {UsedPercent:0.#}%";
+            ? UiText.Get("已用空间未知") : UiText.Interpolate($"已用 {UsedPercent:0.#}%");
         public string AccessibleName => $"{DisplayName}，{FreeText} {FreeUnitLabel}，{TotalLabel}，{BadgeText}";
 
         private static (string Value, string Unit) FormatCapacity(long? bytes)
         {
-            if (bytes is null) return ("未知", string.Empty);
+            if (bytes is null) return (UiText.Get("未知"), string.Empty);
             var parts = DiskSpacePrecheck.Humanize(Math.Max(0, bytes.Value)).Split(' ', 2);
             return (parts[0], parts[1]);
         }
@@ -414,7 +449,7 @@ namespace UEModManager.Views
             if (volume.Length != 2 || volume[1] != ':') return option.DisplayName;
             var label = option.DisplayName.StartsWith(volume, StringComparison.OrdinalIgnoreCase)
                 ? option.DisplayName[volume.Length..].Trim() : option.DisplayName;
-            return $"{(string.IsNullOrEmpty(label) ? "本地磁盘" : label)} ({volume})";
+            return $"{(string.IsNullOrEmpty(label) ? UiText.Get("本地磁盘") : label)} ({volume})";
         }
 
         private RepositoryDriveRow(
@@ -425,9 +460,6 @@ namespace UEModManager.Views
             Visibility gameVolumeVisibility)
         {
             RootPath = rootPath;
-            DisplayName = displayName;
-            CapacityText = capacityText;
-            BadgeText = badgeText;
             BadgeBrushKey = badgeBrushKey;
             BadgeBrush = badgeBrush;
             BadgeVisibility = badgeVisibility;
@@ -435,16 +467,16 @@ namespace UEModManager.Views
             UsageBrushKey = usageBrushKey;
             UsageBrush = usageBrush;
             IsRecommended = isRecommended;
-            GameVolumeText = gameVolumeText;
             GameVolumeBrushKey = gameVolumeBrushKey;
             GameVolumeBrush = gameVolumeBrush;
             GameVolumeVisibility = gameVolumeVisibility;
         }
 
         public string RootPath { get; }
-        public string DisplayName { get; }
-        public string CapacityText { get; }
-        public string BadgeText { get; }
+        public string DisplayName => DisplayNameFor(_option);
+        public string CapacityText => CapacityTextFor(_availableBytes, _totalBytes);
+        public string BadgeText => _availableBytes is <= 0 ? UiText.Get("已满")
+            : BadgeTextFor(_option.Kind, IsRecommended, _option.IsCurrentDefault);
         public string BadgeBrushKey { get; }
         public Brush? BadgeBrush { get; }
         public Visibility BadgeVisibility { get; }
@@ -452,10 +484,12 @@ namespace UEModManager.Views
         public string UsageBrushKey { get; }
         public Brush? UsageBrush { get; }
         public bool IsRecommended { get; }
-        public string GameVolumeText { get; }
+        public string GameVolumeText => GameVolumeTextFor(_option.HostsCurrentGame);
         public string GameVolumeBrushKey { get; }
         public Brush? GameVolumeBrush { get; }
         public Visibility GameVolumeVisibility { get; }
+
+        internal void RefreshLanguage() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
 
         /// <summary>
         /// 角标文字。优先级是"风险 &gt; 推荐 &gt; 现状"：
@@ -464,10 +498,10 @@ namespace UEModManager.Views
         public static string BadgeTextFor(RepositoryVolumeKind kind, bool isRecommended, bool isCurrentDefault)
             => kind switch
             {
-                RepositoryVolumeKind.Removable => "可移动",
-                RepositoryVolumeKind.Network => "网络位置",
-                _ when isRecommended => "推荐",
-                _ when isCurrentDefault => "当前位置",
+                RepositoryVolumeKind.Removable => UiText.Get("可移动"),
+                RepositoryVolumeKind.Network => UiText.Get("网络位置"),
+                _ when isRecommended => UiText.Get("推荐"),
+                _ when isCurrentDefault => UiText.Get("当前位置"),
                 _ => string.Empty,
             };
 
@@ -488,9 +522,9 @@ namespace UEModManager.Views
 
         public static string CapacityTextFor(long? availableBytes, long? totalBytes)
         {
-            if (availableBytes is null || totalBytes is null || totalBytes <= 0) return "容量未知";
-            return $"可用 {DiskSpacePrecheck.Humanize(availableBytes.Value)}"
-                + $" / 共 {DiskSpacePrecheck.Humanize(totalBytes.Value)}";
+            if (availableBytes is null || totalBytes is null || totalBytes <= 0) return UiText.Get("容量未知");
+            return UiText.Interpolate($"可用 {DiskSpacePrecheck.Humanize(availableBytes.Value)}")
+                + UiText.Interpolate($" / 共 {DiskSpacePrecheck.Humanize(totalBytes.Value)}");
         }
 
         public static double UsedPercentFor(long? availableBytes, long? totalBytes)
@@ -517,7 +551,7 @@ namespace UEModManager.Views
         /// </para>
         /// </summary>
         public static string GameVolumeTextFor(bool hostsCurrentGame)
-            => hostsCurrentGame ? "游戏就装在这个盘 · 存这里的话，MOD 不会再多占一份空间" : string.Empty;
+            => hostsCurrentGame ? UiText.Get("游戏就装在这个盘 · 存这里的话，MOD 不会再多占一份空间") : string.Empty;
 
         /// <summary>这是一条好消息，用与"推荐"同一档的绿色；没有这行时颜色无意义。</summary>
         public static string GameVolumeBrushKeyFor(bool hostsCurrentGame)
@@ -529,7 +563,7 @@ namespace UEModManager.Views
             if (option is null) throw new ArgumentNullException(nameof(option));
             if (resolveBrush is null) throw new ArgumentNullException(nameof(resolveBrush));
 
-            var badgeText = option.AvailableBytes is <= 0 ? "已满"
+            var badgeText = option.AvailableBytes is <= 0 ? UiText.Get("已满")
                 : BadgeTextFor(option.Kind, isRecommended, option.IsCurrentDefault);
             var badgeKey = BadgeBrushKeyFor(option.Kind, isRecommended);
             var usageKey = UsageBrushKeyFor(option.AvailableBytes);
@@ -553,6 +587,7 @@ namespace UEModManager.Views
                 resolveBrush(gameKey),
                 gameText.Length == 0 ? Visibility.Collapsed : Visibility.Visible)
             {
+                _option = option,
                 _availableBytes = option.AvailableBytes,
                 _totalBytes = option.TotalBytes
             };
@@ -600,7 +635,25 @@ namespace UEModManager.Views
             if (resolveBrush is null) throw new ArgumentNullException(nameof(resolveBrush));
 
             var key = BrushKeyFor(issue.Code, severity);
-            return new RepositoryIssueRow(GlyphFor(issue.Code), issue.Message, key, resolveBrush(key));
+            return new RepositoryIssueRow(GlyphFor(issue.Code), MessageFor(issue), key, resolveBrush(key));
+        }
+
+        public static string MessageFor(RepositoryLocationIssue issue)
+        {
+            if (!LanguageManager.IsEnglish) return issue.Message;
+            return issue.Code switch
+            {
+                RepositoryLocationIssueCode.Empty => "Choose a drive or folder.",
+                RepositoryLocationIssueCode.NotAbsolute => "Enter a full path, such as D:\\Mods.",
+                RepositoryLocationIssueCode.Malformed => "This path is not valid. Choose another folder.",
+                RepositoryLocationIssueCode.NotWritable => "This location is not writable. Choose another folder or check its permissions.",
+                RepositoryLocationIssueCode.RemovableVolume => "Mods will be unavailable when this removable drive is disconnected.",
+                RepositoryLocationIssueCode.NetworkVolume => "Mods will be unavailable if the network location cannot be reached.",
+                RepositoryLocationIssueCode.InsideInstallDirectory => "This folder is inside the app installation. Updates or uninstallation could remove its files.",
+                RepositoryLocationIssueCode.LowFreeSpace => "Free space is low. A drive with at least 10 GB available is recommended.",
+                RepositoryLocationIssueCode.DirectoryNotEmpty => "This folder already contains files. Mods will use the dedicated subfolder shown above.",
+                _ => issue.Message
+            };
         }
     }
 }

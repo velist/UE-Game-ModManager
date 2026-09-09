@@ -370,4 +370,30 @@ public class DeploymentDegradationTests
         Assert.Throws<ArgumentException>(() =>
             DeploymentDegradationNotice.BuildContent(Array.Empty<DeploymentDegradationSummary>()));
     }
+
+    [Fact]
+    public void EnglishNoticeKeepsTheCorrectDriveAndFileCount()
+    {
+        var content = DeploymentDegradationNotice.BuildContent(CrossVolumeSummary(128), english: true);
+        Assert.Equal(@"D:\", content.FixTargetVolumeRoot);
+        Assert.Equal("Move to D:", content.FixButtonText);
+        Assert.Contains("128", content.Message);
+        Assert.Contains("additional disk space", content.Message);
+        Assert.DoesNotMatch("[\\u4e00-\\u9fff]", content.Message);
+    }
+
+    [Theory]
+    [InlineData(DeploymentDegradationKind.HardLinkUnsupported)]
+    [InlineData(DeploymentDegradationKind.BackendUnavailable)]
+    public void EnglishNoticeDoesNotOfferAMoveWhenItCannotFixTheProblem(DeploymentDegradationKind kind)
+    {
+        var summaries = DeploymentDegradationCollector.Summarize(new[] {
+            new DeploymentDegradation(kind, @"D:\Repository\a.pak", @"D:\Game\a.pak", "original diagnostic")
+        });
+        var content = DeploymentDegradationNotice.BuildContent(summaries, english: true);
+        Assert.False(content.CanFixInPlace);
+        Assert.Null(content.FixTargetVolumeRoot);
+        Assert.DoesNotMatch("[\\u4e00-\\u9fff]", content.Message);
+        if (kind == DeploymentDegradationKind.HardLinkUnsupported) Assert.Contains("NTFS", content.Message);
+    }
 }

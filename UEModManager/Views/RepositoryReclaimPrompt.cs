@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,28 +48,28 @@ namespace UEModManager.Views
             var preview = string.Join("\n",
                 plan.Reclaimable.Take(5).Select(e => $"  · {e.DirectoryName}（{FileSizeFormatter.Format(e.SizeBytes)}）"));
             if (plan.Reclaimable.Count > 5)
-                preview += $"\n  · …… 另有 {plan.Reclaimable.Count - 5} 个";
+                preview += UiText.Interpolate($"\n  · …… 另有 {plan.Reclaimable.Count - 5} 个");
 
             var answer = CyberMessageBox.Show(owner,
-                $"发现 {plan.Reclaimable.Count} 个导入残留目录，共占用 " +
+                UiText.Interpolate($"发现 {plan.Reclaimable.Count} 个导入残留目录，共占用 ") +
                 $"{FileSizeFormatter.Format(plan.ReclaimableBytes)}：\n{preview}\n\n" +
-                "这些目录没有 manifest.json、任何游戏的 MOD 清单里也没有记录，" +
-                "是导入中途失败或程序被强制结束留下的，删除不会影响任何已导入的 MOD。\n\n是否清理？",
-                "清理导入残留", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: "清理", noText: "保留");
+                UiText.Get("这些目录没有 manifest.json、任何游戏的 MOD 清单里也没有记录，") +
+                UiText.Get("是导入中途失败或程序被强制结束留下的，删除不会影响任何已导入的 MOD。\n\n是否清理？"),
+                UiText.Get("清理导入残留"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: UiText.Get("清理"), noText: UiText.Get("保留"));
 
             if (answer != MessageBoxResult.Yes) return false;
 
             var result = reclaim.Reclaim(plan);
 
-            var summary = $"已清理 {result.DeletedCount} 个残留目录，释放 {FileSizeFormatter.Format(result.FreedBytes)}。";
+            var summary = UiText.Interpolate($"已清理 {result.DeletedCount} 个残留目录，释放 {FileSizeFormatter.Format(result.FreedBytes)}。");
             if (result.Failures.Count > 0)
             {
-                summary += $"\n\n{result.Failures.Count} 个删除失败（文件可能被占用），可稍后重试：\n"
+                summary += UiText.Interpolate($"\n\n{result.Failures.Count} 个删除失败（文件可能被占用），可稍后重试：\n")
                     + string.Join("\n", result.Failures.Take(5).Select(f => $"  · {f.DirectoryName}: {f.Error}"));
             }
 
-            CyberMessageBox.Show(owner, summary, "清理完成", MessageBoxButton.OK,
+            CyberMessageBox.Show(owner, summary, UiText.Get("清理完成"), MessageBoxButton.OK,
                 result.Failures.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
 
             return result.DeletedCount > 0;

@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.DonateWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="捐赠支持"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;捐赠支持&#x27;}"
         Width="300" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}"
@@ -9,10 +10,10 @@
 
     <StackPanel Margin="24,20,24,24">
         <!-- 标题 -->
-        <TextBlock Text="支持MOD管理器开发" FontSize="14" FontWeight="SemiBold"
+        <TextBlock Text="{loc:Text &#x27;支持MOD管理器开发&#x27;}" FontSize="14" FontWeight="SemiBold"
                    Foreground="{StaticResource Text100Brush}"
                    HorizontalAlignment="Center" Margin="0,0,0,4"/>
-        <TextBlock Text="请我喝一杯咖啡~" FontSize="12"
+        <TextBlock Text="{loc:Text &#x27;请我喝一杯咖啡~&#x27;}" FontSize="12"
                    Foreground="{StaticResource Text500Brush}"
                    HorizontalAlignment="Center" Margin="0,0,0,16"/>
 
@@ -23,11 +24,11 @@
                    RenderOptions.BitmapScalingMode="HighQuality"/>
         </Border>
 
-        <TextBlock Text="微信扫一扫" FontSize="11"
+        <TextBlock Text="{loc:Text &#x27;微信扫一扫&#x27;}" FontSize="11"
                    Foreground="{StaticResource Text600Brush}"
                    HorizontalAlignment="Center" Margin="0,12,0,0"/>
 
-        <Button Content="关闭" Width="88" Height="34" Margin="0,20,0,0"
+        <Button Content="{loc:Text &#x27;关闭&#x27;}" Width="88" Height="34" Margin="0,20,0,0"
                 HorizontalAlignment="Center"
                 Style="{StaticResource CyberSecondaryButton}"
                 Click="CloseButton_Click" IsCancel="True"/>

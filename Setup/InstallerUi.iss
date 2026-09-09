@@ -1,4 +1,4 @@
-var
+﻿var
   RuntimeReady: Boolean;
   RuntimeStatus, WelcomeNote, VersionLabel, FooterVersion, DataNote: TNewStaticText;
   HelpButton, RuntimeButton: TNewButton;
@@ -61,7 +61,7 @@ end;
 
 procedure RuntimeButtonClick(Sender: TObject);
 begin
-  OpenExternalUrl('{#DotNetRuntimeUrl}');
+  OpenExternalUrl(CustomMessage('RuntimeUrl'));
 end;
 
 function AddText(Parent: TWinControl; const Caption: String;
@@ -84,7 +84,7 @@ begin
   ContentLeft := WizardForm.WelcomeLabel1.Left;
   ContentWidth := WizardForm.WelcomeLabel1.Width;
   VersionLabel := AddText(WizardForm.WelcomeLabel1.Parent,
-    '{#MyAppDisplayVer}  /  WINDOWS 64 位', ContentLeft, ScaleY(26),
+    FmtMessage(CustomMessage('VersionPlatform'), ['{#MyAppDisplayVer}']), ContentLeft, ScaleY(26),
     ContentWidth, ScaleY(24), 9);
   WizardForm.WelcomeLabel1.Top := ScaleY(66);
   WizardForm.WelcomeLabel1.Height := ScaleY(84);
@@ -94,18 +94,17 @@ begin
   RuntimeStatus := AddText(WizardForm.WelcomeLabel1.Parent, '', ContentLeft,
     NoteTop, ContentWidth, ScaleY(38), 9);
   if RuntimeReady then
-    RuntimeStatus.Caption := '.NET 8 桌面运行时  ·  已就绪'
+    RuntimeStatus.Caption := CustomMessage('RuntimeReady')
   else
-    RuntimeStatus.Caption := '运行程序需要 .NET 8 桌面运行时（x64）。';
+    RuntimeStatus.Caption := CustomMessage('RuntimeMissing');
   RuntimeButton := TNewButton.Create(WizardForm);
   RuntimeButton.Parent := WizardForm.WelcomeLabel1.Parent;
-  RuntimeButton.SetBounds(ContentLeft, NoteTop + ScaleY(31), ScaleX(220), ScaleY(28));
-  RuntimeButton.Caption := '获取微软官方桌面运行时';
+  RuntimeButton.SetBounds(ContentLeft, NoteTop + ScaleY(31), ScaleX(268), ScaleY(28));
+  RuntimeButton.Caption := CustomMessage('GetRuntime');
   RuntimeButton.OnClick := @RuntimeButtonClick;
   RuntimeButton.Visible := not RuntimeReady;
   WelcomeNote := AddText(WizardForm.WelcomeLabel1.Parent,
-    '升级前请关闭正在运行的管理器。' + #13#10 +
-    '安装会保留已有 MOD、配置和备份。',
+    CustomMessage('WelcomeNote'),
     ContentLeft, NoteTop + ScaleY(76), ContentWidth, ScaleY(58), 9);
 
   { Keep the destination and optional shortcuts together on one page. }
@@ -119,21 +118,20 @@ begin
   DesktopShortcut := TNewCheckBox.Create(WizardForm);
   DesktopShortcut.Parent := WizardForm.DirEdit.Parent;
   DesktopShortcut.SetBounds(0, ScaleY(182), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(24));
-  DesktopShortcut.Caption := '创建桌面快捷方式(&D)';
+  DesktopShortcut.Caption := CustomMessage('DesktopShortcut');
   DesktopShortcut.Checked := GetPreviousData('DesktopShortcut', '1') = '1';
   AutoStart := TNewCheckBox.Create(WizardForm);
   AutoStart.Parent := WizardForm.DirEdit.Parent;
   AutoStart.SetBounds(0, ScaleY(214), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(24));
-  AutoStart.Caption := '登录 Windows 时启动管理器(&A)';
+  AutoStart.Caption := CustomMessage('AutoStart');
   AutoStart.Checked := GetPreviousData('AutoStart', '0') = '1';
   DataNote := AddText(WizardForm.DirEdit.Parent,
-    '程序与 MOD 分开存放' + #13#10 +
-    '首次启动可选择 MOD 仓库。卸载程序会保留用户数据和仓库。',
+    CustomMessage('DataNote'),
     0, ScaleY(270), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(58), 9);
   HelpButton := TNewButton.Create(WizardForm);
   HelpButton.Parent := WizardForm;
   HelpButton.SetBounds(ScaleX(24), WizardForm.CancelButton.Top, ScaleX(78), WizardForm.CancelButton.Height);
-  HelpButton.Caption := '使用帮助';
+  HelpButton.Caption := CustomMessage('Help');
   HelpButton.OnClick := @HelpButtonClick;
   FooterVersion := AddText(WizardForm, '{#MyAppDisplayVer}', ScaleX(116),
     WizardForm.CancelButton.Top + ScaleY(5), ScaleX(90), ScaleY(24), 9);
@@ -157,9 +155,9 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID = wpWelcome then
-    WizardForm.NextButton.Caption := '开始设置(&N)';
+    WizardForm.NextButton.Caption := CustomMessage('StartSetup');
   if CurPageID = wpSelectDir then
-    WizardForm.NextButton.Caption := '开始安装(&I)';
+    WizardForm.NextButton.Caption := CustomMessage('StartInstall');
   if CurPageID = wpFinished then
   begin
     WizardForm.FinishedHeadingLabel.Font.Size := 20;
@@ -176,8 +174,7 @@ begin
     if not RuntimeReady then
     begin
       WizardForm.RunList.Top := ScaleY(330);
-      WizardForm.FinishedLabel.Caption := '程序文件已安装。安装 .NET 8 桌面运行时（x64）后即可启动。' + #13#10 + #13#10 +
-        '首次启动可选择 MOD 仓库；已有用户数据和备份会保留。';
+      WizardForm.FinishedLabel.Caption := CustomMessage('FinishedNeedsRuntime');
     end;
   end;
 end;

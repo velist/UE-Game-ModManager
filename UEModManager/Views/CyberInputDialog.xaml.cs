@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System.Windows;
 using System.Windows.Input;
 
@@ -10,8 +11,8 @@ namespace UEModManager.Views
         public CyberInputDialog(string title, string prompt, string defaultValue = "")
         {
             InitializeComponent();
-            Title = title;
-            PromptText.Text = prompt;
+            Title = UiText.Get(title);
+            PromptText.Text = UiText.Get(prompt);
             InputBox.Text = defaultValue;
             Loaded += (_, _) =>
             {

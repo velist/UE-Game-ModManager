@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace UEModManager.ViewModels
         private string _profileName = "";
 
         [ObservableProperty]
-        private string _statusTitle = "准备启动";
+        private string _statusTitle = UiText.Get("准备启动");
 
         [ObservableProperty]
         private string _statusSubtitle = "";
@@ -45,7 +46,7 @@ namespace UEModManager.ViewModels
         private string _modCountInfo = "";
 
         [ObservableProperty]
-        private string _lastEventInfo = "无异常";
+        private string _lastEventInfo = UiText.Get("无异常");
 
         [ObservableProperty]
         private int _enabledPackageCount;
@@ -81,12 +82,12 @@ namespace UEModManager.ViewModels
         {
             GameName = _gameConfig.CurrentGameName;
             var profile = _profileService.CurrentProfile;
-            ProfileName = profile?.Name ?? "默认";
-            StatusSubtitle = $"切换 {GameName} — {ProfileName}";
+            ProfileName = profile?.Name ?? UiText.Get("默认");
+            StatusSubtitle = UiText.Interpolate($"切换 {GameDisplayNames.For(GameName)} — {ProfileName}");
 
             // 统计已启用包
             EnabledPackageCount = profile?.Packages?.Count(p => p.IsEnabled) ?? 0;
-            ModCountInfo = $"{EnabledPackageCount} 个包已启用";
+            ModCountInfo = UiText.Interpolate($"{EnabledPackageCount} 个包已启用");
 
             // 冲突统计
             ConflictCount = 0;
@@ -98,15 +99,15 @@ namespace UEModManager.ViewModels
             {
                 var ago = DateTime.Now - last.LaunchedAt;
                 LastLaunchInfo = ago.TotalMinutes < 60
-                    ? $"上次启动 {(int)ago.TotalMinutes} 分钟前"
+                    ? UiText.Interpolate($"上次启动 {(int)ago.TotalMinutes} 分钟前")
                     : ago.TotalHours < 24
-                        ? $"上次启动 {(int)ago.TotalHours} 小时前"
-                        : $"上次启动 {last.LaunchedAt:MM/dd HH:mm}";
-                LastEventInfo = last.Success ? "无异常" : last.FailureReason ?? "启动失败";
+                        ? UiText.Interpolate($"上次启动 {(int)ago.TotalHours} 小时前")
+                        : UiText.Interpolate($"上次启动 {last.LaunchedAt:MM/dd HH:mm}");
+                LastEventInfo = last.Success ? UiText.Get("无异常") : last.FailureReason ?? UiText.Get("启动失败");
             }
             else
             {
-                LastLaunchInfo = "首次启动";
+                LastLaunchInfo = UiText.Get("首次启动");
             }
 
             BuildPreCheckSteps();
@@ -123,16 +124,16 @@ namespace UEModManager.ViewModels
                              && System.IO.Directory.Exists(context.GameRootPath);
             Steps.Add(new LaunchStepItem
             {
-                DisplayName = "游戏路径已验证",
-                Message = pathValid ? context.GameRootPath : "路径未设置或不存在",
+                DisplayName = UiText.Get("游戏路径已验证"),
+                Message = pathValid ? context.GameRootPath : UiText.Get("路径未设置或不存在"),
                 Status = pathValid ? StepItemStatus.Passed : StepItemStatus.Failed
             });
 
             // 2. 已启用文件数
             Steps.Add(new LaunchStepItem
             {
-                DisplayName = $"{EnabledPackageCount} 个文件已启用",
-                Message = EnabledPackageCount > 0 ? "就绪" : "无已启用的包",
+                DisplayName = UiText.Interpolate($"{EnabledPackageCount} 个文件已启用"),
+                Message = EnabledPackageCount > 0 ? UiText.Get("就绪") : UiText.Get("无已启用的包"),
                 Status = EnabledPackageCount > 0 ? StepItemStatus.Passed : StepItemStatus.Warning
             });
 
@@ -140,9 +141,9 @@ namespace UEModManager.ViewModels
             Steps.Add(new LaunchStepItem
             {
                 DisplayName = ConflictCount > 0
-                    ? $"{ConflictCount} 个文件冲突, 已自动解决"
-                    : "无文件冲突",
-                Message = ConflictCount > 0 ? "冲突已通过优先级自动解决" : "所有文件无冲突",
+                    ? UiText.Interpolate($"{ConflictCount} 个文件冲突, 已自动解决")
+                    : UiText.Get("无文件冲突"),
+                Message = ConflictCount > 0 ? UiText.Get("冲突已通过优先级自动解决") : UiText.Get("所有文件无冲突"),
                 Status = ConflictCount > 0 ? StepItemStatus.Warning : StepItemStatus.Passed
             });
 
@@ -151,8 +152,8 @@ namespace UEModManager.ViewModels
                             && System.IO.File.Exists(context.ExecutablePath);
             Steps.Add(new LaunchStepItem
             {
-                DisplayName = "验证配置有效性",
-                Message = exeValid ? System.IO.Path.GetFileName(context.ExecutablePath) : "可执行文件未找到",
+                DisplayName = UiText.Get("验证配置有效性"),
+                Message = exeValid ? System.IO.Path.GetFileName(context.ExecutablePath) : UiText.Get("可执行文件未找到"),
                 Status = exeValid ? StepItemStatus.Passed : StepItemStatus.Failed
             });
 
@@ -173,9 +174,9 @@ namespace UEModManager.ViewModels
                     Steps[2] = new LaunchStepItem
                     {
                         DisplayName = ConflictCount > 0
-                            ? $"{ConflictCount} 个文件冲突, 已自动解决"
-                            : "无文件冲突",
-                        Message = ConflictCount > 0 ? "冲突已通过优先级自动解决" : "所有文件无冲突",
+                            ? UiText.Interpolate($"{ConflictCount} 个文件冲突, 已自动解决")
+                            : UiText.Get("无文件冲突"),
+                        Message = ConflictCount > 0 ? UiText.Get("冲突已通过优先级自动解决") : UiText.Get("所有文件无冲突"),
                         Status = ConflictCount > 0 ? StepItemStatus.Warning : StepItemStatus.Passed
                     };
                 }
@@ -192,8 +193,8 @@ namespace UEModManager.ViewModels
                 {
                     Steps[2] = new LaunchStepItem
                     {
-                        DisplayName = "冲突预检未完成",
-                        Message = $"无法确认是否存在文件冲突：{ex.Message}",
+                        DisplayName = UiText.Get("冲突预检未完成"),
+                        Message = UiText.Interpolate($"无法确认是否存在文件冲突：{ex.Message}"),
                         Status = StepItemStatus.Warning
                     };
                 }
@@ -209,7 +210,7 @@ namespace UEModManager.ViewModels
 
             IsLaunching = true;
             CanLaunch = false;
-            StatusTitle = "正在启动...";
+            StatusTitle = UiText.Get("正在启动...");
 
             try
             {
@@ -220,22 +221,22 @@ namespace UEModManager.ViewModels
 
                 if (session.Success)
                 {
-                    StatusTitle = "启动成功";
+                    StatusTitle = UiText.Get("启动成功");
                     StatusSubtitle = $"PID: {session.ProcessId}";
-                    LastEventInfo = "无异常";
+                    LastEventInfo = UiText.Get("无异常");
                 }
                 else
                 {
-                    StatusTitle = "启动失败";
-                    StatusSubtitle = session.FailureReason ?? "未知错误";
-                    LastEventInfo = session.FailureReason ?? "启动失败";
+                    StatusTitle = UiText.Get("启动失败");
+                    StatusSubtitle = session.FailureReason ?? UiText.Get("未知错误");
+                    LastEventInfo = session.FailureReason ?? UiText.Get("启动失败");
                 }
 
                 return session;
             }
             catch (Exception ex)
             {
-                StatusTitle = "启动异常";
+                StatusTitle = UiText.Get("启动异常");
                 StatusSubtitle = ex.Message;
                 _logger.LogError(ex, "启动游戏异常");
                 return null;
@@ -284,7 +285,7 @@ namespace UEModManager.ViewModels
                 }
 
                 if (step.Status == LaunchStepStatus.Running)
-                    StatusTitle = $"正在{step.DisplayName}...";
+                    StatusTitle = UiText.Interpolate($"正在{step.DisplayName}...");
             });
         }
     }

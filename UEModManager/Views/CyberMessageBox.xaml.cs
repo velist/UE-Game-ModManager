@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System.Windows;
 using System.Windows.Controls;
 using UEModManager.Services;
@@ -22,8 +23,8 @@ namespace UEModManager.Views
             string? yesText = null, string? noText = null, string? cancelText = null, string? okText = null)
         {
             var dlg = new CyberMessageBox();
-            dlg.Title = title;
-            dlg.MessageText.Text = message;
+            dlg.Title = UiText.Get(title);
+            dlg.MessageText.Text = UiText.Get(message);
 
             if (owner != null && owner.IsVisible)
                 dlg.Owner = owner;
@@ -83,10 +84,11 @@ namespace UEModManager.Views
         {
             var btn = new Button
             {
-                Content = text,
-                Width = 80,
+                Content = UiText.Get(text),
+                MinWidth = 80,
+                Padding = new Thickness(16, 0, 16, 0),
                 Height = 36,
-                Margin = new Thickness(4, 0, 4, 0),
+                Margin = new Thickness(4, 4, 4, 4),
                 Style = dlg.FindResource(isPrimary ? "CyberPrimaryButton" : "CyberSecondaryButton") as Style
             };
             btn.Click += (_, _) =>

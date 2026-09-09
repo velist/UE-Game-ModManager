@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -179,7 +180,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}", "\u9519\u8bef",
+                CyberMessageBox.Show(this, UiText.Interpolate($"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}"), UiText.Get("\u9519\u8bef"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -230,7 +231,7 @@ namespace UEModManager.Views
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    SearchStatusText.Text = $"\u641c\u7d22\u5931\u8d25: {ex.Message}";
+                    SearchStatusText.Text = UiText.Interpolate($"\u641c\u7d22\u5931\u8d25: {ex.Message}");
                 });
             }
         }
@@ -281,7 +282,7 @@ namespace UEModManager.Views
             if (!string.IsNullOrEmpty(foundGamePath) && !string.IsNullOrEmpty(foundExePath))
             {
                 modPath = DeduceModPathFromExe(foundExePath, gameName);
-                statusText = $"\u2713 \u627e\u5230\u6e38\u620f: {Path.GetFileName(foundExePath)}";
+                statusText = UiText.Interpolate($"\u2713 \u627e\u5230\u6e38\u620f: {Path.GetFileName(foundExePath)}");
             }
             else
             {
@@ -307,11 +308,11 @@ namespace UEModManager.Views
                     }
 
                     EnsureDirectoryIfPossible(modPath);
-                    statusText = "\u26a0 \u627e\u5230\u6e38\u620f\u76ee\u5f55\uff0c\u4f46\u672a\u5b9a\u4f4d\u5230exe\u6587\u4ef6";
+                    statusText = UiText.Get("\u26a0 \u627e\u5230\u6e38\u620f\u76ee\u5f55\uff0c\u4f46\u672a\u5b9a\u4f4d\u5230exe\u6587\u4ef6");
                 }
                 else
                 {
-                    statusText = "\u2717 \u672a\u627e\u5230\u6e38\u620f\uff0c\u8bf7\u624b\u52a8\u9009\u62e9";
+                    statusText = UiText.Get("\u2717 \u672a\u627e\u5230\u6e38\u620f\uff0c\u8bf7\u624b\u52a8\u9009\u62e9");
                 }
             }
 
@@ -1046,7 +1047,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择游戏安装目录",
+                Description = UiText.Get("选择游戏安装目录"),
                 UseDescriptionForTitle = true,
                 SelectedPath = GamePath
             };
@@ -1062,7 +1063,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择MOD目录",
+                Description = UiText.Get("选择MOD目录"),
                 UseDescriptionForTitle = true,
                 SelectedPath = ModPath
             };
@@ -1089,7 +1090,7 @@ namespace UEModManager.Views
             
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择备份目录",
+                Description = UiText.Get("选择备份目录"),
                 UseDescriptionForTitle = true,
                 SelectedPath = initialPath
             };
@@ -1111,7 +1112,7 @@ namespace UEModManager.Views
             }
             else
             {
-                ShowCustomMessageBox("请确保所有路径都已正确设置", "路径无效", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowCustomMessageBox(UiText.Get("请确保所有路径都已正确设置"), UiText.Get("路径无效"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -1254,14 +1255,14 @@ namespace UEModManager.Views
             switch (buttons)
             {
                 case MessageBoxButton.OK:
-                    var okBtn = CreateMessageBoxButton("确定", true);
+                    var okBtn = CreateMessageBoxButton(UiText.Get("确定"), true);
                     okBtn.Click += (s, e) => { result = MessageBoxResult.OK; messageWindow.Close(); };
                     buttonPanel.Children.Add(okBtn);
                     break;
 
                 case MessageBoxButton.OKCancel:
-                    var cancelBtn1 = CreateMessageBoxButton("取消", false);
-                    var okBtn1 = CreateMessageBoxButton("确定", true);
+                    var cancelBtn1 = CreateMessageBoxButton(UiText.Get("取消"), false);
+                    var okBtn1 = CreateMessageBoxButton(UiText.Get("确定"), true);
                     cancelBtn1.Click += (s, e) => { result = MessageBoxResult.Cancel; messageWindow.Close(); };
                     okBtn1.Click += (s, e) => { result = MessageBoxResult.OK; messageWindow.Close(); };
                     buttonPanel.Children.Add(cancelBtn1);
@@ -1269,8 +1270,8 @@ namespace UEModManager.Views
                     break;
 
                 case MessageBoxButton.YesNo:
-                    var noBtn = CreateMessageBoxButton("否", false);
-                    var yesBtn = CreateMessageBoxButton("是", true);
+                    var noBtn = CreateMessageBoxButton(UiText.Get("否"), false);
+                    var yesBtn = CreateMessageBoxButton(UiText.Get("是"), true);
                     noBtn.Click += (s, e) => { result = MessageBoxResult.No; messageWindow.Close(); };
                     yesBtn.Click += (s, e) => { result = MessageBoxResult.Yes; messageWindow.Close(); };
                     buttonPanel.Children.Add(noBtn);
@@ -1278,9 +1279,9 @@ namespace UEModManager.Views
                     break;
 
                 case MessageBoxButton.YesNoCancel:
-                    var cancelBtn2 = CreateMessageBoxButton("取消", false);
-                    var noBtn2 = CreateMessageBoxButton("否", false);
-                    var yesBtn2 = CreateMessageBoxButton("是", true);
+                    var cancelBtn2 = CreateMessageBoxButton(UiText.Get("取消"), false);
+                    var noBtn2 = CreateMessageBoxButton(UiText.Get("否"), false);
+                    var yesBtn2 = CreateMessageBoxButton(UiText.Get("是"), true);
                     cancelBtn2.Click += (s, e) => { result = MessageBoxResult.Cancel; messageWindow.Close(); };
                     noBtn2.Click += (s, e) => { result = MessageBoxResult.No; messageWindow.Close(); };
                     yesBtn2.Click += (s, e) => { result = MessageBoxResult.Yes; messageWindow.Close(); };
@@ -1420,22 +1421,7 @@ namespace UEModManager.Views
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-        private void ApplyLocalization()
-        {
-            var toEnglish = UEModManager.Services.LanguageManager.IsEnglish;
-            var map = new System.Collections.Generic.Dictionary<string,string>
-            {
-                {"游戏路径配置","Game Path Configuration"},
-                {"游戏路径","Game Path"},
-                {"MOD路径","MOD Path"},
-                {"MOD备份路径","MOD Backup Path"},
-                {"浏览","Browse"},
-                {"保存","Save"},
-                {"取消","Cancel"}
-            };
-            UEModManager.Services.LocalizationHelper.Apply(this, toEnglish, map);
-            this.Title = toEnglish ? "Game Path Configuration" : "游戏路径配置";
-        }
+
 
     }
 }

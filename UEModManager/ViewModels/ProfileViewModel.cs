@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -56,7 +57,7 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public async Task CreateProfileAsync()
         {
-            var name = $"方案 {Profiles.Count + 1}";
+            var name = UiText.Interpolate($"方案 {Profiles.Count + 1}");
             var profile = await _profileService.CreateProfileAsync(name);
             Profiles.Add(profile);
             SelectedProfile = profile;
@@ -70,7 +71,7 @@ namespace UEModManager.ViewModels
         {
             if (SelectedProfile == null) return;
             var clone = await _profileService.CloneProfileAsync(
-                SelectedProfile.Id, $"{SelectedProfile.Name} - 副本");
+                SelectedProfile.Id, UiText.Interpolate($"{SelectedProfile.Name} - 副本"));
             Profiles.Add(clone);
             SelectedProfile = clone;
         }

@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,7 +52,7 @@ namespace UEModManager.Views
             {
                 SwitchTab(0);
                 await LoadModLibAsync();
-            }, null, "加载管理中心");
+            }, null, UiText.Get("加载管理中心"));
 
         // ─── Tab 切换 ───
 
@@ -166,9 +167,9 @@ namespace UEModManager.Views
             if (sender is not Button btn || btn.Tag is not DeploymentTransaction tx) return;
 
             var result = CyberMessageBox.Show(this,
-                $"确定要回滚 {tx.CreatedAt:yyyy-MM-dd HH:mm} 的部署事务吗？",
-                "确认回滚", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: "回滚", noText: "取消");
+                UiText.Interpolate($"确定要回滚 {tx.CreatedAt:yyyy-MM-dd HH:mm} 的部署事务吗？"),
+                UiText.Get("确认回滚"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: UiText.Get("回滚"), noText: UiText.Get("取消"));
             if (result != MessageBoxResult.Yes) return;
 
             try
@@ -178,7 +179,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"回滚失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"回滚失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -194,7 +195,7 @@ namespace UEModManager.Views
                 {
                     ConfigMergeList.Children.Add(new TextBlock
                     {
-                        Text = "当前没有可用的 MOD 方案",
+                        Text = UiText.Get("当前没有可用的 MOD 方案"),
                         Foreground = (Brush)FindResource("Text500Brush"),
                         FontSize = 13,
                         HorizontalAlignment = HorizontalAlignment.Center,
@@ -217,7 +218,7 @@ namespace UEModManager.Views
                 {
                     ConfigMergeList.Children.Add(new TextBlock
                     {
-                        Text = "当前 MOD 方案没有配置文件",
+                        Text = UiText.Get("当前 MOD 方案没有配置文件"),
                         Foreground = (Brush)FindResource("Text500Brush"),
                         FontSize = 13,
                         HorizontalAlignment = HorizontalAlignment.Center,
@@ -259,7 +260,7 @@ namespace UEModManager.Views
                     {
                         stack.Children.Add(new TextBlock
                         {
-                            Text = $"\u26A0 {group.Count()} 个 MOD 会修改此配置文件",
+                            Text = UiText.Interpolate($"\u26A0 {group.Count()} 个 MOD 会修改此配置文件"),
                             Foreground = (Brush)FindResource("StatusOrangeBrush"),
                             FontSize = 11,
                             Margin = new Thickness(0, 4, 0, 0)
@@ -324,13 +325,13 @@ namespace UEModManager.Views
                 var problemCount = issues.Count + plan.Reclaimable.Count + plan.Unregistered.Count;
 
                 CyberMessageBox.Show(this,
-                    problemCount == 0 ? "所有 MOD 文件都能正常找到" : $"发现 {problemCount} 个文件问题",
-                    "检查缺失文件", MessageBoxButton.OK,
+                    problemCount == 0 ? UiText.Get("所有 MOD 文件都能正常找到") : UiText.Interpolate($"发现 {problemCount} 个文件问题"),
+                    UiText.Get("检查缺失文件"), MessageBoxButton.OK,
                     problemCount == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
 
                 RepositoryReclaimPrompt.ConfirmAndReclaim(this, _reclaim, plan);
                 await LoadModLibAsync();
-            }, null, "检查仓库完整性");
+            }, null, UiText.Get("检查仓库完整性"));
 
         private async void RepoMergeDuplicates_Click(object sender, RoutedEventArgs e)
         {
@@ -339,36 +340,36 @@ namespace UEModManager.Views
                 var dupGroups = _packageRepo.GetDuplicateGroups();
                 if (dupGroups.Count == 0)
                 {
-                    CyberMessageBox.Show(this, "没有发现相同文件", "合并相同文件", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, UiText.Get("没有发现相同文件"), UiText.Get("合并相同文件"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
                 var merge = await _packageRepo.MergeDuplicateGroupsAsync(_profileService.GetProfiles());
 
-                var message = $"合并完成，已删除 {merge.DeletedCount} 个旧副本。";
+                var message = UiText.Interpolate($"合并完成，已删除 {merge.DeletedCount} 个旧副本。");
                 if (merge.Skipped.Count > 0)
                 {
-                    message += $"\n跳过 {merge.Skipped.Count} 个：\n"
+                    message += UiText.Interpolate($"\n跳过 {merge.Skipped.Count} 个：\n")
                         + string.Join("\n", merge.Skipped.Take(5));
                     if (merge.Skipped.Count > 5) message += "\n……";
                 }
 
-                CyberMessageBox.Show(this, message, "合并完成", MessageBoxButton.OK,
+                CyberMessageBox.Show(this, message, UiText.Get("合并完成"), MessageBoxButton.OK,
                     merge.Skipped.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
                 await LoadModLibAsync();
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"合并失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"合并失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void RepoCleanUnreferenced_Click(object sender, RoutedEventArgs e)
         {
             var confirm = CyberMessageBox.Show(this,
-                "确定要清理所有未被任何 MOD 方案使用的文件吗？此操作不可撤销。",
-                "确认清理", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: "清理", noText: "取消");
+                UiText.Get("确定要清理所有未被任何 MOD 方案使用的文件吗？此操作不可撤销。"),
+                UiText.Get("确认清理"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: UiText.Get("清理"), noText: UiText.Get("取消"));
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -388,7 +389,7 @@ namespace UEModManager.Views
                     if (success) count++;
                 }
 
-                CyberMessageBox.Show(this, $"清理了 {count} 个未使用文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, UiText.Interpolate($"清理了 {count} 个未使用文件"), UiText.Get("清理完成"), MessageBoxButton.OK, MessageBoxImage.Information);
 
                 // 用户点"清理未使用文件"要的是腾空间，而占空间最狠的往往不是这些登记在册的包，
                 // 而是索引里根本没有记录的导入残留 —— 顺带问一句，否则那部分永远没人清。
@@ -397,7 +398,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"清理失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -412,13 +413,13 @@ namespace UEModManager.Views
                 var pkg = await _overwriteStore.PromoteToPackageAsync(artifactId);
                 if (pkg != null)
                 {
-                    CyberMessageBox.Show(this, $"已转为正式 MOD: {pkg.DisplayName}", "转换成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, UiText.Interpolate($"已转为正式 MOD: {pkg.DisplayName}"), UiText.Get("转换成功"), MessageBoxButton.OK, MessageBoxImage.Information);
                         await LoadGenFilesAsync();
                 }
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"转换失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"转换失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -426,8 +427,8 @@ namespace UEModManager.Views
         {
             if (sender is not Button btn || btn.Tag is not Guid artifactId) return;
 
-            var confirm = CyberMessageBox.Show(this, "确定要删除此临时文件吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: "删除", noText: "取消");
+            var confirm = CyberMessageBox.Show(this, UiText.Get("确定要删除此临时文件吗？"), UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                yesText: UiText.Get("删除"), noText: UiText.Get("取消"));
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -437,7 +438,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"删除失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"删除失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -446,12 +447,12 @@ namespace UEModManager.Views
             try
             {
                 var count = await _overwriteStore.CleanupStaleAsync();
-                CyberMessageBox.Show(this, $"清理了 {count} 个可删除文件", "清理完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, UiText.Interpolate($"清理了 {count} 个可删除文件"), UiText.Get("清理完成"), MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadGenFilesAsync();
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"清理失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"清理失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -461,9 +462,9 @@ namespace UEModManager.Views
         {
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "导出诊断包",
+                Title = UiText.Get("导出诊断包"),
                 FileName = $"UEModManager_diag_{DateTime.Now:yyyyMMdd_HHmmss}.zip",
-                Filter = "诊断包 (*.zip)|*.zip",
+                Filter = UiText.Get("诊断包 (*.zip)|*.zip"),
                 DefaultExt = ".zip"
             };
 
@@ -474,13 +475,13 @@ namespace UEModManager.Views
                 Mouse.OverrideCursor = Cursors.Wait;
                 var count = await _diagnosticExport.ExportToZipAsync(dialog.FileName);
                 CyberMessageBox.Show(this,
-                    $"诊断包已导出（{count} 个条目）：\n{dialog.FileName}",
-                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Interpolate($"诊断包已导出（{count} 个条目）：\n{dialog.FileName}"),
+                    UiText.Get("导出成功"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 CyberMessageBox.Show(this,
-                    $"导出失败：{ex.Message}", "错误",
+                    UiText.Interpolate($"导出失败：{ex.Message}"), UiText.Get("错误"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -522,7 +523,7 @@ namespace UEModManager.Views
         public Brush? StatusBrush { get; }
 
         /// <summary>被方案引用时显示绿色的"方案在用"，否则橙色的"未使用"。</summary>
-        public static string StatusTextFor(bool isReferenced) => isReferenced ? "方案在用" : "未使用";
+        public static string StatusTextFor(bool isReferenced) => isReferenced ? UiText.Get("方案在用") : UiText.Get("未使用");
 
         public static string StatusBrushKeyFor(bool isReferenced)
             => isReferenced ? "StatusGreenBrush" : "StatusOrangeBrush";
@@ -576,7 +577,7 @@ namespace UEModManager.Views
         };
 
         public static string SummaryTextFor(DeploymentTransaction tx)
-            => $"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}";
+            => UiText.Interpolate($"{tx.TotalOperations} 个操作 · {DisplayNameMapper.DeploymentBackend(tx.BackendType)}");
 
         public static DeployHistoryRow Create(DeploymentTransaction tx, Func<string, Brush?> resolveBrush)
         {
@@ -617,7 +618,7 @@ namespace UEModManager.Views
         public Guid ArtifactId { get; }
 
         public static string StatusTextFor(GeneratedArtifactStatus status)
-            => status == GeneratedArtifactStatus.Stale ? "可清理" : "使用中";
+            => status == GeneratedArtifactStatus.Stale ? UiText.Get("可清理") : UiText.Get("使用中");
 
         public static string StatusBrushKeyFor(GeneratedArtifactStatus status)
             => status == GeneratedArtifactStatus.Stale ? "StatusOrangeBrush" : "StatusGreenBrush";

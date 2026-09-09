@@ -366,6 +366,17 @@ public readonly record struct RepositoryRelocationProgress(
         RepositoryRelocationStage.CleaningUp => "正在清空原来的位置…",
         _ => "搬完了",
     };
+
+    public string GetStatusText(bool english) => !english ? StatusText : Stage switch
+    {
+        RepositoryRelocationStage.Preparing => "Checking how much data needs to be moved…",
+        RepositoryRelocationStage.Copying => TotalBytes > 0
+            ? $"Moving… {DiskSpacePrecheck.Humanize(CopiedBytes)} / {DiskSpacePrecheck.Humanize(TotalBytes)}" : "Moving…",
+        RepositoryRelocationStage.Verifying => "Verifying that all files were copied…",
+        RepositoryRelocationStage.Committing => "Switching to the new location…",
+        RepositoryRelocationStage.CleaningUp => "Cleaning up the original location…",
+        _ => "Move complete"
+    };
 }
 
 /// <summary>
@@ -380,13 +391,15 @@ public readonly record struct RepositoryRelocationProgress(
 public static class RepositoryRelocationMessages
 {
     /// <summary>把 <c>D:\Mods</c> 说成"D 盘"；说不清就退回原路径，绝不编一个"未知盘"。</summary>
-    public static string DescribeWhere(string path)
-        => VolumePaths.TryDescribeVolume(path) ?? path;
+    public static string DescribeWhere(string path, bool english = false)
+        => english ? VolumePaths.TryGetVolumeRoot(path)?.TrimEnd('\\', '/') ?? path
+            : VolumePaths.TryDescribeVolume(path) ?? path;
 
     /// <summary>确认阶段的标题。</summary>
-    public static string ConfirmTitle(RepositoryRelocationPlan plan)
+    public static string ConfirmTitle(RepositoryRelocationPlan plan, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+        if (english) return $"Move mods to {DescribeWhere(plan.TargetRoot, true)}";
         return $"把 MOD 挪到{DescribeWhere(plan.TargetRoot)}";
     }
 
@@ -395,9 +408,18 @@ public static class RepositoryRelocationMessages
     /// 空仓库（<see cref="RepositoryRelocationAction.PointerOnly"/>）不会走到这里
     /// ——那条路径连窗口都不弹。
     /// </summary>
-    public static string ConfirmBody(RepositoryRelocationPlan plan)
+    public static string ConfirmBody(RepositoryRelocationPlan plan, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+
+        if (english)
+        {
+            var count = plan.PayloadPackageCount > 0 ? $"{plan.PayloadPackageCount} mods" : "your imported mods";
+            var total = plan.PayloadSizeKnown ? $" ({DiskSpacePrecheck.Humanize(plan.PayloadBytes)})" : string.Empty;
+            return $"The app will move {count}{total} to {DescribeWhere(plan.TargetRoot, true)} and switch storage automatically."
+                + "\n\nFiles are copied and verified before the originals are removed. You can cancel before the switch."
+                + "\n\nThis may take several minutes. Do not install mods while the move is in progress.";
+        }
 
         var what = plan.PayloadPackageCount > 0
             ? $"{plan.PayloadPackageCount} 个 MOD"
@@ -416,9 +438,21 @@ public static class RepositoryRelocationMessages
     }
 
     /// <summary>被拦下时给用户的话。每一条都必须告诉他<b>下一步做什么</b>。</summary>
-    public static string BlockedBody(RepositoryRelocationPlan plan)
+    public static string BlockedBody(RepositoryRelocationPlan plan, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+
+        if (english) return plan.Blocker switch
+        {
+            RepositoryRelocationBlocker.InsufficientSpace => $"{DescribeWhere(plan.TargetRoot, true)} needs another "
+                + $"{DiskSpacePrecheck.Humanize(RepositoryRelocationPlanner.ShortfallBytes(plan))} of free space."
+                + $"\n\nYour mods use {DiskSpacePrecheck.Humanize(plan.PayloadBytes)}. The move must copy them before removing the originals."
+                + "\n\nFree up space or choose another drive. Your mods remain in their original location.",
+            RepositoryRelocationBlocker.TargetInsideSource => "The new location is inside the current repository. Choose a folder outside it or another drive.",
+            RepositoryRelocationBlocker.SourceInsideTarget => "The new location contains the current repository. Choose a folder that is neither its parent nor its child.",
+            RepositoryRelocationBlocker.TargetNotEmpty => "The destination already contains files. Choose an empty folder or create a new one. Your existing files and mods are unchanged.",
+            _ => "This location cannot be used. Choose another folder. Your mods remain in their original location."
+        };
 
         switch (plan.Blocker)
         {
@@ -468,9 +502,17 @@ public static class RepositoryRelocationMessages
     /// 重新部署一次就能把游戏目录里的链接重新指到新仓库，旧盘上的占用随之释放。
     /// </para>
     /// </summary>
-    public static string SuccessBody(RepositoryRelocationPlan plan, bool anyDeployed)
+    public static string SuccessBody(RepositoryRelocationPlan plan, bool anyDeployed, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+
+        if (english)
+        {
+            var total = plan.PayloadSizeKnown ? $" ({DiskSpacePrecheck.Humanize(plan.PayloadBytes)})" : string.Empty;
+            return $"Your mods have moved to {DescribeWhere(plan.TargetRoot, true)}{total}."
+                + "\n\nThe original location has been cleared. Future imports will use the new location."
+                + (anyDeployed ? "\n\nYou can keep playing. Deployed mods may still use space on the old drive. Disable and re-enable them to redeploy and release that space." : string.Empty);
+        }
 
         var body = $"MOD 已经搬到{DescribeWhere(plan.TargetRoot)}了"
             + (plan.PayloadSizeKnown
@@ -494,9 +536,12 @@ public static class RepositoryRelocationMessages
     /// 重点只有一句：<b>你的东西一个都没少</b>。取消发生在"删源"之前，
     /// 旧位置始终是完整且唯一被指向的那一份。
     /// </summary>
-    public static string CancelledBody(RepositoryRelocationPlan plan)
+    public static string CancelledBody(RepositoryRelocationPlan plan, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+
+        if (english) return "The move was canceled. Your mods and storage setting remain unchanged."
+            + $"\n\nThe partial copy at {DescribeWhere(plan.TargetRoot, true)} has been cleaned up. You can try again whenever you are ready.";
 
         return "已经停下来了。你的 MOD 一个都没少，还在原来的位置，存放位置也没有改。"
             + Environment.NewLine + Environment.NewLine
@@ -506,9 +551,13 @@ public static class RepositoryRelocationMessages
     }
 
     /// <summary>搬移失败之后的话。同样以"东西没丢"开头——那是用户此刻唯一想知道的事。</summary>
-    public static string FailureBody(RepositoryRelocationPlan plan, string detail)
+    public static string FailureBody(RepositoryRelocationPlan plan, string detail, bool english = false)
     {
         if (plan is null) throw new ArgumentNullException(nameof(plan));
+
+        if (english) return "The move failed." + (string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n{detail.Trim()}")
+            + "\n\nYour mods and storage setting remain unchanged. You can keep playing."
+            + "\n\nThe destination may be busy or not writable. Choose another folder and try again, or keep the current location.";
 
         var reason = string.IsNullOrWhiteSpace(detail) ? string.Empty : $"（{detail.Trim()}）";
         return $"没搬成{reason}。"

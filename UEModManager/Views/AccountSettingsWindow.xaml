@@ -1,7 +1,8 @@
 <Window x:Class="UEModManager.Views.AccountSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="账户设置" Width="420" SizeToContent="Height"
+        xmlns:loc="clr-namespace:UEModManager.Localization"
+        Title="{loc:Text &#x27;账户设置&#x27;}" Width="420" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}">
 
@@ -28,14 +29,14 @@
                     Width="80" Height="80" CornerRadius="40" BorderBrush="{StaticResource CyberBorderBrush}"
                     BorderThickness="2" HorizontalAlignment="Center" Margin="0,0,0,12"
                     Background="{StaticResource SurfaceBrush}"
-                    Cursor="Hand" ToolTip="点击更换头像"
+                    Cursor="Hand" ToolTip="{loc:Text &#x27;点击更换头像&#x27;}"
                     MouseLeftButtonUp="AvatarArea_MouseLeftButtonUp">
                 <Image x:Name="AvatarPlaceholder" Width="46" Height="46"
                        Source="pack://application:,,,/mnlogo.ico"
                        RenderOptions.BitmapScalingMode="HighQuality"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
-            <Button Content="更换头像" Style="{StaticResource CyberSecondaryButton}"
+            <Button Content="{loc:Text &#x27;更换头像&#x27;}" Style="{StaticResource CyberSecondaryButton}"
                     Height="32" Click="ChangeAvatar_Click"/>
         </StackPanel>
 
@@ -45,19 +46,19 @@
                  原先还有一个"用户名"绑 Username，但 Username 是云端所有的：
                  SyncUserToLocal 每次登录都执行 existingUser.Username = cloudUser.Username，
                  用户在这里改了下次登录就被覆盖——一个改了不生效的输入框比没有更糟。 -->
-            <TextBlock Text="名称" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+            <TextBlock Text="{loc:Text &#x27;名称&#x27;}" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
             <TextBox x:Name="DisplayNameTextBox" Style="{StaticResource CyberTextBox}" Margin="0,0,0,16"/>
 
-            <TextBlock Text="个性签名" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
+            <TextBlock Text="{loc:Text &#x27;个性签名&#x27;}" Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
             <TextBox x:Name="SignatureTextBox" Style="{StaticResource CyberTextBox}" Height="60"
                      AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Padding="14,10"/>
         </StackPanel>
 
         <!-- 底部按钮 -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="取消" Style="{StaticResource CyberSecondaryButton}"
+            <Button Content="{loc:Text &#x27;取消&#x27;}" Style="{StaticResource CyberSecondaryButton}"
                     Width="80" Height="36" Margin="0,0,12,0" Click="Cancel_Click"/>
-            <Button Content="保存" Style="{StaticResource CyberPrimaryButton}"
+            <Button Content="{loc:Text &#x27;保存&#x27;}" Style="{StaticResource CyberPrimaryButton}"
                     Width="80" Height="36" Click="Save_Click"/>
         </StackPanel>
     </Grid>

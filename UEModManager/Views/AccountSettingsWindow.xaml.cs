@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Windows;
 using System.Windows.Input;
@@ -26,7 +27,7 @@ namespace UEModManager.Views
             DisplayNameTextBox.Text = user?.DisplayName ?? user?.Username ?? user?.Email ?? string.Empty;
             ShowAvatar(user?.Avatar);
 
-            Infrastructure.SafeEvent.Run(this, LoadSignatureAsync, _logger, "读取个性签名");
+            Infrastructure.SafeEvent.Run(this, LoadSignatureAsync, _logger, UiText.Get("读取个性签名"));
         }
 
         /// <summary>
@@ -86,8 +87,8 @@ namespace UEModManager.Views
             {
                 var ofd = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "选择头像图片",
-                    Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif|所有文件|*.*",
+                    Title = UiText.Get("选择头像图片"),
+                    Filter = UiText.Get("图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif|所有文件|*.*"),
                     CheckFileExists = true,
                     CheckPathExists = true
                 };
@@ -97,8 +98,8 @@ namespace UEModManager.Views
                     // 要在这里就告诉用户，而不是等保存完、下次启动才发现头像是空的。
                     if (!ShowAvatar(ofd.FileName))
                     {
-                        CyberMessageBox.Show(this, "这个文件无法作为图片打开，请换一张。",
-                            "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                        CyberMessageBox.Show(this, UiText.Get("这个文件无法作为图片打开，请换一张。"),
+                            UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
@@ -108,7 +109,7 @@ namespace UEModManager.Views
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "选择头像失败");
-                CyberMessageBox.Show(this, $"选择头像失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"选择头像失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -126,7 +127,7 @@ namespace UEModManager.Views
                 var sig = (SignatureTextBox.Text ?? string.Empty).Trim();
                 if (_localAuth.CurrentUser == null)
                 {
-                    CyberMessageBox.Show(this, "请先登录后再修改", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CyberMessageBox.Show(this, UiText.Get("请先登录后再修改"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -164,13 +165,13 @@ namespace UEModManager.Views
                 }
                 else
                 {
-                    CyberMessageBox.Show(this, "保存失败，请稍后重试", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    CyberMessageBox.Show(this, UiText.Get("保存失败，请稍后重试"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "保存账户设置失败");
-                CyberMessageBox.Show(this, $"保存失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.Show(this, UiText.Interpolate($"保存失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

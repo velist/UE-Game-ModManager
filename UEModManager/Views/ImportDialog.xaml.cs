@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -69,8 +70,8 @@ namespace UEModManager.Views
         {
             var dlg = new OpenFileDialog
             {
-                Title = "选择要导入的文件",
-                Filter = "支持的文件|*.zip;*.rar;*.7z;*.pak;*.utoc;*.ucas;*.dll;*.ini;*.json;*.cfg|所有文件|*.*",
+                Title = UiText.Get("选择要导入的文件"),
+                Filter = UiText.Get("支持的文件|*.zip;*.rar;*.7z;*.pak;*.utoc;*.ucas;*.dll;*.ini;*.json;*.cfg|所有文件|*.*"),
                 Multiselect = true
             };
 

@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.IO;
 using System.Linq;
@@ -32,14 +33,24 @@ namespace UEModManager.Views
         private string? _bgImageActualPath;
 
         public SettingsWindow()
+            : this(GetServices().GetRequiredService<GameConfigService>(), GetServices().GetService<ObjectStore>(),
+                GetServices().GetService<PackageRepository>(), GetServices().GetService<DiagnosticExportService>())
         {
-            InitializeComponent();
+        }
 
-            var sp = (Application.Current as App)?.ServiceProvider;
-            _gameConfig = sp!.GetRequiredService<GameConfigService>();
-            _objectStore = sp.GetService<ObjectStore>();
-            _packageRepo = sp.GetService<PackageRepository>();
-            _diagnosticExport = sp.GetService<DiagnosticExportService>();
+        private static IServiceProvider GetServices()
+            => (Application.Current as App)?.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider is not initialized.");
+
+        internal SettingsWindow(GameConfigService gameConfig, ObjectStore? objectStore = null,
+            PackageRepository? packageRepository = null, DiagnosticExportService? diagnosticExport = null,
+            ResourceDictionary? resources = null)
+        {
+            _gameConfig = gameConfig ?? throw new ArgumentNullException(nameof(gameConfig));
+            _objectStore = objectStore;
+            _packageRepo = packageRepository;
+            _diagnosticExport = diagnosticExport;
+            if (resources != null) Resources = resources;
+            InitializeComponent();
 
             // 初始化语言下拉框（避免触发 SelectionChanged）
             LanguageComboBox.SelectionChanged -= LanguageComboBox_SelectionChanged;
@@ -98,7 +109,7 @@ namespace UEModManager.Views
 
             try
             {
-                UiPreferences.SaveEnglish(isEnglish);
+                LanguageManager.SaveAndSetEnglish(isEnglish);
             }
             catch (Exception ex)
             {
@@ -106,12 +117,11 @@ namespace UEModManager.Views
                 LanguageComboBox.SelectedIndex = LanguageManager.IsEnglish ? 1 : 0;
                 LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
 
-                CyberMessageBox.Show(this, $"保存语言设置失败：{ex.Message}", "错误",
+                CyberMessageBox.Show(this, UiText.Interpolate($"保存语言设置失败：{ex.Message}"), UiText.Get("错误"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            LanguageManager.SetEnglish(isEnglish);
         }
 
         private void TabButton_Click(object sender, RoutedEventArgs e)
@@ -145,11 +155,11 @@ namespace UEModManager.Views
 
             if (string.IsNullOrEmpty(gameName))
             {
-                CurrentGameHint.Text = "当前游戏：未选择（请先在主界面选择游戏）";
+                UpdateCurrentGameHint();
                 return;
             }
 
-            CurrentGameHint.Text = $"当前游戏：{gameName}";
+            UpdateCurrentGameHint();
             GamePathTextBox.Text = _gameConfig.CurrentGamePath;
             ModPathTextBox.Text = _gameConfig.CurrentModPath;
             BackupPathTextBox.Text = _gameConfig.CurrentBackupPath;
@@ -232,8 +242,8 @@ namespace UEModManager.Views
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "选择背景图片",
-                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp|所有文件|*.*"
+                Title = UiText.Get("选择背景图片"),
+                Filter = UiText.Get("图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp|所有文件|*.*")
             };
             if (dlg.ShowDialog() == true)
             {
@@ -263,7 +273,7 @@ namespace UEModManager.Views
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[Settings] 背景图选择失败: {ex.Message}");
-                    CyberMessageBox.Show(this, $"选择图片失败: {ex.Message}", "错误",
+                    CyberMessageBox.Show(this, UiText.Interpolate($"选择图片失败: {ex.Message}"), UiText.Get("错误"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -338,7 +348,7 @@ namespace UEModManager.Views
         {
             if (string.IsNullOrEmpty(_gameConfig.CurrentGameName))
             {
-                CyberMessageBox.Show(this, "\u8bf7\u5148\u5728\u4e3b\u754c\u9762\u9009\u62e9\u6e38\u620f\u540e\u518d\u8bbe\u7f6e\u56fe\u6807\u3002", "\u63d0\u793a");
+                CyberMessageBox.Show(this, UiText.Get("\u8bf7\u5148\u5728\u4e3b\u754c\u9762\u9009\u62e9\u6e38\u620f\u540e\u518d\u8bbe\u7f6e\u56fe\u6807\u3002"), UiText.Get("\u63d0\u793a"));
                 return;
             }
 
@@ -352,7 +362,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, $"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}", "\u9519\u8bef",
+                CyberMessageBox.Show(this, UiText.Interpolate($"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}"), UiText.Get("\u9519\u8bef"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -387,8 +397,8 @@ namespace UEModManager.Views
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "选择游戏可执行文件",
-                Filter = "可执行文件 (*.exe)|*.exe"
+                Title = UiText.Get("选择游戏可执行文件"),
+                Filter = UiText.Get("可执行文件 (*.exe)|*.exe")
             };
             if (dialog.ShowDialog() == true)
                 GamePathTextBox.Text = Path.GetDirectoryName(dialog.FileName) ?? "";
@@ -398,7 +408,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择 MOD 文件夹"
+                Description = UiText.Get("选择 MOD 文件夹")
             };
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 ModPathTextBox.Text = dialog.SelectedPath;
@@ -408,7 +418,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择备份文件夹"
+                Description = UiText.Get("选择备份文件夹")
             };
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 BackupPathTextBox.Text = dialog.SelectedPath;
@@ -446,12 +456,12 @@ namespace UEModManager.Views
                         : size < 1024L * 1024 * 1024
                             ? $"{size / (1024.0 * 1024):F1} MB"
                             : $"{size / (1024.0 * 1024 * 1024):F2} GB";
-                    RepoSizeText.Text = $"已用空间: {sizeStr}";
-                    RepoCountText.Text = $"{count} 个包";
+                    RepoSizeText.Text = UiText.Interpolate($"已用空间: {sizeStr}");
+                    RepoCountText.Text = UiText.Interpolate($"{count} 个包");
                 }
                 catch
                 {
-                    RepoSizeText.Text = "已用空间: 未知";
+                    RepoSizeText.Text = UiText.Get("已用空间: 未知");
                     RepoCountText.Text = "";
                 }
             }
@@ -467,7 +477,7 @@ namespace UEModManager.Views
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
-                Description = "选择包仓库目录"
+                Description = UiText.Get("选择包仓库目录")
             };
             if (!string.IsNullOrEmpty(RepoPathTextBox.Text) && Directory.Exists(RepoPathTextBox.Text))
                 dialog.SelectedPath = RepoPathTextBox.Text;
@@ -500,96 +510,20 @@ namespace UEModManager.Views
 
         private void ApplyLocalization()
         {
-            if (LanguageManager.IsEnglish)
-            {
-                Title = "Settings";
-                TabGeneral.Content = "General";
-                TabPaths.Content = "Game Paths";
-                TabAppearance.Content = "Appearance";
-                TabAbout.Content = "About";
-                TabFeedback.Content = "Feedback & Diagnostics";
-                AppearanceTitle.Text = "Appearance";
-                BgModeLabel.Text = "Background Mode";
-                BgModeGradientText.Text = "Gradient";
-                BgModeImageText.Text = "Custom Image";
-                BgModeSolidText.Text = "Solid Color";
-                BgOpacityLabel.Text = "Background Opacity";
-                BgBlurLabel.Text = "Background Blur";
-                ApplyToDialogsLabel.Text = "Apply to Dialogs";
-                ApplyToDialogsDesc.Text = "Show background in dialogs";
-                BrowseBgImageBtn.Content = "Browse";
-                CloseActionLabel.Text = "Close Action";
-                CloseActionDesc.Text = "Behavior when clicking close button";
-                ((ComboBoxItem)CloseActionComboBox.Items[0]).Content = "Ask every time";
-                ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "Exit directly";
-                ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "Minimize to taskbar";
-                AboutTitle.Text = "About";
-                AboutDesc1.Text = "A mod manager for popular games, built for everyone";
-                AboutDesc2.Text = "Supports multiple popular games";
-                DonationText.Text = "If you find this helpful, buy me a coffee!";
-                CreditsTitle.Text = "Credits";
+            LanguageComboBox.SelectionChanged -= LanguageComboBox_SelectionChanged;
+            LanguageComboBox.SelectedIndex = LanguageManager.IsEnglish ? 1 : 0;
+            LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
+            UpdateCurrentGameHint();
+            UpdateRepoStats();
+            var version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "2.1.0";
+            VersionText.Text = UiText.Format("版本 {0}", version);
+        }
 
-                // 反馈与诊断
-                FeedbackTitle.Text = "Feedback & Diagnostics";
-                FeedbackSubtitle.Text = "Export a diagnostic bundle when reporting issues, or contact us via the channels below.";
-                DiagBundleTitle.Text = "Export Diagnostic Bundle";
-                DiagBundleHint.Text = "Bundle logs, current data snapshot, and recent transactions in one click";
-                DiagBundleContentLabel.Text = "Bundle contents";
-                DiagBundleRedactHint.Text = "Passwords, tokens and emails are automatically redacted — safe to send.";
-                ExportDiagButton.Content = "Export Bundle";
-                FeedbackChannelsTitle.Text = "Contact Channels";
-                QqGroupLabel.Text = "QQ Group (recommended)";
-                EmailLabel.Text = "Email";
-                GithubLabel.Text = "GitHub Issue";
-                JoinQqGroupBtn.Content = "Join";
-                SendEmailBtn.Content = "Send";
-                OpenGithubBtn.Content = "Open";
-            }
-            else
-            {
-                Title = "系统设置";
-                TabGeneral.Content = "常规参数";
-                TabPaths.Content = "游戏路径";
-                TabAppearance.Content = "外观设置";
-                TabAbout.Content = "关于软件";
-                TabFeedback.Content = "反馈与诊断";
-                AppearanceTitle.Text = "外观设置";
-                BgModeLabel.Text = "背景模式";
-                BgModeGradientText.Text = "默认渐变";
-                BgModeImageText.Text = "自定义图片";
-                BgModeSolidText.Text = "纯色背景";
-                BgOpacityLabel.Text = "背景透明度";
-                BgBlurLabel.Text = "背景模糊度";
-                ApplyToDialogsLabel.Text = "应用到弹窗";
-                ApplyToDialogsDesc.Text = "弹窗也显示背景效果";
-                BrowseBgImageBtn.Content = "选择图片";
-                CloseActionLabel.Text = "关闭行为";
-                CloseActionDesc.Text = "点击关闭按钮时的行为";
-                ((ComboBoxItem)CloseActionComboBox.Items[0]).Content = "每次询问";
-                ((ComboBoxItem)CloseActionComboBox.Items[1]).Content = "直接退出";
-                ((ComboBoxItem)CloseActionComboBox.Items[2]).Content = "最小化到任务栏";
-                AboutTitle.Text = "关于软件";
-                AboutDesc1.Text = "面向普通玩家的游戏 MOD 管理器，已适配多款热门游戏";
-                AboutDesc2.Text = "轻松管理导入、启用、备份与恢复";
-                DonationText.Text = "如果你觉得有帮助，可以请我喝一杯咖啡！";
-                CreditsTitle.Text = "鸣谢名单";
-
-                // 反馈与诊断
-                FeedbackTitle.Text = "反馈与诊断";
-                FeedbackSubtitle.Text = "出问题时导出诊断包发给开发者，或通过下面的渠道直接联系";
-                DiagBundleTitle.Text = "导出诊断包";
-                DiagBundleHint.Text = "一键打包日志、当前数据快照与最近事务记录";
-                DiagBundleContentLabel.Text = "包内容";
-                DiagBundleRedactHint.Text = "包内的密码、token、邮箱地址会自动脱敏，可以放心发给开发者";
-                ExportDiagButton.Content = "导出诊断包";
-                FeedbackChannelsTitle.Text = "反馈渠道";
-                QqGroupLabel.Text = "QQ 群（推荐）";
-                EmailLabel.Text = "邮箱";
-                GithubLabel.Text = "GitHub Issue";
-                JoinQqGroupBtn.Content = "加入";
-                SendEmailBtn.Content = "发送";
-                OpenGithubBtn.Content = "打开";
-            }
+        private void UpdateCurrentGameHint()
+        {
+            CurrentGameHint.Text = string.IsNullOrEmpty(_gameConfig.CurrentGameName)
+                ? UiText.Get("当前游戏：未选择（请先在主界面选择游戏）")
+                : UiText.Format("当前游戏：{0}", GameDisplayNames.For(_gameConfig.CurrentGameName));
         }
 
         // ─── 反馈与诊断 ───
@@ -599,16 +533,16 @@ namespace UEModManager.Views
             if (_diagnosticExport == null)
             {
                 CyberMessageBox.Show(this,
-                    "诊断包导出服务未初始化。请重启程序后再试。",
-                    "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Get("诊断包导出服务未初始化。请重启程序后再试。"),
+                    UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "导出诊断包",
+                Title = UiText.Get("导出诊断包"),
                 FileName = $"UEModManager_diag_{DateTime.Now:yyyyMMdd_HHmmss}.zip",
-                Filter = "诊断包 (*.zip)|*.zip",
+                Filter = UiText.Get("诊断包 (*.zip)|*.zip"),
                 DefaultExt = ".zip"
             };
 
@@ -622,14 +556,14 @@ namespace UEModManager.Views
                 var count = await _diagnosticExport.ExportToZipAsync(dialog.FileName);
 
                 CyberMessageBox.Show(this,
-                    $"诊断包已导出（共 {count} 个条目）：\n{dialog.FileName}\n\n敏感信息已自动脱敏，可放心发给开发者。",
-                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Interpolate($"诊断包已导出（共 {count} 个条目）：\n{dialog.FileName}\n\n敏感信息已自动脱敏，可放心发给开发者。"),
+                    UiText.Get("导出成功"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 CyberMessageBox.Show(this,
-                    $"导出失败：{ex.Message}",
-                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    UiText.Interpolate($"导出失败：{ex.Message}"),
+                    UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -645,7 +579,8 @@ namespace UEModManager.Views
 
         private void SendEmail_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("mailto:mr.xzuo@foxmail.com?subject=爱酱MOD管理器%20-%20反馈&body=请在这里描述问题，并附上诊断包文件%0A%0A");
+            OpenUrl("mailto:mr.xzuo@foxmail.com?subject=" + Uri.EscapeDataString(UiText.Get("爱酱MOD管理器 - 反馈"))
+                + "&body=" + Uri.EscapeDataString(UiText.Get("请在这里描述问题，并附上诊断包文件\n\n")));
         }
 
         private void OpenGithub_Click(object sender, RoutedEventArgs e)
@@ -742,7 +677,7 @@ namespace UEModManager.Views
                 // 落盘失败都会抛到这里。抛之前偏好没被改动，此时窗口保持打开、DialogResult 仍是
                 // null，用户看到失败原因后可以改路径重试。别把它收窄成某个具体异常类型，
                 // 也别在中途 catch 掉——那等于把"设置没保存上"重新变成静默。
-                CyberMessageBox.Show(this, $"保存设置失败: {ex.Message}", "错误",
+                CyberMessageBox.Show(this, UiText.Interpolate($"保存设置失败: {ex.Message}"), UiText.Get("错误"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -797,8 +732,8 @@ namespace UEModManager.Views
                 }
 
                 CyberMessageBox.Show(this,
-                    RepositoryRelocationMessages.FailureBody(plan, quick.FailureDetail ?? string.Empty),
-                    "没能换位置", MessageBoxButton.OK, MessageBoxImage.Warning, okText: "知道了");
+                    RepositoryRelocationMessages.FailureBody(plan, quick.FailureDetail ?? string.Empty, LanguageManager.IsEnglish),
+                    UiText.Get("没能换位置"), MessageBoxButton.OK, MessageBoxImage.Warning, okText: UiText.Get("知道了"));
                 RepoPathTextBox.Text = _objectStore.RepositoryRoot;
                 return false;
             }

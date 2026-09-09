@@ -1,0 +1,72 @@
+Ai-chan Mod Manager v2.1 — Software License Agreement
+
+Publisher: Ai-chan Studio
+Contact: mr.xzuo@foxmail.com
+Official website: https://www.modmanger.com
+Version: v2.1.0
+
+1. About this software
+
+This software is a mod management tool for single-player Unreal Engine
+games. Features include importing mods, enabling and disabling them,
+merging configurations, checking conflicts, backup and restore, and
+migrating data from older versions.
+
+It manages lawful mod files obtained by the user locally. It does not
+provide, distribute, or mirror third-party copyrighted content, modify
+game executables, or bypass copyright protection mechanisms.
+
+2. License to use
+
+1) You may install and use this software free of charge on your personal
+   computer for noncommercial purposes.
+2) You must not use the software for:
+   - resale, paid distribution, or paid bundling of any kind;
+   - creating, distributing, or activating derivative versions that
+     contain malicious code;
+   - assisting cracking, piracy, or bypassing official game copyright
+     protection.
+3) Mod data and backup files you create during use belong to you. The
+   software provides local management capabilities for that data.
+
+3. Fonts
+
+The embedded Source Han Sans SC font is distributed under the SIL Open
+Font License 1.1 (OFL 1.1). The full license is included in the installation
+folder at Fonts\SourceHanSans-OFL.txt.
+
+4. Privacy and data
+
+- Core mod management works locally without signing in. Cloud sync of
+  mod files is not provided.
+- Application data uses %LOCALAPPDATA%\UEModManager\ and
+  %APPDATA%\UEModManager\. You can choose a separate mod repository.
+- If you opt into "Updates and anonymous statistics", the app sends a
+  random device identifier, app version, and Windows version. A hash of
+  your email address may be included when you sign in. A hashed email
+  is a processed identifier; it is not necessarily unlinkable to an account.
+- These statistics do not upload your plain-text email address, computer
+  name, file paths, game folder, or mod list. You can disable them under
+  Settings > General > Updates and anonymous statistics. No such reports
+  are sent before you opt in.
+- Account actions such as signing in, registration, and password recovery
+  require an internet connection and send the account information needed
+  for that action, independently of the statistics preference.
+
+5. Disclaimer
+
+1) This software is provided "as is", without any express or implied
+   warranties.
+2) The author accepts no legal liability for damaged game saves, lost
+   configurations, nonfunctional mods, or other consequences of using this
+   software. Make your own backups before important operations.
+3) Unknown defects may exist. Testing in a test environment before regular
+   use is recommended.
+
+6. Contact and support
+
+- Read the included Quickstart.en.md (or 使用说明.md in Chinese).
+- Online help: https://www.modmanger.com/help
+- Feedback: mr.xzuo@foxmail.com
+
+Thank you for using Ai-chan Mod Manager. Enjoy your games!

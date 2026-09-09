@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.Linq;
 using System.Windows;
@@ -40,11 +41,11 @@ namespace UEModManager.Views
         {
             TitleText.Text = _vm.StatusTitle;
             SubtitleText.Text = _vm.StatusSubtitle;
-            SidebarProfileText.Text = $"方案: {_vm.ProfileName}";
-            SidebarGameInfo.Text = $"{_vm.GameName}";
+            SidebarProfileText.Text = UiText.Interpolate($"方案: {_vm.ProfileName}");
+            SidebarGameInfo.Text = GameDisplayNames.For(_vm.GameName);
             LastLaunchText.Text = _vm.LastLaunchInfo;
             ModCountText.Text = _vm.ModCountInfo;
-            LastEventText.Text = $"上次事件: {_vm.LastEventInfo}";
+            LastEventText.Text = UiText.Interpolate($"上次事件: {_vm.LastEventInfo}");
 
             RebuildCheckList();
         }
@@ -181,11 +182,11 @@ namespace UEModManager.Views
         {
             var (text, bgColor, fgColor) = status switch
             {
-                StepItemStatus.Passed => ("通过", "#1a22c55e", "#22c55e"),
-                StepItemStatus.Warning => ("警告", "#1af97316", "#f97316"),
-                StepItemStatus.Failed => ("失败", "#1aef4444", "#ef4444"),
-                StepItemStatus.Running => ("运行中", "#1a06b6d4", "#06b6d4"),
-                _ => ("等待", "#1a71717a", "#71717a")
+                StepItemStatus.Passed => (UiText.Get("通过"), "#1a22c55e", "#22c55e"),
+                StepItemStatus.Warning => (UiText.Get("警告"), "#1af97316", "#f97316"),
+                StepItemStatus.Failed => (UiText.Get("失败"), "#1aef4444", "#ef4444"),
+                StepItemStatus.Running => (UiText.Get("运行中"), "#1a06b6d4", "#06b6d4"),
+                _ => (UiText.Get("等待"), "#1a71717a", "#71717a")
             };
 
             return new Border
@@ -244,7 +245,7 @@ namespace UEModManager.Views
             {
                 if (_vm.IsLaunching) return;
 
-                ProgressText.Text = "正在启动...";
+                ProgressText.Text = UiText.Get("正在启动...");
                 var session = await _vm.LaunchGameAsync();
 
                 if (session != null)
@@ -259,7 +260,7 @@ namespace UEModManager.Views
                         Close();
                     }
                 }
-            }, null, "启动游戏");
+            }, null, UiText.Get("启动游戏"));
         }
 
         private void ShowHistory_Click(object sender, MouseButtonEventArgs e)
@@ -273,21 +274,21 @@ namespace UEModManager.Views
 
             if (launcher.SessionHistory.Count == 0)
             {
-                CyberMessageBox.Show(this, "暂无启动记录。", "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+                CyberMessageBox.Show(this, UiText.Get("暂无启动记录。"), UiText.Get("启动历史"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var lines = new System.Text.StringBuilder();
-            lines.AppendLine("最近启动记录：\n");
+            lines.AppendLine(UiText.Get("最近启动记录：\n"));
             foreach (var s in launcher.SessionHistory.Take(10))
             {
-                var status = s.Success ? "成功" : "失败";
+                var status = s.Success ? UiText.Get("成功") : UiText.Get("失败");
                 lines.AppendLine($"  [{s.LaunchedAt:MM/dd HH:mm}] {s.GameName}/{s.ProfileName} — {status}");
                 if (!s.Success && !string.IsNullOrEmpty(s.FailureReason))
-                    lines.AppendLine($"    原因: {s.FailureReason}");
+                    lines.AppendLine(UiText.Interpolate($"    原因: {s.FailureReason}"));
             }
 
-            CyberMessageBox.Show(this, lines.ToString(), "启动历史", MessageBoxButton.OK, MessageBoxImage.Information);
+            CyberMessageBox.Show(this, lines.ToString(), UiText.Get("启动历史"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e)

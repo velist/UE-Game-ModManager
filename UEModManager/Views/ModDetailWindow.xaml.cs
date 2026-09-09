@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
+using UEModManager.Services;
 
 namespace UEModManager.Views
 {
@@ -34,6 +36,23 @@ namespace UEModManager.Views
             _onRename = onRename;
 
             LoadModInfo();
+            LanguageManager.LanguageChanged += OnLanguageChanged;
+        }
+
+        private void OnLanguageChanged(bool _) => Dispatcher.Invoke(UpdateLocalizedInfo);
+
+        protected override void OnClosed(EventArgs e)
+        {
+            LanguageManager.LanguageChanged -= OnLanguageChanged;
+            base.OnClosed(e);
+        }
+
+        private void UpdateLocalizedInfo()
+        {
+            CategoryText.Text = CategoryDisplayNames.For(_mod.PrimaryCategory);
+            BackupStatusText.Text = UiText.Get(_mod.BackupStatus);
+            UpdateStatusBadge();
+            UpdateToggleButton();
         }
 
         private void LoadModInfo()
@@ -45,13 +64,11 @@ namespace UEModManager.Views
             UpdatePreviewImage();
 
             // 状态标签
-            UpdateStatusBadge();
+            UpdateLocalizedInfo();
 
             // 信息
-            CategoryText.Text = _mod.PrimaryCategory;
             FileSizeText.Text = _mod.FormattedSize;
             InstallDateText.Text = _mod.FormattedInstallDate;
-            BackupStatusText.Text = _mod.BackupStatus;
 
             // 路径
             FolderPathText.Text = _mod.RealName;
@@ -63,8 +80,6 @@ namespace UEModManager.Views
                 DescriptionText.Text = _mod.Description;
             }
 
-            // 按钮文字
-            UpdateToggleButton();
         }
 
         private void UpdatePreviewImage()
@@ -97,20 +112,20 @@ namespace UEModManager.Views
             if (_mod.IsEnabled)
             {
                 StatusBadge.Background = FindResource("StatusGreenBrush") as Brush;
-                StatusText.Text = "已启用";
+                StatusText.Text = UiText.Get("已启用");
                 StatusText.Foreground = Brushes.White;
             }
             else
             {
                 StatusBadge.Background = FindResource("SurfaceHoverBrush") as Brush;
-                StatusText.Text = "已禁用";
+                StatusText.Text = UiText.Get("已禁用");
                 StatusText.Foreground = FindResource("Text500Brush") as Brush ?? Brushes.Gray;
             }
         }
 
         private void UpdateToggleButton()
         {
-            ToggleBtn.Content = _mod.IsEnabled ? "禁用MOD" : "启用MOD";
+            ToggleBtn.Content = _mod.IsEnabled ? UiText.Get("禁用MOD") : UiText.Get("启用MOD");
         }
 
         private void ToggleBtn_Click(object sender, RoutedEventArgs e)
@@ -122,7 +137,7 @@ namespace UEModManager.Views
                 ModChanged = true;
                 UpdateStatusBadge();
                 UpdateToggleButton();
-            }, null, "切换 MOD 启用状态");
+            }, null, UiText.Get("切换 MOD 启用状态"));
 
         private void ChangePreviewBtn_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
@@ -132,12 +147,12 @@ namespace UEModManager.Views
 
                 ModChanged = true;
                 UpdatePreviewImage();
-            }, null, "更换 MOD 预览图");
+            }, null, UiText.Get("更换 MOD 预览图"));
 
         private void RenameBtn_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
             {
-                var newName = CyberInputDialog.Show(this, "编辑MOD", "请输入MOD显示名称:", _mod.Name);
+                var newName = CyberInputDialog.Show(this, UiText.Get("编辑MOD"), UiText.Get("请输入MOD显示名称:"), _mod.Name);
                 if (string.IsNullOrWhiteSpace(newName) || newName == _mod.Name) return;
 
                 var changed = _onRename == null || await _onRename(_mod, newName);
@@ -145,13 +160,13 @@ namespace UEModManager.Views
 
                 ModNameText.Text = _mod.Name;
                 ModChanged = true;
-            }, null, "重命名 MOD");
+            }, null, UiText.Get("重命名 MOD"));
 
         private void DeleteBtn_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
             {
-                var r = CyberMessageBox.Show(this, $"确认删除 '{_mod.Name}'？\n此操作会从当前方案、MOD 文件库和游戏目录中移除此 MOD。",
-                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除 '{_mod.Name}'？\n此操作会从当前方案、MOD 文件库和游戏目录中移除此 MOD。"),
+                    UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
 
                 var changed = _onDelete == null || await _onDelete(_mod);
@@ -160,7 +175,7 @@ namespace UEModManager.Views
                 ModChanged = true;
                 DialogResult = true;
                 Close();
-            }, null, "删除 MOD");
+            }, null, UiText.Get("删除 MOD"));
 
         private void CloseBtn_Click(object sender, MouseButtonEventArgs e)
         {

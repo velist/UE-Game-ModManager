@@ -1,3 +1,4 @@
+using UEModManager.Localization;
 using System;
 using System.ComponentModel;
 using System.Threading;
@@ -99,12 +100,12 @@ namespace UEModManager.Views
             {
                 TitleGlyph.Text = "";
                 TitleGlyph.SetResourceReference(ForegroundProperty, "PrimaryBrush");
-                TitleText.Text = RepositoryRelocationMessages.ConfirmTitle(_plan);
-                BodyText.Text = RepositoryRelocationMessages.ConfirmBody(_plan);
+                TitleText.Text = RepositoryRelocationMessages.ConfirmTitle(_plan, LanguageManager.IsEnglish);
+                BodyText.Text = RepositoryRelocationMessages.ConfirmBody(_plan, LanguageManager.IsEnglish);
 
-                PrimaryButton.Content = "开始搬";
+                PrimaryButton.Content = UiText.Get("开始搬");
                 PrimaryButton.Visibility = Visibility.Visible;
-                SecondaryButton.Content = "先不用";
+                SecondaryButton.Content = UiText.Get("先不用");
                 SecondaryButton.Visibility = Visibility.Visible;
                 return;
             }
@@ -113,11 +114,11 @@ namespace UEModManager.Views
             // 给一个点了没反应的灰按钮，用户会反复点它然后以为程序坏了。
             TitleGlyph.Text = "";
             TitleGlyph.SetResourceReference(ForegroundProperty, "StatusOrangeBrush");
-            TitleText.Text = "这次搬不了";
-            BodyText.Text = RepositoryRelocationMessages.BlockedBody(_plan);
+            TitleText.Text = UiText.Get("这次搬不了");
+            BodyText.Text = RepositoryRelocationMessages.BlockedBody(_plan, LanguageManager.IsEnglish);
 
             PrimaryButton.Visibility = Visibility.Collapsed;
-            SecondaryButton.Content = "知道了";
+            SecondaryButton.Content = UiText.Get("知道了");
             SecondaryButton.Visibility = Visibility.Visible;
         }
 
@@ -129,17 +130,17 @@ namespace UEModManager.Views
 
             TitleGlyph.Text = "";
             TitleGlyph.SetResourceReference(ForegroundProperty, "PrimaryBrush");
-            TitleText.Text = "正在搬…";
-            BodyText.Text = "搬好之前你的 MOD 一直都在原来的位置，随时可以停下来。";
+            TitleText.Text = UiText.Get("正在搬…");
+            BodyText.Text = UiText.Get("搬好之前你的 MOD 一直都在原来的位置，随时可以停下来。");
 
             // 路线那一块收起来：进行中界面上只该有一件事在动
             RoutePanel.Visibility = Visibility.Collapsed;
             ProgressPanel.Visibility = Visibility.Visible;
             MoveProgressBar.Value = 0;
-            ProgressText.Text = "正在看看有多少要搬…";
+            ProgressText.Text = UiText.Get("正在看看有多少要搬…");
 
             PrimaryButton.Visibility = Visibility.Collapsed;
-            SecondaryButton.Content = "停下来";
+            SecondaryButton.Content = UiText.Get("停下来");
             SecondaryButton.Visibility = Visibility.Visible;
             SecondaryButton.IsEnabled = true;
         }
@@ -149,7 +150,7 @@ namespace UEModManager.Views
             MoveProgressBar.IsIndeterminate = progress.IsIndeterminate;
             if (!progress.IsIndeterminate) MoveProgressBar.Value = progress.Percent;
 
-            ProgressText.Text = progress.StatusText;
+            ProgressText.Text = progress.GetStatusText(LanguageManager.IsEnglish);
 
             // 过了落定点就不能取消了：在写墓碑和删源之间停下来，留下的正是
             // "一半在这边一半在那边"的状态，而那恰恰是整套四步搬移要防的事。
@@ -178,35 +179,35 @@ namespace UEModManager.Views
                 case RepositoryRelocationStatus.PointerOnly:
                     TitleGlyph.Text = "";
                     TitleGlyph.SetResourceReference(ForegroundProperty, "StatusGreenBrush");
-                    TitleText.Text = "搬好了";
-                    BodyText.Text = RepositoryRelocationMessages.SuccessBody(_plan, _anyDeployed);
+                    TitleText.Text = UiText.Get("搬好了");
+                    BodyText.Text = RepositoryRelocationMessages.SuccessBody(_plan, _anyDeployed, LanguageManager.IsEnglish);
                     break;
 
                 case RepositoryRelocationStatus.Cancelled:
                     TitleGlyph.Text = "";
                     TitleGlyph.SetResourceReference(ForegroundProperty, "PrimaryBrush");
-                    TitleText.Text = "已经停下来了";
-                    BodyText.Text = RepositoryRelocationMessages.CancelledBody(_plan);
+                    TitleText.Text = UiText.Get("已经停下来了");
+                    BodyText.Text = RepositoryRelocationMessages.CancelledBody(_plan, LanguageManager.IsEnglish);
                     break;
 
                 case RepositoryRelocationStatus.NothingToDo:
                     TitleGlyph.Text = "";
                     TitleGlyph.SetResourceReference(ForegroundProperty, "PrimaryBrush");
-                    TitleText.Text = "不用搬";
-                    BodyText.Text = "新位置就是现在这个位置，什么都没变。";
+                    TitleText.Text = UiText.Get("不用搬");
+                    BodyText.Text = UiText.Get("新位置就是现在这个位置，什么都没变。");
                     break;
 
                 default:
                     TitleGlyph.Text = "";
                     TitleGlyph.SetResourceReference(ForegroundProperty, "StatusOrangeBrush");
-                    TitleText.Text = "没搬成";
+                    TitleText.Text = UiText.Get("没搬成");
                     BodyText.Text = RepositoryRelocationMessages.FailureBody(
-                        _plan, outcome.FailureDetail ?? string.Empty);
+                        _plan, outcome.FailureDetail ?? string.Empty, LanguageManager.IsEnglish);
                     break;
             }
 
             PrimaryButton.Visibility = Visibility.Collapsed;
-            SecondaryButton.Content = "知道了";
+            SecondaryButton.Content = UiText.Get("知道了");
             SecondaryButton.Visibility = Visibility.Visible;
             SecondaryButton.IsEnabled = true;
         }
@@ -219,7 +220,7 @@ namespace UEModManager.Views
         /// 未包裹的 async void 异常会落到全局兜底，对用户表现为"点了没反应"。
         /// </summary>
         private void Primary_Click(object sender, RoutedEventArgs e)
-            => SafeEvent.Run(this, StartAsync, _logger, "搬移 MOD 存放位置");
+            => SafeEvent.Run(this, StartAsync, _logger, UiText.Get("搬移 MOD 存放位置"));
 
         private async Task StartAsync()
         {
@@ -272,7 +273,7 @@ namespace UEModManager.Views
             // 立刻给反馈：取消要等当前这个文件复制完才生效，而用户点完按钮之后
             // 如果界面一秒钟没有任何变化，他会以为没点上，然后连点。
             SecondaryButton.IsEnabled = false;
-            ProgressText.Text = "正在停下来，把已经复制过去的清理掉…";
+            ProgressText.Text = UiText.Get("正在停下来，把已经复制过去的清理掉…");
         }
 
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();

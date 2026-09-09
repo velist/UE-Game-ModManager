@@ -11,6 +11,7 @@ namespace UEModManager.Tests.Services
     /// 第一个僵尸窗口抛异常就会让主窗口永远收不到语言切换通知。
     /// 注：静态事件是进程级共享状态，本类内的用例串行执行，且每个用例都会退订并复位。
     /// </summary>
+    [Collection(UEModManager.Tests.Views.LanguageIntegrationCollection.Name)]
     public class LanguageManagerTests
     {
         [Fact]
