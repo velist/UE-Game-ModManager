@@ -5,32 +5,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/velist/UE-Game-ModManager/releases/latest"><img src="https://img.shields.io/badge/Release-2.1.0-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.0"></a>
+  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.0-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.0"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
   <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 桌面运行时">
   <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="构建与测试"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/velist/UE-Game-ModManager/releases/latest"><strong>下载最新版本</strong></a>
-  &nbsp; · &nbsp; <a href="https://www.modmanger.com">官网</a>
+  <a href="https://www.modmanger.com/#download"><strong>前往官网下载</strong></a>
   &nbsp; · &nbsp; <a href="https://www.modmanger.com/help">使用帮助</a>
   &nbsp; · &nbsp; <a href="https://github.com/velist/UE-Game-ModManager/issues">反馈问题</a>
+  &nbsp; · &nbsp; <a href="#捐赠支持">捐赠支持</a>
 </p>
 
 把导入、分类、启用、方案和恢复放在一处的 **多引擎游戏 MOD 管理器**。MOD 文件与配置保存在本地，核心管理无需登录，可离线使用。
 
 ## 下载与开始
 
-| 版本 | 下载 | 适合 |
-| --- | --- | --- |
-| **安装版** · Windows x64 | [下载安装包](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/UEModManager_v2.1.0_Setup.exe) | 使用安装向导、快捷方式及卸载入口 |
-| **解压运行版** · Windows x64 | [下载 Release ZIP](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/UEModManager_v2.1.0_win-x64.zip) | 自行选择程序位置，解压后运行 |
-| 校验文件 | [SHA256SUMS.txt](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/SHA256SUMS.txt) | 核对下载文件 |
+下载最新版本，请前往 **[官网 modmanger.com](https://www.modmanger.com/#download)**。
 
-需要 **Windows 10 / 11 64 位环境**和 **[.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)**。安装向导会检查运行时，并在缺少时提供下载入口。也可从[官网](https://www.modmanger.com)获取软件。
-
-> **账号功能状态：** 当前线上服务尚未接入新版邮箱验证码登录，请先使用离线模式。核心 MOD 管理功能无需账号；服务端配套要求见[账号协议说明](cf-workers/modmanger-api/AUTH_PROTOCOL.md)。
+需要 **Windows 10 / 11 64 位环境**和 **[.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)**。安装向导会检查运行时，并在缺少时提供下载入口。
 
 1. **选存储位置** — 首次启动选择 MOD 仓库，程序和 MOD 可以分开放。
 2. **选游戏** — 使用内置预设或添加自定义游戏，核对游戏与 MOD 路径。
@@ -157,7 +151,7 @@
 
 ### 联网功能
 
-核心管理无需登录，账号功能目前不提供 MOD 文件或方案的跨设备云同步。
+支持通过邮箱登录账号，核心 MOD 管理也可离线使用。账号功能目前不提供 MOD 文件或方案的跨设备云同步。
 
 同意参与“检查更新与匿名统计”后，程序发送随机设备编号、软件版本与 Windows 版本；登录时可能附带邮箱哈希。统计不上传邮箱明文、电脑名、文件路径、游戏目录或 MOD 清单。可在“设置 → 常规参数”中关闭，关闭后停止对应的更新检查和统计请求。
 
@@ -187,16 +181,13 @@ dotnet test UEModManager.sln --configuration Release
 
 </details>
 
-<details>
-<summary><strong>支持开发</strong></summary>
+## 捐赠支持
 
-如果这个工具对你有帮助，可以通过[官网支持作者](https://www.modmanger.com/help#support)继续支持维护。
+如果这个工具对你有帮助，欢迎通过微信或支付宝扫码支持后续开发与维护。感谢每一份支持。
 
 | 微信支付 | 支付宝 |
 | :---: | :---: |
-| <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/微信支付.jpg" alt="微信支付" width="160"> | <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/支付宝.jpg" alt="支付宝" width="160"> |
-
-</details>
+| <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/微信支付.jpg" alt="微信支付收款码" width="240"> | <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/支付宝.jpg" alt="支付宝收款码" width="240"> |
 
 ---
 
