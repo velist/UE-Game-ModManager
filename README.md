@@ -1,6 +1,10 @@
 # 爱酱 MOD 管理器
 
 <p align="center">
+  <strong>简体中文</strong> &nbsp; · &nbsp; <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/docs/assets/readme/hero.png" width="100%" alt="爱酱 MOD 管理器：多引擎适配，本地优先，离线可用">
 </p>
 
@@ -116,11 +120,13 @@
 
 | 导入与整理 | 启用与方案 | 记录与恢复 |
 | --- | --- | --- |
-| 导入 ZIP / RAR / 7Z 及引擎支持的文件 | 单个或批量启用、禁用 MOD | 查看安装记录与恢复结果 |
+| 导入 ZIP、解压后的文件夹及引擎支持的文件 | 单个或批量启用、禁用 MOD | 查看安装记录与恢复结果 |
 | 分类、搜索、拖拽归档 | 为不同玩法保存 MOD 组合 | 操作中断后的事务恢复 |
 | 独立选择 MOD 仓库位置 | 按规则检查覆盖关系与冲突 | 导出诊断包，辅助反馈问题 |
 
 冲突检查依据文件与加载顺序规则，不解析 PAK 内部资源；具体能力随引擎规则而异。
+
+RAR / 7z 请先使用 WinRAR 或 7-Zip 解压，再导入解压后的文件夹或 MOD 文件。
 
 ## 界面预览
 
