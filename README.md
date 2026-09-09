@@ -1,252 +1,206 @@
-# 爱酱MOD管理器
+# 爱酱 MOD 管理器
 
-<div align="center">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/docs/assets/readme/hero.png" width="100%" alt="爱酱 MOD 管理器：多引擎适配，本地优先，离线可用">
+</p>
 
-**多引擎游戏 MOD 管理工具 — 本地优先，离线可用**
+<p align="center">
+  <a href="https://github.com/velist/UE-Game-ModManager/releases/latest"><img src="https://img.shields.io/badge/Release-2.1.0-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.0"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
+  <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 桌面运行时">
+  <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="构建与测试"></a>
+</p>
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/version-2.0.4--beta-orange.svg)](https://github.com/velist/UE-Game-ModManager/releases)
+<p align="center">
+  <a href="https://github.com/velist/UE-Game-ModManager/releases/latest"><strong>下载最新版本</strong></a>
+  &nbsp; · &nbsp; <a href="https://www.modmanger.com">官网</a>
+  &nbsp; · &nbsp; <a href="https://www.modmanger.com/help">使用帮助</a>
+  &nbsp; · &nbsp; <a href="https://github.com/velist/UE-Game-ModManager/issues">反馈问题</a>
+</p>
 
-</div>
+把导入、分类、启用、方案和恢复放在一处的 **多引擎游戏 MOD 管理器**。MOD 文件与配置保存在本地，核心管理无需登录，可离线使用。
 
----
+## 下载与开始
 
-## 📖 简介
+| 版本 | 下载 | 适合 |
+| --- | --- | --- |
+| **安装版** · Windows x64 | [下载安装包](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/UEModManager_v2.1.0_Setup.exe) | 使用安装向导、快捷方式及卸载入口 |
+| **解压运行版** · Windows x64 | [下载 Release ZIP](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/UEModManager_v2.1.0_win-x64.zip) | 自行选择程序位置，解压后运行 |
+| 校验文件 | [SHA256SUMS.txt](https://github.com/velist/UE-Game-ModManager/releases/download/v2.1.0/SHA256SUMS.txt) | 核对下载文件 |
 
-爱酱MOD管理器是一款面向多引擎游戏的 MOD/插件管理工具，提供简单易用的界面和强大的功能，让您轻松管理游戏 MOD —— 不限于虚幻引擎，也不只服务 MOD 文件。
+需要 **Windows 10 / 11 64 位环境**和 **[.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)**。安装向导会检查运行时，并在缺少时提供下载入口。也可从[官网](https://www.modmanger.com)获取软件。
 
-### ✨ 核心功能
+> **账号功能状态：** 当前线上服务尚未接入新版邮箱验证码登录，请先使用离线模式。核心 MOD 管理功能无需账号；服务端配套要求见[账号协议说明](cf-workers/modmanger-api/AUTH_PROTOCOL.md)。
 
-- 🎮 **多游戏支持** — 剑星、黑神话悟空、明末无双、无主之地 4 等多款游戏
-- ☁️ **云端同步** — 登录后 MOD 配置云端保存，多设备无缝同步
-- 💾 **本地离线** — 无需网络也能完整使用，核心功能不依赖云端
-- 🔄 **事务回滚** — 部署计划 + 执行事务 + 异常恢复，出错可回滚
-- 📦 **批量操作** — 支持 MOD 批量启用 / 禁用 / 删除
-- 🗂️ **分类管理** — 自定义分类 + 拖拽归类，让 MOD 井井有条
-- 🔍 **智能搜索** — 快速找到想要的 MOD
-- 📋 **诊断导出** — 一键导出日志和数据快照，方便反馈问题
+1. **选存储位置** — 首次启动选择 MOD 仓库，程序和 MOD 可以分开放。
+2. **选游戏** — 使用内置预设或添加自定义游戏，核对游戏与 MOD 路径。
+3. **导入并启用** — 拖入压缩包或 MOD 文件，确认导入结果，启用后启动游戏。
 
----
+## 支持的游戏
 
-## 🎯 支持的游戏
+目前内置 **10 款游戏、11 个预设入口**，剑星另有 CNS 模式。游戏列表可继续扩展，自定义游戏也能使用对应的引擎规则。
 
-| 游戏名称 | 英文名称 | 状态 |
-|---------|---------|------|
-| 剑星 | Stellar Blade | ✅ 完整支持 |
-| 黑神话悟空 | Black Myth: Wukong | ✅ 完整支持 |
-| 明末：渡鸦之乱 | Wuchang: Fallen Feathers | ✅ 完整支持 |
-| 无主之地 4 | Borderlands 4 | ✅ 完整支持 |
-| 巢栖之地 | Enshrouded | ⚠️ 实验性支持 |
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/black-myth-wukong.png" width="52" height="52" alt=""><br>
+      <strong>黑神话：悟空</strong><br>
+      <sub>Black Myth: Wukong · Unreal Engine</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/stellar-blade.png" width="52" height="52" alt=""><br>
+      <strong>剑星</strong><br>
+      <sub>Stellar Blade · Unreal Engine</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/stellar-blade.png" width="52" height="52" alt=""><br>
+      <strong>剑星 · CNS 模式</strong><br>
+      <sub>Stellar Blade CNS · 独立预设</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/clair-obscur-expedition-33.png" width="52" height="52" alt=""><br>
+      <strong>光与影：33号远征队</strong><br>
+      <sub>Clair Obscur: Expedition 33 · Unreal Engine</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/wuchang-fallen-feathers.png" width="52" height="52" alt=""><br>
+      <strong>明末：渊虚之羽</strong><br>
+      <sub>Wuchang: Fallen Feathers · Unreal Engine</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/borderlands-4.png" width="52" height="52" alt=""><br>
+      <strong>无主之地4</strong><br>
+      <sub>Borderlands 4 · Unreal Engine</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/diablo-iv.png" width="52" height="52" alt=""><br>
+      <strong>暗黑破坏神4</strong><br>
+      <sub>Diablo IV · 暗黑 4 引擎</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/resident-evil-requiem.png" width="52" height="52" alt=""><br>
+      <strong>生化危机9</strong><br>
+      <sub>Resident Evil Requiem · RE Engine</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/pragmata.png" width="52" height="52" alt=""><br>
+      <strong>识质存在</strong><br>
+      <sub>PRAGMATA · RE Engine</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/death-stranding-2.png" width="52" height="52" alt=""><br>
+      <strong>死亡搁浅2</strong><br>
+      <sub>Death Stranding 2 · Decima</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/slay-the-spire-2.png" width="52" height="52" alt=""><br>
+      <strong>杀戮尖塔2</strong><br>
+      <sub>Slay the Spire 2 · Godot</sub>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/brand.png" width="52" height="52" alt=""><br>
+      <strong>添加你的游戏</strong><br>
+      <sub>选择引擎 · 设置路径 · 开始管理</sub>
+    </td>
+  </tr>
+</table>
 
-持续扩展更多游戏适配中。
+**自定义游戏可选引擎：** Unreal Engine、Unity、RE Engine、Godot、Decima、暗黑 4 引擎，以及通用规则。程序按引擎配置识别文件格式与路径；MOD 所需的加载器、前置组件和兼容版本请参照作者说明。
 
----
+[游戏预设来源](UEModManager/Services/GameConfigService.cs) · [引擎规则](UEModManager/Models/EngineProfile.cs) · [游戏图标来源](UEModManager/Assets/GameIcons/SOURCES.md)
 
-## 📥 安装
+## 一处管理
 
-### 系统要求
+| 导入与整理 | 启用与方案 | 记录与恢复 |
+| --- | --- | --- |
+| 导入 ZIP / RAR / 7Z 及引擎支持的文件 | 单个或批量启用、禁用 MOD | 查看安装记录与恢复结果 |
+| 分类、搜索、拖拽归档 | 为不同玩法保存 MOD 组合 | 操作中断后的事务恢复 |
+| 独立选择 MOD 仓库位置 | 按规则检查覆盖关系与冲突 | 导出诊断包，辅助反馈问题 |
 
-- **操作系统：** Windows 10 / Windows 11
-- **.NET 运行时：** .NET 8.0 Desktop Runtime
-- **磁盘空间：** 至少 100 MB
+冲突检查依据文件与加载顺序规则，不解析 PAK 内部资源；具体能力随引擎规则而异。
 
-### 安装步骤
+## 界面预览
 
-1. **下载安装包**
-   — 从 [下载页面](https://www.modmanger.com/) 获取最新版本
+<table>
+  <tr>
+    <td width="53%" valign="top">
+      <strong>安装向导</strong><br><br>
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/docs/assets/readme/installer.png" width="100%" alt="新版深色安装向导，显示运行时状态并提供帮助入口">
+    </td>
+    <td width="47%" valign="top">
+      <strong>首次启动 · MOD 存储设置</strong><br><br>
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/storage-setup.webp" width="100%" alt="选择 MOD 仓库所在磁盘，查看可用空间并确认存储位置">
+    </td>
+  </tr>
+</table>
 
-2. **运行安装程序**
-   — 双击安装包，按向导完成安装
+<details>
+<summary><strong>本地数据、升级与隐私</strong></summary>
 
-3. **首次运行**
-   — 启动程序 → 选择游戏目录 → 开始管理 MOD！
+### 数据放在哪里？
 
----
+| 内容 | 默认位置 |
+| --- | --- |
+| 游戏配置与索引 | `%LOCALAPPDATA%\UEModManager\` |
+| 界面偏好与账号数据 | `%APPDATA%\UEModManager\` |
+| MOD 仓库 | `%LOCALAPPDATA%\UEModManager\Repository\`，可自定义 |
+| 事务备份 | `%LOCALAPPDATA%\UEModManager\Backups\Deployments\`，可自定义 |
+| 日志 | `%LOCALAPPDATA%\UEModManager\Logs\` |
 
-## 🚀 快速开始
+以设置中显示的实际位置为准。安装版和解压运行版均使用当前 Windows 用户的数据目录。升级前关闭管理器；普通卸载保留用户数据、仓库和备份。换电脑时请分别备份两个用户数据目录及实际使用的仓库、生成物和备份目录。
 
-### 1. 选择游戏
+### 联网功能
 
-首次启动时，从游戏列表中选择您要管理的游戏。如果未在列表中，可点击"自定义游戏"手动添加。
+核心管理无需登录，账号功能目前不提供 MOD 文件或方案的跨设备云同步。
 
-### 2. 扫描 MOD
+同意参与“检查更新与匿名统计”后，程序发送随机设备编号、软件版本与 Windows 版本；登录时可能附带邮箱哈希。统计不上传邮箱明文、电脑名、文件路径、游戏目录或 MOD 清单。可在“设置 → 常规参数”中关闭，关闭后停止对应的更新检查和统计请求。
 
-程序会自动扫描游戏目录下的 MOD 文件，扫描完成后所有 MOD 显示在列表中。
+登录、注册、找回密码等账号操作会分别发送其所需的账号信息。完整说明见[官网隐私说明](https://www.modmanger.com/help#privacy)及[使用许可](Setup/LICENSE.txt)。
 
-### 3. 管理 MOD
+</details>
 
-- **启用 MOD：** 勾选 MOD 名称前的复选框
-- **禁用 MOD：** 取消勾选
-- **删除 MOD：** 右键点击 → 删除
-- **查看详情：** 点击 MOD 名称查看详细信息
+<details>
+<summary><strong>从源码构建与参与开发</strong></summary>
 
-### 4. 备份与恢复
+需要 Windows、.NET 8 SDK；Workers 测试需要 Node.js 22 或以上。
 
-- **自动备份：** 启用 MOD 时自动备份原文件
-- **手动备份：** 点击"备份所有文件"
-- **恢复备份：** 右键点击 MOD → 恢复备份
+```powershell
+dotnet build UEModManager.sln --configuration Release
+dotnet test UEModManager.sln --configuration Release
+```
 
----
+构建安装包需要 Inno Setup 6.7 或以上，可传入安装目录、`Compil32.exe` 或 `ISCC.exe`：
 
-## 💡 高级功能
+```powershell
+./Build-Installer.ps1 -Configuration Release -InnoPath 'D:/安装/Compil32.exe'
+```
 
-### 云端同步
+每次使用全新的 publish 目录，打包前检查版本与文件内容。更多信息见[文档索引](docs/README.md)、[架构总览](docs/architecture/overview.md)和[更新日志](CHANGELOG.md)。
 
-1. **注册账号** → 点击右上角"未登录" → 选择"注册" → 输入邮箱和密码 → 验证邮箱
-2. **登录账号** → 输入邮箱和密码，勾选"记住我"可自动登录
-3. **同步数据** → 登录后 MOD 配置自动云端保存，多设备同步
+欢迎通过 [Issues](https://github.com/velist/UE-Game-ModManager/issues) 反馈问题或建议，通过 Pull Request 参与改进。反馈时请附版本、复现步骤和错误信息，发送诊断包前先检查包内内容。
 
-### 分类管理
+</details>
 
-1. **创建分类** → 右键左侧分类列表空白处 → "新建分类" → 输入名称
-2. **移动 MOD** → 右键 MOD → "移动到分类" → 选择目标分类
+<details>
+<summary><strong>支持开发</strong></summary>
 
-### 批量操作
-
-- **全选 MOD：** 点击列表顶部"全选"按钮
-- **批量启用/禁用：** 选中多个 MOD → 工具栏"批量启用"/"批量禁用"
-- **批量删除：** 选中多个 MOD → "批量删除"
-
-### 剑星专属功能
-
-- **CNS 模式分组** — 自动识别并分组 CNS 格式的 MOD
-- **pak 签名修复** — 修复被签名检查拦截的 MOD
-- **模组优先级调整** — 调整 MOD 加载顺序
-
----
-
-## 💝 开发支持
-
-如果觉得好用，可以请我喝一杯咖啡支持开发哦~
+如果这个工具对你有帮助，可以通过[官网支持作者](https://www.modmanger.com/help#support)继续支持维护。
 
 | 微信支付 | 支付宝 |
 | :---: | :---: |
-| <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E5%BE%AE%E4%BF%A1%E6%94%AF%E4%BB%98.jpg" alt="微信支付" width="200"> | <img src="https://github.com/velist/UE-Game-ModManager/blob/main/%E6%8D%90%E8%B5%A0%E6%94%AF%E6%8C%81/%E6%94%AF%E4%BB%98%E5%AE%9D.jpg" alt="支付宝" width="200"> |
+| <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/微信支付.jpg" alt="微信支付" width="160"> | <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/捐赠支持/支付宝.jpg" alt="支付宝" width="160"> |
+
+</details>
 
 ---
 
-## ❓ 常见问题
-
-### Q: 安装 MOD 后游戏崩溃怎么办？
-
-**A:** 尝试：
-1. 禁用最近安装的 MOD
-2. 恢复备份文件
-3. 检查 MOD 是否与游戏版本兼容
-4. 查看 MOD 是否与其他 MOD 冲突
-
-### Q: MOD 没有生效？
-
-**A:** 检查：
-1. MOD 已启用（勾选框已勾选）
-2. 游戏路径设置正确
-3. 重启游戏
-4. 查看 MOD 安装说明
-
-### Q: 如何卸载程序？
-
-**A:** Windows "设置" → "应用" → "UE Mod Manager" → "卸载"
-
-> ⚠️ 卸载前建议先恢复所有 MOD 备份
-
-### Q: 忘记密码怎么办？
-
-**A:** 登录窗口 → "忘记密码" → 输入注册邮箱 → 查收邮件 → 点击链接重置
-
-### Q: 支持 Steam Deck 吗？
-
-**A:** 目前仅支持 Windows 平台，Linux / Steam Deck 支持正在开发中。
-
-### Q: 数据存储在哪里？
-
-**A:**
-- 本地数据库：`%APPDATA%\UEModManager\local.db`
-- 配置文件：`%APPDATA%\UEModManager\auth_config.json`
-- 备份文件：`<程序目录>\Backups\`
-
----
-
-## 🛡️ 安全与隐私
-
-- ✅ 所有密码使用加密存储，我们无法查看您的密码
-- ✅ 邮箱仅用于账号认证和找回密码
-- ✅ 不收集任何游戏数据或个人文件
-- ✅ 本地数据库仅存储在您的设备上
-- ✅ 云端仅保存 MOD 配置信息（不包含 MOD 文件）
-
-### 匿名统计（可关闭）
-
-程序会在启动时联网检查有没有新版本，同一个请求里顺带发送几项匿名数据，
-好让我们知道有多少人在用。**首次运行会明确询问一次，你也可以随时在
-「设置 → 常规参数 → 检查更新与匿名统计」里关掉——关掉之后一个字节都不会发。**
-
-**发送的字段就是下面这四项，没有第五项：**
-
-| 字段 | 内容 | 说明 |
-|---|---|---|
-| 设备编号 | 随机 UUID，如 `3f2a1b4c-…` | 首次运行随机生成后存在本机 `%LOCALAPPDATA%\UEModManager\device.id`。**不是**机器码、网卡地址或硬盘序列号，与你的硬件毫无关系；重装系统会变成一个新编号 |
-| 版本号 | 如 `2.0.5` | 用来判断还有多少人在用旧版本 |
-| 系统版本 | 如 `10.0.26200` | 只有版本号，不含电脑名或用户名 |
-| 账号编号 | 邮箱算出来的一串乱码 | 仅在登录后发送。算的时候加了盐，**还原不回邮箱**；只用来统计"有多少个不同的人"，不做任何其他用途 |
-
-**明确不会发送**：你的邮箱本身、电脑名、Windows 用户名、安装路径、游戏安装位置、
-装了哪些 MOD、MOD 文件名、任何文件内容。服务端也不记录你的 IP。
-
-### 开源透明
-
-本项目完全开源，您可以：
-- 查看所有源代码
-- 审查数据处理流程
-- 提交改进建议
-- 自行编译使用
-
----
-
-## 🤝 参与贡献
-
-欢迎各种形式的贡献！
-
-### 报告问题
-
-发现 Bug？请通过 [GitHub Issues](https://github.com/velist/UE-Game-ModManager/issues) 报告。
-
-**报告时请包含：** 问题描述 / 复现步骤 / 操作系统版本 / 程序版本 / 日志文件（如有）
-
-### 功能建议
-
-有好的想法？通过 Issues 告诉我们！
-
-### 代码贡献
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
-
-详细开发指南请查看 [CLAUDE.md](CLAUDE.md)
-
----
-
-## 📞 联系我们
-
-- **技术支持：** [GitHub Issues](https://github.com/velist/UE-Game-ModManager/issues)
-- **电子邮件：** mr.xzuo@foxmail.com
-- **项目主页：** [GitHub](https://github.com/velist/UE-Game-ModManager)
-
-**如果这个项目对您有帮助，请给我们一个 ⭐ Star！**
-
----
-
-<div align="center">
-
-Made with ❤️ by 爱酱工作室
-
-[主页](https://github.com/velist/UE-Game-ModManager) ·
-[文档](CLAUDE.md) ·
-[问题反馈](https://github.com/velist/UE-Game-ModManager/issues) ·
-[更新日志](CHANGELOG.md)
-
-</div>
+<p align="center">
+  爱酱工作室 · <a href="https://www.modmanger.com">modmanger.com</a><br>
+  <a href="Setup/LICENSE.txt">使用许可</a> · <a href="https://github.com/velist/UE-Game-ModManager/issues">问题反馈</a> · mr.xzuo@foxmail.com
+</p>
