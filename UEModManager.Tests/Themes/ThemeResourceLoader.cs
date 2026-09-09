@@ -90,7 +90,7 @@ public static class ThemeResourceLoader
     };
 
     /// <summary>在专用 STA 线程上执行，把结果（纯数据）带回。</summary>
-    private static T RunOnSta<T>(Func<T> work)
+    internal static T RunOnSta<T>(Func<T> work)
     {
         T result = default!;
         Exception? failure = null;

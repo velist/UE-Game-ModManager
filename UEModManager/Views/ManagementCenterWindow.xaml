@@ -330,7 +330,7 @@
                 BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="0,1,0,0">
             <Grid>
                 <TextBlock VerticalAlignment="Center" FontSize="12"
-                           Foreground="{StaticResource Text500}"
+                           Foreground="{StaticResource Text500Brush}"
                            Text="导出诊断包用于报 bug 时附带，含日志、数据快照、最近事务记录（敏感信息已脱敏）"/>
                 <Button HorizontalAlignment="Right" Content="导出诊断包"
                         Click="ExportDiagnostic_Click"

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using UEModManager.Models;
 using UEModManager.Services.Backends;
 using UEModManager.Services.Deployment;
@@ -25,9 +26,12 @@ namespace UEModManager.Services
         private readonly IReadOnlyDictionary<DeploymentBackendType, IDeploymentBackend> _backends;
         private readonly OverwriteStore _overwriteStore;
         private readonly string _backupRootPath;
+        private readonly DeploymentStateStore _stateStore;
 
         /// <summary>最近一次事务（用于 UI 展示和回滚）。</summary>
         public DeploymentTransaction? LastTransaction { get; private set; }
+
+        internal Task PendingBackupCleanup { get; private set; } = Task.CompletedTask;
 
         /// <summary>部署进度变化事件。</summary>
         public event Action<DeploymentTransaction>? ProgressChanged;
@@ -69,9 +73,22 @@ namespace UEModManager.Services
             ILogger<DeploymentService> logger,
             IEnumerable<IDeploymentBackend> backends,
             OverwriteStore overwriteStore)
+            : this(logger, backends, overwriteStore, new DeploymentStateStore(NullLogger<DeploymentStateStore>.Instance))
+        {
+        }
+
+        public DeploymentService(ILogger<DeploymentService> logger, IEnumerable<IDeploymentBackend> backends,
+            OverwriteStore overwriteStore, DeploymentStateStore stateStore)
+            : this(logger, backends, overwriteStore, stateStore, Infrastructure.AppPaths.DeploymentBackupsDirectory)
+        {
+        }
+
+        public DeploymentService(ILogger<DeploymentService> logger, IEnumerable<IDeploymentBackend> backends,
+            OverwriteStore overwriteStore, DeploymentStateStore stateStore, string backupRootPath)
         {
             _logger = logger;
             _overwriteStore = overwriteStore;
+            _stateStore = stateStore;
 
             // Symlink 后端已下线：普通用户需开发者模式/管理员权限，实际不可用。
             // 旧数据中的 Symlink 计划经 GetBackend 自动降级为 Copy。
@@ -81,7 +98,7 @@ namespace UEModManager.Services
             _logger.LogInformation("已装配 {Count} 个部署后端: {Types}",
                 _backends.Count, string.Join(", ", _backends.Values.Select(b => b.DisplayName)));
 
-            _backupRootPath = Infrastructure.AppPaths.DeploymentBackupsDirectory;
+            _backupRootPath = Path.GetFullPath(backupRootPath);
         }
 
         /// <summary>
@@ -113,6 +130,14 @@ namespace UEModManager.Services
         /// 流程：创建事务 → 备份受影响文件 → 逐个执行操作 → 提交/回滚。
         /// </summary>
         public async Task<DeploymentTransaction> ExecuteAsync(DeploymentPlan plan)
+        {
+            if (plan.StateBefore == null) return await ExecuteCoreAsync(plan);
+            using var lease = await _stateStore.LockAsync(plan.StateBefore);
+            await _stateStore.EnsureCurrentAsync(plan.StateBefore);
+            return await ExecuteCoreAsync(plan);
+        }
+
+        private async Task<DeploymentTransaction> ExecuteCoreAsync(DeploymentPlan plan)
         {
             if (!plan.HasChanges)
             {
@@ -149,7 +174,9 @@ namespace UEModManager.Services
                 BackendType = backendType,
                 BackupDirectory = backupDir,
                 TotalOperations = plan.TotalCount,
-                Status = DeploymentStatus.InProgress
+                Status = DeploymentStatus.InProgress,
+                StateBefore = plan.StateBefore,
+                StateAfter = plan.StateAfter
             };
 
             LastTransaction = transaction;
@@ -172,6 +199,10 @@ namespace UEModManager.Services
 
             try
             {
+                foreach (var operation in plan.Operations)
+                    await ValidateOperationAsync(operation, plan.StateBefore);
+                await PreserveOriginalFilesAsync(plan);
+
                 // 阶段 1: 备份所有需要备份的目标文件
                 await BackupTargetFilesAsync(plan, backupDir);
 
@@ -180,18 +211,17 @@ namespace UEModManager.Services
                 // 否则进程在下面的循环中被杀，磁盘上就只剩一个空的 ExecutedOperations，
                 // 备份目录里的文件将无法对应回目标路径，崩溃恢复没有任何可回滚的信息。
                 transaction.PlannedOperations = plan.Operations.ToList();
-                await SaveTransactionLogAsync(transaction);
+                await SaveTransactionLogAsync(transaction, required: true);
 
                 // 阶段 2: 逐个执行操作
                 //
-                // 进度事件经闸门节流：订阅方 DeployPreviewDialog.OnDeployProgress 里是
-                // Dispatcher.Invoke（同步阻塞marshal到 UI 线程），每个操作发一次的话，
-                // 上万文件的整合包会产生上万次跨线程同步调用，UI 反而被进度更新拖垮。
+                // 限制进度事件频率，避免整合包的大量文件操作淹没 UI 订阅者。
                 var progressGate = new ProgressEmitGate(plan.Operations.Count, DateTime.Now);
 
                 for (var i = 0; i < plan.Operations.Count; i++)
                 {
                     var operation = plan.Operations[i];
+                    await ValidateOperationAsync(operation, plan.StateBefore);
                     transaction.ExecutedOperations.Add(operation);
                     await ExecuteOperationAsync(operation, backend, backupDir);
                     operation.IsExecuted = true;
@@ -207,6 +237,17 @@ namespace UEModManager.Services
                 }
 
                 // 提交
+                if (plan.StateAfter != null)
+                {
+                    // Includes zero-operation adoptions: a file changing during planning is not silently claimed.
+                    foreach (var file in plan.StateAfter.Files)
+                    {
+                        if (!File.Exists(file.TargetPath)
+                            || !string.Equals(await ObjectStore.ComputeFileHashAsync(file.TargetPath), file.FileHash, StringComparison.OrdinalIgnoreCase))
+                            throw new IOException($"部署结果与最终视图不一致: {file.TargetPath}");
+                    }
+                    await _stateStore.WriteAsync(plan.StateAfter);
+                }
                 transaction.Status = DeploymentStatus.Committed;
                 transaction.CompletedAt = DateTime.Now;
                 _logger.LogInformation("部署成功提交: {Id}", transaction.Id);
@@ -243,7 +284,10 @@ namespace UEModManager.Services
                 // 自动回滚
                 try
                 {
-                    await RollbackAsync(transaction);
+                    // In-process failure before the first write has no file effects to undo.
+                    // Preserve planned operations on disk for crashes, but do not overwrite a concurrently changed file here.
+                    if (transaction.ExecutedOperations.Count == 0) transaction.PlannedOperations.Clear();
+                    await RollbackCoreAsync(transaction);
                 }
                 catch (Exception rollbackEx)
                 {
@@ -311,6 +355,17 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<RollbackOutcome> RollbackAsync(DeploymentTransaction transaction)
         {
+            if (transaction.StateBefore == null) return await RollbackCoreAsync(transaction);
+            using var lease = await _stateStore.LockAsync(transaction.StateBefore);
+            var current = await _stateStore.ReadAsync(transaction.StateBefore.HostGameName,
+                transaction.StateBefore.GameRootPath, transaction.StateBefore.ModRootPath);
+            if (current.Revision != transaction.StateBefore.Revision && current.Revision != transaction.StateAfter?.Revision)
+                return RollbackOutcome.Skipped("此事务之后已有其他部署，请先回滚最近的事务。");
+            return await RollbackCoreAsync(transaction);
+        }
+
+        private async Task<RollbackOutcome> RollbackCoreAsync(DeploymentTransaction transaction)
+        {
             if (!transaction.CanRollback)
             {
                 var reason = $"事务状态为 {transaction.Status}，不可回滚";
@@ -318,19 +373,25 @@ namespace UEModManager.Services
                 return RollbackOutcome.Skipped(reason);
             }
 
-            // 崩溃场景下 ExecutedOperations 可能为空，此时回落到备份阶段落盘的完整计划。
+            // A persisted progress prefix can omit completed file writes after the last flush. Remember the
+            // full recovery scope even if this attempt becomes PartiallyRolledBack and is reloaded for retry.
+            // ExecuteCoreAsync sets Failed before its in-process rollback, whose execution record is exact.
+            if (transaction.Status == DeploymentStatus.InProgress)
+                transaction.RollbackRequiresFullPlan = true;
             var operations = transaction.RollbackSource;
-            if (operations.Count == 0)
+            if (operations.Count == 0 && transaction.StateBefore == null)
             {
                 const string reason = "事务既无执行记录也无计划快照，无可回滚的信息";
                 _logger.LogError("事务 {Id} {Reason}", transaction.Id, reason);
                 return RollbackOutcome.Skipped(reason);
             }
 
+            var usesPlannedOperations = ReferenceEquals(operations, transaction.PlannedOperations);
+            var recordedOperationIds = transaction.ExecutedOperations.Select(operation => operation.Id).ToHashSet();
             _logger.LogInformation("开始回滚事务: {Id}（{Count} 个操作，来源={Source}）",
                 transaction.Id,
                 operations.Count,
-                transaction.ExecutedOperations.Count > 0 ? "执行记录" : "计划快照");
+                usesPlannedOperations ? "计划快照" : "执行记录");
             transaction.RollbackFailures.Clear();
 
             // 按执行顺序的逆序回滚
@@ -338,6 +399,21 @@ namespace UEModManager.Services
             {
                 try
                 {
+                    if (transaction.StateBefore != null)
+                        DeploymentStateStore.ValidateTarget(transaction.StateBefore, op.TargetPath);
+                    // A planned Add without an execution record may refer to a file created externally.
+                    // Only remove an unlogged tail file when its content confirms the planned output.
+                    if (usesPlannedOperations && !recordedOperationIds.Contains(op.Id)
+                        && op.Type == DeploymentOperationType.Add && File.Exists(op.TargetPath)
+                        && (string.IsNullOrWhiteSpace(op.FileHash)
+                            || !string.Equals(await ObjectStore.ComputeFileHashAsync(op.TargetPath),
+                                op.FileHash, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        const string reason = "目标文件未记入执行日志，且无法确认内容属于本次部署；已保留文件。";
+                        transaction.RollbackFailures.Add(new RollbackFailure(op.TargetPath, reason));
+                        _logger.LogWarning("回滚保留文件: {Target} — {Reason}", op.TargetPath, reason);
+                        continue;
+                    }
                     var action = RollbackActionPlanner.PlanRollback(op, File.Exists);
                     switch (action.Type)
                     {
@@ -407,6 +483,16 @@ namespace UEModManager.Services
                 }
             }
 
+            if (transaction.RollbackFailures.Count == 0 && transaction.StateBefore != null)
+            {
+                try { await _stateStore.WriteAsync(transaction.StateBefore); }
+                catch (Exception ex)
+                {
+                    transaction.RollbackFailures.Add(new RollbackFailure("部署文件清单", ex.Message));
+                    _logger.LogError(ex, "回滚文件已完成，但恢复部署归属清单失败");
+                }
+            }
+
             transaction.Status = transaction.RollbackFailures.Count > 0
                 ? DeploymentStatus.PartiallyRolledBack
                 : DeploymentStatus.RolledBack;
@@ -455,10 +541,12 @@ namespace UEModManager.Services
 
         private void ScheduleBackupCleanup()
         {
-            _ = Task.Run(() =>
+            var previous = PendingBackupCleanup;
+            PendingBackupCleanup = Task.Run(async () =>
             {
                 try
                 {
+                    await previous;
                     CleanupOldBackups();
                 }
                 catch (Exception ex)
@@ -589,7 +677,7 @@ namespace UEModManager.Services
                 _logger.LogDebug("清理了 {Count} 个空目录（限于部署根 {Root}）", removed, root);
         }
 
-        private async Task SaveTransactionLogAsync(DeploymentTransaction transaction)
+        private async Task SaveTransactionLogAsync(DeploymentTransaction transaction, bool required = false)
         {
             if (string.IsNullOrEmpty(transaction.BackupDirectory))
                 return;
@@ -616,6 +704,34 @@ namespace UEModManager.Services
                 }
                 _logger.LogError(ex, "保存事务日志失败 — 事务 {Id} 状态降级为 LogPersistenceFailed",
                     transaction.Id);
+                if (required) throw;
+            }
+        }
+
+        private async Task PreserveOriginalFilesAsync(DeploymentPlan plan)
+        {
+            if (plan.StateBefore == null || plan.StateAfter == null) return;
+            var owned = plan.StateBefore.Files.Select(f => f.TargetPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in plan.StateAfter.Files.Where(f => !owned.Contains(f.TargetPath) && File.Exists(f.TargetPath)))
+                file.OriginalFilePath = await _stateStore.PreserveOriginalAsync(plan.StateBefore, file.TargetPath);
+        }
+
+        private static async Task ValidateOperationAsync(DeploymentOperation operation, DeploymentState? state)
+        {
+            if (state != null) DeploymentStateStore.ValidateTarget(state, operation.TargetPath);
+            if (operation.ExpectedTargetExists.HasValue)
+            {
+                var exists = File.Exists(operation.TargetPath);
+                if (exists != operation.ExpectedTargetExists.Value
+                    || (exists && !string.Equals(await ObjectStore.ComputeFileHashAsync(operation.TargetPath),
+                        operation.ExpectedTargetHash, StringComparison.OrdinalIgnoreCase)))
+                    throw new IOException($"目标文件在计划生成后已变化，请重新生成部署计划: {operation.TargetPath}");
+            }
+            if (operation.Type != DeploymentOperationType.Remove && !string.IsNullOrEmpty(operation.FileHash))
+            {
+                if (!File.Exists(operation.SourcePath)) throw new FileNotFoundException("部署源文件不存在", operation.SourcePath);
+                if (!string.Equals(await ObjectStore.ComputeFileHashAsync(operation.SourcePath), operation.FileHash, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException($"部署源文件在视图生成后已变化: {operation.SourcePath}");
             }
         }
     }

@@ -40,6 +40,10 @@ namespace UEModManager.Models
         /// <summary>源文件哈希（用于完整性校验）。</summary>
         public string? FileHash { get; init; }
 
+        /// <summary>Planner preconditions; null retains compatibility with old serialized/manual plans.</summary>
+        public bool? ExpectedTargetExists { get; set; }
+        public string? ExpectedTargetHash { get; set; }
+
         /// <summary>文件大小（字节）。</summary>
         public long FileSize { get; init; }
 

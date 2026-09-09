@@ -25,7 +25,7 @@ public sealed class CategoryViewModelAssignableTests : IDisposable
     private async Task<(NewCategoryService Service, CategoryViewModel Vm)> NewVmAsync()
     {
         var service = new NewCategoryService(NullLogger<NewCategoryService>.Instance, _root);
-        var vm = new CategoryViewModel(service, NullLogger<CategoryViewModel>.Instance);
+        var vm = new CategoryViewModel(service);
         await service.SetCurrentGameAsync("悟空");
         return (service, vm);
     }

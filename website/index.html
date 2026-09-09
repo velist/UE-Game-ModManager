@@ -3,227 +3,122 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>爱酱MOD管理器 v2.1.0 | 多引擎游戏 MOD 一键管理工具</title>
-  <meta name="description" content="爱酱MOD管理器 v2.1.0，为多引擎游戏打造的本地优先 MOD 管理工具，支持导入、启用禁用、配置合并、冲突检查、离线使用与老版本一键迁移；用户数据独立存放，换盘一键搬迁。">
+  <title>爱酱MOD管理器官网｜Windows MOD 管理工具免费下载</title>
+  <meta name="description" content="爱酱MOD管理器官网，提供 Windows 10/11 免费 MOD 管理工具。支持剑星、黑神话悟空等游戏，集中导入、分类、启用与禁用 MOD；核心功能无需登录，离线可用。">
   <meta name="theme-color" content="#030303">
-  <meta name="robots" content="index,follow">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="https://www.modmanger.com/">
-  <link rel="icon" href="assets/mnlogo.ico">
-  <link rel="apple-touch-icon" href="assets/mnlogo.ico">
-  <link rel="preload" as="image" href="assets/hero-panel.png" fetchpriority="high">
+  <link rel="icon" href="assets/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="apple-touch-icon" href="assets/brand.png">
   <link rel="stylesheet" href="styles.css">
-
+  <link rel="stylesheet" href="release.css">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="爱酱MOD管理器 v2.1.0">
-  <meta property="og:description" content="为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、换盘一键搬迁。">
-  <meta property="og:image" content="https://www.modmanger.com/assets/hero-panel.png">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:site_name" content="爱酱MOD管理器">
+  <meta property="og:title" content="爱酱MOD管理器官网｜Windows MOD 管理工具免费下载">
+  <meta property="og:description" content="爱酱MOD管理器官网，提供 Windows 10/11 免费 MOD 管理工具。支持剑星、黑神话悟空等游戏，集中导入、分类、启用与禁用 MOD；核心功能无需登录，离线可用。">
+  <meta property="og:image" content="https://www.modmanger.com/assets/share.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:alt" content="爱酱MOD管理器：让 MOD 管理简单一点">
   <meta property="og:url" content="https://www.modmanger.com/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="爱酱MOD管理器 v2.1.0">
-  <meta name="twitter:description" content="本地优先的多引擎 MOD 管理工具，导入/启停/换盘搬迁一站搞定。">
-  <meta name="twitter:image" content="https://www.modmanger.com/assets/hero-panel.png">
-
+  <meta name="twitter:title" content="爱酱MOD管理器官网｜Windows MOD 管理工具免费下载">
+  <meta name="twitter:description" content="爱酱MOD管理器官网，提供 Windows 10/11 免费 MOD 管理工具。支持剑星、黑神话悟空等游戏，集中导入、分类、启用与禁用 MOD；核心功能无需登录，离线可用。">
+  <meta name="twitter:image" content="https://www.modmanger.com/assets/share.png">
+  <meta name="twitter:image:alt" content="爱酱MOD管理器：让 MOD 管理简单一点">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "爱酱MOD管理器",
-    "operatingSystem": "Windows 10, Windows 11",
-    "applicationCategory": "UtilitiesApplication",
-    "softwareVersion": "2.1.0",
-    "fileSize": "50MB",
-    "description": "为多引擎游戏打造的本地优先 MOD 管理工具：导入、启用、禁用、配置合并、冲突检查、离线可用、换盘一键搬迁、老版本一键迁移。",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
-  }
-  </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      { "@type": "Question", "name": "v2.1.0 相比 2.0 版本有什么变化？", "acceptedAnswer": { "@type": "Answer", "text": "主要是三件事：从这一版起 MOD 清单、方案、分类和设置写在系统用户数据目录，不再落在安装目录里，卸载或覆盖安装不会连着删掉；想换个盘存 MOD 时程序自己把数据搬过去；分类丢失、右键菜单点不动、保存失败不提示这些老问题都已修复。" } },
-      { "@type": "Question", "name": "我的 MOD 和设置存在哪里？卸载会不会一起删掉？", "acceptedAnswer": { "@type": "Answer", "text": "从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录（%LOCALAPPDATA%\\UEModManager），不再落在安装目录里，卸载或覆盖安装不会连用户数据一起删掉。从旧版本升级的话，请先按页面上方的「迁移说明」运行一次一键迁移脚本。MOD 包本身放在包仓库，位置可以自己选，也可以随时换盘。" } },
-      { "@type": "Question", "name": "软件会收集我的哪些信息？可以关掉吗？", "acceptedAnswer": { "@type": "Answer", "text": "启动时会检查有没有新版本，同时发送一个随机生成的设备编号、软件版本号和 Windows 版本号；登录过账号的话还会带一段由邮箱算出来的字符串，只用来统计有多少人在用，还原不回邮箱。不发送邮箱明文、电脑名、文件路径，也不发送你装了哪些 MOD。首次启动会先问过你，随时可以在「设置 → 常规参数 → 检查更新与匿名统计」里关掉。" } },
-      { "@type": "Question", "name": "不登录账号能不能使用？", "acceptedAnswer": { "@type": "Answer", "text": "可以。v2.1.0 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。" } },
-      { "@type": "Question", "name": "登录账号会不会同步我的 MOD 文件？", "acceptedAnswer": { "@type": "Answer", "text": "不会。当前账号能力不负责同步插件/MOD 文件，MOD 文件仍以本地仓库和游戏目录为准。" } },
-      { "@type": "Question", "name": "如何迁移旧版本数据？", "acceptedAnswer": { "@type": "Answer", "text": "关闭旧版本程序，安装 v2.1.0 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。" } },
-      { "@type": "Question", "name": "选了硬链接部署，怎么知道有没有真的省到空间？", "acceptedAnswer": { "@type": "Answer", "text": "包仓库和游戏必须在同一个盘，硬链接才能生效；不在同一个盘时只能退回复制，会实打实多占一份空间。v2.1.0 遇到这种情况会直接提示，并给出一键把 MOD 仓库搬到游戏所在盘的按钮。" } },
-      { "@type": "Question", "name": "MOD 启用失败怎么办？", "acceptedAnswer": { "@type": "Answer", "text": "先查看高级管理中的安装记录和诊断导出；如果涉及路径、权限或冲突，请通过使用说明书查找对应处理步骤。" } },
-      { "@type": "Question", "name": "支持哪些游戏？", "acceptedAnswer": { "@type": "Answer", "text": "围绕剑星、黑神话悟空、识质存在、33号远征队、生化危机9、暗黑破坏神等单机游戏插件场景设计，并持续扩展更多游戏适配。" } }
+    "@graph": [
+      {
+        "@type": "WebSite", "@id": "https://www.modmanger.com/#website",
+        "url": "https://www.modmanger.com/", "name": "爱酱MOD管理器",
+        "alternateName": ["爱酱 MOD 管理器", "UEModManager"], "inLanguage": "zh-CN"
+      },
+      {
+        "@type": "WebPage", "@id": "https://www.modmanger.com/#webpage",
+        "url": "https://www.modmanger.com/",
+        "name": "爱酱MOD管理器官网｜Windows MOD 管理工具免费下载",
+        "inLanguage": "zh-CN", "isPartOf": { "@id": "https://www.modmanger.com/#website" },
+        "mainEntity": { "@id": "https://www.modmanger.com/#software" }
+      },
+      {
+        "@type": "SoftwareApplication", "@id": "https://www.modmanger.com/#software",
+        "name": "爱酱MOD管理器", "alternateName": "UEModManager", "url": "https://www.modmanger.com/",
+        "operatingSystem": "Windows 10, Windows 11", "applicationCategory": "UtilitiesApplication",
+        "inLanguage": "zh-CN", "image": "https://www.modmanger.com/assets/brand.png",
+        "description": "支持多款游戏的免费本地 MOD 管理工具，可导入、分类、启用和禁用 MOD，核心功能无需登录，离线可用。",
+        "softwareHelp": { "@type": "WebPage", "url": "https://www.modmanger.com/help" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
+      }
     ]
   }
   </script>
 </head>
 <body>
+  <a class="lp-skip" href="#top">跳到主要内容</a>
   <div class="site-shell">
-    <header class="site-header" data-header>
-      <a class="brand" href="#top" aria-label="返回首页">
-        <img src="assets/mnlogo.ico" alt="" class="brand-icon">
-        <span class="brand-text">爱酱MOD管理器</span>
-        <span class="version-pill">v2.1.0</span>
-      </a>
-      <nav class="site-nav" data-nav>
-        <a href="#features">功能</a>
-        <a href="#v2">v2.1亮点</a>
-        <a href="#migration">迁移说明</a>
-        <a href="#download">下载</a>
-        <a href="#privacy">隐私</a>
-        <a href="#faq">FAQ</a>
-      </nav>
-      <a class="header-cta" href="#download">立即下载</a>
-      <button class="menu-toggle" type="button" aria-label="打开菜单" aria-expanded="false" data-menu-toggle>
-        <span></span><span></span><span></span>
-      </button>
+    <header class="lp-header">
+      <a class="lp-brand" href="./" aria-label="爱酱MOD管理器首页"><img src="assets/brand.png" alt="" width="32" height="32"><span>爱酱<span class="lp-brand-mod">MOD</span>管理器</span></a>
+      <nav class="lp-nav" aria-label="主导航"><a href="#features">功能</a><a href="#faq">常见问题</a><a href="/help">使用帮助</a></nav>
+      <a class="lp-button lp-button-small" href="#download">下载 <span aria-hidden="true">↓</span></a>
     </header>
-
-    <main id="top">
-      <section class="hero section-grid">
-        <div class="hero-copy reveal">
-          <div class="eyebrow">单机游戏插件管理 · 本地安全部署 · 一键迁移</div>
-          <h1>爱酱MOD管理器<br><span>v2.1.0</span></h1>
-          <p class="hero-lead">为多引擎游戏打造的专业 MOD 管理工具。导入、启用、禁用、配置合并、冲突检查和老版本迁移，都放进一个更安全、更清晰的工作流。这一版把用户数据从安装目录里独立出来，换盘存 MOD 也变成了一键操作。</p>
-          <div class="hero-actions">
-            <a class="btn primary" href="#download">下载 v2.1.0</a>
-            <a class="btn secondary" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">查看使用说明书</a>
+    <main id="top" tabindex="-1">
+      <section class="lp-hero lp-wrap" aria-labelledby="hero-title">
+        <div class="lp-hero-copy">
+          <p class="lp-kicker"><span aria-hidden="true"></span> 为喜欢折腾 MOD 的你</p>
+          <h1 id="hero-title">让 MOD 管理<br><em>简单一点。</em></h1>
+          <p class="lp-lead">Windows 上的多游戏 MOD 管理工具。<br>导入、分类、启用，把时间留给游戏。</p>
+          <div class="lp-actions">
+            <a class="lp-button" href="#download"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg> 获取 Windows 版</a>
+            <a class="lp-text-link" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明 <span aria-hidden="true">↗</span></a>
           </div>
-          <div class="hero-notes">
-            <span>Windows 10 / 11</span>
-            <span>本地离线可用</span>
-            <span>首次使用建议先备份存档</span>
+          <p class="lp-system">Windows 10 / 11 <span>·</span> 免费使用 <span>·</span> 核心功能无需登录</p>
+        </div>
+        <figure class="lp-product" id="preview">
+          <div class="lp-app" role="img" aria-label="MOD 管理界面示意：在游戏列表中选择游戏，按分类查看 MOD，并管理启用状态。界面中的 MOD 名称为示例。">
+            <div class="lp-app-title" aria-hidden="true"><span><img src="assets/brand.png" alt="" width="18" height="18"> 爱酱MOD管理器</span><span class="lp-window-controls">— &nbsp; □ &nbsp; ×</span></div>
+            <div class="lp-app-body" aria-hidden="true">
+              <aside class="lp-app-sidebar">
+                <span class="lp-app-label">我的游戏</span>
+                <div class="lp-app-game selected"><img src="assets/games/black-myth-wukong.webp" alt="" width="28" height="28"><span>黑神话·悟空</span></div>
+                <div class="lp-app-game"><img src="assets/games/stellar-blade.webp" alt="" width="28" height="28"><span>剑星</span></div>
+                <div class="lp-app-game"><img src="assets/games/clair-obscur-expedition-33.webp" alt="" width="28" height="28"><span>33号远征队</span></div>
+                <div class="lp-app-game"><img src="assets/games/wuchang-fallen-feathers.webp" alt="" width="28" height="28"><span>明末·渊虚之羽</span></div>
+                <span class="lp-app-add">＋ 添加游戏</span><div class="lp-app-local"><span></span> 本地管理</div>
+              </aside>
+              <div class="lp-app-content">
+                <div class="lp-app-toolbar"><div><span class="lp-app-label">游戏 MOD</span><strong>黑神话·悟空</strong></div><span class="lp-demo-import">＋ 导入 MOD</span></div>
+                <div class="lp-app-tabs"><span>全部 MOD <small>3</small></span><span>已启用 <small>2</small></span></div>
+                <div class="lp-app-columns"><span>名称 / 分类</span><span>状态</span></div>
+                <div class="lp-mod-row"><span class="lp-mod-icon">材</span><div><strong>高画质纹理</strong><small>画面 · 纹理</small></div><span class="lp-toggle on"></span></div>
+                <div class="lp-mod-row"><span class="lp-mod-icon">UI</span><div><strong>简洁 HUD</strong><small>界面 · 工具</small></div><span class="lp-toggle on"></span></div>
+                <div class="lp-mod-row"><span class="lp-mod-icon muted">衣</span><div><strong>角色外观</strong><small>外观 · 角色</small></div><span class="lp-toggle"></span></div>
+                <div class="lp-app-status"><span><i></i> 已启用 2 个 MOD</span><span>本地仓库</span></div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div class="hero-visual reveal delay-1" aria-label="产品能力概览">
-          <img src="assets/hero-panel.png" alt="爱酱MOD管理器主界面预览" class="hero-panel-img" width="1254" height="1254" fetchpriority="high" decoding="async">
-        </div>
+          <figcaption><span class="lp-caption-line"></span> 管理界面示意 · MOD 名称为演示内容</figcaption>
+        </figure>
       </section>
-
-      <section id="features" class="section reveal">
-        <div class="section-heading">
-          <p class="eyebrow">核心功能</p>
-          <h2>MOD/插件一键管理</h2>
-          <p>面向普通玩家保持简单入口，面向复杂插件组合提供更完整的导入、启用、禁用、迁移和排查能力。</p>
-        </div>
-        <div class="feature-grid">
-          <article class="feature-card">
-            <span class="card-icon">01</span>
-            <h3>多游戏引擎MOD/插件管理</h3>
-            <p>不局限单一引擎，也不只服务 MOD 文件；常见插件、配置文件和资源包都可以统一导入、识别、分类、启用和禁用。</p>
-          </article>
-          <article class="feature-card">
-            <span class="card-icon">02</span>
-            <h3>离线可用，本地优先</h3>
-            <p>核心 MOD 管理不依赖云端；没有网络时，也可以继续管理本地 MOD 数据。</p>
-          </article>
-          <article class="feature-card">
-            <span class="card-icon">03</span>
-            <h3>用户数据独立存放</h3>
-            <p>从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录，不再落在安装目录里；卸载或覆盖安装不会连着删掉，装在 C 盘 Program Files 里也不会因为没有写权限出问题。</p>
-          </article>
-          <article class="feature-card">
-            <span class="card-icon">04</span>
-            <h3>MOD 存哪个盘你说了算</h3>
-            <p>首次运行会问你想把 MOD 放在哪个盘，并列出每个盘的可用空间；之后想换盘，程序自己把数据搬过去——先复制、核对无误才删原件，中途关机断电也不会丢。</p>
-          </article>
-          <article class="feature-card">
-            <span class="card-icon">05</span>
-            <h3>启用禁用更安全</h3>
-            <p>部署前生成计划，执行中记录事务，异常时可恢复或回滚；保存失败会当场告诉你，不会界面上显示成功、重启后数据却没了。</p>
-          </article>
-          <article class="feature-card">
-            <span class="card-icon">06</span>
-            <h3>配置合并与冲突治理</h3>
-            <p>面对 ini 等配置插件时，提供合并、预览和冲突检查思路。</p>
-          </article>
-        </div>
+      <section class="lp-games lp-wrap" aria-labelledby="games-title">
+        <div><h2 id="games-title">多款游戏，一个管理器。</h2><p>内置游戏预设，也支持自行添加。</p></div>
+        <ul class="lp-game-list">
+          <li><img src="assets/games/black-myth-wukong.webp" alt="" width="40" height="40"><span>黑神话·悟空</span></li>
+          <li><img src="assets/games/stellar-blade.webp" alt="" width="40" height="40"><span>剑星</span></li>
+          <li><img src="assets/games/clair-obscur-expedition-33.webp" alt="" width="40" height="40"><span>33号远征队</span></li>
+          <li><img src="assets/games/wuchang-fallen-feathers.webp" alt="" width="40" height="40"><span>明末·渊虚之羽</span></li>
+          <li><a href="/help#games">更多游戏 <span aria-hidden="true">↗</span></a></li>
+        </ul>
       </section>
-
-      <section id="v2" class="section split-section reveal">
-        <div>
-          <p class="eyebrow">v2.1.0 更新亮点</p>
-          <h2>数据放得更稳，空间省得更明白</h2>
-          <p>v2.1.0 集中解决了三类最容易让人吃亏的问题：数据被误删、空间白占、失败没人告诉你。</p>
-          <a class="text-link" href="#download">下载新版本 →</a>
-        </div>
-        <div class="timeline">
-          <div class="timeline-item"><strong>数据不再写进安装目录</strong><span>从这一版起，MOD 清单、方案、分类、设置和日志都放在系统的用户数据目录，卸载或覆盖安装不会连着删掉。</span></div>
-          <div class="timeline-item"><strong>换盘一键完成</strong><span>想把 MOD 换到空间更大的盘，程序自己搬——先复制、核对无误才删原件，中途断电也不会丢。</span></div>
-          <div class="timeline-item"><strong>省空间到底有没有生效，会告诉你</strong><span>MOD 仓库和游戏不在同一个盘时省不了空间，以前会悄悄变成复制，现在会明确提示并可一键改到同一个盘。</span></div>
-          <div class="timeline-item"><strong>首次运行先问你放哪</strong><span>列出每个盘的可用空间让你挑，不用等 MOD 攒到几十 GB 再手动搬家。</span></div>
-          <div class="timeline-item"><strong>保存失败不再悄悄咽下去</strong><span>设置、分类、MOD 清单写入失败会当场报错，不会界面显示成功、重启后却没了。</span></div>
-          <div class="timeline-item"><strong>分类相关问题修复</strong><span>自定义分类重启后消失、「移动到分类」点了没反应、列表模式下右键菜单失效，都已修好。</span></div>
-        </div>
-      </section>
-
-      <section class="section preview-section reveal" aria-labelledby="preview-title">
-        <div class="section-heading">
-          <p class="eyebrow">界面预览</p>
-          <h2 id="preview-title">Demo截图展示</h2>
-          <p>展示主界面、高级管理、导入流程、启动中心和迁移说明。</p>
-        </div>
-        <div class="preview-hero-card">
-          <img src="assets/prototype-main.png" alt="爱酱MOD管理器主界面原型截图" loading="lazy">
-          <div class="preview-caption">
-            <strong>主界面</strong>
-            <span>左侧分类、使用说明书入口、MOD 卡片、导入、高级管理和启动游戏入口。</span>
-          </div>
-        </div>
-        <div class="preview-grid">
-          <article class="preview-card">
-            <img src="assets/prototype-management.png" alt="高级管理窗口原型截图" loading="lazy">
-            <strong>高级管理</strong>
-            <span>已导入 MOD、安装记录、配置合并、临时文件和诊断导出。</span>
-          </article>
-          <article class="preview-card">
-            <img src="assets/prototype-import.png" alt="导入 MOD 窗口原型截图" loading="lazy">
-            <strong>导入 MOD / 插件</strong>
-            <span>拖拽导入、文件类型检测，并提醒老用户先运行迁移脚本。</span>
-          </article>
-          <article class="preview-card">
-            <img src="assets/prototype-launch.png" alt="启动中心原型截图" loading="lazy">
-            <strong>启动中心</strong>
-            <span>启动前检查路径、冲突和部署事务，降低带错状态启动游戏的风险。</span>
-          </article>
-          <article class="preview-card">
-            <img src="assets/prototype-settings.png" alt="系统设置窗口原型截图" loading="lazy">
-            <strong>系统设置</strong>
-            <span>部署方式、仓库路径、外观、游戏路径和基础参数集中管理。</span>
-          </article>
-          <article class="preview-card">
-            <img src="assets/prototype-migration.png" alt="老版本迁移说明原型截图" loading="lazy">
-            <strong>一键迁移说明</strong>
-            <span>用普通用户能看懂的步骤解释老版本升级迁移。</span>
-          </article>
-        </div>
-      </section>
-
-      <section class="section showcase reveal">
-        <div class="section-heading compact">
-          <p class="eyebrow">支持游戏与资源生态</p>
-          <h2>围绕常见单机游戏插件场景设计</h2>
-        </div>
-        <div class="game-grid six-games">
-          <article class="game-card"><img src="assets/game-stellar.png" alt="剑星"><span>剑星</span></article>
-          <article class="game-card"><img src="assets/game-wukong.png" alt="黑神话悟空"><span>黑神话悟空</span></article>
-          <article class="game-card"><img src="assets/game-pragmata.png" alt="识质存在"><span>识质存在</span></article>
-          <article class="game-card"><img src="assets/game-expedition33.png" alt="33号远征队"><span>33号远征队</span></article>
-          <article class="game-card"><img src="assets/game-re9.png" alt="生化危机9"><span>生化危机9</span></article>
-          <article class="game-card"><img src="assets/game-diablo.png" alt="暗黑破坏神"><span>暗黑破坏神</span></article>
-        </div>
-      </section>
-
-      <section id="migration" class="section migration reveal">
-        <div class="migration-card">
-          <div>
-            <p class="eyebrow">老用户升级</p>
-            <h2>老用户一键升级</h2>
-            <p>安装 v2.1.0 后，安装目录会包含“一键迁移老版本数据.bat”。关闭旧版本程序后双击运行，脚本会尝试备份并迁移旧数据。</p>
-          </div>
-          <ol class="steps">
-            <li><span>1</span><strong>安装 v2.1.0</strong><small>建议先保留旧版本数据。</small></li>
-            <li><span>2</span><strong>运行一键迁移脚本</strong><small>脚本会创建备份，减少误操作。</small></li>
-            <li><span>3</span><strong>打开新版本检查</strong><small>确认游戏路径、MOD 列表和启用状态。</small></li>
-          </ol>
+      <section id="features" class="lp-features lp-wrap" aria-labelledby="features-title">
+        <div class="lp-section-top"><h2 id="features-title">从导入到开玩，顺手就好。</h2><a class="lp-text-link" href="/help#storage">看看新版存储设置 <span aria-hidden="true">↗</span></a></div>
+        <div class="lp-feature-list">
+          <article><span class="lp-feature-number">01 / 导入</span><h3>拖进来，整理好</h3><p>导入 MOD，按游戏和分类整理。<br>常用内容集中在一处。</p></article>
+          <article><span class="lp-feature-number">02 / 管理</span><h3>想用哪个，就启用哪个</h3><p>启用、禁用，随时调整组合。<br>核心管理在本地完成，离线也能用。</p></article>
+          <article><span class="lp-feature-number">03 / 存储</span><h3>放在哪个盘，由你选</h3><p>选择 MOD 的存储位置。<br>需要腾空间时，可以在设置里迁移。</p></article>
         </div>
       </section>
 
@@ -265,115 +160,22 @@
         </div>
       </section>
 
-      <!-- 隐私说明：v2.1.0 新增的更新检查会顺带上报匿名统计，页面上必须把
-           「发什么、不发什么、怎么关」写清楚，措辞对普通玩家可读。 -->
-      <section id="privacy" class="section reveal">
-        <div class="migration-card">
-          <div>
-            <p class="eyebrow">隐私说明</p>
-            <h2>会上传什么，怎么关掉</h2>
-            <p>v2.1.0 启动时会检查有没有新版本，同时告诉我们“有多少人在用”。这两件事是同一个请求，首次启动会先明确问过你，在你回答之前一个字节都不会发送。</p>
-            <p>这些信息只用来统计使用人数和版本分布，不用于广告，也不会提供给第三方。</p>
-          </div>
-          <ol class="steps">
-            <li><span>1</span><strong>会发送这些</strong><small>一个随机生成的设备编号（跟你的电脑、账号都对不上）、软件版本号、Windows 版本号；登录过账号的话，还有一段由邮箱算出来的字符串，只用于区分“是不是同一个人”，还原不回你的邮箱。</small></li>
-            <li><span>2</span><strong>不会发送这些</strong><small>邮箱明文、电脑名和用户名、任何文件路径和游戏目录、你装了哪些 MOD——这些一律不出你的电脑。</small></li>
-            <li><span>3</span><strong>随时可以关</strong><small>打开「设置 → 常规参数 → 检查更新与匿名统计」，关掉即可。关掉后更新检查也会一起停，因为它们本来就是同一个请求。</small></li>
-          </ol>
-        </div>
-      </section>
-
-      <section id="thanks" class="section thanks-section reveal">
-        <div class="section-heading">
-          <p class="eyebrow">鸣谢名单</p>
-          <h2>感谢一路支持爱酱MOD管理器的朋友</h2>
-          <p>项目能持续更新，离不开玩家、测试用户和群友们的反馈、建议与支持。</p>
-        </div>
-        <div class="thanks-card">
-          <div class="thanks-title">捐赠与测试支持</div>
-          <p>胖虎、YUki、Tarnished、春告鳥、蘭、虎子、神秘不保底男、文铭、阪、林墨、Daisuke、虎子哥、枪王、爱酱游戏群全体群友</p>
-        </div>
-      </section>
-
-      <section id="support" class="section support-section reveal">
-        <div class="support-card">
-          <div class="section-heading compact">
-            <p class="eyebrow">支持作者</p>
-            <h2>如果这个工具帮到了你，可以请我喝杯咖啡</h2>
-            <p>软件会继续保持简单好用，也欢迎通过群聊反馈问题和建议。</p>
-          </div>
-          <div class="payment-grid">
-            <article class="payment-card">
-              <img src="assets/wechat_qr.png" alt="微信打赏二维码" loading="lazy">
-              <strong>微信</strong>
-            </article>
-            <article class="payment-card">
-              <img src="assets/alipay_qr.png" alt="支付宝打赏二维码" loading="lazy">
-              <strong>支付宝</strong>
-            </article>
-          </div>
-          <div class="support-actions">
-            <a class="btn secondary" href="https://qm.qq.com/q/CIi6LT94zK" target="_blank" rel="noopener">加入QQ群：682707942</a>
-          </div>
-        </div>
-      </section>
-
-      <section id="faq" class="section reveal">
-        <div class="section-heading">
-          <p class="eyebrow">FAQ</p>
-          <h2>常见问题</h2>
-        </div>
-        <div class="faq-list">
-          <details open>
-            <summary>v2.1.0 相比 2.0 版本有什么变化？</summary>
-            <p>主要是三件事：从这一版起 MOD 清单、方案、分类和设置写在系统用户数据目录，不再落在安装目录里，卸载或覆盖安装不会连着删掉；想换个盘存 MOD 时程序自己把数据搬过去；分类丢失、右键菜单点不动、保存失败不提示这些老问题都已修复。</p>
-          </details>
-          <details>
-            <summary>我的 MOD 和设置存在哪里？卸载会不会一起删掉？</summary>
-            <p>从 v2.1.0 起，MOD 清单、方案、分类、设置和日志都写在系统的用户数据目录（%LOCALAPPDATA%\UEModManager），不再落在安装目录里，卸载或覆盖安装不会连用户数据一起删掉。从旧版本升级的话，请先按页面上方的「迁移说明」运行一次一键迁移脚本。MOD 包本身放在包仓库，位置可以自己选，也可以随时换盘。</p>
-          </details>
-          <details>
-            <summary>软件会收集我的哪些信息？可以关掉吗？</summary>
-            <p>启动时会检查有没有新版本，同时发送一个随机生成的设备编号、软件版本号和 Windows 版本号；登录过账号的话还会带一段由邮箱算出来的字符串，只用来统计有多少人在用，还原不回邮箱。不发送邮箱明文、电脑名、文件路径，也不发送你装了哪些 MOD。首次启动会先问过你，随时可以在「设置 → 常规参数 → 检查更新与匿名统计」里关掉。详见上方<a class="text-link" href="#privacy">隐私说明</a>。</p>
-          </details>
-          <details>
-            <summary>不登录账号能不能使用？</summary>
-            <p>可以。v2.1.0 的核心能力是本地 MOD 管理，不登录也可以导入、分类、启用、禁用和迁移本地数据。</p>
-          </details>
-          <details>
-            <summary>登录账号会不会同步我的 MOD 文件？</summary>
-            <p>不会。当前账号能力不负责同步插件/MOD 文件，MOD 文件仍以本地仓库和游戏目录为准。重要文件建议自己也留一份备份。</p>
-          </details>
-          <details>
-            <summary>如何迁移旧版本数据？</summary>
-            <p>关闭旧版本程序，安装 v2.1.0 后运行安装目录内的“一键迁移老版本数据.bat”，完成后打开新版本检查结果。</p>
-          </details>
-          <details>
-            <summary>选了硬链接部署，怎么知道有没有真的省到空间？</summary>
-            <p>包仓库和游戏必须在同一个盘，硬链接才能生效；不在同一个盘时只能退回复制，会实打实多占一份空间。v2.1.0 遇到这种情况会直接提示，并给出一键把 MOD 仓库搬到游戏所在盘的按钮。</p>
-          </details>
-          <details>
-            <summary>MOD 启用失败怎么办？</summary>
-            <p>先查看高级管理中的安装记录和诊断导出；如果涉及路径、权限或冲突，请通过使用说明书查找对应处理步骤。</p>
-          </details>
-          <details>
-            <summary>支持哪些游戏？</summary>
-            <p>当前围绕剑星、黑神话悟空、识质存在、33号远征队、生化危机9、暗黑破坏神等单机游戏插件场景设计，并持续扩展更多游戏适配。</p>
-          </details>
+      <section id="faq" class="lp-faq lp-wrap" aria-labelledby="faq-title">
+        <div class="lp-faq-intro"><p class="lp-overline">开始之前</p><h2 id="faq-title">你可能想问</h2><p>还有疑问？<br><a class="lp-text-link" href="/help">查看使用帮助 <span aria-hidden="true">↗</span></a></p></div>
+        <div class="lp-questions">
+          <details><summary>需要注册或一直联网吗？<span aria-hidden="true">＋</span></summary><p>核心 MOD 管理无需登录。导入、分类、启用和禁用都可以在本地完成，离线时也能使用。</p></details>
+          <details><summary>登录后会同步我的 MOD 文件吗？<span aria-hidden="true">＋</span></summary><p>不会。MOD 文件保存在本地仓库和游戏目录中，当前账号功能不提供 MOD 文件云同步。</p></details>
+          <details><summary>从旧版本升级，数据怎么办？<span aria-hidden="true">＋</span></summary><p>先保留旧数据并关闭旧程序，再运行安装目录中的“一键迁移老版本数据.bat”。完整步骤见<a href="/help#migration">迁移说明</a>。</p></details>
+          <details><summary>MOD 启用失败，去哪里找帮助？<span aria-hidden="true">＋</span></summary><p>先查看高级管理中的安装记录，再按<a href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明书</a>检查游戏路径、权限和冲突。也可以<a href="https://qm.qq.com/q/CIi6LT94zK" target="_blank" rel="noopener">加入 QQ 群</a>反馈。</p></details>
         </div>
       </section>
     </main>
-
-    <footer class="site-footer">
-      <div>
-        <strong>爱酱MOD管理器</strong>
-        <span>为玩家和 MOD 爱好者做得更稳一点。</span>
-      </div>
-      <a href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">在线说明书</a>
+    <footer class="lp-footer lp-wrap">
+      <div><a class="lp-brand" href="./"><img src="assets/brand.png" alt="" width="26" height="26"><span>爱酱MOD管理器</span></a><p>把时间留给游戏。</p></div>
+      <nav aria-label="更多信息"><a id="migration" href="/help#migration">迁移说明</a><a id="v2" href="/help#v2">版本说明</a><a id="privacy" href="/help#privacy">隐私说明</a><a id="thanks" href="/help#thanks">鸣谢</a><a id="support" href="/help#support">支持作者</a><a href="https://qm.qq.com/q/CIi6LT94zK" target="_blank" rel="noopener">QQ 交流群 ↗</a></nav>
+      <small>游戏名称与图标归各自权利人所有，用于标识对应游戏。</small>
     </footer>
   </div>
-
-
-  <script src="script.js"></script>
+  <script src="script.js" defer></script>
 </body>
 </html>

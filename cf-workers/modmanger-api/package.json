@@ -1,0 +1,20 @@
+{
+  "name": "uemodmanager-worker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node verify.mjs && node --test test/*.test.mjs",
+    "test:auth": "node --test test/auth.test.mjs",
+    "dev": "wrangler dev --local",
+    "check:bundle": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260722.0",
+    "wrangler": "4.114.0"
+  },
+  "overrides": {
+    "undici": "7.29.0"
+  }
+}

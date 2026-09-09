@@ -446,111 +446,128 @@ namespace UEModManager.Services
         /// 这里检出的"文件缺失"是另一类不一致（索引记了、实体不全），**永远不会被自动清理**：
         /// 那是数据丢失而不是垃圾，删掉只会让用户连"曾经有这个包"都看不到。
         /// </para>
+        /// <para>
+        /// 本方法只做 IO：探测每个已登记文件的存在性/大小/哈希，把事实交给 Core 的
+        /// <see cref="PackageIntegrityAnalyzer"/> 判定。七类判据与全部文案都在那里，可独立单测。
+        /// **判据不要写回这里** —— MOD 库是备份本体，它的完整性判定必须留在测得到的地方。
+        /// </para>
         /// </summary>
         public async Task<List<(string packageKey, string issue)>> CheckIntegrityAsync()
         {
             var issues = new List<(string, string)>();
             foreach (var pkg in _packages)
             {
-                if (!_objectStore.PackageExists(pkg.PackageKey))
-                {
-                    issues.Add((pkg.PackageKey, "manifest.json 缺失"));
-                    continue;
-                }
+                var report = await InspectPackageAsync(pkg).ConfigureAwait(false);
+                if (report.IsIntact) continue;
 
-                var filesDir = _objectStore.GetPackageFilesDirectory(pkg.PackageKey);
-                var expectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var packageIssues = new List<string>();
-
-                foreach (var artifact in pkg.Artifacts)
-                {
-                    string? sourcePath = artifact.RelativeSourcePath?.Replace('\\', '/');
-                    var sourcePrefix = $"{pkg.PackageKey}/files/";
-                    string expectedPath;
-                    try
-                    {
-                        // RelativeTargetPath 是部署到游戏目录的目标位置，不能用于定位仓库实体。
-                        // 仓库源路径必须明确落在当前包的 files/ 目录内。
-                        if (string.IsNullOrWhiteSpace(sourcePath)
-                            || !sourcePath.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase))
-                        {
-                            throw new ArgumentException("仓库源路径不属于当前包的 files 目录");
-                        }
-
-                        expectedPath = PathSanitizer.SafeCombine(
-                            filesDir, sourcePath[sourcePrefix.Length..]);
-                    }
-                    catch (ArgumentException)
-                    {
-                        packageIssues.Add($"非法仓库源路径: {artifact.RelativeSourcePath}");
-                        continue;
-                    }
-
-                    if (!expectedPaths.Add(Path.GetFullPath(expectedPath)))
-                    {
-                        packageIssues.Add($"重复登记文件: {artifact.RelativeSourcePath}");
-                        continue;
-                    }
-
-                    if (!File.Exists(expectedPath))
-                    {
-                        packageIssues.Add($"文件缺失: {sourcePath}");
-                        continue;
-                    }
-
-                    if (artifact.FileSize >= 0)
-                    {
-                        try
-                        {
-                            var actualSize = new FileInfo(expectedPath).Length;
-                            if (actualSize != artifact.FileSize)
-                                packageIssues.Add($"文件大小不符: {sourcePath}（期望 {artifact.FileSize}, 实际 {actualSize}）");
-                        }
-                        catch (Exception ex)
-                        {
-                            packageIssues.Add($"无法读取文件: {sourcePath}（{ex.Message}）");
-                            continue;
-                        }
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(artifact.FileHash))
-                    {
-                        try
-                        {
-                            var actualHash = await ObjectStore.ComputeFileHashAsync(expectedPath)
-                                .ConfigureAwait(false);
-                            if (!string.Equals(actualHash, artifact.FileHash,
-                                    StringComparison.OrdinalIgnoreCase))
-                            {
-                                packageIssues.Add($"文件哈希不符: {sourcePath}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            packageIssues.Add($"无法校验文件: {sourcePath}（{ex.Message}）");
-                        }
-                    }
-                }
-
-                var actualPaths = Directory.Exists(filesDir)
-                    ? Directory.EnumerateFiles(filesDir, "*", SearchOption.AllDirectories)
-                        .Select(Path.GetFullPath)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                var extraCount = actualPaths.Except(expectedPaths, StringComparer.OrdinalIgnoreCase).Count();
-                if (extraCount > 0)
-                    packageIssues.Add($"发现 {extraCount} 个未登记文件");
-
-                if (packageIssues.Count > 0)
-                {
-                    var detail = string.Join("；", packageIssues.Take(5));
-                    if (packageIssues.Count > 5) detail += $"；另有 {packageIssues.Count - 5} 项";
-                    issues.Add((pkg.PackageKey, detail));
-                }
+                issues.Add((pkg.PackageKey, PackageIntegrityAnalyzer.DescribeIssues(report.Issues)));
             }
 
             return issues;
+        }
+
+        /// <summary>
+        /// 探测一个包的实体文件，把事实交给 Core 判定。
+        /// </summary>
+        private async Task<PackageIntegrityReport> InspectPackageAsync(Package pkg)
+        {
+            if (!_objectStore.PackageExists(pkg.PackageKey))
+            {
+                return PackageIntegrityAnalyzer.Analyze(
+                    pkg.PackageKey, hasManifest: false,
+                    Array.Empty<PackageFileProbe>(), Array.Empty<string>());
+            }
+
+            var filesDir = _objectStore.GetPackageFilesDirectory(pkg.PackageKey);
+            var probes = new List<PackageFileProbe>(pkg.Artifacts.Count);
+
+            // 重复登记的条目也会被完整探测一遍（同一个文件哈希算两次）。不在这里提前跳过：
+            // "哪两条算重复"是判据、只能有一份实现。为一个 manifest 损坏才会出现的情形
+            // 在 IO 层复制一份去重逻辑，省下的时间远不抵判据漂移的代价。
+            foreach (var artifact in pkg.Artifacts)
+            {
+                probes.Add(await ProbeArtifactAsync(pkg.PackageKey, filesDir, artifact).ConfigureAwait(false));
+            }
+
+            return PackageIntegrityAnalyzer.Analyze(
+                pkg.PackageKey, hasManifest: true, probes, EnumerateRelativeFiles(filesDir));
+        }
+
+        /// <summary>
+        /// 探测单个已登记文件：只取事实，不下判断。
+        /// </summary>
+        private static async Task<PackageFileProbe> ProbeArtifactAsync(
+            string packageKey, string filesDir, PackageArtifact artifact)
+        {
+            var raw = artifact.RelativeSourcePath ?? string.Empty;
+            var normalized = raw.Replace('\\', '/');
+
+            string resolved;
+            string absolutePath;
+            try
+            {
+                resolved = PackageIntegrityAnalyzer.ResolveRepositoryRelativePath(packageKey, raw);
+                // SafeCombine 的越界二次校验必须保留：解析只看字符串，落地才知道有没有越出 filesDir。
+                absolutePath = PathSanitizer.SafeCombine(filesDir, resolved);
+            }
+            catch (ArgumentException)
+            {
+                return new PackageFileProbe(raw, normalized, artifact.FileSize, artifact.FileHash,
+                    ResolvedRelativePath: null, Exists: false, ActualSize: 0,
+                    SizeReadError: null, ActualHash: null, HashReadError: null);
+            }
+
+            if (!File.Exists(absolutePath))
+            {
+                return new PackageFileProbe(raw, normalized, artifact.FileSize, artifact.FileHash,
+                    resolved, Exists: false, ActualSize: 0,
+                    SizeReadError: null, ActualHash: null, HashReadError: null);
+            }
+
+            long actualSize = 0;
+            string? sizeReadError = null;
+            if (artifact.FileSize >= 0)
+            {
+                try
+                {
+                    actualSize = new FileInfo(absolutePath).Length;
+                }
+                catch (Exception ex)
+                {
+                    sizeReadError = ex.Message;
+                }
+            }
+
+            string? actualHash = null;
+            string? hashReadError = null;
+            // 大小读失败就不再算哈希：连长度都读不到的文件哈希也算不出来，白付一次 SHA-256。
+            if (sizeReadError == null && !string.IsNullOrWhiteSpace(artifact.FileHash))
+            {
+                try
+                {
+                    actualHash = await ObjectStore.ComputeFileHashAsync(absolutePath).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    hashReadError = ex.Message;
+                }
+            }
+
+            return new PackageFileProbe(raw, normalized, artifact.FileSize, artifact.FileHash,
+                resolved, Exists: true, actualSize, sizeReadError, actualHash, hashReadError);
+        }
+
+        /// <summary>
+        /// <c>files/</c> 下的全部文件，相对 <c>files/</c>、正斜杠归一
+        /// （与 <see cref="PackageIntegrityAnalyzer"/> 的比较键一致）。目录不存在时返回空集合。
+        /// </summary>
+        private static IReadOnlyCollection<string> EnumerateRelativeFiles(string filesDir)
+        {
+            if (!Directory.Exists(filesDir)) return Array.Empty<string>();
+
+            return Directory.EnumerateFiles(filesDir, "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(filesDir, f).Replace('\\', '/'))
+                .ToList();
         }
 
         // ─── 持久化 ───
@@ -604,7 +621,7 @@ namespace UEModManager.Services
         ///
         /// 写失败必须上抛：索引丢了等于所有 MOD 的登记信息丢了（仓库里的文件还在，
         /// 界面上却什么都不剩）。此前这里把异常吞掉，用户导入/删除后看到界面正常刷新，
-        /// 重启后包凭空消失。语义与 ModDataService / ProfileService 统一为 log + throw，
+        /// 重启后包凭空消失。语义与 GameConfigService / ProfileService 统一为 log + throw，
         /// 由调用链上的 SafeEvent.Run 或 MainViewModel 的 OperationResult 呈现。
         ///
         /// 失败时**不**回滚内存里的 <c>_packages</c>：仓库文件已经真实写进去了，

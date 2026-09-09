@@ -1309,12 +1309,6 @@ namespace UEModManager
             SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import MOD");
         }
 
-        private void ImportPlugin_Click(object sender, MouseButtonEventArgs e)
-        {
-            e.Handled = true;
-            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import plugin");
-        }
-
         /// <summary>v2.0 统一导入流程：ImportDialog → ImportConfirmDialog → 刷新。</summary>
         private async Task OpenImportWizardAsync(string[]? preSelectedFiles = null)
         {
@@ -1327,7 +1321,7 @@ namespace UEModManager
             else
             {
                 // Step 1: 打开导入向导
-                var importDlg = new Views.ImportDialog(_vm.PackageImport) { Owner = this };
+                var importDlg = new Views.ImportDialog { Owner = this };
                 if (importDlg.ShowDialog() != true || importDlg.SelectedFiles.Count == 0)
                     return;
                 filesToImport = importDlg.SelectedFiles.ToArray();
@@ -1348,7 +1342,7 @@ namespace UEModManager
 
             // Step 2: 打开确认对话框
             var confirmDlg = new Views.ImportConfirmDialog(
-                _vm.PackageImport, _vm.PackageRepo, _vm.ProfileService, _vm.ConflictAnalysis, _gameConfig)
+                _vm.PackageImport, _vm.PackageRepo, _vm.ProfileService, _gameConfig)
             { Owner = this, FilePaths = filesToImport.ToList() };
 
             if (confirmDlg.ShowDialog() == true && confirmDlg.ImportResults != null)
@@ -1762,24 +1756,6 @@ namespace UEModManager
             return null;
         }
 
-        // ── 悬停遮罩上的直接操作按钮 ──
-
-        private void ChangePreviewDirect_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            e.Handled = true;
-            var mod = (sender as FrameworkElement)?.Tag as ModInfo;
-            if (mod != null)
-                SafeEvent.Run(this, () => ChangePreviewFromUiAsync(mod), _logger, "更换 MOD 预览图");
-        }
-
-        private void DeleteModDirect_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            e.Handled = true;
-            var mod = (sender as FrameworkElement)?.Tag as ModInfo;
-            if (mod != null)
-                SafeEvent.Run(this, () => DeleteModFromUiAsync(mod), _logger, "删除 MOD");
-        }
-
         private void ModMore_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
@@ -1883,11 +1859,9 @@ namespace UEModManager
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Launch] 打开启动中心失败: {ex.Message}");
-                // 降级为直接启动
-                if (!_gameConfig.LaunchGame())
-                    CyberMessageBox.Show(this, "启动游戏失败，请检查游戏路径和可执行文件设置。", "启动失败",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                _logger?.LogError(ex, "打开启动中心失败");
+                CyberMessageBox.Show(this, $"无法打开启动中心：{ex.Message}", "启动失败",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

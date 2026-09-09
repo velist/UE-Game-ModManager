@@ -22,7 +22,6 @@ namespace UEModManager.Services
         private readonly ILogger<DataMigrationService> _logger;
         private readonly PackageRepository _repository;
         private readonly ObjectStore _objectStore;
-        private readonly ModDataService _modDataService;
         private readonly GameConfigService _gameConfig;
         private readonly string _dataDirectory;
 
@@ -33,13 +32,11 @@ namespace UEModManager.Services
             ILogger<DataMigrationService> logger,
             PackageRepository repository,
             ObjectStore objectStore,
-            ModDataService modDataService,
             GameConfigService gameConfig)
         {
             _logger = logger;
             _repository = repository;
             _objectStore = objectStore;
-            _modDataService = modDataService;
             _gameConfig = gameConfig;
             _dataDirectory = AppPaths.DataDirectory;
         }

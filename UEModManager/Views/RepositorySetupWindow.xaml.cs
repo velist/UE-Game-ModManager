@@ -1,9 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services;
 using UEModManager.Services.Paths;
@@ -14,11 +19,8 @@ namespace UEModManager.Views
     /// 首次运行时问一句"MOD 存哪个盘"。
     ///
     /// <para>
-    /// 这是一个<b>新增的独立对话框</b>，不在 1:1 UI 原型的范围内，主界面布局一点没动。
-    /// 视觉全部取自 <c>CyberStyles.xaml</c> 的设计令牌，与 <see cref="CyberMessageBox"/>
-    /// 同一套（<c>CyberModalWindow</c> 外壳 + Primary/Secondary/Ghost 三种按钮）。
-    /// 一律不用原生 <c>MessageBox</c>：审计项 P1-7 正在清理它对暗色主题的破坏，
-    /// 这里不能再添一处。
+    /// 容量、选中状态与最终保存路径优先展示；小容量卷按真实总容量归组。
+    /// 仅负责交互编排，推荐、目录校验与偏好保存仍由现有服务处理。
     /// </para>
     ///
     /// <para>
@@ -34,6 +36,10 @@ namespace UEModManager.Views
     {
         private readonly RepositorySetupService _service;
         private readonly ILogger? _logger;
+        private readonly DispatcherTimer _feedbackTimer;
+        private IReadOnlyList<RepositoryDriveRow> _drives = Array.Empty<RepositoryDriveRow>();
+        private RepositoryDriveRow? _selectedDrive;
+        private bool _syncingSelection;
 
         /// <summary>用户手动挑的文件夹；为 null 时以列表里选中的盘为准。</summary>
         private string? _manualPath;
@@ -45,68 +51,129 @@ namespace UEModManager.Views
         private bool _settled;
 
         public RepositorySetupWindow(RepositorySetupService service, ILogger? logger = null)
+            : this(service, logger, drives: null)
+        {
+        }
+
+        internal RepositorySetupWindow(RepositorySetupService service, ILogger? logger,
+            IReadOnlyList<RepositoryDriveOption>? drives)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _logger = logger;
 
             InitializeComponent();
-            LoadDrives();
+            MaxHeight = Math.Max(320, SystemParameters.WorkArea.Height - 32);
+            Loaded += (_, _) => KeepWithinWorkArea();
+            SizeChanged += (_, _) => KeepWithinWorkArea();
+            _feedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.6) };
+            _feedbackTimer.Tick += (_, _) => ClearFeedback();
+            LoadDrives(drives ?? _service.ListDrives());
         }
 
         // ─── 初始化 ───
 
-        private void LoadDrives()
+        private void KeepWithinWorkArea()
         {
-            var drives = _service.ListDrives();
+            if (!IsLoaded) return;
+            var screen = System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle);
+            var area = screen.WorkingArea;
+            var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+            var bounds = Rect.Transform(new Rect(area.X, area.Y, area.Width, area.Height), transform);
+            MaxHeight = Math.Max(320, bounds.Height - 32);
+
+            // SizeToContent 展开后保留原来的 Top；靠近屏幕底部时需上移，避免按钮落到屏外。
+            if (!double.IsNaN(Top))
+                Top = Math.Clamp(Top, bounds.Top + 16,
+                    Math.Max(bounds.Top + 16, bounds.Bottom - Math.Min(ActualHeight, MaxHeight) - 16));
+        }
+
+        private void LoadDrives(IReadOnlyList<RepositoryDriveOption> drives)
+        {
             var recommended = RepositoryDriveAdvisor.Recommend(drives);
 
-            var rows = drives
+            _drives = drives
                 .Select(d => RepositoryDriveRow.Create(
                     d, isRecommended: recommended != null && ReferenceEquals(d, recommended), FindBrush))
-                .ToList();
+                .ToArray();
+            foreach (var drive in _drives) drive.PropertyChanged += Drive_PropertyChanged;
 
-            DriveList.ItemsSource = rows;
+            var mainDrives = _drives.Where(d => !d.IsSmallVolume).ToArray();
+            var smallDrives = _drives.Where(d => d.IsSmallVolume).ToArray();
+            DriveList.ItemsSource = mainDrives;
+            SmallDriveList.ItemsSource = smallDrives;
+            SmallVolumesToggle.Visibility = smallDrives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            SmallVolumesToggle.Tag = $"{smallDrives.Length} 个";
+            AutomationProperties.SetName(SmallVolumesToggle, $"显示或收起 {smallDrives.Length} 个小容量卷");
+            SmallVolumesToggle.IsChecked = mainDrives.Length == 0 && smallDrives.Length > 0;
+            EmptyDrivesText.Visibility = _drives.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            // 默认选中推荐盘。选不出推荐盘（只有系统盘且已经很满、或全是可移动/网络盘）时
-            // 一个都不预选：与其替用户挑一个装不下的位置，不如让他自己看着数字决定。
-            DriveList.SelectedItem = rows.FirstOrDefault(r => r.IsRecommended);
-
-            if (DriveList.SelectedItem == null) RefreshVerdict();
+            // 没有足够空间的固定盘时，保持未选择，交给用户决定。
+            SetSelectedDrive(_drives.FirstOrDefault(r => r.IsRecommended));
+            RefreshVerdict();
         }
 
         private Brush? FindBrush(string key)
         {
-            try { return TryFindResource(key) as Brush; }
+            try
+            {
+                // 使用引导专用的主题令牌，不覆盖主程序其他窗口的配色。
+                return TryFindResource(key switch
+                {
+                    "StatusRedBrush" => "SetupErrorBrush",
+                    "StatusOrangeBrush" => "SetupWarningBrush",
+                    "StatusGreenBrush" or "PrimaryBrush" => "SetupAccentBrush",
+                    _ => "SetupSecondaryBrush"
+                }) as Brush ?? TryFindResource(key) as Brush;
+            }
             catch { return null; }
         }
 
         // ─── 候选位置 ───
 
-        private void DriveList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void Drive_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            // 在列表里点一下就等于放弃之前手选的文件夹，否则界面显示的落点会和选中项对不上
+            if (_syncingSelection || e.PropertyName != nameof(RepositoryDriveRow.IsSelected)
+                || sender is not RepositoryDriveRow { IsSelected: true } drive) return;
+
+            SetSelectedDrive(drive);
             _manualPath = null;
             RefreshVerdict();
         }
 
+        private void SetSelectedDrive(RepositoryDriveRow? selected)
+        {
+            _syncingSelection = true;
+            try
+            {
+                _selectedDrive = selected;
+                foreach (var drive in _drives) drive.IsSelected = ReferenceEquals(drive, selected);
+            }
+            finally { _syncingSelection = false; }
+        }
+
         private void BrowseFolder_Click(object sender, RoutedEventArgs e)
         {
-            using var dialog = new System.Windows.Forms.FolderBrowserDialog
+            var dialog = new Microsoft.Win32.OpenFolderDialog
             {
-                Description = "选择一个文件夹存放 MOD",
-                UseDescriptionForTitle = true,
-                SelectedPath = CurrentSelectionRoot() ?? string.Empty,
+                Title = "选择一个文件夹存放 MOD",
+                Multiselect = false,
             };
+            var initialPath = CurrentSelectionRoot();
+            if (Directory.Exists(initialPath)) dialog.InitialDirectory = initialPath;
 
-            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            if (dialog.ShowDialog(this) == true) SelectFolder(dialog.FolderName);
+        }
 
-            _manualPath = dialog.SelectedPath;
-            DriveList.SelectedItem = null;
+        internal void SelectFolder(string path)
+        {
+            // 清除两组单选项时不能让取消选择事件覆盖刚选好的自定义路径。
+            SetSelectedDrive(null);
+            _manualPath = path;
             RefreshVerdict();
         }
 
         private string? CurrentSelectionRoot()
-            => _manualPath ?? (DriveList.SelectedItem as RepositoryDriveRow)?.RootPath;
+            => _manualPath ?? _selectedDrive?.RootPath;
 
         /// <summary>
         /// 重新检查当前候选位置并刷新界面。
@@ -115,13 +182,15 @@ namespace UEModManager.Views
         /// </summary>
         private void RefreshVerdict()
         {
+            ClearFeedback();
             var candidate = CurrentSelectionRoot();
             if (string.IsNullOrWhiteSpace(candidate))
             {
                 _verdict = null;
-                ResolvedPathText.Text = "（还没选，保持默认：" + AppPathsDefaultText() + "）";
-                IssueList.ItemsSource = null;
+                ShowPath(_service.DefaultRepositoryRoot);
+                ShowIssues(Array.Empty<RepositoryIssueRow>(), "选择一个磁盘或文件夹，确认后使用上方位置。");
                 ConfirmButton.IsEnabled = false;
+                CopyPathButton.IsEnabled = false;
                 return;
             }
 
@@ -137,27 +206,83 @@ namespace UEModManager.Views
 
             if (_verdict == null)
             {
-                ResolvedPathText.Text = "这个位置检查不了，请换一个。";
-                IssueList.ItemsSource = null;
+                ShowPath(candidate);
+                ShowIssues(Array.Empty<RepositoryIssueRow>(), "这个位置暂时无法检查，请换一个文件夹。");
                 ConfirmButton.IsEnabled = false;
+                CopyPathButton.IsEnabled = false;
                 return;
             }
 
             var verdict = _verdict;
-            ResolvedPathText.Text = verdict.CanUse ? verdict.ResolvedPath : candidate;
-            IssueList.ItemsSource = verdict.Issues
+            ShowPath(verdict.CanUse ? verdict.ResolvedPath : candidate);
+            var issues = verdict.Issues
                 .Select(i => RepositoryIssueRow.Create(i, verdict.Severity, FindBrush))
                 .ToList();
+            ShowIssues(issues, "MOD 将独立存放，不会与已有文件混放。");
             ConfirmButton.IsEnabled = verdict.CanUse;
+            CopyPathButton.IsEnabled = verdict.CanUse;
         }
 
-        private static string AppPathsDefaultText() => Infrastructure.AppPaths.RepositoryRoot;
+        private void ShowPath(string path)
+        {
+            string root;
+            try { root = Path.GetPathRoot(path) ?? string.Empty; }
+            catch (ArgumentException) { root = string.Empty; }
+            PathRootRun.Text = root;
+            PathRemainderRun.Text = path[root.Length..];
+            ResolvedPathText.ToolTip = path;
+        }
+
+        private void ShowIssues(IReadOnlyList<RepositoryIssueRow> issues, string hint)
+        {
+            IssueList.ItemsSource = issues;
+            IssueList.Visibility = issues.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+            DefaultPathHint.Visibility = issues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            PathHintText.Text = hint;
+        }
+
+        private void CopyPath_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (_verdict is not { CanUse: true }) return;
+            try
+            {
+                System.Windows.Clipboard.SetText(_verdict.ResolvedPath);
+                ShowFeedback("路径已复制。", warning: false);
+            }
+            catch (System.Runtime.InteropServices.ExternalException ex)
+            {
+                _logger?.LogWarning(ex, "[UI] 复制仓库位置失败");
+                ShowFeedback("暂时无法复制路径，请稍后重试。", warning: true);
+            }
+            _feedbackTimer.Start();
+        }
+
+        private void ShowFeedback(string message, bool warning)
+        {
+            FeedbackText.Text = message;
+            FeedbackText.Foreground = (Brush)FindResource(warning ? "SetupWarningBrush" : "SetupSecondaryBrush");
+            FeedbackText.Visibility = Visibility.Visible;
+        }
+
+        private void ClearFeedback()
+        {
+            _feedbackTimer.Stop();
+            FeedbackText.Visibility = Visibility.Collapsed;
+        }
 
         // ─── 三个出口 ───
 
         private void Confirm_Click(object sender, RoutedEventArgs e)
         {
             if (_verdict == null || !_verdict.CanUse) return;
+            var displayedPath = _verdict.ResolvedPath;
+            RefreshVerdict();
+            if (_verdict == null || !_verdict.CanUse) return;
+            if (!string.Equals(displayedPath, _verdict.ResolvedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                ShowFeedback("保存位置发生了变化，请核对上方路径后再次确认。", warning: true);
+                return;
+            }
 
             // 有代价的位置（可移动盘 / 网络位置 / 安装目录内 / 空间偏少）再确认一次。
             // 不做成硬禁止：这些都是用户可能确实想要的选择，我们只负责让他知道代价。
@@ -197,7 +322,20 @@ namespace UEModManager.Views
             Close();
         }
 
-        private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
+        private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void Window_OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            Close();
+        }
+
+        private void TitleBar_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left && e.ButtonState == MouseButtonState.Pressed)
+                DragMove();
+        }
 
         /// <summary>
         /// 兜底记账。放在 <see cref="OnClosed"/> 而不是各个按钮里，是因为"关闭窗口"的路径
@@ -206,6 +344,8 @@ namespace UEModManager.Views
         /// </summary>
         protected override void OnClosed(EventArgs e)
         {
+            _feedbackTimer.Stop();
+            foreach (var drive in _drives) drive.PropertyChanged -= Drive_PropertyChanged;
             if (!_settled)
             {
                 _settled = true;
@@ -231,8 +371,52 @@ namespace UEModManager.Views
     // ═══════════════════════════════════════════════════════════════════
 
     /// <summary>磁盘列表的一行。</summary>
-    public sealed class RepositoryDriveRow
+    public sealed class RepositoryDriveRow : INotifyPropertyChanged
     {
+        private bool _isSelected;
+        private long? _availableBytes;
+        private long? _totalBytes;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (value && !IsSelectable || _isSelected == value) return;
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+
+        // 按总容量整理小卷，而不是把快满的大磁盘折叠掉；未知容量仍留在主列表。
+        public bool IsSmallVolume => _totalBytes is > 0 and < 1024L * 1024 * 1024;
+        public bool IsSelectable => _availableBytes is null or > 0;
+        public bool IsWarning => _availableBytes is >= 0 and < RepositoryLocationValidator.RecommendedFreeBytes;
+        public string FreeText => FormatCapacity(_availableBytes).Value;
+        public string FreeUnitLabel => $"{FormatCapacity(_availableBytes).Unit} 可用".Trim();
+        public string TotalLabel => _totalBytes is > 0 ? $"共 {DiskSpacePrecheck.Humanize(_totalBytes.Value)}" : "总容量未知";
+        public string UsedDescription => _availableBytes is null || _totalBytes is null or <= 0
+            ? "已用空间未知" : $"已用 {UsedPercent:0.#}%";
+        public string AccessibleName => $"{DisplayName}，{FreeText} {FreeUnitLabel}，{TotalLabel}，{BadgeText}";
+
+        private static (string Value, string Unit) FormatCapacity(long? bytes)
+        {
+            if (bytes is null) return ("未知", string.Empty);
+            var parts = DiskSpacePrecheck.Humanize(Math.Max(0, bytes.Value)).Split(' ', 2);
+            return (parts[0], parts[1]);
+        }
+
+        private static string DisplayNameFor(RepositoryDriveOption option)
+        {
+            var volume = option.RootPath.TrimEnd('\\', '/');
+            if (volume.Length != 2 || volume[1] != ':') return option.DisplayName;
+            var label = option.DisplayName.StartsWith(volume, StringComparison.OrdinalIgnoreCase)
+                ? option.DisplayName[volume.Length..].Trim() : option.DisplayName;
+            return $"{(string.IsNullOrEmpty(label) ? "本地磁盘" : label)} ({volume})";
+        }
+
         private RepositoryDriveRow(
             string rootPath, string displayName, string capacityText,
             string badgeText, string badgeBrushKey, Brush? badgeBrush, Visibility badgeVisibility,
@@ -345,7 +529,8 @@ namespace UEModManager.Views
             if (option is null) throw new ArgumentNullException(nameof(option));
             if (resolveBrush is null) throw new ArgumentNullException(nameof(resolveBrush));
 
-            var badgeText = BadgeTextFor(option.Kind, isRecommended, option.IsCurrentDefault);
+            var badgeText = option.AvailableBytes is <= 0 ? "已满"
+                : BadgeTextFor(option.Kind, isRecommended, option.IsCurrentDefault);
             var badgeKey = BadgeBrushKeyFor(option.Kind, isRecommended);
             var usageKey = UsageBrushKeyFor(option.AvailableBytes);
             var gameText = GameVolumeTextFor(option.HostsCurrentGame);
@@ -353,7 +538,7 @@ namespace UEModManager.Views
 
             return new RepositoryDriveRow(
                 option.RootPath,
-                option.DisplayName,
+                DisplayNameFor(option),
                 CapacityTextFor(option.AvailableBytes, option.TotalBytes),
                 badgeText,
                 badgeKey,
@@ -366,7 +551,11 @@ namespace UEModManager.Views
                 gameText,
                 gameKey,
                 resolveBrush(gameKey),
-                gameText.Length == 0 ? Visibility.Collapsed : Visibility.Visible);
+                gameText.Length == 0 ? Visibility.Collapsed : Visibility.Visible)
+            {
+                _availableBytes = option.AvailableBytes,
+                _totalBytes = option.TotalBytes
+            };
         }
     }
 

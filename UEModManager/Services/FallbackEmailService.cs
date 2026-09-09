@@ -17,7 +17,6 @@ namespace UEModManager.Services
         private readonly List<IEmailSender> _senders;
         private readonly Dictionary<string, ServiceHealthStatus> _healthStatus;
 
-        private const int MaxRetryAttempts = 2;
         private const int HealthCheckCacheSeconds = 60;
 
         public string ServiceName => "FallbackEmailService";

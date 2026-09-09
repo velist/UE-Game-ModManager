@@ -385,26 +385,6 @@ namespace UEModManager.Services
             }
         }
 
-        private static bool IsValidPassword(string password)
-        {
-            if (string.IsNullOrWhiteSpace(password) || password.Length < MIN_PASSWORD_LENGTH)
-                return false;
-
-            // 检查密码复杂度
-            bool hasLower = false, hasUpper = false, hasDigit = false, hasSpecial = false;
-            foreach (char c in password)
-            {
-                if (char.IsLower(c)) hasLower = true;
-                else if (char.IsUpper(c)) hasUpper = true;
-                else if (char.IsDigit(c)) hasDigit = true;
-                else if (!char.IsLetterOrDigit(c)) hasSpecial = true;
-            }
-
-            // 至少满足3个条件
-            int criteriaCount = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
-            return criteriaCount >= 3;
-        }
-
         private static string GenerateSessionToken()
         {
             var bytes = new byte[32];
@@ -1001,42 +981,6 @@ namespace UEModManager.Services
         #region 管理功能
 
         /// <summary>
-        /// 获取用户总数
-        /// </summary>
-        public async Task<int> GetTotalUsersCountAsync()
-        {
-            try
-            {
-                return await _dbContext.Users.CountAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取用户总数失败");
-                return 0;
-            }
-        }
-
-        /// <summary>
-        /// 获取活跃用户数（30天内登录过的）
-        /// </summary>
-        public async Task<int> GetActiveUsersCountAsync()
-        {
-            try
-            {
-                // 修复：使用本地时间保持与用户登录时间记录的一致性
-                var thirtyDaysAgo = DateTime.Now.AddDays(-30);
-                return await _dbContext.Users
-                    .Where(u => u.LastLoginAt >= thirtyDaysAgo)
-                    .CountAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取活跃用户数失败");
-                return 0;
-            }
-        }
-
-        /// <summary>
         /// 获取所有用户列表
         /// </summary>
         public async Task<IEnumerable<LocalUser>> GetAllUsersAsync()
@@ -1050,7 +994,8 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "获取用户列表失败");
-                return new List<LocalUser>();
+                // 调用方必须区分查询失败与空库，不能据此显示“数据库正常”。
+                throw;
             }
         }
 

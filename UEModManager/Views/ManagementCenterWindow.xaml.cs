@@ -10,7 +10,6 @@ using System.Windows.Media;
 using UEModManager.Models;
 using UEModManager.Infrastructure;
 using UEModManager.Services;
-using UEModManager.Services.Config;
 
 namespace UEModManager.Views
 {
@@ -19,18 +18,14 @@ namespace UEModManager.Views
         private readonly PackageRepository _packageRepo;
         private readonly ProfileService _profileService;
         private readonly DeploymentService _deploymentService;
-        private readonly ConfigMergeEngine _configMergeEngine;
         private readonly OverwriteStore _overwriteStore;
         private readonly DiagnosticExportService _diagnosticExport;
         private readonly RepositoryReclaimService _reclaim;
-
-        private int _activeTab;
 
         public ManagementCenterWindow(
             PackageRepository packageRepo,
             ProfileService profileService,
             DeploymentService deploymentService,
-            ConfigMergeEngine configMergeEngine,
             OverwriteStore overwriteStore,
             DiagnosticExportService diagnosticExport,
             RepositoryReclaimService reclaim)
@@ -39,7 +34,6 @@ namespace UEModManager.Views
             _packageRepo = packageRepo;
             _profileService = profileService;
             _deploymentService = deploymentService;
-            _configMergeEngine = configMergeEngine;
             _overwriteStore = overwriteStore;
             _diagnosticExport = diagnosticExport;
             _reclaim = reclaim;
@@ -69,8 +63,6 @@ namespace UEModManager.Views
 
         private void SwitchTab(int index)
         {
-            _activeTab = index;
-
             PanelModLib.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
             PanelDeployHistory.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
             PanelConfigMerge.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;

@@ -20,7 +20,6 @@ namespace UEModManager.ViewModels
     public partial class MainViewModel : ObservableObject, IDisposable
     {
         private readonly GameConfigService _gameConfig;
-        private readonly ModDataService _modData;
         private readonly NewCategoryService _categoryService;
         private readonly ProfileService _profileService;
         private readonly PackageRepository _packageRepository;
@@ -38,7 +37,6 @@ namespace UEModManager.ViewModels
         // ─── 服务访问器（供 code-behind 使用） ───
 
         public GameConfigService GameConfig => _gameConfig;
-        public ModDataService ModData => _modData;
         public NewCategoryService CategoryService => _categoryService;
         public ProfileService ProfileService => _profileService;
         public PackageRepository PackageRepo => _packageRepository;
@@ -150,7 +148,6 @@ namespace UEModManager.ViewModels
 
         public MainViewModel(
             GameConfigService gameConfig,
-            ModDataService modData,
             NewCategoryService categoryService,
             ProfileService profileService,
             PackageRepository packageRepository,
@@ -166,7 +163,6 @@ namespace UEModManager.ViewModels
             ILogger<MainViewModel> logger)
         {
             _gameConfig = gameConfig;
-            _modData = modData;
             _categoryService = categoryService;
             _profileService = profileService;
             _packageRepository = packageRepository;
@@ -195,7 +191,7 @@ namespace UEModManager.ViewModels
                 async (mod, enable) => (await ToggleModAsync(mod, enable)).Success,
                 async (mod, path) => (await ChangePreviewAsync(mod, path)).Success,
                 async mod => (await DeletePackageModAsync(mod)).Success);
-            Categories = new CategoryViewModel(categoryService, logger);
+            Categories = new CategoryViewModel(categoryService);
 
             // 连接子 ViewModel 事件
             ModList.ModSelected += OnModListSelectionChanged;
@@ -379,16 +375,7 @@ namespace UEModManager.ViewModels
             await RefreshFromRepositoryAsync();
         }
 
-        /// <summary>
-        /// 启动游戏。
-        /// </summary>
-        [RelayCommand]
-        public void LaunchGame()
-        {
-            _gameConfig.LaunchGame();
-        }
-
-        public async Task RefreshFromRepositoryAsync()
+        public Task RefreshFromRepositoryAsync()
         {
             using var loading = BeginLoading("刷新仓库...");
             try
@@ -425,7 +412,6 @@ namespace UEModManager.ViewModels
                 });
 
                 RefreshProfileDisplay();
-                await _modData.SaveModsAsync(AllMods);
                 UpdateStatusBar();
                 _logger.LogInformation("仓库刷新完成: {Count} 个", packages.Count);
             }
@@ -433,6 +419,7 @@ namespace UEModManager.ViewModels
             {
                 _logger.LogError(ex, "刷新仓库失败");
             }
+            return Task.CompletedTask;
         }
 
         // ─── MOD 操作 ───
@@ -756,7 +743,6 @@ namespace UEModManager.ViewModels
                 }
 
                 await _profileService.RemovePackageReferencesAsync(package.PackageKey);
-                await _modData.RemoveModAsync(package.PackageKey);
                 _logger.LogInformation("包已从仓库和所有方案删除: {Key}", package.PackageKey);
                 return OperationResult.Ok();
             }
@@ -764,47 +750,6 @@ namespace UEModManager.ViewModels
             {
                 _logger.LogError(ex, "删除包失败: {Key}", mod.RealName);
                 return OperationResult.Fail(ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// 生成完整部署计划（用于 UI 预览）。
-        /// </summary>
-        public async Task<DeploymentPlan?> CreateFullDeploymentPlanAsync()
-        {
-            try
-            {
-                return await _deploymentPlanner.CreatePlanAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "生成部署计划失败");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// 执行完整部署计划。
-        /// </summary>
-        public async Task<DeploymentTransaction?> ExecuteDeploymentAsync(DeploymentPlan plan)
-        {
-            using var loading = BeginLoading("部署中...");
-            try
-            {
-
-                var transaction = await _deploymentService.ExecuteAsync(plan);
-                if (transaction.Status == DeploymentStatus.Committed)
-                {
-                    _logger.LogInformation("完整部署成功: {Count} 个操作", plan.TotalCount);
-                    await RefreshFromRepositoryAsync();
-                }
-
-                return transaction;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "执行部署失败");
-                return null;
             }
         }
 

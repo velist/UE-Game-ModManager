@@ -7,9 +7,8 @@ namespace UEModManager.Services.Deployment
     ///
     /// <para>
     /// 起因：<c>DeploymentService</c> 每完成一个操作就 <c>ProgressChanged?.Invoke</c> 一次，
-    /// 而订阅者 <c>DeployPreviewDialog.OnDeployProgress</c> 里是 <c>Dispatcher.Invoke</c>
-    /// —— 同步阻塞地marshal到 UI 线程。上万个文件的整合包部署会因此产生上万次
-    /// 跨线程同步调用，UI 线程被进度更新淹没，反而比不显示进度还卡。
+    /// 订阅者如果同步切回 UI 线程，上万个文件的整合包部署就会产生上万次
+    /// 跨线程调用。按进度和时间限制事件频率，避免订阅者被更新淹没。
     /// </para>
     ///
     /// <para>

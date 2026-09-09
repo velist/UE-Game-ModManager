@@ -207,7 +207,10 @@ namespace UEModManager.Services
         /// 创建新 Profile。
         /// </summary>
         public async Task<InstanceProfile> CreateProfileAsync(string name, string? description = null,
-            string? iconName = null, string? iconColor = null)
+            string? iconName = null, string? iconColor = null,
+            IReadOnlyList<ProfilePackageEntry>? packages = null,
+            IReadOnlyDictionary<string, string>? conflictOverrides = null,
+            DeploymentBackendType backendType = DeploymentBackendType.Copy)
         {
             InstanceProfile profile;
 
@@ -222,7 +225,12 @@ namespace UEModManager.Services
                     Description = description,
                     IconName = iconName ?? "shield",
                     IconColor = iconColor ?? "#06b6d4",
-                    IsActive = false
+                    IsActive = false,
+                    BackendType = backendType,
+                    Packages = packages?.Select(CloneEntry).ToList() ?? [],
+                    ConflictOverrides = conflictOverrides == null
+                        ? new(StringComparer.OrdinalIgnoreCase)
+                        : new(conflictOverrides, StringComparer.OrdinalIgnoreCase)
                 };
 
                 _profiles = [.. _profiles, profile];
@@ -257,6 +265,7 @@ namespace UEModManager.Services
                     IconColor = source.IconColor,
                     IsActive = false,
                     BackendType = source.BackendType,
+                    ConflictOverrides = new(source.ConflictOverrides, StringComparer.OrdinalIgnoreCase),
                     Packages = source.Packages
                         .Select(p => new ProfilePackageEntry
                         {
@@ -528,6 +537,78 @@ namespace UEModManager.Services
 
         // ─── 数据迁移 ───
 
+        /// <summary>只修改指定方案的覆盖规则；写入失败恢复内存，避免显示已保存的假象。</summary>
+        public async Task SetConflictOverrideAsync(Guid profileId, string targetPath, string? winnerPackageKey)
+            => await UpdateConflictOverridesAsync(profileId, rules =>
+            {
+                if (winnerPackageKey == null) rules.Remove(targetPath);
+                else rules[targetPath] = winnerPackageKey;
+            });
+
+        internal async Task UpdateConflictOverridesAsync(Guid profileId, Action<Dictionary<string, string>> update)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var profile = _profiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new InvalidOperationException($"找不到方案: {profileId}");
+                var oldOverrides = profile.ConflictOverrides;
+                var oldModified = profile.LastModified;
+                var updated = new Dictionary<string, string>(oldOverrides, StringComparer.OrdinalIgnoreCase);
+                update(updated);
+                profile.ConflictOverrides = updated;
+                profile.LastModified = DateTime.Now;
+                try { await SaveOrDeferLockedAsync().ConfigureAwait(false); }
+                catch
+                {
+                    profile.ConflictOverrides = oldOverrides;
+                    profile.LastModified = oldModified;
+                    throw;
+                }
+            }
+            finally { _gate.Release(); }
+        }
+
+        public async Task ReplaceConflictOverridesAsync(Guid profileId, IReadOnlyDictionary<string, string> overrides)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var profile = _profiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new InvalidOperationException($"找不到方案: {profileId}");
+                var oldOverrides = profile.ConflictOverrides;
+                var oldModified = profile.LastModified;
+                profile.ConflictOverrides = new(overrides, StringComparer.OrdinalIgnoreCase);
+                profile.LastModified = DateTime.Now;
+                try { await SaveOrDeferLockedAsync().ConfigureAwait(false); }
+                catch
+                {
+                    profile.ConflictOverrides = oldOverrides;
+                    profile.LastModified = oldModified;
+                    throw;
+                }
+            }
+            finally { _gate.Release(); }
+        }
+
+        private static ProfilePackageEntry CloneEntry(ProfilePackageEntry entry) => new()
+        {
+            PackageKey = entry.PackageKey,
+            IsEnabled = entry.IsEnabled,
+            Priority = entry.Priority,
+            Kind = entry.Kind,
+            TargetRootPath = entry.TargetRootPath
+        };
+
+        private async Task<Dictionary<string, string>> ReadLegacyOverridesAsync()
+        {
+            var legacyPath = Path.Combine(_dataDir, $"{_currentGameName}_conflict_overrides.json");
+            if (!File.Exists(legacyPath)) return new(StringComparer.OrdinalIgnoreCase);
+            var json = await File.ReadAllTextAsync(legacyPath).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions)
+                ?? throw new InvalidDataException($"旧版冲突覆盖规则无法读取: {legacyPath}");
+        }
+
         /// <summary>
         /// 从现有 MOD 列表创建默认 Profile（v1.8 → v2.0 数据迁移）。
         /// 调用方必须已持有 <see cref="_gate"/>。
@@ -541,7 +622,8 @@ namespace UEModManager.Services
                 Description = "自动创建的默认 MOD 配置方案",
                 IconName = "shield",
                 IconColor = "#06b6d4",
-                IsActive = true
+                IsActive = true,
+                ConflictOverrides = await ReadLegacyOverridesAsync().ConfigureAwait(false)
             };
 
             // 尝试从现有 MOD 数据迁移
@@ -589,10 +671,18 @@ namespace UEModManager.Services
                 return;
             }
 
+            List<Guid> needsMigration;
             try
             {
                 var json = await File.ReadAllTextAsync(filePath).ConfigureAwait(false);
                 _profiles = JsonSerializer.Deserialize<List<InstanceProfile>>(json, JsonOptions) ?? [];
+                using var document = JsonDocument.Parse(json);
+                needsMigration = document.RootElement.ValueKind == JsonValueKind.Array
+                    ? document.RootElement.EnumerateArray().Zip(_profiles)
+                        .Where(pair => !pair.First.TryGetProperty("conflictOverrides", out var value)
+                            || value.ValueKind == JsonValueKind.Null)
+                        .Select(pair => pair.Second.Id).ToList()
+                    : [];
                 _logger.LogInformation("加载了 {Count} 个方案 (游戏: {Game})",
                     _profiles.Count, _currentGameName);
             }
@@ -600,6 +690,21 @@ namespace UEModManager.Services
             {
                 BackupCorruptProfileFile(filePath, ex);
                 _profiles = [];
+                return;
+            }
+
+            if (needsMigration.Count == 0) return;
+            // 每个旧方案此前都使用游戏级规则，所以各自复制一份。新方案有明确空字段，不继承旧文件。
+            // 旧文件保留；只有原子保存成功后，磁盘上的字段存在性才成为迁移完成标记。
+            var legacy = await ReadLegacyOverridesAsync().ConfigureAwait(false);
+            var migrating = _profiles.Where(p => needsMigration.Contains(p.Id)).ToList();
+            var previous = migrating.ToDictionary(p => p.Id, p => p.ConflictOverrides);
+            foreach (var profile in migrating) profile.ConflictOverrides = legacy;
+            try { await PersistAsync().ConfigureAwait(false); }
+            catch
+            {
+                foreach (var profile in migrating) profile.ConflictOverrides = previous[profile.Id];
+                throw;
             }
         }
 

@@ -15,7 +15,6 @@ namespace UEModManager.ViewModels
         private readonly LaunchOrchestrator _launcher;
         private readonly ProfileService _profileService;
         private readonly GameConfigService _gameConfig;
-        private readonly PackageRepository _packageRepo;
         private readonly ConflictAnalyzer _conflictAnalyzer;
         private readonly ILogger _logger;
 
@@ -68,14 +67,12 @@ namespace UEModManager.ViewModels
             LaunchOrchestrator launcher,
             ProfileService profileService,
             GameConfigService gameConfig,
-            PackageRepository packageRepo,
             ConflictAnalyzer conflictAnalyzer,
             ILogger logger)
         {
             _launcher = launcher;
             _profileService = profileService;
             _gameConfig = gameConfig;
-            _packageRepo = packageRepo;
             _conflictAnalyzer = conflictAnalyzer;
             _logger = logger;
         }

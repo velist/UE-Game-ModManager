@@ -1,30 +1,28 @@
-const header = document.querySelector('[data-header]');
-const menuToggle = document.querySelector('[data-menu-toggle]');
-const navLinks = [...document.querySelectorAll('.site-nav a')];
-
-menuToggle?.addEventListener('click', () => {
-  const isOpen = header.classList.toggle('nav-open');
-  menuToggle.setAttribute('aria-expanded', String(isOpen));
-});
-
-navLinks.forEach((link) => {
-  link.addEventListener('click', () => {
-    header.classList.remove('nav-open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-  });
-});
-
-const sections = navLinks
-  .map((link) => document.querySelector(link.getAttribute('href')))
-  .filter(Boolean);
-
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (!entry.isIntersecting) return;
-    navLinks.forEach((link) => {
-      link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`);
-    });
-  });
-}, { rootMargin: '-35% 0px -55% 0px', threshold: 0.01 });
-
-sections.forEach((section) => observer.observe(section));
+(() => {
+  // Preserve old bookmarks, targeting the public canonical route directly.
+  const legacySections = new Set(['#migration', '#privacy', '#v2', '#thanks', '#support']);
+  const isHome = location.pathname === '/' || location.pathname === '/index.html';
+  function redirectLegacySection() {
+    if (isHome && legacySections.has(location.hash)) {
+      location.replace(new URL(`/help${location.hash}`, location.origin));
+      return true;
+    }
+    return false;
+  }
+  if (redirectLegacySection()) return;
+  window.addEventListener('hashchange', redirectLegacySection);
+  // Content and navigation remain usable with JavaScript disabled.
+  if (!('IntersectionObserver' in window)) return;
+  const links = [...document.querySelectorAll('.lp-nav a[href^="#"], .lp-help-nav a[href^="#"]')];
+  const sections = links.map(link => document.getElementById(link.hash.slice(1))).filter(Boolean);
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      for (const link of links) {
+        if (link.hash === `#${entry.target.id}`) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      }
+    }
+  }, { rootMargin: '-15% 0px -65% 0px', threshold: 0 });
+  sections.forEach(section => observer.observe(section));
+})();

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Categories;
@@ -18,7 +17,6 @@ namespace UEModManager.ViewModels
     public partial class CategoryViewModel : ObservableObject
     {
         private readonly NewCategoryService _categoryService;
-        private readonly ILogger _logger;
 
         /// <summary>
         /// 分类列表（绑定到 UI）。
@@ -47,10 +45,9 @@ namespace UEModManager.ViewModels
         /// </summary>
         public event Action<CategoryItem?>? CategorySelected;
 
-        public CategoryViewModel(NewCategoryService categoryService, ILogger logger)
+        public CategoryViewModel(NewCategoryService categoryService)
         {
             _categoryService = categoryService;
-            _logger = logger;
 
             Categories.CollectionChanged += (_, _) => RebuildAssignableCategories();
             RebuildAssignableCategories();

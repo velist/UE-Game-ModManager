@@ -125,7 +125,7 @@ namespace UEModManager.Views
                 ShowLoading(true, _isEnglish ? "Verifying..." : "正在验证登录...");
 
                 // 1. 验证验证码
-                var verifyResult = _otpService.VerifyOtp(email, otp);
+                var verifyResult = await _otpService.VerifyOtpAsync(email, otp);
 
                 if (!verifyResult.Success)
                 {                    ShowLoading(false);

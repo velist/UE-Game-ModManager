@@ -10,66 +10,15 @@
                 <ResourceDictionary Source="Themes/CyberStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
             <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
             <converters:InverseNullToVisibilityConverter x:Key="InverseNullToVisibilityConverter"/>
-            <converters:ImagePathToSourceConverter x:Key="ImagePathToSourceConverter"/>
-            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
-            <converters:ModConflictCountConverter x:Key="ModConflictCountConverter"/>
-            <converters:BooleanToStatusBrushConverter x:Key="BooleanToStatusBrushConverter"/>
-            <converters:BooleanToToggleTooltipConverter x:Key="BooleanToToggleTooltipConverter"/>
-            <converters:BooleanToToggleTextConverter x:Key="BooleanToToggleTextConverter"/>
-            <converters:LevelToMarginConverter x:Key="LevelToMarginConverter"/>
-            <converters:FileSizeConverter x:Key="FileSizeConverter"/>
-            <converters:MultiBooleanAndConverter x:Key="MultiBooleanAndConverter"/>
-            <converters:MultiBooleanOrConverter x:Key="MultiBooleanOrConverter"/>
             <converters:BoolToStatusTextConverter x:Key="BoolToStatusTextConverter"/>
-            <converters:BoolToEnabledColorConverter x:Key="BoolToEnabledColorConverter"/>
-            <converters:HandPlaceholderVisibilityConverter x:Key="HandPlaceholderVisibilityConverter"/>
-            <converters:HandColorConverter x:Key="HandColorConverter"/>
-            <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
             <converters:AsyncImageConverter x:Key="AsyncImageConverter" DecodePixelWidth="400"/>
             <converters:AsyncImageConverter x:Key="AsyncImageConverterSmall" DecodePixelWidth="80"/>
-
-            <!-- v2.0 类型色标 / 部署 / 冲突转换器 -->
             <converters:PackageKindToBrushConverter x:Key="PackageKindToBrushConverter"/>
             <converters:PackageKindToBgBrushConverter x:Key="PackageKindToBgBrushConverter"/>
             <converters:PackageKindToLabelConverter x:Key="PackageKindToLabelConverter"/>
-            <converters:PackageKindToDotBrushConverter x:Key="PackageKindToDotBrushConverter"/>
-            <converters:DeployOpTypeToBrushConverter x:Key="DeployOpTypeToBrushConverter"/>
-            <converters:DeployOpTypeToLabelConverter x:Key="DeployOpTypeToLabelConverter"/>
-            <converters:WinnerLoserBrushConverter x:Key="WinnerLoserBrushConverter"/>
-            <converters:WinnerLoserBgBrushConverter x:Key="WinnerLoserBgBrushConverter"/>
-
-            <!-- 全局默认字体：思源黑体 SC（内嵌，资源 key 沿用 InterFont 旧名） + 文本渲染优化。
-                 FontWeight 默认给 Medium：思源的 Regular 字干比微软雅黑细，
-                 而本项目正文集中在 11-12px（各 100 处以上），叠上
-                 TextFormattingMode 的像素对齐后整体发虚。Medium 字形本来就已内嵌。
-                 Window 上也设一份——TextBlock 的 Style 只管独立 TextBlock，
-                 Button/TextBox 等控件的文字走属性继承，得从 Window 往下流。 -->
-            <Style TargetType="{x:Type Window}">
-                <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-                <Setter Property="FontWeight" Value="Medium"/>
-                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
-                <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
-            </Style>
-            <Style TargetType="{x:Type TextBlock}">
-                <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-                <Setter Property="FontWeight" Value="Medium"/>
-                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
-                <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
-            </Style>
-
-            <!-- 兼容旧引用: DarkFlatWindow 指向 CyberDarkWindow -->
-            <Style x:Key="DarkFlatWindow" TargetType="{x:Type Window}"
-                   BasedOn="{StaticResource CyberDarkWindow}"/>
-
-            <!-- 兼容旧引用: WindowControlButton 指向 CyberWindowControlButton -->
-            <Style x:Key="WindowControlButton" TargetType="{x:Type Button}"
-                   BasedOn="{StaticResource CyberWindowControlButton}"/>
-            <Style x:Key="CloseWindowButton" TargetType="{x:Type Button}"
-                   BasedOn="{StaticResource CyberCloseButton}"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

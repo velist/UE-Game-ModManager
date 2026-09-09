@@ -1,142 +1,275 @@
 <Window x:Class="UEModManager.Views.RepositorySetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="选择 MOD 存放位置"
-        Width="560" Height="640"
-        WindowStartupLocation="CenterScreen"
-        Style="{StaticResource CyberModalWindow}">
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:UEModManager.Views"
+        mc:Ignorable="d"
+        Title="MOD 存储设置" Width="640" MinWidth="560"
+        SizeToContent="Height" MaxHeight="1000"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14"
+        Foreground="{DynamicResource SetupTextBrush}"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        PreviewKeyDown="Window_OnPreviewKeyDown">
+    <!-- 首次运行引导。使用真实磁盘容量，路径检查与持久化交给 RepositorySetupService。 -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="SetupBoolToVisibility" />
 
-    <Window.CommandBindings>
-        <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
-    </Window.CommandBindings>
+        <!-- Vector icons use the same 24-unit geometries as the HTML reference. -->
+        <Geometry x:Key="SetupDriveGeometry">M6,5 L18,5 Q21,5 21,8 L21,16 Q21,19 18,19 L6,19 Q3,19 3,16 L3,8 Q3,5 6,5 M3,13 L21,13 M7,16 L7.1,16 M10,16 L10.1,16</Geometry>
+        <Geometry x:Key="SetupFolderGeometry">M20,20 L4,20 Q2,20 2,18 L2,6 Q2,4 4,4 L9,4 L11,7 L20,7 Q22,7 22,9 L22,18 Q22,20 20,20 Z</Geometry>
+        <Geometry x:Key="SetupCheckGeometry">M5,12 L9,16 L19,6</Geometry>
+        <Geometry x:Key="SetupChevronGeometry">M9,5 L16,12 L9,19</Geometry>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <!-- 标题 -->
-            <RowDefinition Height="Auto"/>
-            <!-- 说明 -->
-            <RowDefinition Height="Auto"/>
-            <!-- 磁盘列表 -->
-            <RowDefinition Height="*"/>
-            <!-- 落点与提示 -->
-            <RowDefinition Height="Auto"/>
-            <!-- 按钮 -->
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        <Style x:Key="SetupKeyboardFocusStyle">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle Margin="-3" RadiusX="8" RadiusY="8"
+                                   Stroke="{DynamicResource SetupAccentHoverBrush}" StrokeThickness="2" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SetupActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SetupLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource SetupKeyboardFocusStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" CornerRadius="7" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.8" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource SetupHoverBrush}" /></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="SetupPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SetupActionButtonStyle}">
+            <Setter Property="MinWidth" Value="140" />
+            <Setter Property="Background" Value="{DynamicResource SetupAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupAccentInkBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource SetupAccentHoverBrush}" /></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="SetupTextButtonStyle" TargetType="Button" BasedOn="{StaticResource SetupActionButtonStyle}">
+            <Setter Property="Height" Value="28" /><Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupAccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" /><Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource SetupAccentHoverBrush}" /></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="SetupCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource SetupActionButtonStyle}">
+            <Setter Property="Width" Value="44" /><Setter Property="Height" Value="43" />
+            <Setter Property="Padding" Value="0" /><Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupMutedBrush}" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border></ControlTemplate></Setter.Value></Setter>
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource SetupCloseHoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource SetupOnCloseBrush}" /></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="SetupCapacityMeterStyle" TargetType="ProgressBar">
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="Background" Value="{DynamicResource SetupTrackBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupMeterBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="2" />
+                        <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="2" HorizontalAlignment="Left" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
 
-        <!-- ═══ 标题 ═══ -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,20,24,8">
-            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="16"
-                       Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"
-                       VerticalAlignment="Center"/>
-            <TextBlock Text="MOD 存放在哪个盘？" FontSize="17" FontWeight="SemiBold"
-                       Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
-        </StackPanel>
-
-        <!-- ═══ 说明 ═══ -->
-        <StackPanel Grid.Row="1" Margin="24,0,24,12">
-            <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20"
-                       Foreground="{StaticResource Text400Brush}"
-                       Text="建议选游戏所在的盘，空间要够。"/>
-
-        </StackPanel>
-
-        <!-- ═══ 磁盘列表 ═══ -->
-        <Border Grid.Row="2" Margin="24,0,24,12"
-                Background="{StaticResource BgBaseBrush}"
-                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                CornerRadius="{StaticResource RadiusSm}">
-            <ListBox x:Name="DriveList" Background="Transparent" BorderThickness="0"
-                     Padding="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ItemContainerStyle="{StaticResource CyberListBoxItem}"
-                     SelectionChanged="DriveList_SelectionChanged">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Width="450">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DisplayName}"
-                                       FontSize="13" FontWeight="SemiBold"
-                                       Foreground="{StaticResource Text200Brush}"/>
-
-                            <Border Grid.Row="0" Grid.Column="1" Padding="6,1"
-                                    CornerRadius="{StaticResource RadiusSm}"
-                                    Visibility="{Binding BadgeVisibility}"
-                                    Background="{StaticResource SurfaceHoverBrush}">
-                                <TextBlock Text="{Binding BadgeText}" FontSize="11"
-                                           Foreground="{Binding BadgeBrush}"/>
+        <!-- A real RadioButton preserves focus, arrow-key navigation and single selection. -->
+        <Style x:Key="SetupDriveOptionStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource SetupTextBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource SetupKeyboardFocusStyle}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="RowBorder" Padding="14" CornerRadius="9" BorderThickness="1"
+                            BorderBrush="Transparent" Background="{DynamicResource SetupRowBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="13" /><ColumnDefinition Width="*" /><ColumnDefinition Width="13" /><ColumnDefinition Width="20" /></Grid.ColumnDefinitions>
+                            <Border x:Name="DriveIconBorder" Width="36" Height="36" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource SetupLineBrush}" VerticalAlignment="Center">
+                                <Viewbox Width="20" Height="20"><Canvas Width="24" Height="24"><Path x:Name="DriveIcon" Data="{StaticResource SetupDriveGeometry}" Stroke="{DynamicResource SetupSecondaryBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></Canvas></Viewbox>
                             </Border>
-
-                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0">
-                                <ProgressBar Style="{StaticResource CyberProgressBar}"
-                                             Minimum="0" Maximum="100" Value="{Binding UsedPercent, Mode=OneWay}"
-                                             Foreground="{Binding UsageBrush}"/>
-                                <TextBlock Text="{Binding CapacityText}" FontSize="11" Margin="0,4,0,0"
-                                           Foreground="{StaticResource Text500Brush}"/>
-                                <!-- 与游戏同一个盘：单独一行，不和角标抢位置。
-                                     拿不到游戏路径（首次运行的常态）时整行 Collapsed。 -->
-                                <TextBlock Text="{Binding GameVolumeText}" FontSize="11" Margin="0,3,0,0"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding GameVolumeVisibility}"
-                                           Foreground="{Binding GameVolumeBrush}"/>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                <Grid MinHeight="25">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <DockPanel LastChildFill="True" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border DockPanel.Dock="Right" x:Name="BadgeBorder" Visibility="{Binding BadgeVisibility}" Margin="8,0,0,0" Padding="6,1" CornerRadius="4" Background="{DynamicResource SetupHoverBrush}" VerticalAlignment="Center" ToolTip="{Binding BadgeText}">
+                                            <TextBlock x:Name="BadgeText" Text="{Binding BadgeText}" FontSize="10" LineHeight="16" Foreground="{DynamicResource SetupSecondaryBrush}" />
+                                        </Border>
+                                        <TextBlock x:Name="DriveName" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <TextBlock x:Name="CapacityText" Text="{Binding FreeText}" FontFamily="Bahnschrift" FontSize="22" FontWeight="Normal" />
+                                        <TextBlock Text="{Binding FreeUnitLabel}" FontSize="11" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="5,0,0,3" VerticalAlignment="Bottom" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,7,0,0" MinHeight="15">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <ProgressBar x:Name="UsedMeter" Value="{Binding UsedPercent, Mode=OneWay}" Style="{StaticResource SetupCapacityMeterStyle}" VerticalAlignment="Center" ToolTip="{Binding UsedDescription}" AutomationProperties.Name="已用空间百分比" />
+                                    <TextBlock Grid.Column="1" Text="{Binding TotalLabel}" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" Margin="14,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="{Binding GameVolumeText}" Visibility="{Binding GameVolumeVisibility}"
+                                           FontSize="11" Margin="0,5,0,0" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SetupAccentBrush}" />
                             </StackPanel>
+                            <Grid Grid.Column="4" Width="19" Height="19" VerticalAlignment="Center">
+                                <Ellipse x:Name="RadioOutline" Stroke="{DynamicResource SetupRadioOutlineBrush}" StrokeThickness="1" />
+                                <Viewbox x:Name="RadioCheck" Width="12" Height="12" Visibility="Collapsed"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupCheckGeometry}" Stroke="{DynamicResource SetupAccentInkBrush}" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></Canvas></Viewbox>
+                            </Grid>
                         </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Border>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource SetupHoverBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource SetupSelectedBrush}" />
+                            <Setter TargetName="RowBorder" Property="BorderBrush" Value="{DynamicResource SetupSelectedLineBrush}" />
+                            <Setter TargetName="DriveIconBorder" Property="BorderBrush" Value="{DynamicResource SetupIconSelectedLineBrush}" />
+                            <Setter TargetName="DriveIconBorder" Property="Background" Value="{DynamicResource SetupIconSelectedBrush}" />
+                            <Setter TargetName="DriveIcon" Property="Stroke" Value="{DynamicResource SetupAccentBrush}" />
+                            <Setter TargetName="CapacityText" Property="Foreground" Value="{DynamicResource SetupAccentBrush}" />
+                            <Setter TargetName="UsedMeter" Property="Foreground" Value="{DynamicResource SetupAccentBrush}" />
+                            <Setter TargetName="RadioOutline" Property="Fill" Value="{DynamicResource SetupAccentBrush}" />
+                            <Setter TargetName="RadioOutline" Property="Stroke" Value="{DynamicResource SetupAccentBrush}" />
+                            <Setter TargetName="RadioCheck" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="IsChecked" Value="True" /></MultiTrigger.Conditions><Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource SetupSelectedHoverBrush}" /></MultiTrigger>
+                        <DataTrigger Binding="{Binding IsRecommended}" Value="True"><Setter TargetName="BadgeBorder" Property="Background" Value="{DynamicResource SetupBadgeBrush}" /><Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource SetupAccentBrush}" /></DataTrigger>
+                        <DataTrigger Binding="{Binding BadgeBrushKey}" Value="StatusOrangeBrush"><Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource SetupWarningBrush}" /></DataTrigger>
+                        <DataTrigger Binding="{Binding IsWarning}" Value="True"><Setter TargetName="CapacityText" Property="Foreground" Value="{DynamicResource SetupWarningBrush}" /><Setter TargetName="UsedMeter" Property="Foreground" Value="{DynamicResource SetupWarningBrush}" /></DataTrigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Cursor" Value="Arrow" /><Setter TargetName="DriveName" Property="Foreground" Value="{DynamicResource SetupMutedBrush}" /><Setter TargetName="CapacityText" Property="Foreground" Value="{DynamicResource SetupMutedBrush}" /><Setter TargetName="RadioOutline" Property="StrokeDashArray" Value="2 2" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+        <DataTemplate x:Key="SetupDriveTemplate" DataType="{x:Type local:RepositoryDriveRow}">
+            <RadioButton Style="{StaticResource SetupDriveOptionStyle}" GroupName="StorageDrive"
+                         IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsSelectable}" />
+        </DataTemplate>
+        <Style x:Key="SetupSmallVolumesToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Height" Value="36" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource SetupMutedBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource SetupKeyboardFocusStyle}" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="Transparent" Padding="3,0"><Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <Viewbox x:Name="ExpandIcon" Width="14" Height="14" RenderTransformOrigin="0.5,0.5"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupChevronGeometry}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox>
+                        <TextBlock x:Name="ExpandText" Grid.Column="1" Text="显示小容量卷" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="11" VerticalAlignment="Center" />
+                    </Grid></Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ExpandText" Property="Text" Value="收起小容量卷" /><Setter TargetName="ExpandIcon" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90" /></Setter.Value></Setter></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource SetupTextBrush}" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+    </Window.Resources>
 
-        <!-- ═══ 落点与提示 ═══ -->
-        <StackPanel Grid.Row="3" Margin="24,0,24,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="存到这里" Style="{StaticResource CyberLabel}"
-                           VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Content="选择其它文件夹…" Height="28" Padding="12,0"
-                        Style="{StaticResource CyberGhostButton}" Click="BrowseFolder_Click"/>
-            </Grid>
-
-            <TextBlock x:Name="ResolvedPathText" Margin="0,6,0,0" FontSize="12" TextWrapping="Wrap"
-                       Foreground="{StaticResource PrimaryLightBrush}"/>
-
-            <ItemsControl x:Name="IssueList" Margin="0,8,0,0">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="11"
-                                       Foreground="{Binding Brush}" Margin="0,2,8,0" VerticalAlignment="Top"/>
-                            <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap"
-                                       MaxWidth="430" Foreground="{Binding Brush}"/>
+    <Border x:Name="WindowFrame" Background="{DynamicResource SetupSurfaceBrush}" BorderBrush="{DynamicResource SetupLineBrush}" BorderThickness="1" CornerRadius="14">
+        <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="44" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Border Grid.Row="0" Background="{DynamicResource SetupTitleBarBrush}" BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,0,0,1" CornerRadius="13,13,0,0" MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
+                <Grid Margin="16,0,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="17" /><ColumnDefinition Width="*" /><ColumnDefinition Width="44" /></Grid.ColumnDefinitions>
+                    <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24"><Path Data="M12,3 L21,8 L12,13 L3,8 Z M3,12 L12,17 L21,12 M3,16 L12,21 L21,16" Stroke="{DynamicResource SetupAccentBrush}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox>
+                    <TextBlock Grid.Column="1" Text="MOD 存储设置" FontSize="12" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="9,0,0,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Style="{StaticResource SetupCloseButtonStyle}" Click="Close_Click" ToolTip="关闭（Esc）" AutomationProperties.Name="关闭窗口"><Viewbox Width="16" Height="16"><Canvas Width="24" Height="24"><Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></Button>
+                </Grid>
+            </Border>
+            <ScrollViewer x:Name="BodyScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Margin="28,24,28,22">
+                    <TextBlock Text="给 MOD 找个合适的位置" FontSize="26" FontWeight="SemiBold" LineHeight="36" />
+                    <TextBlock Text="优先选择游戏所在的磁盘，并预留足够的空间。" Foreground="{DynamicResource SetupSecondaryBrush}" FontSize="14" Margin="0,6,0,0" LineHeight="22" TextWrapping="Wrap" />
+                    <Grid Margin="0,22,0,10">
+                        <TextBlock Text="选择磁盘" FontSize="13" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Border Width="12" Height="3" CornerRadius="2" Background="{DynamicResource SetupMeterBrush}" Margin="0,0,6,0" /><TextBlock Text="进度条为已用空间" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" /></StackPanel>
+                    </Grid>
+                    <ItemsControl x:Name="DriveList" ItemTemplate="{StaticResource SetupDriveTemplate}" KeyboardNavigation.DirectionalNavigation="Continue" />
+                    <TextBlock x:Name="EmptyDrivesText" Visibility="Collapsed" Text="暂未找到可用磁盘，可以选择其他文件夹。" TextWrapping="Wrap" Foreground="{DynamicResource SetupSecondaryBrush}" Margin="0,4,0,16" />
+                    <ToggleButton x:Name="SmallVolumesToggle" Style="{StaticResource SetupSmallVolumesToggleStyle}" Margin="0,-2,0,0" AutomationProperties.Name="显示或收起小容量卷" />
+                    <StackPanel Visibility="{Binding IsChecked, ElementName=SmallVolumesToggle, Converter={StaticResource SetupBoolToVisibility}}" Margin="0,2,0,0">
+                        <TextBlock Text="这些卷容量较小，建议优先选择上方磁盘。" FontSize="12" Foreground="{DynamicResource SetupMutedBrush}" Margin="0,2,0,9" TextWrapping="Wrap" />
+                        <ItemsControl x:Name="SmallDriveList" ItemTemplate="{StaticResource SetupDriveTemplate}" />
+                    </StackPanel>
+                    <Border BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,17,0,0">
+                        <StackPanel>
+                            <Grid Height="28">
+                                <TextBlock Text="MOD 将存放在" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Content="选择其他文件夹…" HorizontalAlignment="Right" Style="{StaticResource SetupTextButtonStyle}" Click="BrowseFolder_Click" />
+                            </Grid>
+                            <Border Margin="0,7,0,0" MinHeight="46" Padding="12,0" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource SetupLineBrush}" Background="{DynamicResource SetupInputBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="18" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
+                                    <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupFolderGeometry}" Stroke="{DynamicResource SetupMutedBrush}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox>
+                                    <TextBlock x:Name="ResolvedPathText" Grid.Column="2" FontFamily="Consolas" FontSize="13" Margin="0,10,4,10" VerticalAlignment="Center" TextWrapping="Wrap"  AutomationProperties.Name="最终保存路径" AutomationProperties.LiveSetting="Polite"><Run x:Name="PathRootRun" Foreground="{DynamicResource SetupAccentBrush}" /><Run x:Name="PathRemainderRun" /></TextBlock>
+                                    <Button x:Name="CopyPathButton" Grid.Column="3" Width="32" Height="32" Padding="0" Style="{StaticResource SetupTextButtonStyle}" Click="CopyPath_OnClick" ToolTip="复制路径" AutomationProperties.Name="复制保存路径" Foreground="{DynamicResource SetupMutedBrush}"><Viewbox Width="15" Height="15"><Canvas Width="24" Height="24"><Path Data="M10,8 L18,8 Q20,8 20,10 L20,19 Q20,21 18,21 L10,21 Q8,21 8,19 L8,10 Q8,8 10,8 M16,8 L16,5 Q16,3 14,3 L5,3 Q3,3 3,5 L3,14 Q3,16 5,16 L8,16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" StrokeLineJoin="Round" /></Canvas></Viewbox></Button>
+                                </Grid>
+                            </Border>
+                            <Grid x:Name="DefaultPathHint" Margin="0,10,0,0">
+                                <Grid.Style><Style TargetType="Grid"><Setter Property="TextElement.Foreground" Value="{DynamicResource SetupSecondaryBrush}" /></Style></Grid.Style>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="14" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Viewbox Width="14" Height="14" Margin="0,2,0,0" VerticalAlignment="Top"><Canvas Width="24" Height="24"><Ellipse Width="18" Height="18" Canvas.Left="3" Canvas.Top="3" Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Grid}}" StrokeThickness="1.6" /><Path Data="M12,11 L12,16 M12,7.5 L12.1,7.5" Stroke="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Grid}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox>
+                                <TextBlock x:Name="PathHintText" Grid.Column="2" Text="MOD 将独立存放，不会与已有文件混放。" FontSize="12" LineHeight="19" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            </Grid>
+                            <ItemsControl x:Name="IssueList" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="14" /><ColumnDefinition Width="7" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                       Foreground="{Binding Brush}" Margin="0,3,0,0" VerticalAlignment="Top" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="12" LineHeight="19"
+                                                       TextWrapping="Wrap" Foreground="{Binding Brush}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="FeedbackText" Visibility="Collapsed" FontSize="11" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource SetupSecondaryBrush}" TextWrapping="Wrap"
+                                       AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock Margin="0,8,0,0" FontSize="11" TextWrapping="Wrap"
-                       Foreground="{StaticResource Text500Brush}"
-                       Text="以后可在设置里改。"/>
-        </StackPanel>
-
-        <!-- ═══ 按钮 ═══ -->
-        <Border Grid.Row="4" Background="{StaticResource TitlebarBrush}"
-                BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,1,0,0"
-                Padding="24,12">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="以后再说" Width="96" Height="34" Margin="0,0,8,0"
-                        Style="{StaticResource CyberSecondaryButton}" Click="Skip_Click"/>
-                <Button x:Name="ConfirmButton" Content="就用这个位置" Width="120" Height="34"
-                        Style="{StaticResource CyberPrimaryButton}" Click="Confirm_Click"/>
-            </StackPanel>
-        </Border>
-    </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+            <Border Grid.Row="2" BorderBrush="{DynamicResource SetupSoftLineBrush}" BorderThickness="0,1,0,0" Background="{DynamicResource SetupTitleBarBrush}" Padding="24,17" CornerRadius="0,0,13,13">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="10" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="之后可在设置中更改" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="以后再说" Style="{StaticResource SetupActionButtonStyle}" Click="Skip_Click" />
+                    <Button x:Name="ConfirmButton" Grid.Column="3" Style="{StaticResource SetupPrimaryButtonStyle}" Click="Confirm_Click" IsDefault="True" AutomationProperties.Name="使用此位置">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="使用此位置" VerticalAlignment="Center" /><Viewbox Width="16" Height="16" Margin="9,0,0,0"><Canvas Width="24" Height="24"><Path Data="{StaticResource SetupChevronGeometry}" Stroke="{DynamicResource SetupAccentInkBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Canvas></Viewbox></StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
 </Window>

@@ -126,22 +126,6 @@
                     </ComboBox>
                 </Grid>
 
-                <Border Height="1" Background="#99272727" Margin="0,28,0,0"/>
-
-                <!-- 插件系统 -->
-                <Grid Margin="0,28,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock x:Name="PluginSystemLabel" Text="启用插件系统" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
-                        <TextBlock x:Name="PluginSystemDesc" Text="允许导入任意格式文件到指定目录（如 .ini 配置文件）" FontSize="12"
-                                   Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                    <CheckBox x:Name="PluginSystemToggle" Grid.Column="1"
-                              Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"/>
-                </Grid>
             </StackPanel>
             </ScrollViewer>
 
@@ -499,30 +483,12 @@
 
                     <Border Height="1" Background="#99272727" Margin="0,0,0,28"/>
 
-                    <!-- 部署选项 -->
-                    <TextBlock Text="启用 MOD 时" FontSize="16" FontWeight="SemiBold"
+                    <!-- 导入选项 -->
+                    <TextBlock Text="导入 MOD 时" FontSize="16" FontWeight="SemiBold"
                                Foreground="{StaticResource Text100Brush}" Margin="0,0,0,20"/>
 
-                    <!-- 部署前确认 -->
-                    <Grid Margin="0,0,0,20">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="启用前先确认" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
-                            <TextBlock Text="每次应用 MOD 前先显示确认窗口" FontSize="12"
-                                       Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
-                        </StackPanel>
-                        <CheckBox x:Name="DeployConfirmToggle" Grid.Column="1"
-                                  Style="{StaticResource CyberToggleSwitch}" VerticalAlignment="Center"
-                                  IsChecked="True"/>
-                    </Grid>
-
-                    <Border Height="1" Background="#99272727"/>
-
-                    <!-- 启动前自动部署 -->
-                    <Grid Margin="0,20,0,0">
+                    <!-- 导入后自动启用 -->
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>

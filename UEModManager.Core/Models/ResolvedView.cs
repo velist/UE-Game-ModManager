@@ -32,6 +32,10 @@ namespace UEModManager.Models
         /// <summary>目标相对路径（游戏目录内）。</summary>
         public string TargetRelativePath { get; init; } = "";
 
+        /// <summary>Actual install root and destination. MODs retain their per-package directories.</summary>
+        public string DeploymentRootPath { get; init; } = "";
+        public string TargetAbsolutePath { get; init; } = "";
+
         /// <summary>源文件绝对路径（仓库/Overwrite 中）。</summary>
         public string SourceAbsolutePath { get; init; } = "";
 
@@ -81,6 +85,9 @@ namespace UEModManager.Models
 
         /// <summary>Profile 名称。</summary>
         public string ProfileName { get; init; } = "";
+
+        public string GameRootPath { get; init; } = "";
+        public string ModRootPath { get; init; } = "";
 
         /// <summary>所有生效文件条目。</summary>
         public List<ResolvedEntry> Entries { get; init; } = [];
@@ -138,6 +145,8 @@ namespace UEModManager.Models
             foreach (var entry in entries.OrderBy(e => e.TargetRelativePath, StringComparer.OrdinalIgnoreCase))
             {
                 sb.Append(entry.TargetRelativePath.ToLowerInvariant());
+                sb.Append(':');
+                sb.Append(entry.DeploymentRootPath.ToLowerInvariant());
                 sb.Append(':');
                 sb.Append(entry.FileHash ?? "null");
                 sb.Append(':');

@@ -66,11 +66,6 @@ namespace UEModManager.Services.Config
             return result;
         }
 
-        /// <summary>
-        /// 为配置文件生成合并预览（不实际写文件）。当前与 MergeAsync 等价。
-        /// </summary>
-        public Task<ConfigMergeResult> PreviewAsync(ConfigMergePlan plan) => MergeAsync(plan);
-
         // ─── IO 边界 ───
 
         private static async Task<Dictionary<string, string>> LoadSourceContentsAsync(ConfigMergePlan plan)

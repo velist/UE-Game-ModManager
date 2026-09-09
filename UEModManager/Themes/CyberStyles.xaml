@@ -312,46 +312,6 @@
         </Setter>
     </Style>
 
-    <!-- ── 密码框 PasswordBox ── -->
-    <Style x:Key="CyberPasswordBox" TargetType="{x:Type PasswordBox}">
-        <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="Padding" Value="14,0"/>
-        <Setter Property="Height" Value="40"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type PasswordBox}">
-                    <Border x:Name="border" Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
-                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
-                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
-                                      VerticalAlignment="Center"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsFocused" Value="True">
-                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <!-- ── 主按钮 (青色填充) ── -->
     <Style x:Key="CyberPrimaryButton" TargetType="{x:Type Button}">
         <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
@@ -470,39 +430,6 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
                             <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ── 危险按钮 (红色) ── -->
-    <Style x:Key="CyberDangerButton" TargetType="{x:Type Button}">
-        <Setter Property="Background" Value="{StaticResource StatusRedBrush}"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Height" Value="40"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type Button}">
-                    <Border x:Name="border" Background="{TemplateBinding Background}"
-                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="#dc2626"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="#b91c1c"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -744,30 +671,6 @@
         </Setter>
     </Style>
 
-    <!-- ── 链接文字 ── -->
-    <Style x:Key="CyberLinkButton" TargetType="{x:Type Button}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type Button}">
-                    <TextBlock x:Name="linkText" Text="{TemplateBinding Content}"
-                               Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"/>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="linkText" Property="TextDecorations" Value="Underline"/>
-                            <Setter Property="Foreground" Value="{StaticResource PrimaryLightBrush}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
     <!-- ════════════════════════════════════════════════════════════
          Phase 4 补强 — 来自 Pencil 原型的组件样式
@@ -1156,48 +1059,7 @@
         <Setter Property="Foreground" Value="{StaticResource StatusRedBrush}"/>
     </Style>
 
-    <!-- ── TabControl (设置窗口页签) ── -->
-    <Style x:Key="CyberTabControl" TargetType="{x:Type TabControl}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
-    </Style>
 
-    <!-- ── TabItem (页签) ── -->
-    <Style x:Key="CyberTabItem" TargetType="{x:Type TabItem}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{StaticResource Text500Brush}"/>
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Padding" Value="16,10"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type TabItem}">
-                    <Border x:Name="border" Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
-                        <Grid>
-                            <ContentPresenter x:Name="contentPresenter" ContentSource="Header"
-                                              VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                            <!-- 底部选中指示条 -->
-                            <Border x:Name="indicator" Height="2" VerticalAlignment="Bottom"
-                                    Background="{StaticResource PrimaryBrush}" CornerRadius="1"
-                                    Margin="0,0,0,-1" Visibility="Collapsed"/>
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="indicator" Property="Visibility" Value="Visible"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
     <!-- ── ListViewItem (列表视图行) ── -->
     <Style x:Key="CyberListViewItem" TargetType="{x:Type ListViewItem}">
@@ -1262,61 +1124,6 @@
         </Setter>
     </Style>
 
-    <!-- ── Expander (侧边栏折叠组) ── -->
-    <Style x:Key="CyberExpander" TargetType="{x:Type Expander}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{StaticResource Text500Brush}"/>
-        <Setter Property="FontSize" Value="11"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type Expander}">
-                    <StackPanel>
-                        <ToggleButton x:Name="HeaderSite" IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
-                                      Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                      HorizontalContentAlignment="Stretch" Padding="12,8">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="{x:Type ToggleButton}">
-                                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
-                                            CornerRadius="{StaticResource RadiusSm}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ContentPresenter Grid.Column="0" VerticalAlignment="Center"/>
-                                            <TextBlock x:Name="arrow" Grid.Column="1" Text="&#xE76C;"
-                                                       FontFamily="Segoe MDL2 Assets" FontSize="10"
-                                                       Foreground="{StaticResource Text600Brush}"
-                                                       VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="arrow" Property="Text" Value="&#xE70D;"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                            <ContentPresenter ContentSource="Header"/>
-                        </ToggleButton>
-                        <ContentPresenter x:Name="ExpandSite" Visibility="Collapsed"/>
-                    </StackPanel>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsExpanded" Value="True">
-                            <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
     <!-- ── Slider (音量/透明度等) ── -->
     <Style x:Key="CyberSlider" TargetType="{x:Type Slider}">
@@ -1353,38 +1160,7 @@
         </Setter>
     </Style>
 
-    <!-- ── GroupBox (设置分组面板) ── -->
-    <Style x:Key="CyberGroupBox" TargetType="{x:Type GroupBox}">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
-        <Setter Property="Padding" Value="16"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type GroupBox}">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
-                        <StackPanel>
-                            <TextBlock Text="{TemplateBinding Header}" FontSize="14" FontWeight="SemiBold"
-                                       Foreground="{StaticResource Text100Brush}" Margin="16,12,16,0"/>
-                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
-                        </StackPanel>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
-    <!-- ── 带描述的设置项 (Icon + Label + Description) ── -->
-    <Style x:Key="CyberSettingItem" TargetType="{x:Type Border}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Padding" Value="12,10"/>
-        <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}"/>
-    </Style>
 
     <!-- ── 全局默认 ToolTip 覆盖 ── -->
     <Style TargetType="{x:Type ToolTip}" BasedOn="{StaticResource CyberToolTip}"/>

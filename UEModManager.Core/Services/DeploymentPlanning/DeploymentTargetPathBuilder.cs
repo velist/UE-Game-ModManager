@@ -8,7 +8,8 @@ namespace UEModManager.Services.DeploymentPlanning
     /// 部署目标路径计算（纯函数）。
     ///
     /// MOD 包：<c>{modPath}/{packageKey}/{RelativeTargetPath}</c>
-    /// 非 MOD 包：<c>{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}</c>
+    /// 插件包：<c>{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}</c>。
+    /// 配置包：<c>{gamePath}/{TargetRootPath}/{RelativeTargetPath}</c>，同一配置目标合并后只部署一份。
     /// 其中 TargetRootPath 优先取 ProfilePackageEntry.TargetRootPath，否则取 Package.TargetRootPath。
     ///
     /// 与主项目的部署逻辑一致；与 ResolvedView Layer 1 的"无 PackageKey 子目录"语义不同
@@ -27,13 +28,15 @@ namespace UEModManager.Services.DeploymentPlanning
             if (package.Kind != PackageKind.Mod)
             {
                 var targetRootPath = PathSanitizer.SanitizeRelative(entry?.TargetRootPath ?? package.TargetRootPath);
-                var packageKey = PathSanitizer.SanitizeRelative(package.PackageKey);
+                var packageKey = PathSanitizer.SanitizeSegment(package.PackageKey);
                 var artifactPath = PathSanitizer.SanitizeRelative(artifact.RelativeTargetPath);
-                return Path.Combine(gamePath, targetRootPath, packageKey, artifactPath);
+                return package.Kind == PackageKind.Config
+                    ? Path.Combine(gamePath, targetRootPath, artifactPath)
+                    : Path.Combine(gamePath, targetRootPath, packageKey, artifactPath);
             }
 
             return Path.Combine(modPath,
-                PathSanitizer.SanitizeRelative(package.PackageKey),
+                PathSanitizer.SanitizeSegment(package.PackageKey),
                 PathSanitizer.SanitizeRelative(artifact.RelativeTargetPath));
         }
 

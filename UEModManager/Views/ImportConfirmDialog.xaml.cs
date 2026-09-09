@@ -16,7 +16,6 @@ namespace UEModManager.Views
         private readonly PackageImportService _importService;
         private readonly PackageRepository _packageRepo;
         private readonly ProfileService _profileService;
-        private readonly ConflictAnalyzer _conflictAnalyzer;
         private readonly GameConfigService _gameConfig;
         private readonly List<FileEntry> _fileEntries = [];
 
@@ -30,14 +29,12 @@ namespace UEModManager.Views
             PackageImportService importService,
             PackageRepository packageRepo,
             ProfileService profileService,
-            ConflictAnalyzer conflictAnalyzer,
             GameConfigService gameConfig)
         {
             InitializeComponent();
             _importService = importService;
             _packageRepo = packageRepo;
             _profileService = profileService;
-            _conflictAnalyzer = conflictAnalyzer;
             _gameConfig = gameConfig;
             Loaded += OnLoaded;
         }

@@ -1,153 +1,131 @@
 using System;
 using System.Net.Http;
-using System.Text;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace UEModManager.Services
+namespace UEModManager.Services;
+
+/// <summary>
+/// Worker 邮箱登录协议。客户端不能选择主题/正文或生成验证码；服务端负责发送和一次性核验。
+/// </summary>
+public sealed class WorkerEmailService : IDisposable
 {
-    /// <summary>
-    /// Worker 邮件转发服务 — 通过 Cloudflare Worker (api.modmanger.com) 代理调 Brevo API。
-    /// Brevo API Key 完全保留在 Worker 端,客户端不再持有任何凭据。
-    /// 端点：POST {ApiBaseUrl}/email/send  body { to, subject, html, text }
-    /// </summary>
-    public class WorkerEmailService : IEmailSender
+    private readonly ILogger<WorkerEmailService> _logger;
+    private readonly HttpClient _httpClient;
+    private readonly bool _ownsClient;
+    private static string AppVersion => typeof(WorkerEmailService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
+    public WorkerEmailService(ILogger<WorkerEmailService> logger, string apiBaseUrl)
+        : this(CreateClient(apiBaseUrl), logger)
     {
-        private readonly ILogger<WorkerEmailService> _logger;
-        private readonly HttpClient _httpClient;
+        _ownsClient = true;
+    }
 
-        /// <summary>
-        /// 随程序集走的版本号。此前 User-Agent 里硬编码着 "2.0.5-beta"，升版本时没人会想到
-        /// 来改它——服务端日志里看到的版本分布会一直停在某个早已不存在的版本上。
-        /// 取法与 <c>TelemetryService.AppVersion</c> 一致。
-        /// </summary>
-        private static string AppVersion =>
-            typeof(WorkerEmailService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+    public WorkerEmailService(HttpClient httpClient, ILogger<WorkerEmailService> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+        _httpClient.BaseAddress ??= new Uri("https://api.modmanger.com/");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"UEModManager/{AppVersion}");
+    }
 
-        public string ServiceName => "WorkerEmail";
-
-        public WorkerEmailService(ILogger<WorkerEmailService> logger, string apiBaseUrl)
+    public async Task<OtpRequestResult> RequestLoginCodeAsync(string email)
+    {
+        try
         {
-            _logger = logger;
-            var baseUrl = string.IsNullOrWhiteSpace(apiBaseUrl)
-                ? "https://api.modmanger.com"
-                : apiBaseUrl.TrimEnd('/');
-
-            // 本服务注册为单例，HttpClient 会与进程同寿。默认的连接池不会主动淘汰连接，
-            // 导致 DNS 结果被永久缓存 —— Cloudflare 侧 IP 变更后客户端无法自愈，
-            // 只能靠用户重启应用。PooledConnectionLifetime 强制定期重建连接以刷新 DNS。
-            var handler = new SocketsHttpHandler
+            using var response = await _httpClient.PostAsJsonAsync("/api/auth/otp/request", new
             {
-                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-            };
-            _httpClient = new HttpClient(handler)
+                email = email.Trim().ToLowerInvariant(), purpose = "login"
+            });
+            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            var body = document.RootElement;
+            var message = ReadString(body, "message") ?? "验证码发送失败，请稍后重试";
+            var retryAfter = ReadRetryAfter(response, body);
+            var challenge = ReadString(body, "challenge_id");
+            var expiresIn = ReadInteger(body, "expires_in");
+            if (response.IsSuccessStatusCode && IsTrue(body, "success") &&
+                challenge is { Length: 64 } && IsHex(challenge) && expiresIn > 0)
             {
-                BaseAddress = new Uri(baseUrl + "/"),
-                Timeout = TimeSpan.FromSeconds(15)
-            };
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", $"UEModManager/{AppVersion}");
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+                return new(true, message, challenge, retryAfter, expiresIn.Value);
+            }
+            return new(false, response.IsSuccessStatusCode ? "认证服务响应无效，请稍后重试" : message,
+                RetryAfterSeconds: retryAfter);
         }
-
-        public async Task<EmailSendResult> SendEmailAsync(string to, string subject, string htmlContent, string? textContent = null)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            try
-            {
-                var requestBody = new
-                {
-                    to,
-                    subject,
-                    html = htmlContent,
-                    text = textContent ?? string.Empty
-                };
-
-                var jsonOptions = new JsonSerializerOptions
-                {
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                };
-                var json = JsonSerializer.Serialize(requestBody, jsonOptions);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                _logger.LogInformation($"[WorkerEmail] 通过 Worker 发送邮件至 {to}");
-                var response = await _httpClient.PostAsync("email/send", content);
-                var responseText = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("[WorkerEmail] 发送成功");
-
-                    string? messageId = null;
-                    try
-                    {
-                        var data = JsonSerializer.Deserialize<JsonElement>(responseText);
-                        if (data.TryGetProperty("data", out var d) &&
-                            d.TryGetProperty("messageId", out var m))
-                        {
-                            messageId = m.GetString();
-                        }
-                    }
-                    catch { /* 响应解析失败不影响成功语义 */ }
-
-                    return EmailSendResult.CreateSuccess(messageId);
-                }
-
-                _logger.LogError($"[WorkerEmail] 发送失败: {response.StatusCode} - {responseText}");
-
-                var errorType = response.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.BadRequest => EmailSendErrorType.InvalidRecipient,
-                    System.Net.HttpStatusCode.Forbidden => EmailSendErrorType.AuthenticationFailed,
-                    System.Net.HttpStatusCode.TooManyRequests => EmailSendErrorType.RateLimit,
-                    System.Net.HttpStatusCode.BadGateway => EmailSendErrorType.ServerError,
-                    _ when (int)response.StatusCode >= 500 => EmailSendErrorType.ServerError,
-                    _ => EmailSendErrorType.Unknown
-                };
-
-                int? retryAfter = null;
-                if (response.Headers.TryGetValues("Retry-After", out var values))
-                {
-                    foreach (var v in values)
-                    {
-                        if (int.TryParse(v, out var seconds))
-                        {
-                            retryAfter = seconds;
-                            break;
-                        }
-                    }
-                }
-
-                return EmailSendResult.CreateFailure($"HTTP {(int)response.StatusCode}: {responseText}", errorType, retryAfter);
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "[WorkerEmail] 网络请求失败");
-                return EmailSendResult.CreateFailure(ex.Message, EmailSendErrorType.NetworkError);
-            }
-            catch (TaskCanceledException)
-            {
-                _logger.LogError("[WorkerEmail] 请求超时");
-                return EmailSendResult.CreateFailure("请求超时", EmailSendErrorType.NetworkError);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[WorkerEmail] 发送邮件时发生未知错误");
-                return EmailSendResult.CreateFailure(ex.Message, EmailSendErrorType.Unknown);
-            }
-        }
-
-        public async Task<bool> HealthCheckAsync()
-        {
-            try
-            {
-                using var response = await _httpClient.GetAsync("health");
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "[WorkerEmail] 健康检查失败");
-                return false;
-            }
+            _logger.LogWarning(ex, "[WorkerOTP] 无法获取验证码");
+            return new(false, "无法连接验证码服务，请稍后重试");
         }
     }
+
+    public async Task<OtpVerificationResult> VerifyLoginCodeAsync(string email, string challengeId, string code)
+    {
+        try
+        {
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            using var response = await _httpClient.PostAsJsonAsync("/api/auth/otp/verify", new
+            {
+                email = normalizedEmail, purpose = "login", challenge_id = challengeId, code = code.Trim()
+            });
+            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            var body = document.RootElement;
+            var verifiedEmail = ReadString(body, "verified_email");
+            if (response.IsSuccessStatusCode && IsTrue(body, "success") &&
+                verifiedEmail == normalizedEmail && ReadString(body, "purpose") == "login")
+            {
+                return new(true, "验证成功", verifiedEmail);
+            }
+            return new(false, ReadString(body, "message") ?? "验证码验证失败，请重新获取");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning(ex, "[WorkerOTP] 无法验证验证码");
+            return new(false, "无法连接验证码服务，请稍后重试");
+        }
+    }
+
+    private static HttpClient CreateClient(string apiBaseUrl) => new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+    })
+    {
+        BaseAddress = new Uri((string.IsNullOrWhiteSpace(apiBaseUrl) ? "https://api.modmanger.com" : apiBaseUrl.TrimEnd('/')) + "/"),
+        Timeout = TimeSpan.FromSeconds(15)
+    };
+
+    private static string? ReadString(JsonElement body, string property) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() : null;
+
+    private static int? ReadInteger(JsonElement body, string property) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
+            ? number : null;
+
+    private static bool IsTrue(JsonElement body, string property) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.True;
+
+    private static bool IsHex(string value)
+    {
+        foreach (var character in value) if (!char.IsAsciiHexDigitLower(character)) return false;
+        return true;
+    }
+
+    private static int? ReadRetryAfter(HttpResponseMessage response, JsonElement body)
+    {
+        var seconds = response.Headers.RetryAfter?.Delta?.TotalSeconds;
+        var retry = seconds.HasValue ? (int)Math.Ceiling(seconds.Value) : ReadInteger(body, "retry_after");
+        return retry > 0 ? retry : null;
+    }
+
+    public void Dispose()
+    {
+        if (_ownsClient) _httpClient.Dispose();
+    }
 }
+
+public sealed record OtpRequestResult(bool Success, string Message, string? ChallengeId = null,
+    int? RetryAfterSeconds = null, int ExpiresInSeconds = 0);
+
+public sealed record OtpVerificationResult(bool Success, string Message, string? VerifiedEmail = null);

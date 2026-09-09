@@ -7,7 +7,7 @@ namespace UEModManager.Models
     /// <summary>
     /// v2.0 冲突记录。
     /// 记录一个目标路径上的冲突：谁赢了、谁输了、为什么。
-    /// 取代旧版 ConflictGroup 的简单列表模型。
+    /// 描述冲突路径及参与竞争的包。
     /// </summary>
     public class ConflictRecord
     {

@@ -13,19 +13,10 @@ namespace UEModManager.Views
 {
     public partial class ConflictResultWindow : Window
     {
-        private readonly ConflictAnalyzer? _conflictAnalyzer;
+        private readonly ConflictAnalyzer _conflictAnalyzer;
         private List<ConflictRecord> _conflicts = [];
 
-        /// <summary>v1.8 兼容：接受旧版 ModConflictResult。</summary>
-        public ConflictResultWindow(ModConflictResult result)
-        {
-            InitializeComponent();
-            // 旧版数据转换为简单展示
-            ConflictCountText.Text = $"{result.ConflictAssets} 个冲突";
-            // 旧版不支持胜者/败者链，仅显示摘要
-        }
-
-        /// <summary>v2.0：接受 ConflictAnalyzer + 分析结果。</summary>
+        /// <summary>显示当前冲突分析结果。</summary>
         public ConflictResultWindow(ConflictAnalyzer analyzer, List<ConflictRecord> conflicts)
         {
             InitializeComponent();
@@ -203,12 +194,9 @@ namespace UEModManager.Views
             => SafeEvent.Run(this, async () =>
             {
                 // 按优先级自动解决（已经是默认行为）
-                if (_conflictAnalyzer != null)
-                {
-                    var result = await _conflictAnalyzer.AnalyzeAsync();
-                    _conflicts = result.Conflicts;
-                    RefreshUI();
-                }
+                var result = await _conflictAnalyzer.AnalyzeAsync();
+                _conflicts = result.Conflicts;
+                RefreshUI();
             }, null, "自动解决冲突");
 
         private void Apply_Click(object sender, RoutedEventArgs e)

@@ -56,9 +56,6 @@ namespace UEModManager.Views
             // 关闭行为
             CloseActionComboBox.SelectedIndex = (int)UiPreferences.LoadCloseAction();
 
-            // 插件系统
-            PluginSystemToggle.IsChecked = UiPreferences.LoadPluginEnabled();
-
             // 检查更新与匿名统计（同一个开关，因为它们本来就是同一个网络请求）
             UpdateAndStatsToggle.IsChecked = UiPreferences.LoadTelemetryConsent().Enabled;
 
@@ -433,7 +430,6 @@ namespace UEModManager.Views
             UpdateBackendUI();
 
             // 加载部署选项
-            DeployConfirmToggle.IsChecked = UiPreferences.LoadDeployConfirm();
             AutoDeployToggle.IsChecked = UiPreferences.LoadAutoDeploy();
         }
 
@@ -488,7 +484,7 @@ namespace UEModManager.Views
                 var sp = ((App)Application.Current).ServiceProvider;
                 if (sp != null)
                 {
-                    var repoWin = sp.GetRequiredService<RepositoryManagerWindow>();
+                    var repoWin = sp.GetRequiredService<ManagementCenterWindow>();
                     repoWin.Owner = this;
                     repoWin.ShowDialog();
                     UpdateRepoStats();
@@ -716,9 +712,6 @@ namespace UEModManager.Views
                 // 保存关闭行为
                 UiPreferences.SaveCloseAction((UiPreferences.CloseAction)CloseActionComboBox.SelectedIndex);
 
-                // 保存插件系统开关
-                UiPreferences.SavePluginEnabled(PluginSystemToggle.IsChecked == true);
-
                 // 保存"检查更新与匿名统计"开关。
                 // 走 SaveTelemetryEnabled 而不是直接写字段：它会顺带把"已问过"钉上——
                 // 一个先在设置里关掉、却从没被弹窗问过的用户，下次启动本该被弹一次
@@ -727,7 +720,6 @@ namespace UEModManager.Views
 
                 // 保存部署设置
                 UiPreferences.SaveDeployBackend(_selectedBackend);
-                UiPreferences.SaveDeployConfirm(DeployConfirmToggle.IsChecked == true);
                 UiPreferences.SaveAutoDeploy(AutoDeployToggle.IsChecked == true);
 
                 // MOD 存放位置改在最后，而且走的是"先搬数据、搬成了才改位置"那条唯一的路。

@@ -15,7 +15,7 @@
     <!-- 避免 wpftmp 项目重复特性，引入手写 AssemblyInfo 保证版本匹配 -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-    <NoWarn>$(NoWarn);MSB3246;CA1416</NoWarn>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
     <Nullable>annotations</Nullable>
   </PropertyGroup>
   <ItemGroup>
@@ -35,18 +35,10 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
     <PackageReference Include="System.Text.Json" Version="8.0.6" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
-    <PackageReference Include="CUE4Parse" Version="1.2.2" />
     <PackageReference Include="VirtualizingWrapPanel" Version="2.0.7" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\UEModManager.Core\UEModManager.Core.csproj" />
-  </ItemGroup>
-  <!-- 排除 Tools 子目录（独立小工具工程）避免被WPF临时项目编译引入 -->
-  <ItemGroup>
-    <Compile Remove="Tools\**\*.cs" />
-    <EmbeddedResource Remove="Tools\**\*.*" />
-    <None Remove="Tools\**\*.*" />
-    <Page Remove="Tools\**\*.xaml" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="mnlogo.ico" />
@@ -70,5 +62,9 @@
     <Resource Include="光与影迅雷云盘mod.png" />
     <Resource Include="明末MOD-百度网盘.png" />
     <Resource Include="明末MOD-迅雷云盘.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Assets\GameIcons\*.png;Assets\GameIcons\SOURCES.md"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

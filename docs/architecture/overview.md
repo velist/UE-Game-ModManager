@@ -1,12 +1,14 @@
 # UEModManager 架构总览
 
-**版本：** v2.0-rc 候选
-**最后更新：** 2026-04-30
+**版本：** 2.1.0 源码
+**最后更新：** 2026-09-05
 **面向：** 接手项目的开发者、做扩展的第三方
 
 ---
 
-## TL;DR — 30 秒理解
+## 项目分层
+
+主项目目前混用 ViewModel 与 code-behind。运行时 MOD 数据来自 `PackageRepository`、`ObjectStore` 和 `ProfileService`；旧 `{game}_mods.json` 仅保留迁移读取。客户端未实现 MOD 配置云同步。删除依据和原始缺陷见 [消融审计](../findings/2026-09-05-ablation-audit.md)，当前修复结果与验证范围见 [修复报告](../findings/2026-09-05-audit-repairs.md)。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -19,14 +21,14 @@
 ┌─────────────────────────────────────────────────────────┐
 │  UEModManager.Core (net8.0, 单依赖 Newtonsoft.Json)     │
 │  - 纯领域模型 + 纯函数 Service                            │
-│  - 无 WPF / Windows / IO 依赖（栏杆生效）                 │
+│  - 无 WPF；少量文件系统辅助见下文                        │
 │  - 所有"算法"都在这里                                    │
 └─────────────────────────────────────────────────────────┘
                        ↑
                        │
 ┌──────────────────────┴──────────────────────────────────┐
 │  UEModManager.Core.Tests (xUnit)                        │
-│  - 552 个单测，27 ms 跑完，覆盖 Domain 行为               │
+│  - 1211 个测试，覆盖领域规则及文件系统辅助                │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
@@ -44,8 +46,8 @@
 
 ### Core 项目（`UEModManager.Core/`）
 
-承载（截至第十七轮 Core 拆分）：
-- `Models/` 领域模型（Package/Profile/ConflictRecord/ResolvedView/HostDefinition/EngineType 等 16 个）
+承载：
+- `Models/` 领域模型（Package/Profile/ConflictRecord/ResolvedView/EngineType 等）
 - `Services/Backends/` IDeploymentBackend 接口
 - `Services/Config/` 配置解析 + 合并（4 种策略纯函数）
 - `Services/Conflict/` 冲突求解 + 检测 + 查询（无 IO 静态分析）
@@ -59,6 +61,9 @@
 - `Services/Migration/` Models + Decision + Step + StepCatalog + ProgressTracker
 - `Services/Import/` CompressedArchive + ImportFileKindClassifier + ModFileGrouper + PreviewImageSelector
 - `Services/Profile/` LegacyModEntry + LegacyProfileMigrator + ProfileSyncPlanner
+- `Services/Repository/` 完整性判据、包引用与删除判定、回收规划
+- `Services/Paths/` 数据布局、搬移与恢复判定、磁盘空间预检
+- `Services/Persistence/` AtomicFileWriter（文件系统辅助）
 - `Services/IXxxQuery.cs` 端口接口（让 Domain 不依赖具体 Service）
 - `Health/` 健康检查报告聚合 + 渲染
 - `Logging/` 结构化日志包装器 + 脱敏
@@ -66,7 +71,7 @@
 
 **绝对禁止**：
 - `using System.Windows.*` —— 已通过 TFM=net8.0 编译失败挡住
-- `File.ReadAllText` / `Directory.*` 等 IO（除非把这些抽到接口给主项目实现）
+- 把业务编排和应用路径写进 Core。现有 `AtomicFileWriter`、`EmptyDirectoryCleaner` 是接收显式路径的文件系统辅助例外，不能把整个 Core 描述为“完全无 IO”。
 - 依赖具体 Service（`PackageRepository`/`ProfileService` 等）
 - Logger 实例（用 `ILogger<T>` 接口由调用方传入）
 
@@ -76,7 +81,7 @@
 - `Views/` WPF 窗口
 - `ViewModels/` UI 状态绑定
 - `Services/` Service 编排和 IO 适配（如 ConfigMergeEngine 是 ConfigMerger 的 IO 层）
-- `Services/Backends/` 三种内置后端实现（CopyBackend / HardLinkBackend / SymlinkBackend）
+- `Services/Backends/` 当前只注册 CopyBackend。HardLinkBackend 保留供旧事务和回滚回归使用；SymlinkBackend 已移除。
 - `App.xaml.cs` DI 容器配置 + 启动钩子
 - `MainWindow.*` 顶层窗口
 
@@ -99,10 +104,11 @@ public class ConfigMergeEngine          // 主项目
 
 ### 测试项目（`UEModManager.Core.Tests/`）
 
-- xUnit 2.5.3，TFM=net8.0-windows（仅为兼容引用 Core dll）
-- 只测 Core 的纯函数 / 纯模型行为
-- 不引用主项目，不测 UI 或 IO
-- **当前 552 测试，27 ms 跑完**
+- xUnit 2.9.3，TFM=net8.0-windows；Core 本身为 net8.0
+- 测领域模型、规则与文件系统辅助，不引用主项目
+- **当前 1211 通过**
+
+另有 `UEModManager.Tests` 验证主项目的服务、真实临时文件、SQLite、主题与窗口资源，当前 **582 通过、1 项手动生成器跳过**。Debug / Release 均通过完整验证。Worker 有 **58 项原有自测、18 项真实 workerd 测试**，另有 **17 项真实桌面服务到 workerd 的协议验收**；外部服务全部用测试替身，不代表线上认证和发信已验收。
 
 ### 扩展示例项目
 
@@ -117,10 +123,18 @@ public class ConfigMergeEngine          // 主项目
 
 ## 关键设计决策
 
+### 当前部署、方案与认证边界（2026-09-05）
+
+- `ResolvedViewBuilder` 保留完整配置候选，生成合并配置和 UserFix 的最终文件视图。启动与单包开关均交给 `DeploymentPlanner` 按此视图规划，MOD / PAK 保持包目录隔离。
+- `DeploymentStateStore` 按游戏及安装根持久化托管文件和版本；`DeploymentService` 在事务提交、回滚和崩溃恢复时同步归属。原始文件备份独立于可清理的事务备份，旧部署只凭可靠事务证据迁移。
+- `InstanceProfile.ConflictOverrides` 保存方案自己的规则。新编辑和 lock 导出使用 `@mod/`、`@game/` 路径，旧游戏级规则按既有 Profile 迁移。
+- 导入的 `ExtractionBudget` 限制实际写入；根包和嵌套包共用预算，bundle 逐包注册但累计计算展开体积。
+- 邮箱登录由 Worker 生成和核验验证码，桌面只持有 challenge。SQLite Durable Object 原子保存限流与消费状态；云端密码账户通过 Supabase 契约独立处理。接口与配套发布要求见 [AUTH_PROTOCOL.md](../../cf-workers/modmanger-api/AUTH_PROTOCOL.md)。
+
 ### 1. 为什么 Core 没有 Application 层？
 
 总计划提到 Application（UseCase）层，但当前 v2.0 实施保守路线：
-- Core 只含 Models + 纯函数 Service
+- Core 以 Models + 纯函数 Service 为主，另含明确的文件系统辅助
 - 主项目 Service 直接编排（充当 Application + Infrastructure 双重角色）
 - 这是"先做扎实再升级"的渐进策略
 
@@ -175,7 +189,9 @@ public class ConfigMergeEngine          // 主项目
 
 ---
 
-## v2.0 Phase 状态
+## 历史 v2.0 Phase 记录（2026-04-30）
+
+下表保留当时的实施记录。当前已移除 Adapter 和无入口窗口，配置合并与方案部署的连接缺陷已在 2026-09-05 修复；实际覆盖范围见修复报告，历史完成标记不能作为当前功能验收结论。
 
 | Phase | 内容 | 状态 |
 |-------|------|------|
@@ -201,7 +217,7 @@ App.OnStartup
 LoginWindow → MainWindow.OnLoaded
   └── InitializeAsync
         ├── 加载游戏配置
-        ├── _vm.InitializeAsync (Profile/包仓库/适配器/扫描)
+        ├── _vm.InitializeAsync (Profile/包仓库/旧数据迁移)
         ├── ☑ 崩溃恢复扫描 (CrashRecoveryService.ScanForCrashesAsync)
         │     └── 发现未完成事务 → 弹窗 → 用户决定回滚或清理
         └── ☑ 启动健康检查 (HealthCheckService.CheckAsync)
@@ -210,7 +226,9 @@ LoginWindow → MainWindow.OnLoaded
 
 ---
 
-## 测试覆盖（截至第十七轮）
+## 历史测试结构（2026-04-30，第十七轮）
+
+以下数字用于理解旧拆分记录；当前数量与验证命令见 [文档索引](../README.md)。
 
 ```
 UEModManager.Core.Tests/                              552 个测试
@@ -243,7 +261,5 @@ dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj
 ## 相关文档
 
 - [项目概览](../../CLAUDE.md) — 老式版，部分内容已过时
-- [v2.0 升级指南](../../v2.0升级指南_开发者接手文档.md) — 详细 Phase 实施记录 + Core 17 轮拆分记录
-- [总计划](../../游戏插件管理器升级计划_全Phase极致细化版_重新生成.md) — 长期愿景
 - [findings/](../findings/) — 设计漏洞记录
 - [playbooks/](../playbooks/) — 操作指南（如 Backend / Core Service / Manifest 写法）

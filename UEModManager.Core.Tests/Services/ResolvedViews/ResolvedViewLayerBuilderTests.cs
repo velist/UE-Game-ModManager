@@ -30,7 +30,7 @@ public class ResolvedViewLayerBuilderTests
             HostGameName = "demo",
             Artifacts = artifacts.Select(a => new PackageArtifact
             {
-                RelativeSourcePath = a.rel,
+                RelativeSourcePath = $"{key}/files/{a.rel}",
                 RelativeTargetPath = a.rel,
                 ArtifactType = a.type,
                 FileHash = a.hash,

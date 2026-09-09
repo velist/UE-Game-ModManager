@@ -20,21 +20,27 @@
 
 ## 设计漏洞记录（Findings）
 
+- [2026-09-05 审计问题修复与验收](findings/2026-09-05-audit-repairs.md) — F01–F08 修复、完整验证和发布要求
+- [2026-09-05 消融与全仓审计](findings/2026-09-05-ablation-audit.md) — 修复前的历史快照、清理依据与原始缺陷
 - [2026-04-28 ConflictDetector 永不触发 (已修复)](findings/2026-04-28-conflict-detector-noop-by-design.md)
 
 ## 上层文档
 
-- 项目根目录的 [`v2.0升级指南_开发者接手文档.md`](../v2.0升级指南_开发者接手文档.md) —— Phase 0-13 详细实施 + Core 17 轮拆分记录
-- [`游戏插件管理器升级计划_全Phase极致细化版_重新生成.md`](../游戏插件管理器升级计划_全Phase极致细化版_重新生成.md) —— 长期愿景
 - [`CLAUDE.md`](../CLAUDE.md) —— 老式项目概览（部分过时）
 
 ## 跑测试
 
 ```bash
-dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj
+dotnet test UEModManager.sln --configuration Release
+cd cf-workers/modmanger-api
+npm ci
+npm test
+node test/desktop-contract.mjs
 ```
 
-预期：**552 测试全绿**，约 27 ms 完成。
+2026-09-05 修复后验证结果：Debug / Release 的 Core 均 **1211 通过**，应用均 **582 通过、1 跳过**；Worker **58 项原有自测 + 18 项真实运行时测试通过**，实际桌面到 Worker 的协议验收 **17 项通过**。跳过项是手动主题快照生成器。测试边界与日志路径见修复报告。
+
+Worker 测试要求 Node.js 22 及以上；桌面协议检查还需要 Windows 与 .NET 8 SDK。部署绑定、验证码协议及客户端配套发布要求见 [AUTH_PROTOCOL.md](../cf-workers/modmanger-api/AUTH_PROTOCOL.md)。
 
 ## 跑 Build
 

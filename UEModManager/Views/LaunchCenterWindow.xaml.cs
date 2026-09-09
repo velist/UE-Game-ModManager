@@ -20,13 +20,12 @@ namespace UEModManager.Views
             LaunchOrchestrator launcher,
             ProfileService profileService,
             GameConfigService gameConfig,
-            PackageRepository packageRepo,
             ConflictAnalyzer conflictAnalyzer,
             ILogger<LaunchCenterWindow> logger)
         {
             InitializeComponent();
 
-            _vm = new LaunchViewModel(launcher, profileService, gameConfig, packageRepo, conflictAnalyzer, logger);
+            _vm = new LaunchViewModel(launcher, profileService, gameConfig, conflictAnalyzer, logger);
             _vm.PropertyChanged += Vm_PropertyChanged;
         }
 

@@ -2,151 +2,161 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Config;
+using UEModManager.Services.Conflict;
 using UEModManager.Services.ResolvedViews;
+using UEModManager.Services.Security;
 
-namespace UEModManager.Services
+namespace UEModManager.Services;
+
+/// <summary>Builds the exact deployable file view, including merged configuration and user fixes.</summary>
+public class ResolvedViewBuilder
 {
-    /// <summary>
-    /// 最终视图构建器。
-    /// 从 Profile 期望状态构建"最终会在游戏目录中生效的完整文件集合"。
-    ///
-    /// 构建流程：
-    /// 1. 读取 Profile 中所有已启用包
-    /// 2. 收集所有包的 Artifact（按优先级排列）
-    /// 3. 解决文件路径冲突（高优先级覆盖低优先级）
-    /// 4. 合并配置文件（键级合并）
-    /// 5. 纳入生成物层
-    /// 6. 计算 ViewHash
-    /// </summary>
-    public class ResolvedViewBuilder
+    private readonly ILogger<ResolvedViewBuilder> _logger;
+    private readonly PackageRepository _packageRepo;
+    private readonly ProfileService _profileService;
+    private readonly ConfigMergeEngine _configMergeEngine;
+    private readonly OverwriteStore _overwriteStore;
+    private readonly GameConfigService _gameConfig;
+
+    public ResolvedViewBuilder(ILogger<ResolvedViewBuilder> logger, PackageRepository packageRepo,
+        ProfileService profileService, ConfigMergeEngine configMergeEngine, OverwriteStore overwriteStore,
+        GameConfigService gameConfig)
     {
-        private readonly ILogger<ResolvedViewBuilder> _logger;
-        private readonly PackageRepository _packageRepo;
-        private readonly ProfileService _profileService;
-        private readonly ConflictAnalyzer _conflictAnalyzer;
-        private readonly ConfigMergeEngine _configMergeEngine;
-        private readonly OverwriteStore _overwriteStore;
+        _logger = logger;
+        _packageRepo = packageRepo;
+        _profileService = profileService;
+        _configMergeEngine = configMergeEngine;
+        _overwriteStore = overwriteStore;
+        _gameConfig = gameConfig;
+    }
 
-        public ResolvedViewBuilder(
-            ILogger<ResolvedViewBuilder> logger,
-            PackageRepository packageRepo,
-            ProfileService profileService,
-            ConflictAnalyzer conflictAnalyzer,
-            ConfigMergeEngine configMergeEngine,
-            OverwriteStore overwriteStore)
+    public Task<ResolvedView> BuildAsync()
+    {
+        var profile = _profileService.CurrentProfile;
+        return profile == null
+            ? Task.FromResult(new ResolvedView { ViewHash = ResolvedView.ComputeViewHash([]) })
+            : BuildForProfileAsync(profile);
+    }
+
+    public async Task<ResolvedView> BuildForProfileAsync(InstanceProfile profile)
+    {
+        var modPath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentModPath);
+        var gamePath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentGamePath);
+        if (string.IsNullOrEmpty(modPath)) throw new InvalidOperationException("游戏 MOD 路径未配置");
+        if (!string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("方案所属游戏与当前游戏不匹配");
+
+        var packages = _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase);
+        var overrides = ConflictOverridePaths.Resolve(profile.ConflictOverrides, modPath, gamePath);
+        // Candidate collection MUST precede winner selection. Equal logical MOD names still have distinct destinations.
+        var candidates = ResolvedViewLayerBuilder.BuildDeploymentCandidates(profile, packages, _packageRepo.Store, modPath, gamePath);
+        var effectiveOverrides = overrides.Where(pair => candidates.Any(e =>
+            string.Equals(e.TargetAbsolutePath, pair.Key, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(e.PackageKey, pair.Value, StringComparison.OrdinalIgnoreCase)))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        var checkedCandidates = new List<ResolvedEntry>();
+        foreach (var entry in candidates)
         {
-            _logger = logger;
-            _packageRepo = packageRepo;
-            _profileService = profileService;
-            _conflictAnalyzer = conflictAnalyzer;
-            _configMergeEngine = configMergeEngine;
-            _overwriteStore = overwriteStore;
+            if (!File.Exists(entry.SourceAbsolutePath))
+                throw new FileNotFoundException($"仓库源文件不存在: {entry.SourceAbsolutePath}", entry.SourceAbsolutePath);
+            var priority = entry.Priority;
+            if (effectiveOverrides.TryGetValue(entry.TargetAbsolutePath, out var winner))
+                priority = string.Equals(winner, entry.PackageKey, StringComparison.OrdinalIgnoreCase)
+                    ? int.MinValue : Math.Max(entry.Priority, int.MinValue + 1);
+            checkedCandidates.Add(await WithContentAsync(entry, entry.SourceAbsolutePath, entry.Source, priority));
         }
 
-        /// <summary>
-        /// 为当前活跃 Profile 构建最终视图。
-        /// </summary>
-        public async Task<ResolvedView> BuildAsync()
-        {
-            var profile = _profileService.CurrentProfile;
-            if (profile == null)
-            {
-                _logger.LogWarning("No active profile, returning empty view");
-                return new ResolvedView
-                {
-                    ViewHash = ResolvedView.ComputeViewHash([])
-                };
-            }
+        var entries = checkedCandidates.GroupBy(e => e.TargetAbsolutePath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.Priority).First(),
+                StringComparer.OrdinalIgnoreCase);
+        var conflicts = ConflictDetector.DetectConflicts(profile, packages, modPath, gamePath, overrides);
+        var configResults = new List<ConfigMergeResult>();
 
-            return await BuildForProfileAsync(profile);
+        foreach (var plan in ResolvedViewLayerBuilder.BuildConfigMergePlans(checkedCandidates))
+        {
+            var result = await _configMergeEngine.MergeAsync(plan);
+            if (!result.Success)
+                throw new InvalidDataException($"配置合并失败: {plan.TargetRelativePath}: {result.ErrorMessage}");
+            configResults.Add(result);
+            var target = checkedCandidates.First(e => e.TargetRelativePath == plan.TargetRelativePath
+                && plan.Sources.Any(s => s.SourceFilePath == e.SourceAbsolutePath)).TargetAbsolutePath;
+            var winner = entries[target];
+            var source = await SaveMergedContentAsync(profile, gamePath, modPath, plan.TargetRelativePath, result.MergedContent);
+            entries[target] = await WithContentAsync(winner, source, ResolvedEntrySource.ConfigMerge, winner.Priority);
+            conflicts.AddRange(ResolvedViewLayerBuilder.TranslateConfigKeyConflicts(
+                plan.TargetRelativePath, result.Conflicts, profile.HostGameName, profile.Id));
         }
 
-        /// <summary>
-        /// 为指定 Profile 构建最终视图。
-        /// </summary>
-        public async Task<ResolvedView> BuildForProfileAsync(InstanceProfile profile)
+        // User fixes have game-relative destinations. Profile-specific fixes never leak into another Profile.
+        var fixes = _overwriteStore.GetByStatus(GeneratedArtifactStatus.Active)
+            .Where(a => a.Type == GeneratedArtifactType.UserFix && !string.IsNullOrWhiteSpace(a.RelativeTargetPath)
+                && string.Equals(a.HostGameName, profile.HostGameName, StringComparison.OrdinalIgnoreCase)
+                && (a.SourceProfileId == null || a.SourceProfileId == profile.Id))
+            .OrderBy(a => a.CreatedAt).ThenBy(a => a.Id);
+        foreach (var fix in fixes)
         {
-            _logger.LogInformation("Building resolved view for profile {Name} ({Id})",
-                profile.Name, profile.Id);
-
-            var configResults = new List<ConfigMergeResult>();
-
-            // ─── Layer 1: Package 文件层 + 冲突解决（纯函数） ───
-
-            var packagesByKey = profile.Packages
-                .Where(p => p.IsEnabled)
-                .Select(p => _packageRepo.GetByKey(p.PackageKey))
-                .Where(p => p != null)
-                .ToDictionary(p => p!.PackageKey, p => p!, StringComparer.OrdinalIgnoreCase);
-
-            var (entries, conflicts) = ResolvedViewLayerBuilder.BuildPackageLayer(
-                profile, packagesByKey, _packageRepo.Store);
-
-            // ─── Layer 2: 配置合并层（plan 构造 / 冲突翻译为纯函数；MergeAsync 仍是 IO） ───
-
-            var configPlans = ResolvedViewLayerBuilder.BuildConfigMergePlans(entries);
-            foreach (var plan in configPlans)
+            var source = PathSanitizer.SafeCombine(
+                PathSanitizer.SafeCombine(_overwriteStore.OverwriteRoot, PathSanitizer.SanitizeSegment(profile.HostGameName)), fix.RelativePath);
+            if (!File.Exists(source)) throw new FileNotFoundException($"用户修复文件不存在: {source}", source);
+            if (string.IsNullOrEmpty(gamePath)) throw new InvalidOperationException("用户修复的游戏目标目录未配置");
+            var target = PathSanitizer.SafeCombine(gamePath, fix.RelativeTargetPath);
+            entries[target] = new ResolvedEntry
             {
-                var result = await _configMergeEngine.MergeAsync(plan);
-                if (!result.Success) continue;
-
-                configResults.Add(result);
-                conflicts.AddRange(ResolvedViewLayerBuilder.TranslateConfigKeyConflicts(
-                    plan.TargetRelativePath, result.Conflicts, profile.HostGameName, profile.Id));
-            }
-
-            // ─── Layer 3: 生成物层（活跃的用户修复，纯映射 + IO 存在性检查） ───
-
-            var activeOverwrites = _overwriteStore.GetByStatus(GeneratedArtifactStatus.Active)
-                .Where(a => a.Type == GeneratedArtifactType.UserFix && a.RelativeTargetPath != null);
-
-            foreach (var overwrite in activeOverwrites)
-            {
-                var fullPath = Path.Combine(_overwriteStore.OverwriteRoot, profile.HostGameName, overwrite.RelativePath);
-                if (!File.Exists(fullPath)) continue;
-
-                var entry = ResolvedViewLayerBuilder.BuildOverwriteEntry(overwrite, fullPath);
-                if (entry != null) entries.Add(entry);
-            }
-
-            // ─── 构建视图 ───
-
-            var viewHash = ResolvedView.ComputeViewHash(entries);
-
-            var view = new ResolvedView
-            {
-                HostGameName = profile.HostGameName,
-                ProfileId = profile.Id,
-                ProfileName = profile.Name,
-                Entries = entries,
-                Conflicts = conflicts,
-                ConfigMergeResults = configResults,
-                ViewHash = viewHash
+                TargetAbsolutePath = target, DeploymentRootPath = gamePath,
+                TargetRelativePath = Path.GetRelativePath(gamePath, target),
+                SourceAbsolutePath = source, Source = ResolvedEntrySource.UserOverride,
+                PackageKey = fix.SourcePackageKey ?? $"userfix-{fix.Id:N}", PackageDisplayName = fix.DisplayName,
+                PackageKind = PackageKind.Config, FileSize = new FileInfo(source).Length,
+                FileHash = await ObjectStore.ComputeFileHashAsync(source), Priority = int.MinValue
             };
-
-            _logger.LogInformation(
-                "Resolved view built: {Entries} entries, {Conflicts} conflicts, {Configs} config merges, hash={Hash}",
-                view.TotalEntries, view.ConflictCount, configResults.Count, viewHash);
-
-            return view;
         }
 
-        /// <summary>
-        /// 快速检查当前视图是否过期（通过比较哈希）。
-        /// </summary>
-        public async Task<bool> IsViewStaleAsync(ResolvedView? currentView)
+        var files = entries.Values.OrderBy(e => e.TargetAbsolutePath, StringComparer.OrdinalIgnoreCase).ToList();
+        var view = new ResolvedView
         {
-            if (currentView == null) return true;
-            var fresh = await BuildAsync();
-            return !currentView.IsIdenticalTo(fresh);
-        }
+            HostGameName = profile.HostGameName, ProfileId = profile.Id, ProfileName = profile.Name,
+            GameRootPath = gamePath, ModRootPath = modPath, Entries = files,
+            ConfigMergeResults = configResults, Conflicts = conflicts, ViewHash = ResolvedView.ComputeViewHash(files)
+        };
+        _logger.LogInformation("Resolved view: {Files} files, {Merges} configuration merges, hash={Hash}", files.Count, configResults.Count, view.ViewHash);
+        return view;
+    }
 
-        // ─── 内部方法 ───
-        // GetArtifactFullPath 已下沉到 Core 的 ResolvedViewLayerBuilder，
-        // 通过 IObjectStoreQuery.GetPackageFilesDirectory 计算源路径。
+    public async Task<bool> IsViewStaleAsync(ResolvedView? currentView)
+        => currentView == null || !currentView.IsIdenticalTo(await BuildAsync());
+
+    private static async Task<ResolvedEntry> WithContentAsync(ResolvedEntry entry, string source, ResolvedEntrySource sourceType, int priority)
+        => new()
+        {
+            TargetAbsolutePath = entry.TargetAbsolutePath, TargetRelativePath = entry.TargetRelativePath,
+            DeploymentRootPath = entry.DeploymentRootPath, SourceAbsolutePath = source, Source = sourceType,
+            PackageKey = entry.PackageKey, PackageDisplayName = entry.PackageDisplayName, PackageKind = entry.PackageKind,
+            FileSize = new FileInfo(source).Length, FileHash = await ObjectStore.ComputeFileHashAsync(source),
+            Priority = priority, ArtifactType = entry.ArtifactType,
+            IsConflictWinner = entry.IsConflictWinner, OverriddenPackageKeys = entry.OverriddenPackageKeys
+        };
+
+    private async Task<string> SaveMergedContentAsync(InstanceProfile profile, string gameRoot, string modRoot, string target, string content)
+    {
+        // Content-addressed plan inputs: later view builds cannot change an earlier plan's merge output.
+        var scope = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{profile.HostGameName}\n{gameRoot}\n{modRoot}")));
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
+        var directory = Path.Combine(_overwriteStore.OverwriteRoot, "Resolved", scope, profile.Id.ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, hash + Path.GetExtension(target));
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temp, content, new UTF8Encoding(false));
+            File.Move(temp, path, overwrite: true);
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+        return path;
     }
 }

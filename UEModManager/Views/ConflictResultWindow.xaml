@@ -1,7 +1,6 @@
 <Window x:Class="UEModManager.Views.ConflictResultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:converters="clr-namespace:UEModManager.Converters"
         Title="冲突检测结果" Height="540" Width="540"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}">
@@ -9,11 +8,6 @@
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
     </Window.CommandBindings>
-
-    <Window.Resources>
-        <converters:WinnerLoserBrushConverter x:Key="WinLoseBrush"/>
-        <converters:WinnerLoserBgBrushConverter x:Key="WinLoseBgBrush"/>
-    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>

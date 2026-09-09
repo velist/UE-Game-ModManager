@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using UEModManager.Tests.Themes;
 
 namespace UEModManager.Tests.Views;
@@ -189,12 +190,17 @@ public class StartupSequenceGuardTests
         // 它被 App 的 try/catch 兜住不至于崩，但表现是"这个引导对所有新用户永远不出现"，
         // 而无头环境点不了 WPF，行为测试盖不住。这里直接对着 XAML 的引用做静态核对。
         //
-        // 本文件没有自己的 Window.Resources、也不用任何转换器，
-        // 因此每一个 StaticResource 都必须能在两个主题字典里找到。
+        // 新版引导的样式、几何图标和转换器定义在 Window.Resources，
+        // 颜色由全局主题提供；两类资源都需要核对，包含延迟解析的 DynamicResource。
         var xaml = ReadSource("Views", "RepositorySetupWindow.xaml");
         var available = ThemeResourceLoader.CaptureMerged().Keys.ToHashSet(StringComparer.Ordinal);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace markup = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var localResources = XDocument.Parse(xaml).Root!.Element(presentation + "Window.Resources");
+        if (localResources != null)
+            available.UnionWith(localResources.Elements().Attributes(markup + "Key").Select(key => key.Value));
 
-        var missing = Regex.Matches(xaml, @"\{StaticResource\s+(\w+)\}")
+        var missing = Regex.Matches(xaml, @"\{(?:StaticResource|DynamicResource)\s+(\w+)\}")
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .Where(key => !available.Contains(key))

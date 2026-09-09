@@ -43,7 +43,7 @@ namespace UEModManager.Views
             _profileService = profileService;
             _lockService = lockService;
             _logger = logger;
-            _vm = new ProfileViewModel(profileService, logger);
+            _vm = new ProfileViewModel(profileService);
             _vm.PropertyChanged += Vm_PropertyChanged;
             DataContext = _vm;
         }

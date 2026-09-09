@@ -49,6 +49,53 @@ public class DeploymentTransactionTests
     }
 
     [Fact]
+    public void RollbackSource_InProgressUsesFullPlanEvenWhenProgressPrefixIsPresent()
+    {
+        var first = new DeploymentOperation { TargetPath = "/first" };
+        var tail = new DeploymentOperation { TargetPath = "/unlogged-tail" };
+        var transaction = new DeploymentTransaction
+        {
+            Status = DeploymentStatus.InProgress,
+            ExecutedOperations = [first], PlannedOperations = [first, tail]
+        };
+
+        Assert.Equal(new[] { first, tail }, transaction.RollbackSource);
+    }
+
+    [Fact]
+    public void RollbackSource_PartialCrashRecoveryRetainsFullPlanAcrossSerialization()
+    {
+        var first = new DeploymentOperation { TargetPath = "/first" };
+        var tail = new DeploymentOperation { TargetPath = "/unlogged-tail" };
+        var transaction = new DeploymentTransaction
+        {
+            Status = DeploymentStatus.PartiallyRolledBack, RollbackRequiresFullPlan = true,
+            ExecutedOperations = [first], PlannedOperations = [first, tail]
+        };
+
+        var reloaded = System.Text.Json.JsonSerializer.Deserialize<DeploymentTransaction>(
+            System.Text.Json.JsonSerializer.Serialize(transaction))!;
+
+        Assert.Equal(new[] { "/first", "/unlogged-tail" }, reloaded.RollbackSource.Select(o => o.TargetPath));
+    }
+
+    [Fact]
+    public void RollbackSource_InProcessFailureAndRetryUseOnlyAccurateExecutedOperations()
+    {
+        var first = new DeploymentOperation { TargetPath = "/first" };
+        var unattempted = new DeploymentOperation { TargetPath = "/unattempted" };
+        var transaction = new DeploymentTransaction
+        {
+            Status = DeploymentStatus.Failed,
+            ExecutedOperations = [first], PlannedOperations = [first, unattempted]
+        };
+
+        Assert.Same(first, Assert.Single(transaction.RollbackSource));
+        transaction.Status = DeploymentStatus.PartiallyRolledBack;
+        Assert.Same(first, Assert.Single(transaction.RollbackSource));
+    }
+
+    [Fact]
     public void RollbackSource_EmptyWhenNeitherRecorded()
     {
         Assert.Empty(new DeploymentTransaction().RollbackSource);

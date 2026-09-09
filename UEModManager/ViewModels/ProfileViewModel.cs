@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services;
 
@@ -17,7 +16,6 @@ namespace UEModManager.ViewModels
     public partial class ProfileViewModel : ObservableObject
     {
         private readonly ProfileService _profileService;
-        private readonly ILogger _logger;
 
         /// <summary>所有方案列表。</summary>
         public ObservableCollection<InstanceProfile> Profiles { get; } = new();
@@ -33,10 +31,9 @@ namespace UEModManager.ViewModels
         /// <summary>方案切换事件（通知主窗口刷新 MOD 列表）。</summary>
         public event Action? ProfileSwitched;
 
-        public ProfileViewModel(ProfileService profileService, ILogger logger)
+        public ProfileViewModel(ProfileService profileService)
         {
             _profileService = profileService;
-            _logger = logger;
         }
 
         /// <summary>

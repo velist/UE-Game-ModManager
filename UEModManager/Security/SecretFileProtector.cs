@@ -159,36 +159,5 @@ namespace UEModManager.Security
             }
             catch { }
         }
-
-        private static void TrySecureDelete(string plainPath)
-        {
-            try
-            {
-                var info = new FileInfo(plainPath);
-                if (info.Exists)
-                {
-                    // ??????
-                    try
-                    {
-                        using (var fs = new FileStream(plainPath, FileMode.Open, FileAccess.Write, FileShare.None))
-                        {
-                            var zeros = new byte[8192];
-                            long remaining = fs.Length;
-                            while (remaining > 0)
-                            {
-                                int toWrite = (int)Math.Min(zeros.Length, remaining);
-                                fs.Write(zeros, 0, toWrite);
-                                remaining -= toWrite;
-                            }
-                            fs.Flush(true);
-                        }
-                    }
-                    catch { }
-
-                    File.Delete(plainPath);
-                }
-            }
-            catch { }
-        }
     }
 }

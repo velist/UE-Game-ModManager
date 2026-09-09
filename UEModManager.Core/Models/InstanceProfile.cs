@@ -43,6 +43,20 @@ namespace UEModManager.Models
         /// <summary>包列表（启用状态 + 优先级）。</summary>
         public List<ProfilePackageEntry> Packages { get; set; } = [];
 
+        private Dictionary<string, string> _conflictOverrides = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 本方案的目标路径 → 胜者包。新键用 @mod/ 或 @game/ 相对路径；旧绝对路径仍兼容。
+        /// JSON 字段的存在同时标记游戏级旧规则已迁入，空字典表示本方案明确没有覆盖。
+        /// </summary>
+        public Dictionary<string, string> ConflictOverrides
+        {
+            get => _conflictOverrides;
+            set => _conflictOverrides = value == null
+                ? new(StringComparer.OrdinalIgnoreCase)
+                : new(value, StringComparer.OrdinalIgnoreCase);
+        }
+
         // ─── 计算属性（UI 用） ───
 
         /// <summary>MOD 数量。</summary>

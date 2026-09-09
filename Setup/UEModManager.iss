@@ -1,26 +1,21 @@
-; ============================================================
-;   爱酱MOD管理器 - Inno Setup 安装脚本
-;   编译要求：Inno Setup 6+
-;   触发方式：根目录 Build-Installer.ps1
-; ============================================================
-
-#define MyAppName        "爱酱MOD管理器"
+; 爱酱 MOD 管理器：Inno Setup 6.7+。使用根目录 Build-Installer.ps1 构建。
+#define MyAppName "爱酱MOD管理器"
 #ifndef MyAppVersion
-#define MyAppVersion     "2.1.0"
+  #define MyAppVersion "2.1.0"
 #endif
 #ifndef MyAppDisplayVer
-#define MyAppDisplayVer  "v2.1.0"
+  #define MyAppDisplayVer "v" + MyAppVersion
 #endif
 #ifndef MyOutputBaseFilename
-#define MyOutputBaseFilename "UEModManager_v2.1.0_Setup"
+  #define MyOutputBaseFilename "UEModManager_v" + MyAppVersion + "_Setup"
 #endif
-#define MyAppPublisher   "爱酱工作室"
-#define MyAppURL         "https://www.modmanger.com"
-#define MyAppExeName     "UEModManager.exe"
-#define MyHelpDocUrl     "https://www.kdocs.cn/l/chqhf7cWy7K8"
+#define MyAppPublisher "爱酱工作室"
+#define MyAppURL "https://www.modmanger.com"
+#define MyAppExeName "UEModManager.exe"
+#define MyHelpDocUrl "https://www.modmanger.com/help"
 #define DotNetRuntimeUrl "https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0"
 #ifndef SourceDir
-#define SourceDir        "..\UEModManager\bin\Release\net8.0-windows"
+  #define SourceDir "..\UEModManager\bin\Release\net8.0-windows"
 #endif
 
 [Setup]
@@ -30,206 +25,98 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppDisplayVer}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
+AppSupportURL={#MyHelpDocUrl}
 AppUpdatesURL={#MyAppURL}
+VersionInfoVersion={#MyAppVersion}
 DefaultDirName={userpf}\UEModManager
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+DisableWelcomePage=no
+DisableDirPage=no
+DisableReadyPage=yes
 OutputDir=..\installer_output
 OutputBaseFilename={#MyOutputBaseFilename}
 SetupIconFile=..\UEModManager\mnlogo.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
-WizardImageFile=wizard-images\banner.bmp
-WizardSmallImageFile=wizard-images\small.bmp
+WizardStyle=modern dark windows11 hidebevels
+WizardSizePercent=130,130
+WizardBackColor=#15171b
+WizardBackImageFile=wizard-images\installer-background.png
+WizardImageFile=wizard-images\installer-sidebar.png
+WizardSmallImageFile=wizard-images\installer-mark.png
+WizardImageBackColor=#15171b
+WizardSmallImageBackColor=#15171b
 LicenseFile=LICENSE.txt
-InfoBeforeFile=INFO_BEFORE.txt
-InfoAfterFile=INFO_AFTER.txt
 Compression=lzma2/max
 SolidCompression=yes
-WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 MinVersion=10.0
-DisableWelcomePage=no
-
-; 中文界面
 ShowLanguageDialog=no
+CloseApplications=yes
+CloseApplicationsFilter=UEModManager.exe
+RestartApplications=no
+SetupLogging=yes
 
 [Languages]
-; 语言包放在仓库内而不是引用 compiler:Languages\ ——Inno Setup 官方发行版**不含**简体中文
-; （中文是社区翻译），装了 Inno 却打不出包会让人以为是脚本坏了。放进仓库后 clone 即可构建。
 Name: "chs"; MessagesFile: "Languages\ChineseSimplified.isl"
 
+[LangOptions]
+DialogFontName=Microsoft YaHei UI
+DialogFontSize=9
+WelcomeFontName=Microsoft YaHei UI
+WelcomeFontSize=22
+
+[Messages]
+WelcomeLabel1=让 MOD 管理%n简单一点。
+WelcomeLabel2=导入、分类、启用，把时间留给游戏。%n支持多款游戏，核心管理无需登录。
+ClickNext=
+WizardLicense=使用许可与隐私说明
+LicenseLabel=请阅读以下说明，再继续安装。
+WizardSelectDir=安装到哪里？
+SelectDirDesc=选择程序位置，按你的习惯设置启动方式。
+SelectDirLabel3=程序安装位置
+SelectDirBrowseLabel=这里只存放程序。MOD 仓库将在首次启动时单独设置。
+WizardInstalling=正在安装
+InstallingLabel=正在准备程序和所需文件，请稍候。
+FinishedHeadingLabel=安装完成。%n现在，开始整理 MOD。
+FinishedLabel=首次启动时，选择 MOD 的存储位置，再添加游戏。%n%n升级用户请保留原数据；需要迁移旧版时，可使用开始菜单中的迁移工具。
+ButtonNext=继续(&N)
+ButtonInstall=开始安装(&I)
+ButtonFinish=完成(&F)
+
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式："
-Name: "quicklaunchicon"; Description: "创建快速启动栏快捷方式"; GroupDescription: "附加快捷方式："; Flags: unchecked
-Name: "autostart"; Description: "开机自动启动"; GroupDescription: "附加选项："; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："
+Name: "autostart"; Description: "登录 Windows 时启动管理器"; GroupDescription: "启动方式："; Flags: unchecked
 
 [Files]
-; 主程序及全部依赖（含思源黑体 OFL 字体）
-;
-; [安全] SourceDir 是 dotnet build 的输出目录本身（Build-Installer.ps1 未做暂存拷贝），
-; 因此开发机在该目录里留下的任何东西都会被 `\*` + recursesubdirs 原样打进安装包。
-; 原 Excludes 只有 "*.log"，意味着：
-;   - brevo.env / allcfkey.env —— SecretFileProtector.cs:80 明确支持"密钥文件放在 exe 旁边"，
-;     开发者调试邮件时把它放过来是自然操作，一旦如此就会分发给每一个用户；
-;   - Data\ —— ModDataService / ProfileService / NewCategoryService 的实时数据目录，
-;     里面是开发机自己的 MOD 清单、Profile 和游戏路径；
-;   - config.json / Backups\ / UserData\ —— 同理，均为运行期在 exe 旁生成的私有数据。
-; 下列排除项分三类：密钥类 / 运行期私有数据类 / 非 Windows 平台产物。
-; Build-Installer.ps1 中另有一道独立的打包前扫描，命中密钥类文件会直接中止构建。
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.env,.env*,*.enc,*.pfx,*.p12,*.key,*.log,\config.json,\Data,\Data\*,\Backups,\Backups\*,\UserData,\UserData\*,*.so,*.dylib,*.a"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; 一键迁移脚本（用户用于老版本升级）
+; 只打入本次全新 publish 目录；双重排除凭据、私人运行数据和无关平台文件。
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Excludes: "*.env,.env*,*.enc,*.pfx,*.p12,*.key,*.log,*.pdb,\config.json,\Data,\Data\*,\Backups,\Backups\*,\UserData,\UserData\*,*.so,*.dylib,*.a"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bundled\一键迁移老版本数据.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bundled\彻底清理UEModManager用户数据.bat"; DestDir: "{app}"; Flags: ignoreversion
-
-; v2.0.3+：Brevo API Key 移至 Cloudflare Worker (api.modmanger.com)，客户端不再持有任何 secrets。
-; 邮件发送统一走 WorkerEmailService → POST {ApiBaseUrl}/email/send 由 Worker 代理 Brevo API。
-
-; 文档
 Source: "bundled\使用说明.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bundled\使用说明-精简版.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bundled\故障排查.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bundled\捐赠引导.jpg"; DestDir: "{app}"; Flags: ignoreversion
 
-; 安装向导图文教程（仅安装时展示，不复制到安装目录）
-Source: "wizard-images\step1.bmp"; Flags: dontcopy
-Source: "wizard-images\step2.bmp"; Flags: dontcopy
-Source: "wizard-images\step3.bmp"; Flags: dontcopy
-
 [Icons]
-Name: "{group}\{#MyAppName}";              Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\一键迁移老版本数据";         Filename: "{app}\一键迁移老版本数据.bat"
-Name: "{group}\使用说明书（在线）";          Filename: "{#MyHelpDocUrl}"
-Name: "{group}\卸载 {#MyAppName}";          Filename: "{uninstallexe}"
-
-Name: "{autodesktop}\{#MyAppName}";          Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\一键迁移老版本数据"; Filename: "{app}\一键迁移老版本数据.bat"
+Name: "{group}\使用帮助"; Filename: "{#MyHelpDocUrl}"
+Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-; 开机自启（可选）
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "UEModManager"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: autostart; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "UEModManager"; Tasks: not autostart; Flags: deletevalue
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "立即启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
-Filename: "{app}\捐赠引导.jpg"; Description: "查看开发支持二维码"; Flags: nowait postinstall skipifsilent shellexec
+Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent; Check: CanLaunchApp
+Filename: "{#MyHelpDocUrl}"; Description: "打开使用帮助"; Flags: nowait postinstall skipifsilent shellexec unchecked
 
-; 在浏览器打开使用说明书（用户可选）
-Filename: "{#MyHelpDocUrl}"; Description: "查看使用说明书（联网）"; Flags: nowait postinstall skipifsilent shellexec unchecked
-
-; [UninstallDelete] 已整段移除。
-;
-; 原先这里是：
-;     Type: filesandordirs; Name: "{app}\Data\Backups"
-; 上一行注释写着"不删用户数据"，但这条规则删的恰恰是**部署事务备份**
-; （DeploymentService 的备份根），也就是崩溃回滚唯一依赖的数据——
-; 它既是用户数据，也是"卸载重装以修复问题"这条常见路径上最不能丢的东西。
-;
-; 现行约定：卸载一律不碰任何用户数据，也不询问。
-; 卸载常常只是"重装/升级"的一步，此时弹一个"是否删除数据"的对话框，
-; 用户误点一次就永久失去全部 MOD 库。想彻底清理的用户走随包分发的
-; bundled\彻底清理UEModManager用户数据.bat，那是显式且可预期的入口。
-
+; 卸载保留用户数据、MOD 仓库与部署备份。完全清理由用户显式运行随包附带的脚本。
 [Code]
-var
-  IntroPage1: TWizardPage;
-  IntroPage2: TWizardPage;
-  IntroPage3: TWizardPage;
-  ResultCode: Integer;
-
-procedure AddImageToPage(Page: TWizardPage; FileName: String);
-var
-  Image: TBitmapImage;
-begin
-  ExtractTemporaryFile(FileName);
-  Image := TBitmapImage.Create(Page);
-  Image.Parent := Page.Surface;
-  Image.Left := 0;
-  Image.Top := 0;
-  Image.Width := Page.SurfaceWidth;
-  Image.Height := Page.SurfaceHeight;
-  Image.Stretch := True;
-  Image.Bitmap.LoadFromFile(ExpandConstant('{tmp}\') + FileName);
-end;
-
-function IsDotNetDesktopRuntimeInstalledByCommand(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result :=
-    Exec(
-      ExpandConstant('{cmd}'),
-      '/C dotnet --list-runtimes | findstr /I /C:"Microsoft.WindowsDesktop.App 8." >nul',
-      '',
-      SW_HIDE,
-      ewWaitUntilTerminated,
-      ResultCode
-    ) and (ResultCode = 0);
-end;
-
-function IsDotNetDesktopRuntimeInstalledByRegistry(): Boolean;
-var
-  Version: String;
-begin
-  Result :=
-    RegQueryStringValue(
-      HKLM64,
-      'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0',
-      'Version',
-      Version
-    ) or
-    RegQueryStringValue(
-      HKCU64,
-      'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0',
-      'Version',
-      Version
-    ) or
-    RegQueryStringValue(
-      HKLM,
-      'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0',
-      'Version',
-      Version
-    ) or
-    RegQueryStringValue(
-      HKCU,
-      'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0',
-      'Version',
-      Version
-    );
-end;
-
-function IsDotNetDesktopRuntimeInstalled(): Boolean;
-begin
-  Result := IsDotNetDesktopRuntimeInstalledByCommand() or IsDotNetDesktopRuntimeInstalledByRegistry();
-end;
-
-function InitializeSetup(): Boolean;
-begin
-  if (not WizardSilent()) and (not IsDotNetDesktopRuntimeInstalled()) then
-  begin
-    if MsgBox('.NET 8 桌面运行时未检测到。' + #13#10 + #13#10 +
-      '建议先安装 Microsoft .NET 8 Desktop Runtime x64，否则程序可能无法启动。' + #13#10 + #13#10 +
-      '点击“是”打开官方下载页面；点击“否”继续安装。',
-      mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      ShellExec('open', '{#DotNetRuntimeUrl}', '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
-    end;
-  end;
-
-  Result := True;
-end;
-
-procedure InitializeWizard();
-begin
-  IntroPage1 := CreateCustomPage(wpInfoBefore, '第一步 · 导入 MOD 文件', '选择本地 MOD 压缩包，一键添加到管理器');
-  AddImageToPage(IntroPage1, 'step1.bmp');
-
-  IntroPage2 := CreateCustomPage(IntroPage1.ID, '第二步 · 启用与部署', '自动备份、事务日志与安全回滚');
-  AddImageToPage(IntroPage2, 'step2.bmp');
-
-  IntroPage3 := CreateCustomPage(IntroPage2.ID, '第三步 · 冲突检查与迁移', '检测冲突并迁移老版本数据');
-  AddImageToPage(IntroPage3, 'step3.bmp');
-end;
+#include "InstallerUi.iss"

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -270,28 +269,21 @@ namespace UEModManager
                     services.AddSingleton(new UEModManager.Services.CloudConfig
                     {
                         ApiBaseUrl = "https://api.modmanger.com",
-                        RequestTimeoutSeconds = 30,
-                        MaxRetryAttempts = 3,
-                        EnableDetailedLogging = true
+                        RequestTimeoutSeconds = 30
                     });
 
                     // 注册统一认证服务
                     services.AddScoped<UnifiedAuthService>();
 
-                    // 注册本地缓存服务
-                    services.AddScoped<LocalCacheService>();
-
-
-                    // 注册邮件发送服务（Brevo API + SMTP 双通道）
+                    // 注册 Worker 邮箱验证码协议
                     RegisterEmailServices(services);
 
-                    // 注册自定义OTP服务（使用MailerSend/Brevo发送验证码，内存存储）
+                    // 注册邮箱登录流程（验证码由服务端生成和核验）
                     services.AddSingleton<CustomOtpService>();
 
                     // 注册新服务层（Phase 1/3 产物）
                     services.AddSingleton<GameConfigService>();
                     services.AddSingleton<NewCategoryService>();
-                    services.AddSingleton<ModDataService>();
                     services.AddSingleton<ProfileService>();
 
                     // v2.0 Phase 2: 包仓库服务
@@ -316,6 +308,7 @@ namespace UEModManager
                     // HardLinkBackend 已于 2026-08-28 下线，不再注册：DeploymentService.GetBackend
                     // 找不到已选后端时兜底为 Copy，旧配置里的 HardLink 因此自动降级。
                     // 类与其测试保留，便于将来带上"备份隔离"防护后重新启用。
+                    services.AddSingleton<DeploymentStateStore>();
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
 
@@ -387,13 +380,8 @@ namespace UEModManager
                     // v2.0 Phase 2-4 UI 窗口
                     services.AddTransient<Views.ImportDialog>();
                     services.AddTransient<Views.ImportConfirmDialog>();
-                    services.AddTransient<Views.DeployPreviewDialog>();
-                    services.AddTransient<Views.RepositoryManagerWindow>();
-                    services.AddTransient<Views.OverwriteManagerWindow>();
                     services.AddTransient<Views.LaunchCenterWindow>();
-                    services.AddTransient<Views.ConfigManagerWindow>();
                     services.AddTransient<Views.ManagementCenterWindow>();
-                    // MigrationWizardWindow 需要 gameName 参数，由调用方手动创建
 
                     // 添加 HTTP 客户端（如果需要）
                     services.AddHttpClient();
@@ -426,10 +414,7 @@ namespace UEModManager
                 // 分处新旧两地、每次启动都在重试，而用户界面上一点痕迹都没有，只能靠翻日志
                 // 才发现——这正是 355589a 那轮修掉的"UI 静默失败通道"。
                 //
-                // TODO(UI)：主窗口初始化时读
-                //     ServiceProvider.GetRequiredService<DataLocationMigrator>().LastOutcome
-                // 若 outcome?.ShouldNotifyUser == true，用 outcome.UserMessage 弹一条
-                // **非模态**提示（现有的 Snackbar/状态栏通道即可，绝不能用 MessageBox 拦人）。
+                // MainWindow 初始化后读取 LastOutcome，并在状态栏展示需要用户关注的迁移结果。
                 // 判据必须是 ShouldNotifyUser，不能是 Completed —— 搬移开关关着时每台老用户
                 // 机器都有推迟项、Completed 恒为 false，照它提示等于给全体用户天天报一次警。
                 Console.WriteLine("[Startup] DataLocationMigrator");
@@ -675,205 +660,12 @@ namespace UEModManager
         }
 
         /// <summary>
-        /// 注册邮件发送服务（Worker 代理为主通道，Brevo 直连为兜底）
+        /// 邮箱登录只使用 Worker 的固定验证码协议；客户端不再读取发信密钥或选择邮件正文。
         /// </summary>
         private static void RegisterEmailServices(IServiceCollection services)
         {
-            // 加载Brevo配置（开发期本地放 brevo.env 仍可作为兜底；分发包不再内置 key）
-            var brevoConfig = LoadBrevoConfig();
-
-            // 主通道：通过 Cloudflare Worker (api.modmanger.com) 代理调 Brevo
-            // 客户端不持有任何 API Key，所有 secrets 保留在 Worker 端
-            services.AddSingleton<WorkerEmailService>(provider =>
-            {
-                var logger = provider.GetRequiredService<ILogger<WorkerEmailService>>();
-                return new WorkerEmailService(logger, "https://api.modmanger.com");
-            });
-
-            // 注册 Brevo API 服务（兜底通道，仅当 brevoConfig.ApiKey 非空时实际生效）
-            services.AddSingleton<BrevoApiEmailService>(provider =>
-            {
-                var logger = provider.GetRequiredService<ILogger<BrevoApiEmailService>>();
-                return new BrevoApiEmailService(
-                    logger,
-                    brevoConfig.ApiKey,
-                    brevoConfig.FromEmail,
-                    brevoConfig.FromName
-                );
-            });
-
-            // 注册 Brevo SMTP 服务（最后兜底）
-            services.AddSingleton<BrevoEmailService>(provider =>
-            {
-                var logger = provider.GetRequiredService<ILogger<BrevoEmailService>>();
-                return new BrevoEmailService(
-                    logger,
-                    brevoConfig.SmtpLogin,
-                    brevoConfig.SmtpKey,
-                    brevoConfig.FromEmail,
-                    brevoConfig.FromName
-                );
-            });
-
-            // 注册故障切换服务：Worker 优先 → Brevo API 兜底 → Brevo SMTP 最后兜底
-            services.AddSingleton<FallbackEmailService>(provider =>
-            {
-                var logger = provider.GetRequiredService<ILogger<FallbackEmailService>>();
-                var senders = new List<IEmailSender>
-                {
-                    provider.GetRequiredService<WorkerEmailService>(),    // 主：Worker 代理
-                    provider.GetRequiredService<BrevoApiEmailService>(),  // 兜底1：Brevo API 直连
-                    provider.GetRequiredService<BrevoEmailService>()      // 兜底2：Brevo SMTP
-                };
-                return new FallbackEmailService(logger, senders);
-            });
-
-            // 注册IEmailSender接口（指向FallbackEmailService）
-            services.AddSingleton<IEmailSender>(provider =>
-                provider.GetRequiredService<FallbackEmailService>()
-            );
+            services.AddSingleton<WorkerEmailService>(provider => new WorkerEmailService(
+                provider.GetRequiredService<ILogger<WorkerEmailService>>(), "https://api.modmanger.com"));
         }
-
-        /// <summary>
-        /// 加载Brevo配置（v1.7.37工作版本）
-        /// </summary>
-        private static (string ApiKey, string SmtpLogin, string SmtpKey, string FromEmail, string FromName) LoadBrevoConfig()
-        {
-            try
-            {
-                // 优先：将明文迁移为加密文件（一次性）
-                UEModManager.Security.SecretFileProtector.EnsureEncryptedFromPlain("brevo.env");
-
-                // 加密文件优先
-                if (UEModManager.Security.SecretFileProtector.TryLoadDecryptedText("brevo.env", out var decrypted))
-                {
-                    var config = ParseEnvFile(decrypted.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None));
-                    var apiKey = config.GetValueOrDefault("BREVO_API_KEY", "");
-                    var smtpLogin = config.GetValueOrDefault("BREVO_SMTP_LOGIN", "");
-                    var smtpKey = config.GetValueOrDefault("BREVO_SMTP_KEY", "");
-                    var fromEmail = config.GetValueOrDefault("BREVO_FROM_EMAIL", "noreply@modmanger.com");
-                    var fromName = config.GetValueOrDefault("BREVO_FROM_NAME", "爱酱工作室");
-
-                    // 🔧 智能修正：当SMTP_LOGIN为"apikey"或为空时，使用FROM_EMAIL作为登录名
-                    if (string.IsNullOrWhiteSpace(smtpLogin) || smtpLogin.Equals("apikey", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // 使用Brevo分配的专用SMTP账户
-                        smtpLogin = "984a39001@smtp-brevo.com"; // Brevo专用SMTP登录账户
-                        Console.WriteLine($"[App] ⚠️ SMTP_LOGIN为占位符，使用Brevo专用SMTP账户: {smtpLogin}");
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(apiKey) || (!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey)))
-                    {
-                        Console.WriteLine("[App] Brevo配置加载成功(加密): API=" + (string.IsNullOrWhiteSpace(apiKey)? "无" : "有") + ", SMTP=" + ((!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey))? "有" : "无"));
-                        return (apiKey, smtpLogin, smtpKey, fromEmail, fromName);
-                    }
-                }
-
-                // 兼容：若仍未命中，最后尝试明文文件（不建议长期存在）
-                var plainCandidate = UEModManager.Security.SecretFileProtector.FindPlaintextCandidate("brevo.env");
-                if (plainCandidate != null && File.Exists(plainCandidate))
-                {
-                    var lines = File.ReadAllLines(plainCandidate);
-                    var config = ParseEnvFile(lines);
-                    var apiKey = config.GetValueOrDefault("BREVO_API_KEY", "");
-                    var smtpLogin = config.GetValueOrDefault("BREVO_SMTP_LOGIN", "");
-                    var smtpKey = config.GetValueOrDefault("BREVO_SMTP_KEY", "");
-                    var fromEmail = config.GetValueOrDefault("BREVO_FROM_EMAIL", "noreply@modmanger.com");
-                    var fromName = config.GetValueOrDefault("BREVO_FROM_NAME", "爱酱工作室");
-
-                    // 🔧 智能修正：当SMTP_LOGIN为"apikey"或为空时，使用FROM_EMAIL作为登录名
-                    if (string.IsNullOrWhiteSpace(smtpLogin) || smtpLogin.Equals("apikey", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // 使用Brevo分配的专用SMTP账户
-                        smtpLogin = "984a39001@smtp-brevo.com"; // Brevo专用SMTP登录账户
-                        Console.WriteLine($"[App] ⚠️ SMTP_LOGIN为占位符，使用Brevo专用SMTP账户: {smtpLogin}");
-                    }
-
-                    Console.WriteLine($"[App] 警告：使用明文 Brevo 配置（建议首启后已被加密迁移）: {plainCandidate} | API=" + (string.IsNullOrWhiteSpace(apiKey)? "无" : "有") + ", SMTP=" + ((!string.IsNullOrWhiteSpace(smtpLogin) && !string.IsNullOrWhiteSpace(smtpKey))? "有" : "无"));
-                    return (apiKey, smtpLogin, smtpKey, fromEmail, fromName);
-                }
-
-                Console.WriteLine("[App] 警告：未找到 brevo 配置，使用占位符");
-                return ("", "", "", "noreply@modmanger.com", "爱酱工作室");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[App] 读取 Brevo 配置失败：{ex.Message}");
-                return ("", "", "", "noreply@modmanger.com", "爱酱工作室");
-            }
-        }
-
-        /// <summary>
-        /// 查找配置文件（当前目录 -> 向上4级）
-        /// </summary>
-        private static string? FindConfigFile(string fileName)
-        {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var candidates = new List<string> { Path.Combine(baseDir, fileName) };
-
-            var dir = baseDir;
-            for (int i = 0; i < 4; i++)
-            {
-                dir = Path.GetFullPath(Path.Combine(dir, ".."));
-                candidates.Add(Path.Combine(dir, fileName));
-            }
-
-            return candidates.FirstOrDefault(File.Exists);
-        }
-
-        /// <summary>
-        /// 解析.env文件
-        /// </summary>
-        private static Dictionary<string, string> ParseEnvFile(string[] lines)
-        {
-            var result = new Dictionary<string, string>();
-            bool isFirstLine = true;
-
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-
-                // 🔒 自动删除UTF-8 BOM（如果存在）- 特别处理第一行
-                if (isFirstLine && trimmed.Length > 0 && trimmed[0] == '\uFEFF')
-                {
-                    trimmed = trimmed.Substring(1);
-                    Console.WriteLine("[App] 检测到BOM并移除");
-                }
-                isFirstLine = false;
-
-                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
-                    continue;
-
-                var parts = trimmed.Split('=', 2);
-                if (parts.Length == 2)
-                {
-                    var key = parts[0].Trim();
-                    var value = parts[1].Trim();
-                    result[key] = value;
-                    var preview = IsSensitiveEnvKey(key)
-                        ? "<redacted>"
-                        : $"{value.Substring(0, Math.Min(10, value.Length))}...";
-                    Console.WriteLine($"[App] ParseEnv: {key}={preview}");
-                }
-            }
-            return result;
-        }
-
-        private static bool IsSensitiveEnvKey(string key)
-        {
-            return key.Contains("KEY", StringComparison.OrdinalIgnoreCase)
-                || key.Contains("TOKEN", StringComparison.OrdinalIgnoreCase)
-                || key.Contains("SECRET", StringComparison.OrdinalIgnoreCase)
-                || key.Contains("PASSWORD", StringComparison.OrdinalIgnoreCase);
-        }
-
-} 
-
-
-
-
-
+    }
 }
-
-
-

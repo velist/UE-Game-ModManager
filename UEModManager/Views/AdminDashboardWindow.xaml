@@ -1,11 +1,10 @@
 <Window x:Class="UEModManager.Views.AdminDashboardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="管理员控制台" Height="900" Width="1400"
-        MinHeight="800" MinWidth="1200"
-        WindowStartupLocation="CenterScreen"
+        Title="本机账户" Height="680" Width="1050"
+        MinHeight="500" MinWidth="850"
+        WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberDarkWindow}">
-
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static SystemCommands.MinimizeWindowCommand}" Executed="OnMinimizeWindow"/>
         <CommandBinding Command="{x:Static SystemCommands.MaximizeWindowCommand}" Executed="OnMaximizeWindow"/>
@@ -13,194 +12,104 @@
         <CommandBinding Command="{x:Static SystemCommands.CloseWindowCommand}" Executed="OnCloseWindow"/>
     </Window.CommandBindings>
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- ── 左侧导航 ── -->
-        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="#99272727" BorderThickness="0,0,1,0">
-            <StackPanel Margin="12,16">
-                <TextBlock Text="管理控制台" FontSize="11" FontWeight="Bold"
-                           Foreground="{StaticResource Text600Brush}" Margin="12,0,0,16"/>
-
-                <Button Content="&#xE77B;  用户管理" Style="{StaticResource CyberGhostButton}"
-                        HorizontalContentAlignment="Left" Margin="0,2" Padding="12,10"
-                        FontFamily="Segoe MDL2 Assets" Click="UserManagementButton_Click"/>
-                <Button Content="&#xE838;  数据库管理" Style="{StaticResource CyberGhostButton}"
-                        HorizontalContentAlignment="Left" Margin="0,2" Padding="12,10"
-                        Click="DatabaseManagementButton_Click"/>
-                <Button Content="&#xE715;  邮件服务" Style="{StaticResource CyberGhostButton}"
-                        HorizontalContentAlignment="Left" Margin="0,2" Padding="12,10"
-                        Click="EmailServiceButton_Click"/>
-                <Button Content="&#xE9D9;  统计数据" Style="{StaticResource CyberGhostButton}"
-                        HorizontalContentAlignment="Left" Margin="0,2" Padding="12,10"
-                        Click="StatisticsButton_Click"/>
-                <Button Content="&#xE713;  系统设置" Style="{StaticResource CyberGhostButton}"
-                        HorizontalContentAlignment="Left" Margin="0,2" Padding="12,10"
-                        Click="SystemSettingsButton_Click"/>
-
-                <Border Height="1" Background="#99272727" Margin="8,16"/>
-
-                <Button Content="刷新数据" Style="{StaticResource CyberSecondaryButton}"
-                        Height="32" Margin="4,8" Click="RefreshDataButton_Click"/>
-                <Button Content="清除缓存" Style="{StaticResource CyberGhostButton}"
-                        Margin="4,2" Click="ClearCacheButton_Click"/>
-                <Button Content="导出数据" Style="{StaticResource CyberGhostButton}"
-                        Margin="4,2" Click="ExportDataButton_Click"/>
-                <Button Content="备份数据" Style="{StaticResource CyberGhostButton}"
-                        Margin="4,2" Click="BackupDataButton_Click"/>
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="本机账户" FontSize="22" FontWeight="SemiBold"
+                           Foreground="{StaticResource Text100Brush}"/>
+                <TextBlock Text="查看本机保存的账户；刷新以获取最新数据。" FontSize="12"
+                           Foreground="{StaticResource Text500Brush}" Margin="0,6,0,0"/>
             </StackPanel>
-        </Border>
-
-        <!-- ── 右侧内容 ── -->
-        <Grid Grid.Column="1" Margin="24">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- 统计卡片 -->
-            <UniformGrid Grid.Row="0" Columns="5" Margin="0,0,0,20">
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
-                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                        Padding="16" Margin="0,0,8,0">
-                    <StackPanel>
-                        <TextBlock Text="总用户数" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="TotalUsersText" Text="0" FontSize="24" FontWeight="Bold"
-                                   Foreground="{StaticResource Text100Brush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
-                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                        Padding="16" Margin="4,0">
-                    <StackPanel>
-                        <TextBlock Text="活跃用户" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="ActiveUsersText" Text="0" FontSize="24" FontWeight="Bold"
-                                   Foreground="{StaticResource PrimaryBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
-                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                        Padding="16" Margin="4,0">
-                    <StackPanel>
-                        <TextBlock Text="数据库状态" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="DatabaseStatusText" Text="--" FontSize="16" FontWeight="SemiBold"
-                                   Foreground="{StaticResource StatusGreenBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
-                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                        Padding="16" Margin="4,0">
-                    <StackPanel>
-                        <TextBlock Text="已发邮件" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="EmailsSentText" Text="0" FontSize="24" FontWeight="Bold"
-                                   Foreground="{StaticResource Text100Brush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
-                        BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                        Padding="16" Margin="8,0,0,0">
-                    <StackPanel>
-                        <TextBlock Text="运行时间" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="SystemUptimeText" Text="--" FontSize="16" FontWeight="SemiBold"
-                                   Foreground="{StaticResource Text200Brush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-            </UniformGrid>
-
-            <!-- 用户搜索 + 操作 -->
-            <Grid Grid.Row="1" Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="UserSearchBox" Grid.Column="0" Style="{StaticResource CyberTextBox}"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
-                    <Button Content="搜索" Style="{StaticResource CyberPrimaryButton}"
-                            Width="72" Height="40" Margin="0,0,8,0" Click="SearchUsersButton_Click"/>
-                    <Button Content="添加" Style="{StaticResource CyberSecondaryButton}"
-                            Width="60" Height="40" Margin="0,0,8,0" Click="AddUserButton_Click"/>
-                    <Button Content="编辑" Style="{StaticResource CyberSecondaryButton}"
-                            Width="60" Height="40" Margin="0,0,8,0" Click="EditUserButton_Click"/>
-                    <Button Content="删除" Style="{StaticResource CyberDangerButton}"
-                            Width="60" Height="40" Click="DeleteUserButton_Click"/>
-                </StackPanel>
-            </Grid>
-
-            <!-- 用户数据表 -->
-            <DataGrid x:Name="UsersDataGrid" Grid.Row="2"
-                      AutoGenerateColumns="False" IsReadOnly="True"
-                      Background="Transparent" Foreground="{StaticResource Text200Brush}"
-                      BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                      GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="{StaticResource CyberBorderBrush}"
-                      RowBackground="{StaticResource BgBaseBrush}"
-                      AlternatingRowBackground="{StaticResource SurfaceBrush}"
-                      HeadersVisibility="Column"/>
-
-            <!-- 底部服务状态 -->
-            <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusSm}"
-                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                    Padding="16" Margin="0,12,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- 数据库状态 -->
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="主数据库" FontSize="11" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="PrimaryDbStatusText" Text="--" FontSize="12"
-                                   Foreground="{StaticResource StatusGreenBrush}" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="PrimaryDbLatencyText" Text="" FontSize="11"
-                                   Foreground="{StaticResource Text600Brush}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="备份数据库" FontSize="11" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="BackupDbStatusText" Text="--" FontSize="12"
-                                   Foreground="{StaticResource Text400Brush}" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="BackupDbLatencyText" Text="" FontSize="11"
-                                   Foreground="{StaticResource Text600Brush}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="本地数据库" FontSize="11" Foreground="{StaticResource Text500Brush}"/>
-                        <TextBlock x:Name="LocalDbStatusText" Text="--" FontSize="12"
-                                   Foreground="{StaticResource StatusGreenBrush}" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="LocalDbSizeText" Text="" FontSize="11"
-                                   Foreground="{StaticResource Text600Brush}"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="3" HorizontalAlignment="Right">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="邮件服务: " FontSize="11" Foreground="{StaticResource Text500Brush}"/>
-                            <TextBlock x:Name="EmailServiceStatusText" Text="--" FontSize="11"
-                                       Foreground="{StaticResource StatusGreenBrush}"/>
-                            <Button Content="测试" Style="{StaticResource CyberGhostButton}"
-                                    FontSize="10" Margin="8,0,0,0" Padding="4,0"
-                                    Click="TestEmailServiceButton_Click"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="认证服务: " FontSize="11" Foreground="{StaticResource Text500Brush}"/>
-                            <TextBlock x:Name="AuthServiceStatusText" Text="--" FontSize="11"
-                                       Foreground="{StaticResource StatusGreenBrush}"/>
-                            <Button Content="重启" Style="{StaticResource CyberGhostButton}"
-                                    FontSize="10" Margin="8,0,0,0" Padding="4,0"
-                                    Click="RestartAuthServiceButton_Click"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Grid>
-            </Border>
+            <Button x:Name="RefreshButton" Grid.Column="1" Content="刷新数据"
+                    Style="{StaticResource CyberSecondaryButton}" Height="36" MinWidth="110"
+                    VerticalAlignment="Center" Click="RefreshDataButton_Click"/>
         </Grid>
 
-        <!-- 日志 (隐藏) -->
-        <TextBlock x:Name="LogTextBlock" Visibility="Collapsed"/>
+        <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,20">
+            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
+                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                    Padding="16" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="本机账户数" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
+                    <TextBlock x:Name="TotalUsersText" Text="—" FontSize="24" FontWeight="Bold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
+                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                    Padding="16" Margin="4,0">
+                <StackPanel>
+                    <TextBlock Text="近 30 天登录" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
+                    <TextBlock x:Name="ActiveUsersText" Text="—" FontSize="24" FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryBrush}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="{StaticResource RadiusMd}"
+                    BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                    Padding="16" Margin="8,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="本地数据库" FontSize="12" Foreground="{StaticResource Text500Brush}"/>
+                    <TextBlock x:Name="DatabaseStatusText" Text="—" FontSize="24" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text100Brush}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Grid Grid.Row="2" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="UserSearchBox" Style="{StaticResource CyberTextBox}"/>
+            <Button Grid.Column="1" Content="搜索" Style="{StaticResource CyberPrimaryButton}"
+                    Width="80" Height="40" Margin="8,0,0,0" Click="SearchUsersButton_Click"/>
+        </Grid>
+
+        <DataGrid x:Name="UsersDataGrid" Grid.Row="3"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  Background="Transparent" Foreground="{StaticResource Text200Brush}"
+                  BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="{StaticResource CyberBorderBrush}"
+                  RowBackground="{StaticResource BgBaseBrush}"
+                  AlternatingRowBackground="{StaticResource SurfaceBrush}"
+                  RowHeight="34"
+                  HeadersVisibility="Column">
+            <DataGrid.Resources>
+                <Style x:Key="AccountCellText" TargetType="TextBlock">
+                    <Setter Property="Margin" Value="8,0"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource Text300Brush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                    <Setter Property="Padding" Value="8"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="65" ElementStyle="{StaticResource AccountCellText}"/>
+                <DataGridTextColumn x:Name="EmailColumn" Header="邮箱" Binding="{Binding Email}" Width="*" MinWidth="240" ElementStyle="{StaticResource AccountCellText}"/>
+                <DataGridTextColumn x:Name="CreatedAtColumn" Header="注册时间" Binding="{Binding CreatedAt}" Width="170" ElementStyle="{StaticResource AccountCellText}"/>
+                <DataGridTextColumn x:Name="LastLoginColumn" Header="最近登录" Binding="{Binding LastLoginAt}" Width="170" ElementStyle="{StaticResource AccountCellText}"/>
+                <DataGridTextColumn x:Name="StatusColumn" Header="状态" Binding="{Binding Status}" Width="85" ElementStyle="{StaticResource AccountCellText}"/>
+            </DataGrid.Columns>
+        </DataGrid>
     </Grid>
 </Window>

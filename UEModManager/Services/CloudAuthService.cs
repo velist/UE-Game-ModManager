@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -14,6 +14,8 @@ namespace UEModManager.Services
     /// </summary>
     public class CloudAuthService
     {
+        private static readonly string AppVersion =
+            typeof(CloudAuthService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
         private readonly HttpClient _httpClient;
         private readonly ILogger<CloudAuthService> _logger;
         private readonly CloudConfig _config;
@@ -35,7 +37,7 @@ namespace UEModManager.Services
 
             // 配置HTTP客户端
             _httpClient.BaseAddress = new Uri(_config.ApiBaseUrl);
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "UEModManager/2.0.5-beta");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", $"UEModManager/{AppVersion}");
 
             // CloudConfig.RequestTimeoutSeconds 此前从未被读取，实际生效的是 HttpClient
             // 默认的 100 秒超时。由于会话恢复在主窗口显示之前同步执行，网关黑洞时
@@ -51,27 +53,28 @@ namespace UEModManager.Services
         {
             try
             {
+                email = email.Trim().ToLowerInvariant();
                 _logger.LogInformation($"尝试云端登录: {email}");
 
                 var loginRequest = new
                 {
                     email = email,
-                    password = password,
-                    device_info = GetDeviceInfo(),
-                    app_version = "2.0.5-beta"
+                    password = password
                 };
 
                 var json = JsonSerializer.Serialize(loginRequest);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync("/api/auth/login", content);
+                using var response = await _httpClient.PostAsync("/api/auth/login", content);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
                 if (response.IsSuccessStatusCode)
                 {
                     var loginResponse = JsonSerializer.Deserialize<CloudLoginResponse>(responseContent);
                     
-                    if (loginResponse != null && loginResponse.Success)
+                    if (loginResponse is { Success: true, User: not null, ExpiresIn: > 0 } &&
+                        !string.IsNullOrWhiteSpace(loginResponse.AccessToken) &&
+                        string.Equals(loginResponse.User.Email, email, StringComparison.OrdinalIgnoreCase))
                     {
                         _accessToken = loginResponse.AccessToken;
                         _tokenExpiresAt = DateTime.Now.AddSeconds(loginResponse.ExpiresIn);
@@ -118,37 +121,26 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// Activation-code login is reserved for the future cloud implementation.
-        /// </summary>
-        public Task<CloudAuthResult> LoginWithActivationCodeAsync(string email, string activationCode)
-        {
-            // TODO(v2.x): replace this stub with the real cloud activation API before exposing it to users.
-            _logger.LogWarning("[CloudAuth] Activation-code login is disabled until the cloud implementation is live: {Email}", email);
-            return Task.FromResult(CloudAuthResult.Failed("\u6fc0\u6d3b\u7801\u767b\u5f55\u529f\u80fd\u5c1a\u672a\u5f00\u653e"));
-        }
-
-        /// <summary>
         /// 云端注册
         /// </summary>
         public async Task<CloudAuthResult> RegisterAsync(string email, string password, string? username = null)
         {
             try
             {
+                email = email.Trim().ToLowerInvariant();
                 _logger.LogInformation($"尝试云端注册: {email}");
 
                 var registerRequest = new
                 {
                     email = email,
                     password = password,
-                    username = username ?? email.Split('@')[0],
-                    device_info = GetDeviceInfo(),
-                    app_version = "2.0.5-beta"
+                    username = username ?? email.Split('@')[0]
                 };
 
                 var json = JsonSerializer.Serialize(registerRequest);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync("/api/auth/register", content);
+                using var response = await _httpClient.PostAsync("/api/auth/register", content);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
                 if (response.IsSuccessStatusCode)
@@ -158,6 +150,13 @@ namespace UEModManager.Services
                     if (registerResponse != null && registerResponse.Success)
                     {
                         _logger.LogInformation($"云端注册成功: {email}");
+
+                        if (registerResponse.VerificationRequired)
+                        {
+                            return CloudAuthResult.AwaitingVerification(
+                                string.IsNullOrWhiteSpace(registerResponse.Message)
+                                    ? "注册请求已受理，请查收验证邮件后登录" : registerResponse.Message);
+                        }
                         
                         // 注册成功后自动登录
                         return await LoginAsync(email, password);
@@ -190,28 +189,23 @@ namespace UEModManager.Services
         {
             try
             {
-                if (IsConnected)
+                if (!string.IsNullOrWhiteSpace(_accessToken))
                 {
-                    var response = await _httpClient.PostAsync("/api/auth/logout", null);
+                    using var response = await _httpClient.PostAsync("/api/auth/logout", null);
                     _logger.LogInformation($"云端登出响应: {response.StatusCode}");
+                    return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
                 }
-
-                // 清除本地状态
-                var user = _currentUser;
-                _accessToken = null;
-                _currentUser = null;
-                _tokenExpiresAt = DateTime.MinValue;
-                _httpClient.DefaultRequestHeaders.Authorization = null;
-
-                OnAuthStateChanged(new CloudAuthEventArgs(CloudAuthEventType.SignedOut, null));
-                _logger.LogInformation("云端登出完成");
-                
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "云端登出异常");
                 return false;
+            }
+            finally
+            {
+                // A failed revocation request must not keep this desktop signed in.
+                ClearSession(CloudAuthEventType.SignedOut);
             }
         }
 
@@ -227,14 +221,14 @@ namespace UEModManager.Services
                     return false;
                 }
 
-                var response = await _httpClient.GetAsync("/api/auth/validate");
+                using var response = await _httpClient.GetAsync("/api/auth/validate");
                 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     var validateResponse = JsonSerializer.Deserialize<CloudValidateResponse>(content);
                     
-                    if (validateResponse != null && validateResponse.Valid)
+                    if (validateResponse is { Valid: true, User: not null })
                     {
                         // 更新用户信息
                         if (validateResponse.User != null)
@@ -248,7 +242,7 @@ namespace UEModManager.Services
                 }
 
                 _logger.LogWarning("令牌验证失败，清除本地状态");
-                await LogoutAsync();
+                ClearSession(CloudAuthEventType.SessionExpired);
                 return false;
             }
             catch (Exception ex)
@@ -257,128 +251,15 @@ namespace UEModManager.Services
                 return false;
             }
         }
-
-        /// <summary>
-        /// 获取用户偏好设置
-        /// </summary>
-        public async Task<UserPreferences?> GetUserPreferencesAsync()
-        {
-            try
-            {
-                if (!IsConnected)
-                {
-                    return null;
-                }
-
-                var response = await _httpClient.GetAsync("/api/user/preferences");
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    var preferencesResponse = JsonSerializer.Deserialize<CloudPreferencesResponse>(content);
-                    
-                    if (preferencesResponse != null && preferencesResponse.Success)
-                    {
-                        return ConvertToLocalPreferences(preferencesResponse.Preferences);
-                    }
-                }
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取云端用户偏好设置失败");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// 更新用户偏好设置
-        /// </summary>
-        public async Task<bool> UpdateUserPreferencesAsync(UserPreferences preferences)
-        {
-            try
-            {
-                if (!IsConnected)
-                {
-                    return false;
-                }
-
-                var cloudPreferences = ConvertToCloudPreferences(preferences);
-                var json = JsonSerializer.Serialize(cloudPreferences);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _httpClient.PutAsync("/api/user/preferences", content);
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("云端用户偏好设置更新成功");
-                    return true;
-                }
-
-                _logger.LogWarning($"云端用户偏好设置更新失败: {response.StatusCode}");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "更新云端用户偏好设置失败");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// 刷新访问令牌
-        /// </summary>
-        public async Task<bool> RefreshTokenAsync()
-        {
-            try
-            {
-                var response = await _httpClient.PostAsync("/api/auth/refresh", null);
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    var refreshResponse = JsonSerializer.Deserialize<CloudRefreshResponse>(content);
-                    
-                    if (refreshResponse != null && refreshResponse.Success)
-                    {
-                        _accessToken = refreshResponse.AccessToken;
-                        _tokenExpiresAt = DateTime.Now.AddSeconds(refreshResponse.ExpiresIn);
-                        
-                        _httpClient.DefaultRequestHeaders.Authorization = 
-                            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
-                        
-                        _logger.LogInformation("访问令牌刷新成功");
-                        return true;
-                    }
-                }
-
-                _logger.LogWarning("访问令牌刷新失败");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "刷新访问令牌异常");
-                return false;
-            }
-        }
-
         #region 私有方法
 
-        /// <summary>
-        /// 获取设备信息
-        /// </summary>
-        private static object GetDeviceInfo()
+        private void ClearSession(CloudAuthEventType eventType)
         {
-            return new
-            {
-                platform = Environment.OSVersion.Platform.ToString(),
-                version = Environment.OSVersion.Version.ToString(),
-                machine_name = Environment.MachineName,
-                user_name = Environment.UserName,
-                processor_count = Environment.ProcessorCount,
-                working_set = Environment.WorkingSet
-            };
+            _accessToken = null;
+            _currentUser = null;
+            _tokenExpiresAt = DateTime.MinValue;
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+            OnAuthStateChanged(new CloudAuthEventArgs(eventType, null));
         }
 
         /// <summary>
@@ -397,45 +278,6 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>
-        /// 转换为本地偏好设置
-        /// </summary>
-        private UserPreferences ConvertToLocalPreferences(CloudUserPreferences cloudPrefs)
-        {
-            return new UserPreferences
-            {
-                UserId = _currentUser?.Id ?? 0,
-                DefaultGamePath = cloudPrefs.DefaultGamePath,
-                Language = cloudPrefs.Language,
-                Theme = cloudPrefs.Theme,
-                AutoCheckUpdates = cloudPrefs.AutoCheckUpdates,
-                AutoBackup = cloudPrefs.AutoBackup,
-                ShowNotifications = cloudPrefs.ShowNotifications,
-                MinimizeToTray = cloudPrefs.MinimizeToTray,
-                EnableCloudSync = cloudPrefs.EnableCloudSync,
-                UpdatedAt = DateTime.Now
-            };
-        }
-
-        /// <summary>
-        /// 转换为云端偏好设置
-        /// </summary>
-        private CloudUserPreferences ConvertToCloudPreferences(UserPreferences localPrefs)
-        {
-            return new CloudUserPreferences
-            {
-                DefaultGamePath = localPrefs.DefaultGamePath,
-                Language = localPrefs.Language,
-                Theme = localPrefs.Theme,
-                AutoCheckUpdates = localPrefs.AutoCheckUpdates,
-                AutoBackup = localPrefs.AutoBackup,
-                ShowNotifications = localPrefs.ShowNotifications,
-                MinimizeToTray = localPrefs.MinimizeToTray,
-                EnableCloudSync = localPrefs.EnableCloudSync,
-                UpdatedAt = localPrefs.UpdatedAt
-            };
-        }
-
         private void OnAuthStateChanged(CloudAuthEventArgs e)
         {
             AuthStateChanged?.Invoke(this, e);
@@ -450,8 +292,6 @@ namespace UEModManager.Services
     {
         public string ApiBaseUrl { get; set; } = "https://api.modmanger.com";
         public int RequestTimeoutSeconds { get; set; } = 30;
-        public int MaxRetryAttempts { get; set; } = 3;
-        public bool EnableDetailedLogging { get; set; } = true;
     }
 
     public enum CloudAuthEventType
@@ -480,6 +320,7 @@ namespace UEModManager.Services
         public string Message { get; private set; }
         public CloudUser? User { get; private set; }
         public Exception? Exception { get; private set; }
+        public bool RequiresEmailVerification { get; private set; }
 
         private CloudAuthResult(bool isSuccess, string message, CloudUser? user = null, Exception? exception = null)
         {
@@ -498,6 +339,9 @@ namespace UEModManager.Services
         {
             return new CloudAuthResult(false, message, null, exception);
         }
+
+        public static CloudAuthResult AwaitingVerification(string message) =>
+            new(true, message) { RequiresEmailVerification = true };
     }
 
     #endregion

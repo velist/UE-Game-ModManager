@@ -1,3 +1,6 @@
+import { handleAuthApi, forwardSupabase } from "./auth-api.js";
+import { AuthState, SecurityUnavailable, authJson, checkMailLimits, normalizeEmail, rateLimit, rateLimitResponse } from "./auth-security.js";
+import { sendBrevoMail } from "./mail.js";
 
 // esbuild prelude shim: esbuild 输出的 __name 在 ESM module 顶层执行时找不到 __defProp，改用 identity
 const __name = (fn) => fn;
@@ -62,16 +65,6 @@ function requireSafeRedirect(value) {
   if (!normalized) throw new Error("invalid redirect_to");
   return normalized;
 }
-async function rateLimit(env, key, limit, windowSec) {
-  const bucket = `rl:${key}:${Math.floor(Date.now() / (windowSec * 1e3))}`;
-  const currentRaw = await env.RATE_LIMIT.get(bucket);
-  const current = currentRaw ? parseInt(currentRaw, 10) : 0;
-  if (current >= limit) {
-    return { allowed: false, remaining: 0 };
-  }
-  await env.RATE_LIMIT.put(bucket, String(current + 1), { expirationTtl: windowSec });
-  return { allowed: true, remaining: limit - (current + 1) };
-}
 // ─────────────────────────────────────────────────────────────────────────────
 // 用量统计（注册数 / 在线数）
 //
@@ -88,7 +81,7 @@ async function rateLimit(env, key, limit, windowSec) {
 // .claude/audit_reports/2026-07-27-telemetry-options.md）：
 //   - 额度：KV 免费档 1000 写/天。1000 台设备各心跳一次就打满，当天之后全部丢失。
 //   - 正确性：KV 是最终一致模型，「get → 判断 → put」是坏的读改写（本文件的 rateLimit()
-//     就有这个 bug）。限流读错只是放宽了限制；计数读错是**永久性的数字失真**，事后无法修复。
+//     已改为 SQLite Durable Object）。计数读错是**永久性的数字失真**，事后无法修复。
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -207,23 +200,6 @@ function dashboardAuthorized(request, env) {
   return timingSafeEqual(request.headers.get("authorization") || "", `Bearer ${token}`);
 }
 
-async function forwardSupabase(env, path, init) {
-  const supabaseUrl = (env.SUPABASE_URL || "").trim().replace(/[\r\n]/g, "");
-  const anonKey = (env.SUPABASE_ANON_KEY || "").trim().replace(/[\r\n]/g, "");
-  const url = new URL(path, supabaseUrl);
-  const headers = new Headers(init.headers);
-  if (!headers.has("apikey")) headers.set("apikey", anonKey);
-  if (!headers.has("authorization")) headers.set("authorization", `Bearer ${anonKey}`);
-  const resp = await fetch(url.toString(), { ...init, headers });
-  const text = await resp.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  return { status: resp.status, headers: resp.headers, data };
-}
 async function generateSupabaseLinkOrOtp(env, email, mode, redirect_to) {
   let safeRedirect;
   try {
@@ -265,41 +241,6 @@ async function generateSupabaseLinkOrOtp(env, email, mode, redirect_to) {
   }
   const otp = data?.email_otp || data?.hashed_token || data?.token;
   return { ok: true, status: resp.status, data, link, otp };
-}
-function uuidToInt(uuid) {
-  if (!uuid) return 0;
-  const cleanUuid = uuid.replace(/-/g, "");
-  let hash = 0;
-  for (let i = 0; i < cleanUuid.length; i++) {
-    const char = cleanUuid.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & 2147483647;
-  }
-  return hash;
-}
-async function sendBrevoMail(env, to, subject, html, text) {
-  const apiKey = (env.BREVO_API_KEY || "").trim().replace(/[\r\n]/g, "");
-  const headers = new Headers();
-  headers.set("Content-Type", "application/json");
-  headers.set("Accept", "application/json");
-  headers.set("api-key", apiKey);
-  const body = {
-    sender: { name: env.BREVO_FROM_NAME, email: env.BREVO_FROM },
-    to: [{ email: to }],
-    subject,
-    htmlContent: html,
-    textContent: text || ""
-  };
-  const url = "https://api.brevo.com/v3/smtp/email";
-  const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  const t = await resp.text();
-  let data;
-  try {
-    data = t ? JSON.parse(t) : null;
-  } catch {
-    data = t;
-  }
-  return { ok: resp.ok, status: resp.status, data };
 }
 function buildBilingualMail(titleCn, titleEn, cn, en) {
   const html = `<!doctype html><html><body style="font-family:Segoe UI,Arial;line-height:1.6">
@@ -468,7 +409,18 @@ if(saved){
 var index_default = {
   async fetch(request, env) {
     // CORS 统一在边界处按白名单附加，业务分支不再各自设置跨域头。
-    const resp = await handleRequest(request, env);
+    let resp;
+    try {
+      resp = await handleRequest(request, env);
+    } catch (error) {
+      if (error instanceof SecurityUnavailable) {
+        console.error("[auth] security state unavailable");
+        resp = authJson({ success: false, message: "认证服务暂时不可用，请稍后重试" }, 503);
+      } else {
+        console.error("[worker] request failed");
+        resp = authJson({ success: false, message: "服务暂时不可用，请稍后重试" }, 502);
+      }
+    }
     const extra = corsHeaders(request);
     if (![...extra.keys()].length) return resp;
     const merged = new Headers(resp.headers);
@@ -482,6 +434,8 @@ async function handleRequest(request, env) {
     if (url.pathname.startsWith("/v1/")) url.pathname = url.pathname.substring(3);
     else if (url.pathname === "/v1") url.pathname = "/";
     if (request.method === "OPTIONS") return json({ ok: true });
+    const authResponse = await handleAuthApi(request, env, url.pathname);
+    if (authResponse) return authResponse;
     // [安全] /test/env、/test/generate、/test/brevo 三个调试端点已于 2026-07-26 移除。
     // /test/generate 曾以 SERVICE_KEY 生成任意邮箱的 recovery 链接并直接回传，构成未认证的任意账户接管；
     // /test/brevo 泄露第三方账户信息并可被刷配额；/test/env 泄露密钥配置指纹。
@@ -830,11 +784,12 @@ async function handleRequest(request, env) {
     }
     if (url.pathname === "/auth/password" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      const { email, password } = body;
-      if (!email || !password) return bad(400, "email/password required");
-      const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
-      const rl = await rateLimit(env, `pw:${ip}`, 10, 60);
-      if (!rl.allowed) return bad(429, "too many requests");
+      const email = normalizeEmail(body?.email);
+      const password = body?.password;
+      if (!email || typeof password !== "string" || !password || password.length > 1024) return bad(400, "email/password required");
+      const ip = request.headers.get("cf-connecting-ip") || "unknown";
+      const rl = await rateLimit(env, `login:${ip}`, 10, 60);
+      if (!rl.allowed) return rateLimitResponse(rl);
       try {
         const res = await forwardSupabase(env, "/auth/v1/token?grant_type=password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
         return json({ code: res.status, data: res.data }, { status: res.status });
@@ -843,73 +798,20 @@ async function handleRequest(request, env) {
         return json({ code: 502, message: "认证服务暂时不可用，请稍后重试" }, { status: 502 });
       }
     }
-    if (url.pathname === "/api/auth/login" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
-      const { email, password } = body;
-      if (!email || !password) return bad(400, "email/password required");
-      const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
-      const rl = await rateLimit(env, `login:${ip}`, 10, 60);
-      if (!rl.allowed) return bad(429, "too many requests");
-      try {
-        const res = await forwardSupabase(env, "/auth/v1/token?grant_type=password", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password })
-        });
-        if (res.status === 200 && res.data) {
-          const data = res.data;
-          return json({
-            success: true,
-            message: "\u767B\u5F55\u6210\u529F",
-            access_token: data.access_token,
-            refresh_token: data.refresh_token || null,
-            token_type: "Bearer",
-            expires_in: data.expires_in || 3600,
-            user: {
-              id: uuidToInt(data.user?.id),
-              // 将 UUID 转换为 int
-              email: data.user?.email || email,
-              username: data.user?.user_metadata?.username || email.split("@")[0],
-              display_name: data.user?.user_metadata?.username || email.split("@")[0],
-              avatar: null,
-              is_active: true,
-              is_verified: data.user?.email_confirmed_at ? true : false,
-              created_at: data.user?.created_at || (/* @__PURE__ */ new Date()).toISOString(),
-              updated_at: data.user?.updated_at || (/* @__PURE__ */ new Date()).toISOString(),
-              last_login_at: (/* @__PURE__ */ new Date()).toISOString(),
-              subscription_type: "free",
-              subscription_expires_at: null
-            }
-          });
-        } else {
-          return json({
-            success: false,
-            message: "\u90AE\u7BB1\u6216\u5BC6\u7801\u9519\u8BEF"
-          }, { status: 401 });
-        }
-      } catch (e) {
-        // [\u5B89\u5168] \u4E0D\u628A\u4E0A\u6E38\u5F02\u5E38\u7EC6\u8282\u56DE\u4F20\u5BA2\u6237\u7AEF\uFF0C\u53EA\u8FDB\u670D\u52A1\u7AEF\u65E5\u5FD7\u3002
-        console.error("[api/auth/login] upstream error:", String(e));
-        return json({
-          success: false,
-          message: "\u767B\u5F55\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5"
-        }, { status: 500 });
-      }
-    }
     if (url.pathname === "/auth/otp/send" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      const { email, type = "email", redirect_to, channel = "auto" } = body;
-      if (!email) return bad(400, "email required");
+      const { type = "email", redirect_to, channel = "auto" } = body || {};
+      const email = normalizeEmail(body?.email);
+      if (!email) return bad(400, "valid email required");
+      if (!["email", "magiclink"].includes(type) || !["auto", "supabase", "brevo"].includes(channel)) return bad(400, "invalid OTP action");
       let safeRedirect;
       try {
         safeRedirect = requireSafeRedirect(redirect_to);
       } catch {
         return bad(400, "invalid redirect_to");
       }
-      const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
-      const rl1 = await rateLimit(env, `otp_ip:${ip}`, 10, 60);
-      const rl2 = await rateLimit(env, `otp_em:${email.toLowerCase()}`, 6, 300);
-      if (!rl1.allowed || !rl2.allowed) return bad(429, "too many requests");
+      const limited = await checkMailLimits(request, env, email);
+      if (limited) return limited;
       const preferBrevo = channel === "brevo";
       if (!preferBrevo) {
         try {
@@ -969,8 +871,9 @@ async function handleRequest(request, env) {
     }
     if (url.pathname === "/auth/reset" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      const { email, redirect_to } = body;
-      if (!email) return bad(400, "email required");
+      const { redirect_to } = body || {};
+      const email = normalizeEmail(body?.email);
+      if (!email) return bad(400, "valid email required");
       let safeRedirect;
       try {
         safeRedirect = requireSafeRedirect(redirect_to);
@@ -979,7 +882,9 @@ async function handleRequest(request, env) {
       }
       const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
       const rl = await rateLimit(env, `reset:${ip}`, 5, 60);
-      if (!rl.allowed) return bad(429, "too many requests");
+      if (!rl.allowed) return rateLimitResponse(rl);
+      const limited = await checkMailLimits(request, env, email);
+      if (limited) return limited;
       const supabaseUrl = (env.SUPABASE_URL || "").trim().replace(/[\r\n]/g, "");
       const serviceKey = (env.SUPABASE_SERVICE_KEY || "").trim().replace(/[\r\n]/g, "");
       const headers = new Headers({ "content-type": "application/json" });
@@ -1045,31 +950,12 @@ async function handleRequest(request, env) {
     //
     // 需要客户端日志时，正确做法是本机诊断包（DiagnosticExportService 已经在做这件事），
     // 由用户主动导出，而不是让服务端开一个匿名可写的存储口。
-    if (url.pathname === "/email/send" && request.method === "POST") {
-      const ip = request.headers.get("cf-connecting-ip") || "0.0.0.0";
-      const rl1 = await rateLimit(env, `mail_ip:${ip}`, 12, 60);
-      if (!rl1.allowed) return bad(429, "too many requests");
-      const body = await request.json().catch(() => ({}));
-      const { to, subject, html, text } = body;
-      if (!to || !subject || !html) return bad(400, "to, subject, html required");
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return bad(400, "invalid email");
-      if (!/UEModManager|爱酱/i.test(subject)) return bad(403, "subject brand prefix required");
-      if (html.length > 50000) return bad(413, "html too large");
-      const rl2 = await rateLimit(env, `mail_em:${to.toLowerCase()}`, 6, 300);
-      if (!rl2.allowed) return bad(429, "rate limited for this address");
-      const sent = await sendBrevoMail(env, to, subject, html, text || "");
-      if (!sent.ok) {
-        // [安全] 不回传 Brevo 原始错误体（含账户/配额等内部信息）。
-        console.error("[email/send] brevo failed:", sent.status, JSON.stringify(sent.data));
-        return json({ code: 502, message: "send_failed", brevoStatus: sent.status }, { status: 502 });
-      }
-      return json({ code: 200, data: { ok: true }, channelUsed: "brevo" });
-    }
     return bad(404, "not found");
   }
 }
 export {
   index_default as default,
-  normalizeRedirectTo
+  normalizeRedirectTo,
+  AuthState
 };
 //# sourceMappingURL=index.js.map

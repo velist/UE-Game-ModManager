@@ -28,7 +28,7 @@ namespace UEModManager.Services
     /// 为什么写失败必须上抛：这里装的是仓库位置、背景图、语言、部署后端。写失败此前被
     /// 一个空 catch 吞掉，用户在设置界面改完看到界面正常响应，重启后全部还原——而同一个
     /// 根因（目标不可写：磁盘满 / 权限 / 杀软锁定 / 同步盘占用）下，改游戏路径、导入 MOD、
-    /// 改方案却会弹错误框（GameConfigService / ModDataService / ProfileService 都是
+    /// 改方案却会弹错误框（GameConfigService / PackageRepository / ProfileService 都是
     /// log + throw）。分裂的失败语义比全都静默更糟：用户会因为"别处会报错"而信任这里的沉默。
     /// 本类是最后一处例外，现已并入同一语义。
     /// </para>
@@ -50,9 +50,7 @@ namespace UEModManager.Services
             public double BackgroundBlurRadius { get; set; }
             public bool ApplyToDialogs { get; set; } = true;
             public int CloseActionValue { get; set; } = 0;
-            public bool PluginSystemEnabled { get; set; } = false;
             public int DeployBackendType { get; set; } = 0;
-            public bool DeployConfirm { get; set; } = true;
             public bool AutoDeploy { get; set; } = true;
 
             /// <summary>
@@ -493,16 +491,6 @@ namespace UEModManager.Services
             Write(cfg => cfg.CloseActionValue = (int)action, "保存关闭行为");
         }
 
-        public static bool LoadPluginEnabled()
-        {
-            return Read(cfg => cfg.PluginSystemEnabled, false, "读取插件系统开关");
-        }
-
-        public static void SavePluginEnabled(bool enabled)
-        {
-            Write(cfg => cfg.PluginSystemEnabled = enabled, "保存插件系统开关");
-        }
-
         // ── 部署设置 ──
 
         public static DeploymentBackendType LoadDeployBackend()
@@ -520,16 +508,6 @@ namespace UEModManager.Services
         public static void SaveDeployBackend(DeploymentBackendType backend)
         {
             Write(cfg => cfg.DeployBackendType = (int)backend, "保存部署后端");
-        }
-
-        public static bool LoadDeployConfirm()
-        {
-            return Read(cfg => cfg.DeployConfirm, true, "读取部署确认设置");
-        }
-
-        public static void SaveDeployConfirm(bool confirm)
-        {
-            Write(cfg => cfg.DeployConfirm = confirm, "保存部署确认设置");
         }
 
         public static bool LoadAutoDeploy()

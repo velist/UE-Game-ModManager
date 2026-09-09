@@ -220,30 +220,6 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>
-        /// 根据分类筛选 MOD。
-        /// </summary>
-        public IEnumerable<ModInfo> FilterMods(IEnumerable<ModInfo> mods, CategoryItem? category)
-        {
-            if (category == null || category.Name == "全部")
-                return mods;
-            if (category.Name == "已启用")
-                return mods.Where(m => m.IsEnabled);
-            if (category.Name == "已禁用")
-                return mods.Where(m => !m.IsEnabled);
-            return mods.Where(m => m.Categories.Contains(category.Name));
-        }
-
-        // ─── 分类显示配置 ───
-
-        /// <summary>
-        /// 保存分类显示配置（DisplayName、IsHidden、SortOrder 等）。
-        /// </summary>
-        public async Task SaveDisplayConfigAsync()
-        {
-            await SaveCategoriesAsync();
-        }
-
         // ─── 内部方法 ───
 
         private string GetFilePath()
@@ -363,7 +339,7 @@ namespace UEModManager.Services
         ///
         /// 写失败必须上抛：数据目录搬到 %LOCALAPPDATA% 之后，"目标不可写"（磁盘满、
         /// 权限、杀软锁定、被同步盘占用）是真实会发生的。此前这里把异常吞掉，用户看到
-        /// 分类添加成功、重启后凭空消失，且没有任何线索。与 ModDataService.WriteToDiskAsync /
+        /// 分类添加成功、重启后凭空消失，且没有任何线索。与 PackageRepository.SaveIndexAsync /
         /// ProfileService.PersistAsync 保持同一种失败语义：记日志 + 上抛，
         /// 由调用链上的 SafeEvent.Run 弹给用户。
         /// </summary>

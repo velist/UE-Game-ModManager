@@ -6,7 +6,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'optimize/**', 'feature/**']
+    branches: [main, 'codex/**', 'optimize/**', 'feature/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -33,6 +33,30 @@ jobs:
 
       - name: 运行测试
         run: dotnet test UEModManager.sln -c Release --no-build --verbosity normal
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cf-workers/modmanger-api/package-lock.json
+
+      - name: 安装 Workers 测试依赖
+        working-directory: cf-workers/modmanger-api
+        run: npm ci
+
+      - name: Workers 端点与真实运行时回归
+        working-directory: cf-workers/modmanger-api
+        run: npm test
+
+      - name: 桌面客户端与 Workers 协议验收
+        working-directory: cf-workers/modmanger-api
+        run: node test/desktop-contract.mjs
+
+      - name: 检查 Workers 打包与绑定
+        working-directory: cf-workers/modmanger-api
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: npm run check:bundle
 
       - name: 依赖漏洞扫描（不阻断，仅报告）
         continue-on-error: true

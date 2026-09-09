@@ -46,6 +46,21 @@ namespace UEModManager.Services
             DeploymentPlanner deployPlanner,
             DeploymentService deployService,
             ConflictAnalyzer conflictAnalyzer)
+            : this(logger, gameConfig, profileService, viewBuilder, deployPlanner,
+                deployService, conflictAnalyzer, AppPaths.LaunchSessionsDirectory)
+        {
+        }
+
+        /// <summary>允许测试将启动记录写入独立目录；DI 使用不含 string 的构造函数。</summary>
+        public LaunchOrchestrator(
+            ILogger<LaunchOrchestrator> logger,
+            GameConfigService gameConfig,
+            ProfileService profileService,
+            ResolvedViewBuilder viewBuilder,
+            DeploymentPlanner deployPlanner,
+            DeploymentService deployService,
+            ConflictAnalyzer conflictAnalyzer,
+            string sessionLogDirectory)
         {
             _logger = logger;
             _gameConfig = gameConfig;
@@ -55,7 +70,7 @@ namespace UEModManager.Services
             _deployService = deployService;
             _conflictAnalyzer = conflictAnalyzer;
 
-            _sessionLogDir = AppPaths.LaunchSessionsDirectory;
+            _sessionLogDir = sessionLogDirectory;
             AppPaths.TryEnsureDirectory(_sessionLogDir);
         }
 
@@ -93,6 +108,7 @@ namespace UEModManager.Services
             };
 
             var steps = BuildPipeline(context);
+            var preparation = new LaunchPreparation();
             session.Steps.AddRange(steps);
 
             _logger.LogInformation("Launch pipeline started for {Game} / {Profile}, {Steps} steps",
@@ -106,7 +122,7 @@ namespace UEModManager.Services
 
                 try
                 {
-                    var passed = await ExecuteStepAsync(step, context, session);
+                    var passed = await ExecuteStepAsync(step, context, session, preparation);
 
                     step.CompletedAt = DateTime.Now;
 
@@ -164,14 +180,19 @@ namespace UEModManager.Services
 
         // ─── 步骤执行 ───
 
-        private async Task<bool> ExecuteStepAsync(LaunchStep step, LaunchContext context, LaunchSession session)
+        private sealed class LaunchPreparation
+        {
+            public ResolvedView? View { get; set; }
+        }
+
+        private async Task<bool> ExecuteStepAsync(LaunchStep step, LaunchContext context, LaunchSession session, LaunchPreparation preparation)
         {
             return step.Type switch
             {
                 LaunchStepType.ValidateGamePath => ValidateGamePath(step, context),
                 LaunchStepType.ValidateExecutable => ValidateExecutable(step, context),
-                LaunchStepType.BuildResolvedView => await BuildView(step, context, session),
-                LaunchStepType.Deploy => await DeployIfNeeded(step, context),
+                LaunchStepType.BuildResolvedView => await BuildView(step, context, session, preparation),
+                LaunchStepType.Deploy => await DeployIfNeeded(step, preparation),
                 LaunchStepType.ConflictCheck => await CheckConflicts(step, context),
                 LaunchStepType.LaunchProcess => LaunchProcess(step, context, session),
                 _ => true
@@ -200,9 +221,10 @@ namespace UEModManager.Services
             return true;
         }
 
-        private async Task<bool> BuildView(LaunchStep step, LaunchContext context, LaunchSession session)
+        private async Task<bool> BuildView(LaunchStep step, LaunchContext context, LaunchSession session, LaunchPreparation preparation)
         {
             var view = await _viewBuilder.BuildAsync();
+            preparation.View = view;
             context.ResolvedViewHash = view.ViewHash;
             session.ViewHash = view.ViewHash;
 
@@ -214,38 +236,38 @@ namespace UEModManager.Services
             return eval.Passed;
         }
 
-        private async Task<bool> DeployIfNeeded(LaunchStep step, LaunchContext context)
+        private async Task<bool> DeployIfNeeded(LaunchStep step, LaunchPreparation preparation)
         {
-            try
-            {
-                var plan = await _deployPlanner.CreatePlanAsync();
-                var skipEval = LaunchStepEvaluator.EvaluateDeploymentSkip(
-                    plan?.Operations.Count ?? 0);
+            // 异常交由 LaunchAsync 记录并终止流水线，与失败事务保持同一语义。
+            var plan = await _deployPlanner.CreatePlanForViewAsync(
+                preparation.View ?? throw new InvalidOperationException("尚未构建部署视图"));
+            var skipEval = LaunchStepEvaluator.EvaluateDeploymentSkip(plan.Operations.Count);
 
-                if (skipEval.Status == LaunchStepStatus.Skipped)
+            if (skipEval.Status == LaunchStepStatus.Skipped)
+            {
+                if (plan.RequiresStateCommit)
                 {
-                    step.Message = skipEval.Message;
-                    step.Status = LaunchStepStatus.Skipped;
-                    return true;
+                    var stateTransaction = await _deployService.ExecuteAsync(plan);
+                    if (stateTransaction.Status != DeploymentStatus.Committed)
+                    {
+                        step.Message = stateTransaction.ErrorMessage ?? "部署归属清单保存失败";
+                        return false;
+                    }
                 }
-
                 step.Message = skipEval.Message;
-                StepChanged?.Invoke(step);
-
-                var tx = await _deployService.ExecuteAsync(plan!);
-                var resultEval = LaunchStepEvaluator.EvaluateDeploymentResult(
-                    tx.Status, tx.CompletedOperations, tx.ErrorMessage);
-
-                step.Message = resultEval.Message;
-                return resultEval.Passed;
-            }
-            catch (Exception ex)
-            {
-                step.Message = $"部署异常: {ex.Message}";
-                // 部署失败不阻止启动，降级为警告
-                step.Status = LaunchStepStatus.Warning;
+                step.Status = LaunchStepStatus.Skipped;
                 return true;
             }
+
+            step.Message = skipEval.Message;
+            StepChanged?.Invoke(step);
+
+            var tx = await _deployService.ExecuteAsync(plan);
+            var resultEval = LaunchStepEvaluator.EvaluateDeploymentResult(
+                tx.Status, tx.CompletedOperations, tx.ErrorMessage);
+
+            step.Message = resultEval.Message;
+            return resultEval.Passed;
         }
 
         private async Task<bool> CheckConflicts(LaunchStep step, LaunchContext context)

@@ -6,7 +6,6 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <NoWarn>$(NoWarn);MSB3246</NoWarn>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyVersion>2.1.0.0</AssemblyVersion>
-    <FileVersion>2.0.5.0</FileVersion>
+    <FileVersion>2.1.0.0</FileVersion>
     <!-- annotations → enable（审计项 T-H）。annotations 只让编译器**记录** ?/! 标注给
          下游用，自己一个空引用警告都不报——等于把 Core 里的空值风险留给主项目在运行时发现。
          Core 是纯函数库、由 879 个测试兜底，是全仓最适合先收紧的一层。

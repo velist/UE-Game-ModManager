@@ -131,6 +131,8 @@ namespace UEModManager.Services
         private RepositorySetupEnvironment ResolveEnvironment()
             => _environment ?? CreateProductionEnvironment();
 
+        internal string DefaultRepositoryRoot => ResolveEnvironment().Paths.CurrentRepositoryRoot;
+
         // ─── 该不该弹 ───
 
         /// <summary>

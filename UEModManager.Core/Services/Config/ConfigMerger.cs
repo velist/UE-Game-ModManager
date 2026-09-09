@@ -76,8 +76,9 @@ namespace UEModManager.Services.Config
                     ? parser.Parse(plan.BaseContent)
                     : new List<ConfigEntry>();
 
-                // 高优先级在后（后写覆盖前写）
-                var orderedSources = plan.Sources.OrderByDescending(s => s.Priority).ToList();
+                // High priority is applied last. Reversing the stable ascending order also makes the first
+                // source win a priority tie, matching ConflictResolver and whole-file winner selection.
+                var orderedSources = plan.Sources.OrderBy(s => s.Priority).Reverse().ToList();
 
                 var allSourceEntries = new List<(ConfigMergeSource source, List<ConfigEntry> entries)>();
                 foreach (var source in orderedSources)

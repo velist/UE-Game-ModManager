@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -41,12 +40,38 @@ namespace UEModManager.Services
         public string CurrentExecutableName => Config.ExecutableName ?? string.Empty;
 
         /// <summary>
-        /// 获取指定游戏的图标路径。
+        /// 获取游戏图标：用户自选图片优先，未设置或文件丢失时使用随程序分发的默认图标。
         /// </summary>
         public string? GetGameIconPath(string gameName)
         {
-            Config.GameIcons ??= new Dictionary<string, string>();
-            return Config.GameIcons.TryGetValue(gameName, out var path) ? path : null;
+            if (string.IsNullOrWhiteSpace(gameName)) return null;
+            if (Config.GameIcons?.TryGetValue(gameName, out var path) == true && File.Exists(path))
+                return path;
+
+            return GetBuiltInGameIconPath(gameName);
+        }
+
+        private static string? GetBuiltInGameIconPath(string gameName)
+        {
+            var fileName = NormalizeGameName(gameName) switch
+            {
+                "黑神话悟空" => "black-myth-wukong.png",
+                "剑星" or "剑星 (CNS)" or "剑星(CNS)" or "剑星(CNS模式)" => "stellar-blade.png",
+                "光与影:33号远征队" => "clair-obscur-expedition-33.png",
+                "明末渊虚之羽" => "wuchang-fallen-feathers.png",
+                "暗黑破坏神4" => "diablo-iv.png",
+                "生化危机9" => "resident-evil-requiem.png",
+                "识质存在" => "pragmata.png",
+                "无主之地4" => "borderlands-4.png",
+                "死亡搁浅2" => "death-stranding-2.png",
+                "杀戮尖塔2" => "slay-the-spire-2.png",
+                _ => null
+            };
+            if (fileName == null) return null;
+
+            // 使用安装目录下的只读资源，首次启动和离线模式不依赖配置写入或网络请求。
+            var path = Path.Combine(AppContext.BaseDirectory, "Assets", "GameIcons", fileName);
+            return File.Exists(path) ? path : null;
         }
 
         /// <summary>
@@ -55,7 +80,9 @@ namespace UEModManager.Services
         public async Task SetGameIconAsync(string gameName, string? iconPath)
         {
             Config.GameIcons ??= new Dictionary<string, string>();
-            if (string.IsNullOrEmpty(iconPath))
+            // 默认图标随程序更新，不把本次安装的绝对路径保存成用户覆盖项。
+            if (string.IsNullOrEmpty(iconPath)
+                || string.Equals(iconPath, GetBuiltInGameIconPath(gameName), StringComparison.OrdinalIgnoreCase))
                 Config.GameIcons.Remove(gameName);
             else
                 Config.GameIcons[gameName] = iconPath;
@@ -194,7 +221,7 @@ namespace UEModManager.Services
         /// 写失败必须上抛：config.json 里装的是游戏安装路径、MOD 路径、自定义游戏列表。
         /// 此前这里把异常吞掉，用户设完游戏路径看到界面正常刷新，重启后路径没了——
         /// 而同一个根因（目标目录不可写）下，导入 MOD 和改方案却会弹错误框
-        /// （ModDataService / ProfileService 一直是 log + throw）。分裂的失败语义比
+        /// （PackageRepository / ProfileService 一直是 log + throw）。分裂的失败语义比
         /// 全都静默更糟：用户会因为"别处会报错"而信任这里的沉默。现统一为 log + throw。
         /// </summary>
         private void SaveConfigSync()
@@ -438,71 +465,6 @@ namespace UEModManager.Services
                 Config.GameEngines = oldEngines ?? new Dictionary<string, string>();
                 Config.PluginPaths = oldPluginPaths ?? new Dictionary<string, string>();
                 throw;
-            }
-        }
-
-        // ─── 游戏启动 ───
-
-        /// <summary>
-        /// 启动当前游戏。返回是否成功。
-        /// </summary>
-        public bool LaunchGame()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(Config.GamePath) || !Directory.Exists(Config.GamePath))
-                {
-                    _logger.LogWarning("游戏路径无效");
-                    return false;
-                }
-
-                string? exePath = null;
-
-                // 1. 使用保存的可执行文件
-                if (!string.IsNullOrEmpty(Config.ExecutableName))
-                {
-                    var path = Path.Combine(Config.GamePath, Config.ExecutableName);
-                    if (File.Exists(path))
-                        exePath = path;
-                }
-
-                // 2. 自动检测
-                if (string.IsNullOrEmpty(exePath))
-                {
-                    // 用完整路径启动：主程序常在 {模块}/Binaries/Win64 下，
-                    // 而 ExecutableName 全项目按"纯文件名"存储（GamePathDialog 也如此），
-                    // 直接 Combine(GamePath, 文件名) 会指向一个不存在的路径。
-                    var detected = AutoDetectExecutablePath(Config.GamePath, Config.GameName ?? "");
-                    if (!string.IsNullOrEmpty(detected))
-                    {
-                        exePath = detected;
-                        Config.ExecutableName = Path.GetFileName(detected);
-                        // 缓存检测结果失败不该连累"启动游戏"本身——exe 已经找到了，
-                        // 大不了下次再检测一遍。
-                        TrySaveConfigQuietly("缓存自动检测到的可执行文件名");
-                    }
-                }
-
-                if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
-                {
-                    _logger.LogWarning("无法找到游戏可执行文件");
-                    return false;
-                }
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    WorkingDirectory = Config.GamePath,
-                    UseShellExecute = true
-                });
-
-                _logger.LogInformation("游戏已启动: {Path}", exePath);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "启动游戏失败");
-                return false;
             }
         }
 

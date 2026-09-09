@@ -6,250 +6,211 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.DeploymentPlanning;
-using UEModManager.Services.Security;
 
-namespace UEModManager.Services
+namespace UEModManager.Services;
+
+/// <summary>Plans against one resolved view and durable, installation-specific file ownership.</summary>
+public class DeploymentPlanner
 {
-    /// <summary>
-    /// 部署计划生成器。
-    /// 根据当前 Profile 的期望状态和游戏目录的实际状态，
-    /// 生成 Add/Remove/Replace 操作列表。
-    ///
-    /// 纯逻辑（差异比较 / 路径计算 / Toggle 构造）下沉到
-    /// <see cref="DeploymentDiffComputer"/> / <see cref="DeploymentTargetPathBuilder"/> /
-    /// <see cref="TogglePlanBuilder"/>。本类负责 IO + 编排。
-    /// </summary>
-    public class DeploymentPlanner
+    private readonly ILogger<DeploymentPlanner> _logger;
+    private readonly PackageRepository _packageRepository;
+    private readonly ObjectStore _objectStore;
+    private readonly ProfileService _profileService;
+    private readonly GameConfigService _gameConfigService;
+    private readonly ResolvedViewBuilder _viewBuilder;
+    private readonly DeploymentStateStore _stateStore;
+
+    public DeploymentPlanner(ILogger<DeploymentPlanner> logger, PackageRepository packageRepository,
+        ObjectStore objectStore, ProfileService profileService, GameConfigService gameConfigService,
+        ResolvedViewBuilder viewBuilder, DeploymentStateStore stateStore)
     {
-        private readonly ILogger<DeploymentPlanner> _logger;
-        private readonly PackageRepository _packageRepository;
-        private readonly ObjectStore _objectStore;
-        private readonly ProfileService _profileService;
-        private readonly GameConfigService _gameConfigService;
+        _logger = logger;
+        _packageRepository = packageRepository;
+        _objectStore = objectStore;
+        _profileService = profileService;
+        _gameConfigService = gameConfigService;
+        _viewBuilder = viewBuilder;
+        _stateStore = stateStore;
+    }
 
-        public DeploymentPlanner(
-            ILogger<DeploymentPlanner> logger,
-            PackageRepository packageRepository,
-            ObjectStore objectStore,
-            ProfileService profileService,
-            GameConfigService gameConfigService)
+    public Task<DeploymentPlan> CreatePlanAsync()
+        => CreatePlanForProfileAsync(_profileService.CurrentProfile ?? throw new InvalidOperationException("没有活跃的 Profile"));
+
+    public async Task<DeploymentPlan> CreatePlanForProfileAsync(InstanceProfile profile)
+        => await CreatePlanForViewAsync(await _viewBuilder.BuildForProfileAsync(profile));
+
+    public async Task<DeploymentPlan> CreatePlanForViewAsync(ResolvedView view)
+    {
+        if (view.ProfileId == Guid.Empty) throw new InvalidOperationException("没有活跃的 Profile");
+        var modPath = DeploymentStateStore.NormalizeRoot(_gameConfigService.CurrentModPath);
+        var gamePath = DeploymentStateStore.NormalizeRoot(_gameConfigService.CurrentGamePath);
+        if (string.IsNullOrEmpty(modPath)) throw new InvalidOperationException("游戏 MOD 路径未配置");
+        if (!string.Equals(modPath, view.ModRootPath, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(gamePath, view.GameRootPath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("游戏目录已变化，请重新构建部署视图。");
+
+        var stored = await _stateStore.ReadAsync(view.HostGameName, gamePath, modPath);
+        var known = stored.Files.ToDictionary(f => f.TargetPath, StringComparer.OrdinalIgnoreCase);
+        // Upgrade only files with committed transaction provenance. Matching a package path/content is not ownership.
+        if (stored.Revision == Guid.Empty)
+            await AdoptLegacyFilesAsync(stored, known);
+        var before = CopyState(stored, stored.Revision, known.Values.ToList());
+
+        var desired = new Dictionary<string, DesiredFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in view.Entries)
         {
-            _logger = logger;
-            _packageRepository = packageRepository;
-            _objectStore = objectStore;
-            _profileService = profileService;
-            _gameConfigService = gameConfigService;
+            DeploymentStateStore.ValidateTarget(before, entry.TargetAbsolutePath);
+            if (string.IsNullOrEmpty(entry.FileHash) || !File.Exists(entry.SourceAbsolutePath))
+                throw new InvalidDataException($"最终视图的源文件不可用: {entry.SourceAbsolutePath}");
+            desired.Add(entry.TargetAbsolutePath, new DesiredFile(
+                entry.PackageKey ?? "generated", entry.PackageDisplayName ?? "生成配置",
+                entry.SourceAbsolutePath, entry.TargetAbsolutePath, entry.TargetRelativePath,
+                entry.FileHash, entry.FileSize, entry.PackageKind ?? PackageKind.Config));
         }
 
-        /// <summary>
-        /// 为当前活跃 Profile 生成完整部署计划。
-        /// 比较 Profile 期望状态与游戏目录实际状态，输出差异操作。
-        /// </summary>
-        public async Task<DeploymentPlan> CreatePlanAsync()
+        var nextFiles = desired.Values.Select(want => new ManagedDeploymentFile
         {
-            var profile = _profileService.CurrentProfile;
-            if (profile == null)
-                throw new InvalidOperationException("没有活跃的 Profile");
+            TargetPath = want.TargetPath, RelativeTargetPath = want.RelativeTargetPath,
+            PackageKey = want.PackageKey, PackageDisplayName = want.PackageDisplayName, Kind = want.Kind,
+            FileHash = want.FileHash!, FileSize = want.FileSize,
+            OriginalFilePath = known.TryGetValue(want.TargetPath, out var prior) ? prior.OriginalFilePath : null
+        }).ToList();
 
-            return await CreatePlanForProfileAsync(profile);
+        var actual = new Dictionary<string, DeployedFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in known.Keys.Concat(desired.Keys).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            DeploymentStateStore.ValidateTarget(before, path);
+            if (!File.Exists(path)) continue;
+            known.TryGetValue(path, out var owner);
+            desired.TryGetValue(path, out var wanted);
+            actual[path] = new DeployedFile(owner?.PackageKey ?? wanted?.PackageKey,
+                owner?.PackageDisplayName ?? wanted?.PackageDisplayName,
+                owner?.RelativeTargetPath ?? wanted!.RelativeTargetPath,
+                await ObjectStore.ComputeFileHashAsync(path), new FileInfo(path).Length,
+                owner?.Kind ?? wanted!.Kind, owner != null);
         }
 
-        /// <summary>
-        /// 为指定 Profile 生成部署计划。
-        /// </summary>
-        public Task<DeploymentPlan> CreatePlanForProfileAsync(InstanceProfile profile)
+        foreach (var owner in known.Values.Where(f => !desired.ContainsKey(f.TargetPath)))
         {
-            return Task.Run(() =>
+            if (actual.TryGetValue(owner.TargetPath, out var file)
+                && !string.Equals(file.Hash, owner.FileHash, StringComparison.OrdinalIgnoreCase))
+                throw new IOException($"已部署文件被外部修改，无法安全移除；请先保留或处理该文件: {owner.TargetPath}");
+            if (owner.OriginalFilePath == null) continue;
+            if (!File.Exists(owner.OriginalFilePath))
+                throw new FileNotFoundException("原始文件备份缺失，已停止移除配置以保护游戏文件。", owner.OriginalFilePath);
+            desired[owner.TargetPath] = new DesiredFile(owner.PackageKey, owner.PackageDisplayName,
+                owner.OriginalFilePath, owner.TargetPath, owner.RelativeTargetPath,
+                await ObjectStore.ComputeFileHashAsync(owner.OriginalFilePath), new FileInfo(owner.OriginalFilePath).Length, owner.Kind);
+        }
+
+        var operations = DeploymentDiffComputer.ComputeDiff(desired, actual);
+        foreach (var operation in operations)
+        {
+            operation.ExpectedTargetExists = actual.TryGetValue(operation.TargetPath, out var file);
+            operation.ExpectedTargetHash = file?.Hash;
+        }
+        var changed = operations.Count > 0 || !SameFiles(before.Files, nextFiles)
+            || (stored.Revision == Guid.Empty && nextFiles.Count > 0);
+        var after = CopyState(before, changed ? Guid.NewGuid() : before.Revision, nextFiles);
+        var plan = new DeploymentPlan
+        {
+            ProfileId = view.ProfileId, HostGameName = view.HostGameName, Operations = operations,
+            BackendType = UiPreferences.LoadDeployBackend(), StateBefore = before, StateAfter = after
+        };
+        _logger.LogInformation("部署计划已生成: +{Add} -{Remove} ~{Replace}; managed={Managed}",
+            plan.AddCount, plan.RemoveCount, plan.ReplaceCount, nextFiles.Count);
+        return plan;
+    }
+
+    public Task<DeploymentPlan> CreateTogglePlanAsync(string packageKey, bool enable)
+    {
+        var profile = _profileService.CurrentProfile ?? throw new InvalidOperationException("没有活跃的 Profile");
+        var package = _packageRepository.GetByKey(packageKey) ?? throw new InvalidOperationException($"包 '{packageKey}' 不存在");
+        // Toggle is a proposed Profile snapshot, not an independent file shortcut. Other config contributors and
+        // UserFix layers must remain part of the same resolution/ownership transaction.
+        var snapshot = new InstanceProfile
+        {
+            Id = profile.Id, HostGameName = profile.HostGameName, Name = profile.Name,
+            BackendType = profile.BackendType,
+            ConflictOverrides = new Dictionary<string, string>(profile.ConflictOverrides, StringComparer.OrdinalIgnoreCase),
+            Packages = profile.Packages.Select(p => new ProfilePackageEntry
             {
-                var modPath = _gameConfigService.CurrentModPath;
-                var gamePath = _gameConfigService.CurrentGamePath;
-
-                if (string.IsNullOrEmpty(modPath))
-                    throw new InvalidOperationException("游戏 MOD 路径未配置");
-
-                // 1. 收集期望状态：Profile 中所有已启用包的 Artifact → 目标路径
-                var desiredFiles = BuildDesiredFileMap(profile, modPath, gamePath);
-
-                // 2. 收集实际状态：游戏 MOD 目录中已存在的文件
-                var actualFiles = ScanDeployedFiles(modPath, gamePath, profile);
-
-                // 3. 比较差异（纯函数，下沉到 Core 的 DeploymentDiffComputer）
-                var operations = DeploymentDiffComputer.ComputeDiff(desiredFiles, actualFiles);
-
-                var plan = new DeploymentPlan
-                {
-                    ProfileId = profile.Id,
-                    HostGameName = profile.HostGameName,
-                    Operations = operations,
-                    BackendType = UiPreferences.LoadDeployBackend()
-                };
-
-                _logger.LogInformation(
-                    "部署计划已生成: +{Add} -{Remove} ~{Replace} (共 {Total} 个操作)",
-                    plan.AddCount, plan.RemoveCount, plan.ReplaceCount, plan.TotalCount);
-
-                return plan;
+                PackageKey = p.PackageKey, Priority = p.Priority, Kind = p.Kind, TargetRootPath = p.TargetRootPath,
+                IsEnabled = string.Equals(p.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase) ? enable : p.IsEnabled
+            }).ToList()
+        };
+        if (!snapshot.Packages.Any(p => string.Equals(p.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase)))
+            snapshot.Packages.Add(new ProfilePackageEntry
+            {
+                PackageKey = package.PackageKey, IsEnabled = enable, Kind = package.Kind,
+                TargetRootPath = package.TargetRootPath, Priority = snapshot.Packages.Count
             });
-        }
+        return CreatePlanForProfileAsync(snapshot);
+    }
 
-        /// <summary>
-        /// 为单个包的启用/禁用生成精简部署计划。
-        /// </summary>
-        public Task<DeploymentPlan> CreateTogglePlanAsync(
-            string packageKey, bool enable)
+    private async Task AdoptLegacyFilesAsync(DeploymentState state, Dictionary<string, ManagedDeploymentFile> known)
+    {
+        var candidates = new Dictionary<string, ManagedDeploymentFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var transaction in await _stateStore.ReadLegacyTransactionsAsync(state))
         {
-            return Task.Run(() =>
+            if (transaction.Status == DeploymentStatus.RolledBack) continue;
+            foreach (var operation in transaction.ExecutedOperations.Concat(transaction.PlannedOperations).DistinctBy(o => o.Id))
             {
-                var profile = _profileService.CurrentProfile;
-                if (profile == null)
-                    throw new InvalidOperationException("没有活跃的 Profile");
-
-                var package = _packageRepository.GetByKey(packageKey);
-                if (package == null)
-                    throw new InvalidOperationException($"包 '{packageKey}' 不存在");
-
-                var modPath = _gameConfigService.CurrentModPath;
-                var gamePath = _gameConfigService.CurrentGamePath;
-                var entry = profile.Packages.FirstOrDefault(p => p.PackageKey == packageKey);
-
-                var operations = TogglePlanBuilder.BuildToggleOperations(
-                    package, entry, modPath, gamePath,
-                    _objectStore.RepositoryRoot,
-                    enable,
-                    File.Exists);
-
-                return new DeploymentPlan
+                if (!DeploymentStateStore.IsInside(state.GameRootPath, operation.TargetPath)
+                    && !DeploymentStateStore.IsInside(state.ModRootPath, operation.TargetPath)) continue;
+                var target = Path.GetFullPath(operation.TargetPath);
+                candidates.TryGetValue(target, out var previous);
+                candidates.Remove(target);
+                // Failed/partial/unknown/new-format transactions invalidate old ownership evidence for affected paths.
+                if (transaction.Status != DeploymentStatus.Committed || transaction.StateBefore != null || transaction.StateAfter != null
+                    || operation.Type == DeploymentOperationType.Remove) continue;
+                if (string.IsNullOrWhiteSpace(operation.SourcePath) || string.IsNullOrWhiteSpace(operation.PackageKey)) continue;
+                string packageRoot;
+                try { packageRoot = _objectStore.GetPackageDirectory(operation.PackageKey); }
+                catch (ArgumentException) { continue; }
+                if (!DeploymentStateStore.IsInside(packageRoot, operation.SourcePath)) continue;
+                DeploymentStateStore.ValidateTarget(state, target);
+                var hash = operation.FileHash;
+                if (string.IsNullOrEmpty(hash) && File.Exists(operation.SourcePath))
+                    hash = await ObjectStore.ComputeFileHashAsync(operation.SourcePath);
+                if (string.IsNullOrEmpty(hash)) continue;
+                var original = previous?.OriginalFilePath;
+                if (operation.Type == DeploymentOperationType.Replace && previous == null)
                 {
-                    ProfileId = profile.Id,
-                    HostGameName = profile.HostGameName,
-                    Operations = operations,
-                    BackendType = UiPreferences.LoadDeployBackend()
+                    original = await _stateStore.PreserveLegacyOriginalAsync(state, operation.BackupPath);
+                    if (original == null) continue; // Cannot safely undo an overwrite whose original was lost.
+                }
+                var root = DeploymentStateStore.IsInside(state.ModRootPath, target) ? state.ModRootPath : state.GameRootPath;
+                candidates[target] = new ManagedDeploymentFile
+                {
+                    TargetPath = target, RelativeTargetPath = Path.GetRelativePath(root, target),
+                    PackageKey = operation.PackageKey, PackageDisplayName = operation.PackageDisplayName,
+                    Kind = operation.PackageKind, FileHash = hash, FileSize = operation.FileSize, OriginalFilePath = original
                 };
-            });
+            }
         }
-
-        // ─── IO 辅助（保留主项目，因为依赖 PackageRepository 和文件系统） ───
-
-        private Dictionary<string, DesiredFile> BuildDesiredFileMap(
-            InstanceProfile profile, string modPath, string gamePath)
+        foreach (var file in candidates.Values)
         {
-            var map = new Dictionary<string, DesiredFile>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var entry in profile.Packages.Where(p => p.IsEnabled))
-            {
-                var package = _packageRepository.GetByKey(entry.PackageKey);
-                if (package == null)
-                {
-                    _logger.LogWarning("Profile 引用的包不存在: {Key}", entry.PackageKey);
-                    continue;
-                }
-
-                foreach (var artifact in package.Artifacts.Where(a => a.ArtifactType != ArtifactType.PreviewImage))
-                {
-                    // RelativeSourcePath 可能来自整合包内的 manifest.json（不可信）。
-                    // Path.Combine 遇到绝对路径会直接返回该绝对路径，会把仓库外的任意文件
-                    // 部署进游戏目录，故此处与目标路径一样必须走 SafeCombine。
-                    string sourcePath;
-                    try
-                    {
-                        sourcePath = PathSanitizer.SafeCombine(_objectStore.RepositoryRoot, artifact.RelativeSourcePath);
-                    }
-                    catch (ArgumentException ex)
-                    {
-                        _logger.LogWarning(ex, "跳过越界的仓库源路径: {Path} (包 {Key})",
-                            artifact.RelativeSourcePath, entry.PackageKey);
-                        continue;
-                    }
-
-                    if (!File.Exists(sourcePath))
-                    {
-                        _logger.LogWarning("仓库文件不存在: {Path}", sourcePath);
-                        continue;
-                    }
-
-                    var targetPath = DeploymentTargetPathBuilder.ComputeTargetPath(
-                        artifact, package, entry, modPath, gamePath);
-
-                    map[targetPath] = new DesiredFile(
-                        PackageKey: entry.PackageKey,
-                        PackageDisplayName: package.DisplayName,
-                        SourcePath: sourcePath,
-                        TargetPath: targetPath,
-                        RelativeTargetPath: DeploymentTargetPathBuilder.ComputeRelativeTargetPath(
-                            artifact, package, entry, modPath, gamePath, targetPath),
-                        FileHash: artifact.FileHash,
-                        FileSize: artifact.FileSize,
-                        Kind: package.Kind);
-                }
-            }
-
-            return map;
+            if (!known.ContainsKey(file.TargetPath) && File.Exists(file.TargetPath)
+                && string.Equals(await ObjectStore.ComputeFileHashAsync(file.TargetPath), file.FileHash, StringComparison.OrdinalIgnoreCase))
+                known[file.TargetPath] = file;
         }
+    }
 
-        private Dictionary<string, DeployedFile> ScanDeployedFiles(
-            string modPath, string gamePath, InstanceProfile profile)
+    private static DeploymentState CopyState(DeploymentState state, Guid revision, List<ManagedDeploymentFile> files)
+        => new()
         {
-            var map = new Dictionary<string, DeployedFile>(StringComparer.OrdinalIgnoreCase);
+            HostGameName = state.HostGameName, GameRootPath = state.GameRootPath, ModRootPath = state.ModRootPath,
+            Revision = revision, Files = files
+        };
 
-            // 扫描 MOD 目录
-            if (Directory.Exists(modPath))
-            {
-                foreach (var dir in Directory.EnumerateDirectories(modPath))
-                {
-                    var dirName = new DirectoryInfo(dir).Name;
-                    var entry = profile.Packages.FirstOrDefault(p => p.PackageKey == dirName);
-                    var package = entry != null ? _packageRepository.GetByKey(entry.PackageKey) : null;
-
-                    foreach (var file in Directory.EnumerateFiles(dir, "*.*", SearchOption.AllDirectories))
-                    {
-                        // 跳过预览图
-                        if (Path.GetFileName(file).StartsWith("preview", StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        var relativePath = Path.GetRelativePath(modPath, file);
-                        map[file] = new DeployedFile(
-                            PackageKey: dirName,
-                            PackageDisplayName: package?.DisplayName ?? dirName,
-                            RelativePath: relativePath,
-                            Hash: null, // 延迟计算
-                            FileSize: new FileInfo(file).Length,
-                            Kind: package?.Kind ?? PackageKind.Mod,
-                            BelongsToKnownPackage: entry != null && !entry.IsEnabled);
-                    }
-                }
-            }
-
-            // 扫描非 MOD 目标目录
-            foreach (var entry in profile.Packages.Where(p => p.Kind != PackageKind.Mod))
-            {
-                var package = _packageRepository.GetByKey(entry.PackageKey);
-                var targetRootPath = entry.TargetRootPath ?? package?.TargetRootPath;
-                if (string.IsNullOrEmpty(targetRootPath) || string.IsNullOrEmpty(gamePath))
-                    continue;
-
-                targetRootPath = PathSanitizer.SanitizeRelative(targetRootPath);
-                var packageKey = PathSanitizer.SanitizeRelative(entry.PackageKey);
-                var packageDir = Path.Combine(gamePath, targetRootPath, packageKey);
-                if (!Directory.Exists(packageDir))
-                    continue;
-
-                foreach (var file in Directory.EnumerateFiles(packageDir, "*.*", SearchOption.AllDirectories))
-                {
-                    var relativePath = Path.GetRelativePath(
-                        Path.Combine(gamePath, targetRootPath), file);
-
-                    map[file] = new DeployedFile(
-                        PackageKey: entry.PackageKey,
-                        PackageDisplayName: package?.DisplayName ?? entry.PackageKey,
-                        RelativePath: relativePath,
-                        Hash: null,
-                        FileSize: new FileInfo(file).Length,
-                        Kind: entry.Kind,
-                        BelongsToKnownPackage: !entry.IsEnabled);
-                }
-            }
-
-            return map;
-        }
+    private static bool SameFiles(List<ManagedDeploymentFile> before, List<ManagedDeploymentFile> after)
+    {
+        if (before.Count != after.Count) return false;
+        var map = before.ToDictionary(f => f.TargetPath, StringComparer.OrdinalIgnoreCase);
+        return after.All(f => map.TryGetValue(f.TargetPath, out var other)
+            && f.PackageKey == other.PackageKey && f.PackageDisplayName == other.PackageDisplayName
+            && f.RelativeTargetPath == other.RelativeTargetPath && f.Kind == other.Kind
+            && f.FileHash == other.FileHash && f.FileSize == other.FileSize && f.OriginalFilePath == other.OriginalFilePath);
     }
 }

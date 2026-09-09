@@ -38,6 +38,7 @@ namespace UEModManager.Services
         private readonly ObjectStore _objectStore;
         private readonly GameConfigService _gameConfig;
         private readonly RepositoryReclaimService _reclaim;
+        private readonly long _maximumExtractedBytes;
 
         /// <summary>
         /// 导入完成时触发。
@@ -50,12 +51,25 @@ namespace UEModManager.Services
             ObjectStore objectStore,
             GameConfigService gameConfig,
             RepositoryReclaimService reclaim)
+            : this(logger, repository, objectStore, gameConfig, reclaim, ArchiveExtractor.MaxTotalExtractedBytes)
         {
+        }
+
+        internal PackageImportService(
+            ILogger<PackageImportService> logger,
+            PackageRepository repository,
+            ObjectStore objectStore,
+            GameConfigService gameConfig,
+            RepositoryReclaimService reclaim,
+            long maximumExtractedBytes)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(maximumExtractedBytes);
             _logger = logger;
             _repository = repository;
             _objectStore = objectStore;
             _gameConfig = gameConfig;
             _reclaim = reclaim;
+            _maximumExtractedBytes = maximumExtractedBytes;
         }
 
         /// <summary>
@@ -287,14 +301,25 @@ namespace UEModManager.Services
             {
                 Directory.CreateDirectory(tempDir);
 
-                if (!ExtractCompressedFile(filePath, tempDir))
+                var extractionBudget = new ExtractionBudget(_maximumExtractedBytes);
+                if (!ArchiveExtractor.ExtractCompressedFile(filePath, tempDir, _logger, extractionBudget))
                 {
-                    results.Add(new PackageImportResult { Success = false, ErrorMessage = "解压失败" });
+                    results.Add(new PackageImportResult
+                    {
+                        Success = false,
+                        ErrorMessage = extractionBudget.IsExceeded ? "解压体积超过上限" : "解压失败"
+                    });
                     return results;
                 }
 
                 // 处理嵌套压缩包
-                ProcessNestedArchives(tempDir);
+                var nested = ArchiveExtractor.ProcessNestedArchives(
+                    tempDir, _logger, ArchiveExtractor.MaxNestingDepth, extractionBudget);
+                if (nested.StoppedBySizeLimit)
+                {
+                    results.Add(new PackageImportResult { Success = false, ErrorMessage = "解压体积超过上限" });
+                    return results;
+                }
                 CleanupArchives(tempDir);
 
                 // 收集 MOD 文件（惰性枚举 + 过滤，避免先把整棵解压树的路径物化一遍）
@@ -494,10 +519,6 @@ namespace UEModManager.Services
             => ModCategoryClassifier.Classify(name);
 
         // ─── 解压缩（委托 ArchiveExtractor） ───
-        private bool ExtractCompressedFile(string filePath, string extractPath)
-            => ArchiveExtractor.ExtractCompressedFile(filePath, extractPath, _logger);
-        private void ProcessNestedArchives(string directory)
-            => ArchiveExtractor.ProcessNestedArchives(directory, _logger);
         private static void CleanupArchives(string directory)
             => ArchiveExtractor.CleanupArchives(directory);
 

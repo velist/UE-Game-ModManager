@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
@@ -507,42 +507,6 @@ namespace UEModManager.Data
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync();
         }
-
-        /// <summary>
-        /// 获取数据库信息
-        /// </summary>
-        public async Task<DatabaseInfo> GetDatabaseInfoAsync()
-        {
-            var dbPath = GetDatabasePath();
-            var fileInfo = new FileInfo(dbPath);
-            
-            var info = new DatabaseInfo
-            {
-                Path = dbPath,
-                Size = fileInfo.Exists ? fileInfo.Length : 0,
-                Created = fileInfo.Exists ? fileInfo.CreationTime : DateTime.MinValue,
-                LastModified = fileInfo.Exists ? fileInfo.LastWriteTime : DateTime.MinValue,
-                UserCount = await Users.CountAsync(),
-                ModCacheCount = await ModCaches.CountAsync(),
-                ConfigCount = await Configurations.CountAsync()
-            };
-
-            return info;
-        }
-    }
-
-    /// <summary>
-    /// 数据库信息
-    /// </summary>
-    public class DatabaseInfo
-    {
-        public string Path { get; set; } = string.Empty;
-        public long Size { get; set; }
-        public DateTime Created { get; set; }
-        public DateTime LastModified { get; set; }
-        public int UserCount { get; set; }
-        public int ModCacheCount { get; set; }
-        public int ConfigCount { get; set; }
     }
 }
 

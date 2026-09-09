@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using UEModManager.Models;
 using UEModManager.Services.Config;
+using UEModManager.Services.DeploymentPlanning;
+using UEModManager.Services.Security;
 
 namespace UEModManager.Services.ResolvedViews
 {
@@ -15,6 +17,48 @@ namespace UEModManager.Services.ResolvedViews
     /// </summary>
     public static class ResolvedViewLayerBuilder
     {
+        /// <summary>
+        /// All physical deployment candidates, before any winner selection. MOD/plugin directories stay isolated;
+        /// configuration packages share their declared target. The complete set is also the input to config merging.
+        /// </summary>
+        public static List<ResolvedEntry> BuildDeploymentCandidates(
+            InstanceProfile profile,
+            IReadOnlyDictionary<string, Package> packagesByKey,
+            IObjectStoreQuery objectStore,
+            string modPath,
+            string gamePath)
+        {
+            var candidates = new List<ResolvedEntry>();
+            foreach (var profileEntry in profile.Packages.Where(p => p.IsEnabled).OrderBy(p => p.Priority))
+            {
+                if (!packagesByKey.TryGetValue(profileEntry.PackageKey, out var package))
+                    throw new InvalidOperationException($"方案引用的包不存在: {profileEntry.PackageKey}");
+                foreach (var artifact in package.Artifacts.Where(a => a.ArtifactType != ArtifactType.PreviewImage))
+                {
+                    var root = package.Kind == PackageKind.Mod ? modPath : gamePath;
+                    if (string.IsNullOrWhiteSpace(root))
+                        throw new InvalidOperationException($"包 {package.PackageKey} 的游戏目标目录未配置");
+                    var target = Path.GetFullPath(DeploymentTargetPathBuilder.ComputeTargetPath(artifact, package, profileEntry, modPath, gamePath));
+                    candidates.Add(new ResolvedEntry
+                    {
+                        DeploymentRootPath = Path.GetFullPath(root),
+                        TargetAbsolutePath = target,
+                        TargetRelativePath = Path.GetRelativePath(root, target),
+                        SourceAbsolutePath = PathSanitizer.SafeCombine(objectStore.RepositoryRoot, artifact.RelativeSourcePath),
+                        Source = ResolvedEntrySource.Package,
+                        PackageKey = package.PackageKey,
+                        PackageDisplayName = package.DisplayName,
+                        PackageKind = package.Kind,
+                        FileSize = artifact.FileSize,
+                        FileHash = artifact.FileHash,
+                        Priority = profileEntry.Priority,
+                        ArtifactType = artifact.ArtifactType
+                    });
+                }
+            }
+            return candidates;
+        }
+
         /// <summary>
         /// Layer 1: Package 文件层 + 冲突解决。
         ///
@@ -54,9 +98,7 @@ namespace UEModManager.Services.ResolvedViews
                     var entry = new ResolvedEntry
                     {
                         TargetRelativePath = artifact.RelativeTargetPath,
-                        SourceAbsolutePath = Path.Combine(
-                            objectStore.GetPackageFilesDirectory(package.PackageKey),
-                            artifact.RelativeSourcePath),
+                        SourceAbsolutePath = PathSanitizer.SafeCombine(objectStore.RepositoryRoot, artifact.RelativeSourcePath),
                         Source = ResolvedEntrySource.Package,
                         PackageKey = package.PackageKey,
                         PackageDisplayName = package.DisplayName,
@@ -129,19 +171,16 @@ namespace UEModManager.Services.ResolvedViews
         }
 
         /// <summary>
-        /// Layer 2 (前半)：从 Package 层结果中识别需要键级合并的配置文件，构造 <see cref="ConfigMergePlan"/> 列表。
+        /// Layer 2 (前半)：从未经去重的物理部署候选中识别需键级合并的配置文件。
         ///
         /// 选取规则：
         /// 1. <see cref="ResolvedEntry.ArtifactType"/> == <see cref="ArtifactType.ConfigFile"/>。
-        /// 2. 同一 <see cref="ResolvedEntry.TargetRelativePath"/> 上有 ≥ 2 个候选条目（即多个包贡献同一配置文件）。
+        /// 2. 同一 TargetAbsolutePath 上有 ≥ 2 个候选；兼容不带部署根的纯逻辑调用，以 TargetRelativePath 分组。
         /// 3. 文件扩展名能被 <see cref="ConfigMerger.DetectFormat"/> 识别（Ini/Json/Cfg/...，非 Unknown）。
         ///
-        /// 注意：BuildPackageLayer 的胜者求解会让单一目标路径只保留 1 个 entry。
-        /// 因此这里需要的是"包层冲突解决前"的候选——调用方通常会传入"未经胜者求解的全量条目"，
-        /// 或显式记录每个目标路径的全部候选。当前实现接受 entries 列表并按 TargetRelativePath 聚合，
-        /// 调用方有责任传入合适的输入（详见 ResolvedViewBuilder 调用点）。
-        ///
-        /// 返回的每个 plan 的 Sources 已按 Priority 升序排列；BaseContent 留给主项目从游戏目录读入。
+        /// ResolvedViewBuilder 传入 BuildDeploymentCandidates 的完整候选集，随后用合并产物替换胜者条目。
+        /// Sources 已按 Priority 升序排列。不要把游戏目录内上一次合并的内容作为 BaseContent，
+        /// 否则已禁用包的键会残留在下一次合并中。
         /// </summary>
         /// <param name="configCandidateEntries">候选配置文件条目（同一路径可重复出现，每次代表一个包的贡献）。</param>
         /// <returns>需要键级合并的 plan 列表。空集表示没有需要合并的文件。</returns>
@@ -154,7 +193,8 @@ namespace UEModManager.Services.ResolvedViews
 
             var groups = configCandidateEntries
                 .Where(e => e.ArtifactType == ArtifactType.ConfigFile)
-                .GroupBy(e => e.TargetRelativePath, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(e => string.IsNullOrEmpty(e.TargetAbsolutePath) ? e.TargetRelativePath : e.TargetAbsolutePath,
+                    StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1);
 
             foreach (var group in groups)
@@ -164,7 +204,7 @@ namespace UEModManager.Services.ResolvedViews
 
                 var plan = new ConfigMergePlan
                 {
-                    TargetRelativePath = group.Key,
+                    TargetRelativePath = group.First().TargetRelativePath,
                     Format = format,
                     Strategy = ConfigMergeStrategy.MergeByKey,
                     Sources = group

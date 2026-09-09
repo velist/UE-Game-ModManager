@@ -40,14 +40,25 @@ namespace UEModManager.Models
         /// 计划内的全部操作（含备份路径映射），在备份阶段结束、执行开始之前一次性落盘。
         ///
         /// 存在的理由：执行循环只改内存中的 <see cref="ExecutedOperations"/>，
-        /// 进程若在循环中被杀/断电，磁盘上的 ExecutedOperations 是空数组，
-        /// "备份文件 → 目标路径"的映射随内存一起丢失，备份目录里的文件就成了无主数据。
+        /// 进程若在循环中被杀/断电，磁盘上的 ExecutedOperations 可能为空或仅有上次进度刷盘的前缀，
+        /// 最后几项的"备份文件 → 目标路径"映射不能依赖尚未落盘的执行记录。
         /// 有了这份快照，崩溃恢复即使拿不到执行进度也能完整回滚。
         ///
         /// 对未真正执行的操作做回滚是幂等的：Add 的目标文件不存在会被跳过，
         /// Remove/Replace 从备份恢复得到的就是原文件本身。
         /// </summary>
         public List<DeploymentOperation> PlannedOperations { get; set; } = [];
+
+        /// <summary>
+        /// 崩溃恢复需要覆盖完整计划。持久化该标记，使首次恢复部分失败、状态变为
+        /// PartiallyRolledBack 后，重载重试仍包含未写入执行进度日志的尾部操作。
+        /// 进程内捕获的失败有准确执行记录，不设置此标记。
+        /// </summary>
+        public bool RollbackRequiresFullPlan { get; set; }
+
+        /// <summary>Persisted before any file writes so crash recovery restores both bytes and ownership.</summary>
+        public DeploymentState? StateBefore { get; init; }
+        public DeploymentState? StateAfter { get; init; }
 
         /// <summary>创建时间。</summary>
         public DateTime CreatedAt { get; init; } = DateTime.Now;
@@ -116,12 +127,14 @@ namespace UEModManager.Models
                                           or DeploymentStatus.PartiallyRolledBack;
 
         /// <summary>
-        /// 回滚时应遍历的操作集合：优先用执行记录，
-        /// 崩溃导致执行记录为空时回落到备份阶段落盘的完整计划。
+        /// 崩溃留下的 InProgress 或其后续恢复重试使用完整计划；
+        /// 已知停止的进程内失败使用准确执行记录，避免触碰尚未尝试的操作。
         /// </summary>
         [JsonIgnore]
         public IReadOnlyList<DeploymentOperation> RollbackSource
-            => ExecutedOperations.Count > 0 ? ExecutedOperations : PlannedOperations;
+            => (RollbackRequiresFullPlan || Status == DeploymentStatus.InProgress) && PlannedOperations.Count > 0
+                ? PlannedOperations
+                : ExecutedOperations.Count > 0 ? ExecutedOperations : PlannedOperations;
     }
 
     /// <summary>

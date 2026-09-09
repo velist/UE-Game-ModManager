@@ -85,14 +85,14 @@ public class DeploymentDiffComputerTests
     }
 
     [Fact]
-    public void SizeMatchesAndActualHashMissing_NoOp()
+    public void SizeMatchesAndActualHashMissing_RequiresReplace()
     {
         var desired = new Dictionary<string, DesiredFile> { ["/g/a"] = Want("a", "/g/a", "expected", size: 100) };
         var actual = new Dictionary<string, DeployedFile> { ["/g/a"] = Have("a", hash: null, size: 100) };
 
         var ops = DeploymentDiffComputer.ComputeDiff(desired, actual);
 
-        Assert.Empty(ops);
+        Assert.Equal(DeploymentOperationType.Replace, Assert.Single(ops).Type);
     }
 
     [Fact]
@@ -132,14 +132,14 @@ public class DeploymentDiffComputerTests
     }
 
     [Fact]
-    public void MissingDesiredHash_NoReplaceEvenIfDifferent()
+    public void MissingDesiredHash_RequiresReplaceBecauseEqualityIsUnproven()
     {
         var desired = new Dictionary<string, DesiredFile> { ["/g/a"] = Want("a", "/g/a", hash: null) };
         var actual = new Dictionary<string, DeployedFile> { ["/g/a"] = Have("a", "anything") };
 
         var ops = DeploymentDiffComputer.ComputeDiff(desired, actual);
 
-        Assert.Empty(ops);  // 无哈希 → 跳过比较
+        Assert.Equal(DeploymentOperationType.Replace, Assert.Single(ops).Type);
     }
 
     [Fact]

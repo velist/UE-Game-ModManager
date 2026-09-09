@@ -118,7 +118,7 @@ public class DeploymentTargetPathBuilderTests
             modPath: "/g/mods", gamePath: "/g/game");
 
         var normalized = path.Replace('\\', '/');
-        Assert.Equal("/g/game/Saved/Config/WindowsNoEditor/cfgA/Engine.ini", normalized);
+        Assert.Equal("/g/game/Saved/Config/WindowsNoEditor/Engine.ini", normalized);
     }
 
     [Fact]

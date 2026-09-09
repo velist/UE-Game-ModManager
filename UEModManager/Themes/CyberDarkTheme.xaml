@@ -31,7 +31,6 @@
     <Color x:Key="PrimaryColor">#06b6d4</Color>
     <Color x:Key="PrimaryHoverColor">#0891b2</Color>
     <Color x:Key="PrimaryLightColor">#22d3ee</Color>
-    <Color x:Key="PrimaryGlowColor">#06b6d440</Color>
 
     <!-- ── 边框与遮罩 ── -->
     <Color x:Key="BorderColor">#27272a</Color>
@@ -59,7 +58,6 @@
     <Color x:Key="DropdownBorderColor">#3f3f46</Color>
     <Color x:Key="ItemHoverColor">#1a1a1d</Color>
     <Color x:Key="ItemActiveColor">#1a1a1d</Color>
-    <Color x:Key="ItemActiveBorderColor">#27272a80</Color>
     <Color x:Key="DividerColor">#27272a99</Color>
 
     <!-- ── v2.0 类型色标（MOD / 插件 / 配置 + 冲突胜负底色） ──
@@ -72,8 +70,6 @@
     <Color x:Key="ModCyanBgColor">#2006b6d4</Color>
     <Color x:Key="PluginPurpleBgColor">#20a855f7</Color>
     <Color x:Key="ConfigAmberBgColor">#20f59e0b</Color>
-    <Color x:Key="WinnerGreenBgColor">#1822c55e</Color>
-    <Color x:Key="LoserRedBgColor">#18ef4444</Color>
 
     <!-- ════════════════════════════════════════════════════════════
          画刷 —— 一律由上方 Color 派生，不要在这里写第二份色值
@@ -87,7 +83,6 @@
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
     <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}"/>
     <SolidColorBrush x:Key="PrimaryLightBrush" Color="{StaticResource PrimaryLightColor}"/>
-    <SolidColorBrush x:Key="PrimaryGlowBrush" Color="{StaticResource PrimaryGlowColor}"/>
 
     <SolidColorBrush x:Key="CyberBorderBrush" Color="{StaticResource BorderColor}"/>
     <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
@@ -108,16 +103,12 @@
     <SolidColorBrush x:Key="ClosePressedBrush" Color="{StaticResource ClosePressedColor}"/>
 
     <!-- 语义别名：与上面的状态色同源，供业务代码按语义引用 -->
-    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource StatusGreenColor}"/>
-    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource StatusOrangeColor}"/>
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource StatusRedColor}"/>
-    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource StatusRedColor}"/>
 
     <SolidColorBrush x:Key="DropdownBgBrush" Color="{StaticResource DropdownBgColor}"/>
     <SolidColorBrush x:Key="DropdownBorderBrush" Color="{StaticResource DropdownBorderColor}"/>
     <SolidColorBrush x:Key="ItemHoverBrush" Color="{StaticResource ItemHoverColor}"/>
     <SolidColorBrush x:Key="ItemActiveBrush" Color="{StaticResource ItemActiveColor}"/>
-    <SolidColorBrush x:Key="ItemActiveBorderBrush" Color="{StaticResource ItemActiveBorderColor}"/>
     <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}"/>
 
     <!-- v2.0 类型色标画刷 -->
@@ -126,8 +117,6 @@
     <SolidColorBrush x:Key="ModCyanBgBrush" Color="{StaticResource ModCyanBgColor}"/>
     <SolidColorBrush x:Key="PluginPurpleBgBrush" Color="{StaticResource PluginPurpleBgColor}"/>
     <SolidColorBrush x:Key="ConfigAmberBgBrush" Color="{StaticResource ConfigAmberBgColor}"/>
-    <SolidColorBrush x:Key="WinnerGreenBgBrush" Color="{StaticResource WinnerGreenBgColor}"/>
-    <SolidColorBrush x:Key="LoserRedBgBrush" Color="{StaticResource LoserRedBgColor}"/>
 
     <!-- v2.0 UX优化: 渐变按钮画刷 -->
     <LinearGradientBrush x:Key="ImportButtonGradient" StartPoint="0,0" EndPoint="1,1">
@@ -146,7 +135,6 @@
     <CornerRadius x:Key="RadiusSm">8</CornerRadius>
     <CornerRadius x:Key="RadiusMd">12</CornerRadius>
     <CornerRadius x:Key="RadiusLg">16</CornerRadius>
-    <CornerRadius x:Key="RadiusXl">20</CornerRadius>
 
     <!-- 嵌入思源黑体 SC（Adobe SIL OFL 1.1）— Regular 字形覆盖所有中文显示。
          WPF 在缺字形时自动回退到系统字体（Segoe UI / 微软雅黑）处理拉丁字符。
@@ -154,4 +142,53 @@
          资源 key 沿用 InterFont 名以保持向后兼容（22 处 XAML 引用无需修改）。 -->
     <FontFamily x:Key="InterFont">pack://application:,,,/Fonts/#Source Han Sans SC, Microsoft YaHei UI, Segoe UI</FontFamily>
 
+
+    <!-- 存储位置引导：保留新版窗口配色，集中管理主题令牌。 -->
+    <Color x:Key="SetupSurfaceColor">#18181B</Color>
+    <Color x:Key="SetupTitleBarColor">#161618</Color>
+    <Color x:Key="SetupRowColor">#202023</Color>
+    <Color x:Key="SetupHoverColor">#27272B</Color>
+    <Color x:Key="SetupInputColor">#121214</Color>
+    <Color x:Key="SetupLineColor">#343439</Color>
+    <Color x:Key="SetupSoftLineColor">#2C2C31</Color>
+    <Color x:Key="SetupSecondaryColor">#B0B0BA</Color>
+    <Color x:Key="SetupAccentHoverColor">#67E8F9</Color>
+    <Color x:Key="SetupAccentInkColor">#083344</Color>
+    <Color x:Key="SetupSelectedColor">#172C31</Color>
+    <Color x:Key="SetupTrackColor">#38383F</Color>
+    <Color x:Key="SetupMeterColor">#73737D</Color>
+    <Color x:Key="SetupWarningColor">#FBBF24</Color>
+    <Color x:Key="SetupErrorColor">#F87171</Color>
+    <Color x:Key="SetupCloseHoverColor">#C42B38</Color>
+    <Color x:Key="SetupOnCloseColor">#FFFFFF</Color>
+    <Color x:Key="SetupIconSelectedLineColor">#4022D3EE</Color>
+    <Color x:Key="SetupIconSelectedColor">#0922D3EE</Color>
+    <Color x:Key="SetupSelectedHoverColor">#1C343A</Color>
+    <Color x:Key="SetupBadgeColor">#1322D3EE</Color>
+    <SolidColorBrush x:Key="SetupSurfaceBrush" Color="{StaticResource SetupSurfaceColor}"/>
+    <SolidColorBrush x:Key="SetupTitleBarBrush" Color="{StaticResource SetupTitleBarColor}"/>
+    <SolidColorBrush x:Key="SetupRowBrush" Color="{StaticResource SetupRowColor}"/>
+    <SolidColorBrush x:Key="SetupHoverBrush" Color="{StaticResource SetupHoverColor}"/>
+    <SolidColorBrush x:Key="SetupInputBrush" Color="{StaticResource SetupInputColor}"/>
+    <SolidColorBrush x:Key="SetupLineBrush" Color="{StaticResource SetupLineColor}"/>
+    <SolidColorBrush x:Key="SetupSoftLineBrush" Color="{StaticResource SetupSoftLineColor}"/>
+    <SolidColorBrush x:Key="SetupSecondaryBrush" Color="{StaticResource SetupSecondaryColor}"/>
+    <SolidColorBrush x:Key="SetupAccentHoverBrush" Color="{StaticResource SetupAccentHoverColor}"/>
+    <SolidColorBrush x:Key="SetupAccentInkBrush" Color="{StaticResource SetupAccentInkColor}"/>
+    <SolidColorBrush x:Key="SetupSelectedBrush" Color="{StaticResource SetupSelectedColor}"/>
+    <SolidColorBrush x:Key="SetupTrackBrush" Color="{StaticResource SetupTrackColor}"/>
+    <SolidColorBrush x:Key="SetupMeterBrush" Color="{StaticResource SetupMeterColor}"/>
+    <SolidColorBrush x:Key="SetupWarningBrush" Color="{StaticResource SetupWarningColor}"/>
+    <SolidColorBrush x:Key="SetupErrorBrush" Color="{StaticResource SetupErrorColor}"/>
+    <SolidColorBrush x:Key="SetupCloseHoverBrush" Color="{StaticResource SetupCloseHoverColor}"/>
+    <SolidColorBrush x:Key="SetupOnCloseBrush" Color="{StaticResource SetupOnCloseColor}"/>
+    <SolidColorBrush x:Key="SetupIconSelectedLineBrush" Color="{StaticResource SetupIconSelectedLineColor}"/>
+    <SolidColorBrush x:Key="SetupIconSelectedBrush" Color="{StaticResource SetupIconSelectedColor}"/>
+    <SolidColorBrush x:Key="SetupSelectedHoverBrush" Color="{StaticResource SetupSelectedHoverColor}"/>
+    <SolidColorBrush x:Key="SetupBadgeBrush" Color="{StaticResource SetupBadgeColor}"/>
+    <SolidColorBrush x:Key="SetupTextBrush" Color="{StaticResource Text100Color}"/>
+    <SolidColorBrush x:Key="SetupMutedBrush" Color="{StaticResource Text400Color}"/>
+    <SolidColorBrush x:Key="SetupAccentBrush" Color="{StaticResource PrimaryLightColor}"/>
+    <SolidColorBrush x:Key="SetupSelectedLineBrush" Color="{StaticResource PrimaryHoverColor}"/>
+    <SolidColorBrush x:Key="SetupRadioOutlineBrush" Color="{StaticResource Text500Color}"/>
 </ResourceDictionary>

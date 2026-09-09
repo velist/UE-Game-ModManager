@@ -22,7 +22,7 @@ namespace UEModManager.Models
         /// <summary>默认 MOD 目录模式（相对于游戏根目录）。</summary>
         public string[] DefaultModPathPatterns { get; init; } = [];
 
-        /// <summary>是否支持冲突检测（CUE4Parse）。</summary>
+        /// <summary>是否支持 MOD 加载顺序冲突检测。</summary>
         public bool SupportsConflictDetection { get; init; }
 
         /// <summary>文件分组优先级扩展名，靠前的优先作为组名。</summary>

@@ -30,6 +30,13 @@ namespace UEModManager.Models
         /// <summary>部署后端类型。</summary>
         public DeploymentBackendType BackendType { get; init; }
 
+        /// <summary>Ownership snapshots committed with the file transaction (null for legacy plans).</summary>
+        public DeploymentState? StateBefore { get; init; }
+        public DeploymentState? StateAfter { get; init; }
+
+        [JsonIgnore]
+        public bool RequiresStateCommit => StateAfter != null && StateAfter.Revision != StateBefore?.Revision;
+
         // ─── 计算属性（UI 用） ───
 
         /// <summary>新增操作数。</summary>
@@ -50,7 +57,7 @@ namespace UEModManager.Models
 
         /// <summary>是否有变更。</summary>
         [JsonIgnore]
-        public bool HasChanges => Operations.Count > 0;
+        public bool HasChanges => Operations.Count > 0 || RequiresStateCommit;
 
         /// <summary>涉及的包列表（去重）。</summary>
         [JsonIgnore]

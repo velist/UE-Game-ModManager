@@ -8,6 +8,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
+using UEModManager.Services.Conflict;
+using UEModManager.Services.Import;
 using UEModManager.Services.Lock;
 using UEModManager.Services.Security;
 
@@ -61,7 +63,7 @@ namespace UEModManager.Services
             var packagesByKey = _packageRepo.GetAllPackages()
                 .ToDictionary(p => p.PackageKey, p => p, StringComparer.OrdinalIgnoreCase);
 
-            var overrides = _conflictAnalyzer?.GetOverrides();
+            var overrides = _conflictAnalyzer?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
 
             var lockFile = ProfileLockBuilder.Build(
                 profile, packagesByKey, overrides,
@@ -118,20 +120,19 @@ namespace UEModManager.Services
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
             ValidateLockFile(lockFile);
 
+            ValidateImportHost(lockFile);
+
             var localKeys = new HashSet<string>(
                 _packageRepo.GetAllPackages().Select(p => p.PackageKey),
                 StringComparer.OrdinalIgnoreCase);
 
-            var newProfile = await _profileService.CreateProfileAsync(
-                name: $"{lockFile.Profile.Name} (导入)",
-                description: lockFile.Profile.Description);
-
             // 填入包条目（仅本地存在的）
+            var entries = new List<ProfilePackageEntry>();
             foreach (var pkg in lockFile.Packages)
             {
                 if (!localKeys.Contains(pkg.PackageKey)) continue;
 
-                newProfile.Packages.Add(new ProfilePackageEntry
+                entries.Add(new ProfilePackageEntry
                 {
                     PackageKey = pkg.PackageKey,
                     IsEnabled = pkg.IsEnabled,
@@ -139,6 +140,15 @@ namespace UEModManager.Services
                     Kind = Enum.TryParse<PackageKind>(pkg.Kind, out var k) ? k : PackageKind.Mod,
                 });
             }
+
+            var overrides = RebaseImportedOverrides(lockFile.ConflictOverrides, entries);
+            var newProfile = await _profileService.CreateProfileAsync(
+                name: $"{lockFile.Profile.Name} (导入)",
+                description: lockFile.Profile.Description,
+                packages: entries,
+                conflictOverrides: overrides,
+                backendType: Enum.TryParse<DeploymentBackendType>(lockFile.Profile.BackendType, out var backend)
+                    ? backend : DeploymentBackendType.Copy);
 
             await _profileService.SwitchProfileAsync(newProfile.Id);
 
@@ -163,6 +173,7 @@ namespace UEModManager.Services
 
         private const string BundleLockEntryName = "profile.lock.json";
         private const string BundlePackagesPrefix = "packages/";
+        private const long MaxBundleMetadataBytes = 16L * 1024 * 1024;
 
         /// <summary>
         /// 导出整合包（zip）：含 profile.lock.json + 所有引用包的物理文件。
@@ -179,7 +190,7 @@ namespace UEModManager.Services
             var packagesByKey = _packageRepo.GetAllPackages()
                 .ToDictionary(p => p.PackageKey, p => p, StringComparer.OrdinalIgnoreCase);
 
-            var overrides = _conflictAnalyzer?.GetOverrides();
+            var overrides = _conflictAnalyzer?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
 
             var lockFile = ProfileLockBuilder.Build(
                 profile, packagesByKey, overrides,
@@ -243,13 +254,9 @@ namespace UEModManager.Services
                 ?? throw new InvalidOperationException(
                     $"整合包中缺少 {BundleLockEntryName}，可能不是有效的整合包");
 
-            ProfileLock lockFile;
-            using (var reader = new StreamReader(lockEntry.Open()))
-            {
-                var json = await reader.ReadToEndAsync();
-                lockFile = JsonSerializer.Deserialize<ProfileLock>(json, JsonOptions)
-                    ?? throw new InvalidOperationException("Lock 文件解析失败");
-            }
+            var json = await ReadBundleMetadataAsync(lockEntry);
+            var lockFile = JsonSerializer.Deserialize<ProfileLock>(json, JsonOptions)
+                ?? throw new InvalidOperationException("Lock 文件解析失败");
 
             if (lockFile.LockVersion > ProfileLockSchema.CurrentVersion)
                 throw new InvalidOperationException(
@@ -284,11 +291,17 @@ namespace UEModManager.Services
         /// 应用整合包导入：把整合包中本地缺失的包解压到仓库，注册到 PackageRepository，
         /// 然后调用 <see cref="ApplyImportAsync"/> 创建新 Profile。
         /// </summary>
-        public async Task<InstanceProfile> ApplyBundleImportAsync(string zipPath, ProfileLock lockFile)
+        public Task<InstanceProfile> ApplyBundleImportAsync(string zipPath, ProfileLock lockFile)
+            => ApplyBundleImportAsync(zipPath, lockFile, ArchiveExtractor.MaxTotalExtractedBytes);
+
+        internal async Task<InstanceProfile> ApplyBundleImportAsync(
+            string zipPath, ProfileLock lockFile, long maximumExtractedBytes)
         {
             if (lockFile == null) throw new ArgumentNullException(nameof(lockFile));
             if (!File.Exists(zipPath)) throw new FileNotFoundException("整合包文件不存在", zipPath);
             ValidateLockFile(lockFile);
+            ValidateImportHost(lockFile);
+            var extractionBudget = new ExtractionBudget(maximumExtractedBytes);
 
             // 整合包导入是直接往仓库目录 ExtractToFile，不经过 ObjectStore 的写方法，
             // 所以自己问一次搬移闸门，而且要在开始解压<b>之前</b>问：一个整合包可能几 GB，
@@ -339,8 +352,7 @@ namespace UEModManager.Services
                     PackageManifest? manifest;
                     try
                     {
-                        using var manifestReader = new StreamReader(manifestEntry.Open());
-                        var manifestJson = await manifestReader.ReadToEndAsync();
+                        var manifestJson = await ReadBundleMetadataAsync(manifestEntry);
                         manifest = JsonSerializer.Deserialize<PackageManifest>(manifestJson, JsonOptions);
                     }
                     catch (Exception ex)
@@ -450,34 +462,36 @@ namespace UEModManager.Services
 
                     Directory.CreateDirectory(pkgDir);
 
-                    foreach (var entry in bundled)
+                    try
                     {
-                        var rel = entry.FullName[prefix.Length..];
-                        if (string.IsNullOrWhiteSpace(rel)) continue;
-
-                        // zip 条目名同样不可信：SafeCombine 会拒绝 .. 上跳与绝对路径，
-                        // 并二次校验结果确实落在 pkgDir 内。
-                        string outPath;
-                        try
+                        foreach (var entry in bundled)
                         {
-                            outPath = PathSanitizer.SafeCombine(pkgDir, rel);
-                        }
-                        catch (ArgumentException ex)
-                        {
-                            _logger.LogWarning(ex, "[Lock] Rejected unsafe bundle entry: {Entry}", entry.FullName);
-                            continue;
-                        }
+                            var rel = entry.FullName[prefix.Length..];
+                            if (string.IsNullOrWhiteSpace(rel)) continue;
 
-                        // 目录条目（FullName 以 / 结尾）跳过
-                        if (entry.FullName.EndsWith('/'))
-                        {
-                            Directory.CreateDirectory(outPath);
-                            continue;
-                        }
+                            var outPath = PathSanitizer.SafeCombine(pkgDir, rel);
+                            if (((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000)
+                                throw new InvalidDataException("整合包不允许包含符号链接");
 
-                        var outDir = Path.GetDirectoryName(outPath);
-                        if (!string.IsNullOrEmpty(outDir)) Directory.CreateDirectory(outDir);
-                        entry.ExtractToFile(outPath, overwrite: true);
+                            if (entry.FullName.EndsWith('/'))
+                            {
+                                Directory.CreateDirectory(outPath);
+                                continue;
+                            }
+
+                            var outDir = Path.GetDirectoryName(outPath);
+                            if (!string.IsNullOrEmpty(outDir)) Directory.CreateDirectory(outDir);
+                            using var source = entry.Open();
+                            await using var destination = new FileStream(outPath, FileMode.CreateNew,
+                                FileAccess.Write, FileShare.None);
+                            using var limited = extractionBudget.Limit(destination);
+                            await source.CopyToAsync(limited);
+                        }
+                    }
+                    catch
+                    {
+                        CleanupUnregisteredBundleDirectory(pkg.PackageKey, pkgDir, pkgDirPreexisted);
+                        throw;
                     }
                     extracted++;
 
@@ -587,6 +601,10 @@ namespace UEModManager.Services
 
         private static void ValidateLockFile(ProfileLock lockFile)
         {
+            if (lockFile.LockVersion > ProfileLockSchema.CurrentVersion)
+                throw new InvalidOperationException($"不支持 Lock 文件版本: {lockFile.LockVersion}");
+            if (lockFile.Profile == null || lockFile.Host == null || lockFile.ConflictOverrides == null)
+                throw new InvalidOperationException("Lock 文件缺少方案、游戏或覆盖规则");
             if (lockFile.Packages == null)
                 throw new InvalidOperationException("Lock 文件缺少 packages 列表");
 
@@ -610,6 +628,72 @@ namespace UEModManager.Services
                     throw new InvalidOperationException(
                         $"Lock 文件包含重复 PackageKey: {package.PackageKey}");
             }
+
+            foreach (var (target, winner) in lockFile.ConflictOverrides)
+            {
+                try
+                {
+                    PathSanitizer.SanitizeSegment(winner, "winnerPackageKey");
+                    ConflictOverridePaths.ToPortableKey(target, "", "");
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new InvalidOperationException($"Lock 文件包含非法冲突覆盖: {target}", ex);
+                }
+            }
+        }
+
+        private void ValidateImportHost(ProfileLock lockFile)
+        {
+            if (!string.IsNullOrEmpty(lockFile.Host.GameName)
+                && !string.Equals(lockFile.Host.GameName, _profileService.CurrentProfile?.HostGameName,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Lock 文件所属游戏与当前游戏不一致");
+        }
+
+        private static async Task<string> ReadBundleMetadataAsync(ZipArchiveEntry entry)
+        {
+            // lock / manifest 在预览时也会解压到内存，不能等文件提取阶段才施加限制。
+            using var memory = new MemoryStream();
+            using var limited = new ExtractionBudget(MaxBundleMetadataBytes).Limit(memory);
+            using (var source = entry.Open()) await source.CopyToAsync(limited);
+            memory.Position = 0;
+            using var reader = new StreamReader(memory);
+            return await reader.ReadToEndAsync();
+        }
+
+        private Dictionary<string, string> RebaseImportedOverrides(
+            IReadOnlyDictionary<string, string> overrides, IReadOnlyList<ProfilePackageEntry> entries)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (target, winner) in overrides)
+            {
+                var key = ConflictOverridePaths.ToPortableKey(target, "", "");
+                if (Path.IsPathRooted(target))
+                {
+                    // v1 已导出的绝对键没有根路径元数据。从胜者包的目标文件唯一匹配相对后缀。
+                    // 不唯一或缺包时保留旧键，不把它猜测成其他目标的覆盖。
+                    var package = _packageRepo.GetByKey(winner);
+                    var entry = entries.FirstOrDefault(e =>
+                        string.Equals(e.PackageKey, winner, StringComparison.OrdinalIgnoreCase));
+                    if (package != null)
+                    {
+                        var normalizedTarget = target.Replace('\\', '/');
+                        var candidates = package.Artifacts.Where(a => a.ArtifactType != ArtifactType.PreviewImage)
+                            .Select(a => package.Kind == PackageKind.Mod
+                                ? ConflictOverridePaths.ModPrefix + ConflictOverridePaths.SafeRelative(a.RelativeTargetPath)
+                                : ConflictOverridePaths.GamePrefix + ConflictOverridePaths.SafeRelative(
+                                    Path.Combine(entry?.TargetRootPath ?? package.TargetRootPath ?? "", a.RelativeTargetPath)))
+                            .Where(candidate => normalizedTarget.EndsWith(
+                                "/" + candidate[(candidate.IndexOf('/') + 1)..], StringComparison.OrdinalIgnoreCase))
+                            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                        if (candidates.Count == 1) key = candidates[0];
+                        else _logger.LogWarning("[Lock] Cannot uniquely relocate legacy override: {Target}", target);
+                    }
+                }
+                result[key] = winner;
+            }
+            return result;
         }
 
         // ─── ZIP 工具 ───

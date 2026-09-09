@@ -50,9 +50,8 @@ namespace UEModManager.Services.Lock
                     BackendType = profile.BackendType.ToString(),
                 },
                 Packages = lockPackages,
-                ConflictOverrides = conflictOverrides == null
-                    ? new Dictionary<string, string>()
-                    : new Dictionary<string, string>(conflictOverrides, StringComparer.OrdinalIgnoreCase),
+                ConflictOverrides = new Dictionary<string, string>(
+                    conflictOverrides ?? profile.ConflictOverrides, StringComparer.OrdinalIgnoreCase),
             };
         }
     }

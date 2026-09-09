@@ -13,19 +13,12 @@ namespace UEModManager.Views
 {
     public partial class ImportDialog : Window
     {
-        private readonly PackageImportService? _importService;
-
         /// <summary>用户选择的文件路径列表（对话框结果）。</summary>
         public List<string> SelectedFiles { get; } = [];
 
         public ImportDialog()
         {
             InitializeComponent();
-        }
-
-        public ImportDialog(PackageImportService importService) : this()
-        {
-            _importService = importService;
         }
 
         // ─── 窗口命令 ───

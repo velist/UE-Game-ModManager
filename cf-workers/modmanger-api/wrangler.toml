@@ -8,9 +8,15 @@ preview_urls = false
 # secrets (BREVO_API_KEY / BREVO_FROM / BREVO_FROM_NAME / SUPABASE_* / DASH_TOKEN)
 # 在 Cloudflare 端单独管理；wrangler deploy 不会清除现有 secret 值
 
-[[kv_namespaces]]
-binding = "RATE_LIMIT"
-id = "7bca3c2fb15b4bc09034695d3435360f"
+# Authentication fails closed if this binding is unavailable. SQLite Durable
+# Objects coordinate limits and one-time challenges across all Worker instances.
+[[durable_objects.bindings]]
+name = "SECURITY_STATE"
+class_name = "AuthState"
+
+[[migrations]]
+tag = "2026-09-05-auth-state-v1"
+new_sqlite_classes = ["AuthState"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 用量统计的 D1 库（注册数 / 在线数）

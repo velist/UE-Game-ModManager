@@ -197,7 +197,7 @@ namespace UEModManager.Services
                             return UnifiedAuthResult.Failed("网络连接不可用，无法进行在线注册");
                         }
                         var cloudResult = await _cloudAuthService.RegisterAsync(email, password, username);
-                        if (cloudResult.IsSuccess)
+                        if (cloudResult.IsSuccess && cloudResult.User != null)
                         {
                             await SyncUserToLocal(cloudResult.User, password);
                         }
@@ -232,7 +232,10 @@ namespace UEModManager.Services
                     var cloudResult = await _cloudAuthService.RegisterAsync(email, password, username);
                     if (cloudResult.IsSuccess)
                     {
-                        await SyncUserToLocal(cloudResult.User, password);
+                        // Pending email confirmation is a successful registration
+                        // response, but has no authenticated user to mirror locally.
+                        if (cloudResult.User != null)
+                            await SyncUserToLocal(cloudResult.User, password);
                         return UnifiedAuthResult.FromCloudResult(cloudResult, AuthSource.Cloud);
                     }
                     else
@@ -258,12 +261,7 @@ namespace UEModManager.Services
             try
             {
                 var localLogout = await _localAuthService.LogoutAsync();
-                var cloudLogout = true;
-
-                if (IsOnline)
-                {
-                    cloudLogout = await _cloudAuthService.LogoutAsync();
-                }
+                var cloudLogout = await _cloudAuthService.LogoutAsync();
 
                 await _localAuthService.ClearRememberMeTokenAsync();
                 
@@ -520,6 +518,7 @@ namespace UEModManager.Services
         public AuthSource Source { get; private set; }
         public LocalUser? User { get; private set; }
         public Exception? Exception { get; private set; }
+        public bool RequiresEmailVerification { get; private set; }
 
         private UnifiedAuthResult(bool isSuccess, string message, AuthSource source, LocalUser? user = null, Exception? exception = null)
         {
@@ -547,7 +546,10 @@ namespace UEModManager.Services
 
         public static UnifiedAuthResult FromCloudResult(CloudAuthResult cloudResult, AuthSource source)
         {
-            return new UnifiedAuthResult(cloudResult.IsSuccess, cloudResult.Message, source, null, cloudResult.Exception);
+            return new UnifiedAuthResult(cloudResult.IsSuccess, cloudResult.Message, source, null, cloudResult.Exception)
+            {
+                RequiresEmailVerification = cloudResult.RequiresEmailVerification
+            };
         }
     }
 

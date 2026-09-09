@@ -62,11 +62,16 @@ namespace UEModManager.Services.Conflict
             string winnerKey;
             ResolutionMethod method;
 
-            if (userOverrides != null
-                && userOverrides.TryGetValue(targetRelativePath, out var overrideKey)
-                && sorted.Any(o => o.PackageKey == overrideKey))
+            string? overrideKey = null;
+            if (userOverrides != null && !userOverrides.TryGetValue(targetRelativePath, out overrideKey))
+                overrideKey = userOverrides.FirstOrDefault(pair => string.Equals(
+                    pair.Key.Replace('\\', '/'), targetRelativePath.Replace('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase)).Value;
+            var overrideWinner = sorted.FirstOrDefault(o =>
+                string.Equals(o.PackageKey, overrideKey, StringComparison.OrdinalIgnoreCase));
+            if (overrideWinner != null)
             {
-                winnerKey = overrideKey;
+                winnerKey = overrideWinner.PackageKey;
                 method = ResolutionMethod.UserOverride;
             }
             else
