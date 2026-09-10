@@ -19,6 +19,7 @@
   <a href="https://www.modmanger.com/#download"><strong>前往官网下载</strong></a>
   &nbsp; · &nbsp; <a href="https://www.modmanger.com/help">使用帮助</a>
   &nbsp; · &nbsp; <a href="https://github.com/velist/UE-Game-ModManager/issues">反馈问题</a>
+  &nbsp; · &nbsp; <a href="#交流与反馈">加入交流群</a>
   &nbsp; · &nbsp; <a href="#捐赠支持">捐赠支持</a>
   &nbsp; · &nbsp; <a href="Setup/bundled/Quickstart.en.md">English quick start</a>
 </p>
@@ -189,6 +190,16 @@ dotnet test UEModManager.sln --configuration Release
 欢迎通过 [Issues](https://github.com/velist/UE-Game-ModManager/issues) 反馈问题或建议，通过 Pull Request 参与改进。反馈时请附版本、复现步骤和错误信息，发送诊断包前先检查包内内容。
 
 </details>
+
+## 交流与反馈
+
+**[点击加入群聊【爱酱MOD管理器交流群】](https://qm.qq.com/q/5PeqQxiszC)** · QQ 群号：**147223127**
+
+使用 QQ 扫描下方二维码，或点击上方链接加入。反馈问题时，请附软件版本、复现步骤与错误信息。
+
+<p>
+  <a href="https://qm.qq.com/q/5PeqQxiszC"><img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/qq-group-147223127.png" width="240" height="240" alt="爱酱MOD管理器交流群二维码，群号 147223127"></a>
+</p>
 
 ## 捐赠支持
 

@@ -19,6 +19,7 @@
   <a href="https://www.modmanger.com/#download"><strong>Download from the website</strong></a>
   &nbsp; · &nbsp; <a href="Setup/bundled/Quickstart.en.md">Quick start</a>
   &nbsp; · &nbsp; <a href="https://github.com/velist/UE-Game-ModManager/issues">Report an issue</a>
+  &nbsp; · &nbsp; <a href="#community">Join the community</a>
   &nbsp; · &nbsp; <a href="#support-development">Support development</a>
 </p>
 
@@ -194,6 +195,16 @@ Further developer documentation is currently in Chinese: [documentation index](d
 Bug reports, suggestions and pull requests are welcome. Open an [issue](https://github.com/velist/UE-Game-ModManager/issues) with the app version, reproduction steps and error details. Review any diagnostic bundle before sharing it.
 
 </details>
+
+## Community
+
+**[Join the Ai-chan Mod Manager QQ group](https://qm.qq.com/q/5PeqQxiszC)** · Group ID: **147223127**
+
+Group name in QQ: **爱酱MOD管理器交流群**. Scan the code with QQ, or use the link above. You can also report issues in English on [GitHub Issues](https://github.com/velist/UE-Game-ModManager/issues); include your app version, steps to reproduce and any error messages.
+
+<p>
+  <a href="https://qm.qq.com/q/5PeqQxiszC"><img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/qq-group-147223127.png" width="240" height="240" alt="Ai-chan Mod Manager QQ group QR code, group ID 147223127"></a>
+</p>
 
 ## Support development
 

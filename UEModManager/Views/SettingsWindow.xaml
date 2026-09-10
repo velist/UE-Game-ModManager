@@ -416,7 +416,7 @@
                                        Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
                             <TextBlock Text="{loc:Text &#x27;Daisuke、虎子哥、枪王&#x27;}" FontSize="13"
                                        Foreground="{StaticResource Text300Brush}" TextAlignment="Center" Margin="0,0,0,6"/>
-                            <TextBlock Text="{loc:Text &#x27;爱酱游戏群全体群友&#x27;}" FontSize="13"
+                            <TextBlock Text="{loc:Text &#x27;爱酱MOD管理器交流群全体群友&#x27;}" FontSize="13" TextWrapping="Wrap"
                                        Foreground="{StaticResource PrimaryBrush}" TextAlignment="Center"
                                        FontWeight="SemiBold"/>
                         </StackPanel>
@@ -584,26 +584,30 @@
                             <!-- QQ 群 -->
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="28" Height="28" CornerRadius="6"
-                                        Background="#1a3b82f6" Margin="0,0,12,0">
-                                    <TextBlock Text="&#xE125;" FontFamily="Segoe MDL2 Assets" FontSize="13"
-                                               Foreground="#3b82f6"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock x:Name="QqGroupLabel" Text="{loc:Text &#x27;QQ 群（推荐）&#x27;}" FontSize="13"
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock x:Name="QqGroupLabel" Text="{loc:Text &#x27;爱酱MOD管理器交流群&#x27;}"
+                                               FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
                                                Foreground="{StaticResource Text200Brush}"/>
-                                    <TextBlock Text="682707942" FontSize="11"
-                                               Foreground="{StaticResource Text500Brush}" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="QqGroupNumber" Text="147223127" FontSize="20" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text100Brush}" Margin="0,6,0,12"/>
+                                    <Button x:Name="JoinQqGroupBtn" Content="{loc:Text &#x27;加入&#x27;}"
+                                            Style="{StaticResource CyberSecondaryButton}"
+                                            HorizontalAlignment="Left" Width="80" Height="30" FontSize="12"
+                                            Click="JoinQqGroup_Click"/>
                                 </StackPanel>
-                                <Button Grid.Column="2" x:Name="JoinQqGroupBtn" Content="{loc:Text &#x27;加入&#x27;}"
-                                        Style="{StaticResource CyberSecondaryButton}"
-                                        Width="68" Height="28" FontSize="12"
-                                        Click="JoinQqGroup_Click"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Border Background="White" CornerRadius="6" Padding="6">
+                                        <Image x:Name="QqGroupQrImage" Width="160" Height="160" Stretch="Uniform"
+                                               Source="pack://application:,,,/Assets/Community/qq-group-147223127.png"
+                                               AutomationProperties.Name="{loc:Text &#x27;爱酱MOD管理器交流群二维码&#x27;}"/>
+                                    </Border>
+                                    <TextBlock Text="{loc:Text &#x27;使用 QQ 扫码加入&#x27;}" FontSize="11"
+                                               Foreground="{StaticResource Text500Brush}" Margin="0,7,0,0"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
                             </Grid>
 
                             <Border Height="1" Background="#33272727" Margin="0,4,0,10"/>

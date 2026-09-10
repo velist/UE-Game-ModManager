@@ -130,6 +130,11 @@ html { scroll-padding-top: 112px; }
 .lp-support-grid figure { margin: 0; text-align: center; }
 .lp-support-grid img { width: 176px; height: 176px; padding: 8px; border-radius: 8px; background: white; object-fit: contain; }
 .lp-support-grid figcaption { margin-top: 10px; color: #a1b2bf; font-size: 12px; }
+.lp-community { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 32px; align-items: center; }
+.lp-community figure { margin: 0; text-align: center; }
+.lp-community img { display: block; width: 200px; height: 200px; border-radius: 8px; background: white; }
+.lp-community figcaption { margin-top: 10px; color: #a1b2bf; font-size: 12px; }
+.lp-community .lp-button { margin-top: 6px; }
 .lp-not-found { position: relative; max-width: 760px; padding-block: 80px; }
 .lp-not-found > .lp-overline { margin-top: 75px; }
 .lp-not-found h1 { font-size: clamp(30px, 6vw, 48px); line-height: 1.4; }
@@ -247,6 +252,8 @@ html { scroll-padding-top: 112px; }
   .lp-help-games img { width: 30px; height: 30px; }
   .lp-support-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .lp-support-grid img { width: 100%; height: auto; aspect-ratio: 1; }
+  .lp-community { grid-template-columns: 1fr; gap: 24px; }
+  .lp-community figure { justify-self: start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lp-button, .lp-questions summary > span { transition: none; }

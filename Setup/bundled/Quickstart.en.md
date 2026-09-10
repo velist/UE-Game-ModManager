@@ -20,6 +20,10 @@ reporting a problem. Review it before sharing. Report issues on
 [GitHub](https://github.com/velist/UE-Game-ModManager/issues) or email
 mr.xzuo@foxmail.com.
 
+Join the [Ai-chan Mod Manager QQ group](https://qm.qq.com/q/5PeqQxiszC),
+group ID **147223127** (爱酱MOD管理器交流群). You can also scan the QR code
+under **Settings → Feedback** or on the [community page](https://www.modmanger.com/help#community).
+
 Uninstalling the application keeps your user data and mod repository. Keep
 backups before changing game or mod files. The included migration and full
 data cleanup scripts display Chinese instructions; the cleanup script deletes

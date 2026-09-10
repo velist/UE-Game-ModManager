@@ -574,7 +574,7 @@ namespace UEModManager.Views
 
         private void JoinQqGroup_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://qm.qq.com/q/CIi6LT94zK");
+            OpenUrl("https://qm.qq.com/q/5PeqQxiszC");
         }
 
         private void SendEmail_Click(object sender, RoutedEventArgs e)

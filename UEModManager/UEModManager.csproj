@@ -64,6 +64,7 @@
     <Resource Include="明末MOD-迅雷云盘.png" />
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="Assets\Community\qq-group-147223127.png" />
     <None Update="Assets\GameIcons\*.png;Assets\GameIcons\SOURCES.md"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="Localization\en-US.json" />
