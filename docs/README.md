@@ -1,51 +1,61 @@
-# 文档索引
+# 开发文档
 
-## 架构
+产品介绍与使用说明见[中文 README](../README.md)、[English README](../README.en.md)和[官网帮助](https://www.modmanger.com/help)。安装包请从[官网下载](https://www.modmanger.com/#download)。
 
-- [架构总览](architecture/overview.md) — 30 秒理解项目分层、Phase 状态、关键决策
+## 项目与扩展
 
-## 操作指南（Playbooks）
+- [架构总览](architecture/overview.md)：项目分层、数据与部署边界、启动流程，以及新增游戏的位置。
+- [编写部署后端](playbooks/writing-deployment-backend.md)：`IDeploymentBackend` 接口、注册方式和实现示例。
+- [编写 Core 服务](playbooks/writing-core-service.md)：领域逻辑、输入输出与测试约定。
+- [Package 仓库与 manifest 格式](playbooks/package-manifest-format.md)：包目录、元数据和外部工具兼容要求。
+- [部署后端示例](../samples/UEModManager.SampleBackend/README.md)：仅引用 Core、可独立构建的示例项目。
+- [账号与 Worker 协议](../cf-workers/modmanger-api/AUTH_PROTOCOL.md)：邮箱验证码、部署绑定与桌面客户端契约。
+- [官网维护](../website/README.md)：本地预览、资源检查、SEO 与发布流程。
 
-- [编写自定义部署后端](playbooks/writing-deployment-backend.md) — 加 VFS / Junction / 自定义部署方式
-- [在 Core 写新的纯函数 Service](playbooks/writing-core-service.md) — 扩展 Domain 内核
-- [Package 仓库与 manifest.json 格式](playbooks/package-manifest-format.md) — 外部工具生成包格式
+新增游戏通常只需维护游戏预设与引擎规则，具体入口见[架构总览](architecture/overview.md)。
 
-## 第三方扩展示例
+## 本地构建
 
-- [`samples/UEModManager.SampleBackend/`](../samples/UEModManager.SampleBackend/) — 自定义 Deployment Backend 最小独立可编译示例
+桌面项目需要 Windows 和 .NET 8 SDK。在仓库根目录运行：
 
-> 新增游戏支持**不需要**写扩展：引擎规则维护在 `UEModManager/Models/EngineProfile.cs` 静态表，
-> 具体要改哪几处见[架构总览](architecture/overview.md)"引擎规则维护在哪里"。
-> 原先的 `IHostAdapter` 扩展点与 `SampleAdapter` 示例因生产调用点为 0，已于 2026-07 删除。
+```powershell
+dotnet build UEModManager.sln --configuration Release
+```
 
-## 设计漏洞记录（Findings）
+构建安装包另需 Inno Setup 6.7 或以上。脚本会查找默认安装目录，也可通过 `-InnoPath` 指定 Inno Setup 目录、`Compil32.exe` 或 `ISCC.exe`：
 
-- [2026-09-05 审计问题修复与验收](findings/2026-09-05-audit-repairs.md) — F01–F08 修复、完整验证和发布要求
-- [2026-09-05 消融与全仓审计](findings/2026-09-05-ablation-audit.md) — 修复前的历史快照、清理依据与原始缺陷
-- [2026-04-28 ConflictDetector 永不触发 (已修复)](findings/2026-04-28-conflict-detector-noop-by-design.md)
+```powershell
+./Build-Installer.ps1 -Configuration Release
+```
 
-## 上层文档
+安装包输出到 `installer_output/`。构建脚本使用全新的 publish 目录，并检查版本、凭据文件和用户数据，避免把本机状态打入安装包。
 
-- [`CLAUDE.md`](../CLAUDE.md) —— 老式项目概览（部分过时）
+## 验证改动
 
-## 跑测试
+桌面测试：
 
-```bash
+```powershell
 dotnet test UEModManager.sln --configuration Release
+```
+
+Worker 测试需要 Node.js 22 或以上；桌面协议检查还需要 Windows 和 .NET 8 SDK：
+
+```powershell
 cd cf-workers/modmanger-api
 npm ci
 npm test
 node test/desktop-contract.mjs
+npm run check:bundle
 ```
 
-2026-09-05 修复后验证结果：Debug / Release 的 Core 均 **1211 通过**，应用均 **582 通过、1 跳过**；Worker **58 项原有自测 + 18 项真实运行时测试通过**，实际桌面到 Worker 的协议验收 **17 项通过**。跳过项是手动主题快照生成器。测试边界与日志路径见修复报告。
+官网检查在仓库根目录运行：
 
-Worker 测试要求 Node.js 22 及以上；桌面协议检查还需要 Windows 与 .NET 8 SDK。部署绑定、验证码协议及客户端配套发布要求见 [AUTH_PROTOCOL.md](../cf-workers/modmanger-api/AUTH_PROTOCOL.md)。
-
-## 跑 Build
-
-```bash
-dotnet build UEModManager.sln --configuration Debug
+```powershell
+node tools/website/check.mjs
 ```
 
-预期：**0 errors / 0 warnings**，5 个项目协同（主项目 + Core + Core.Tests + UEModManager.Tests + SampleBackend）。
+持续集成配置见 [CI 工作流](../.github/workflows/ci.yml)，运行结果见 [GitHub Actions](https://github.com/velist/UE-Game-ModManager/actions)。测试中的外部服务使用替身，线上认证和邮件投递需在相应部署环境验证。
+
+## 提交内容
+
+仓库保留源码、测试、运行所需资源、构建工具与开发文档。构建产物、本机配置、环境变量、数据库、诊断日志和内部审计记录不提交；版本变化见[更新日志](../CHANGELOG.md)。

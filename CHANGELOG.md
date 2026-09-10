@@ -19,7 +19,7 @@
 - 旧任意内容邮件端点停用；新版客户端与 Worker 需配套发布，Worker 需新增 Durable Object 绑定及 migration。
 - Debug / Release 均 0 警告、0 错误；Core 1211、应用 582 项通过，1 项手动快照生成器跳过；Worker 58 + 18 项、实际桌面协议 17 项通过。
 
-清理范围和原始缺陷见 [消融审计](docs/findings/2026-09-05-ablation-audit.md)，最终修复与验证边界见 [修复与验收报告](docs/findings/2026-09-05-audit-repairs.md)。以下历史版本记录保留原样。
+当前实现与设计边界见[架构总览](docs/architecture/overview.md)，验证命令见[开发文档](docs/README.md)。以下记录保留各版本当时的状态。
 
 ---
 
@@ -63,7 +63,7 @@ dotnet test UEModManager.Core.Tests/...                # 598 passed / 0 failed�
 - **W7** Profile 切换不触发部署 — 需要 SwitchProfileAsync 主动调度部署计划
 - **S8 / W4 / N1-N4** 事务粒度、备份链、依赖图、幽灵文件检测 — v2.0.4 候选
 
-详细分析见 [`memory/project_v2_upgrade_progress.md`](memory/project_v2_upgrade_progress.md) 中的全面审查报告。
+当前数据与部署边界见[架构总览](docs/architecture/overview.md)。
 
 ---
 
@@ -163,7 +163,7 @@ ProfileManagerWindow 操作栏新增 4 个按钮：
 
 **问题：** `ConflictAnalyzer` 在当前部署模型下永不触发 ——
 `ComputeTargetPath` 公式 `modPath/{PackageKey}/{file}` 让两个不同包永远不会落同一路径。
-详见 [`docs/findings/2026-04-28-conflict-detector-noop-by-design.md`](docs/findings/2026-04-28-conflict-detector-noop-by-design.md)。
+设计说明见[部署路径与加载顺序冲突](docs/architecture/overview.md#load-order-conflicts)。
 
 **修复（方案 B）：**
 - 新增 `ConflictDetector.ComputeLoadConflictKey`：归一化路径忽略 PackageKey 子目录
@@ -177,7 +177,7 @@ ProfileManagerWindow 操作栏新增 4 个按钮：
 新增文档：
 - [`docs/README.md`](docs/README.md) — 文档索引
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) — 架构总览（30 秒理解）
-- [`docs/playbooks/writing-host-adapter.md`](docs/playbooks/writing-host-adapter.md) — 写自定义 Adapter
+- 旧 Host Adapter 指南已随对应扩展点移除；当前扩展方式见[架构总览](docs/architecture/overview.md)。
 - [`docs/playbooks/writing-core-service.md`](docs/playbooks/writing-core-service.md) — 写 Core 纯函数 Service
 
 ### 🧹 清理 / Cleanup

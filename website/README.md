@@ -10,7 +10,7 @@
 - `release.css`：新版首页与帮助页样式，使用 `lp-` 类名前缀。
 - `styles.css`：沿用原站样式，保留下载区域的原有呈现。
 
-首页的管理界面为 HTML 示意，MOD 名称是演示内容；帮助页使用新版存储设置实机截图。游戏图标来源记录在 `assets/games/game-icon-sources.md`。原有图片资源保留，兼容旧地址。
+首页的管理界面为 HTML 示意，MOD 名称是演示内容；帮助页使用新版存储设置实机截图。游戏图标来源记录在 `assets/games/game-icon-sources.md`。资源目录保留现用图片，以及原有网盘和捐赠二维码；未被页面引用的旧原型图和已替换图标已移除。
 
 ## 网盘区域
 
@@ -57,4 +57,4 @@ wrangler pages deploy bin/website-publish-20260908 --project-name modmanger --br
 
 打包脚本仅收集静态页面、资源、`_headers` 和 IndexNow 验证文件，并在发布目录旁生成 SHA-256 清单；开发说明、工具和环境文件不会进入发布目录。Wrangler 使用本机已有登录或当前进程的 `CLOUDFLARE_API_TOKEN`。
 
-发布后检查正式域名的首页、帮助页、旧锚点跳转和下载二维码，并核对 canonical、站点地图及响应头。需要回退时，在 Cloudflare Pages 的生产部署历史中回退到前一个成功部署。本次 SEO 发布及验证记录见 `docs/findings/2026-09-08-website-seo.md`。
+发布后检查正式域名的首页、帮助页、旧锚点跳转和下载二维码，并核对 canonical、站点地图及响应头。需要回退时，在 Cloudflare Pages 的生产部署历史中回退到前一个成功部署。

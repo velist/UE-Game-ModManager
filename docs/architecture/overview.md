@@ -1,14 +1,14 @@
 # UEModManager 架构总览
 
 **版本：** 2.1.0 源码
-**最后更新：** 2026-09-05
+**最后更新：** 2026-09-10
 **面向：** 接手项目的开发者、做扩展的第三方
 
 ---
 
 ## 项目分层
 
-主项目目前混用 ViewModel 与 code-behind。运行时 MOD 数据来自 `PackageRepository`、`ObjectStore` 和 `ProfileService`；旧 `{game}_mods.json` 仅保留迁移读取。客户端未实现 MOD 配置云同步。删除依据和原始缺陷见 [消融审计](../findings/2026-09-05-ablation-audit.md)，当前修复结果与验证范围见 [修复报告](../findings/2026-09-05-audit-repairs.md)。
+主项目目前混用 ViewModel 与 code-behind。运行时 MOD 数据来自 `PackageRepository`、`ObjectStore` 和 `ProfileService`；旧 `{game}_mods.json` 仅保留迁移读取。客户端支持邮箱登录，MOD 文件与方案存储在本地。版本变化见[更新日志](../../CHANGELOG.md)。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -28,7 +28,7 @@
                        │
 ┌──────────────────────┴──────────────────────────────────┐
 │  UEModManager.Core.Tests (xUnit)                        │
-│  - 1211 个测试，覆盖领域规则及文件系统辅助                │
+│  - 覆盖领域规则及文件系统辅助                            │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
@@ -106,9 +106,8 @@ public class ConfigMergeEngine          // 主项目
 
 - xUnit 2.9.3，TFM=net8.0-windows；Core 本身为 net8.0
 - 测领域模型、规则与文件系统辅助，不引用主项目
-- **当前 1211 通过**
 
-另有 `UEModManager.Tests` 验证主项目的服务、真实临时文件、SQLite、主题与窗口资源，当前 **582 通过、1 项手动生成器跳过**。Debug / Release 均通过完整验证。Worker 有 **58 项原有自测、18 项真实 workerd 测试**，另有 **17 项真实桌面服务到 workerd 的协议验收**；外部服务全部用测试替身，不代表线上认证和发信已验收。
+另有 `UEModManager.Tests` 验证主项目的服务、临时文件、SQLite、主题与窗口资源。Worker 测试覆盖端点、workerd 运行时和桌面服务协议；外部服务使用测试替身。运行命令见[文档索引](../README.md)，最新结果以 CI 输出为准。
 
 ### 扩展示例项目
 
@@ -152,12 +151,15 @@ public class ConfigMergeEngine          // 主项目
 写操作（Register/Update/Delete）留在具体类，让 Domain 不能"越权"修改仓库。
 未来 Application 层定义 UseCase 时，写操作应通过 UseCase 触发，不通过 Domain 直调。
 
-### 4. 为什么 ConflictDetector 用"无 PackageKey 路径"作 key？
+<a id="load-order-conflicts"></a>
 
-参见 `docs/findings/2026-04-28-conflict-detector-noop-by-design.md`。
+### 4. 部署路径与加载顺序冲突
 
-部署路径含 PackageKey 子目录隔离，但加载顺序冲突应该忽略子目录差异——
-否则同名 .pak 永远不会被识别为冲突候选。这是 Phase 4 修复的核心设计。
+MOD 和插件按 `PackageKey` 使用独立部署目录。例如，两个包的 `shared.pak` 分别写入 `Mods/a/shared.pak` 和 `Mods/b/shared.pak`。若直接按实际部署路径聚合，每条路径都只有一个所有者，同名文件无法成为冲突候选。
+
+`ConflictDetector.ComputeLoadConflictKey` 因此忽略 `PackageKey`：MOD 使用 `modPath/RelativeTargetPath`，其他类型使用 `gamePath/TargetRootPath/RelativeTargetPath`。多个已启用包声明同一归一化路径时，生成 `LoadOrder` 冲突候选，再由 `ConflictResolver` 按优先级和用户覆盖规则求解。此结果是静态分析，不等同于验证游戏引擎的实际加载行为。
+
+实际写盘仍由 `DeploymentTargetPathBuilder` 决定：MOD 和插件保持包目录隔离；配置文件在相同目标上合并后只部署一份。冲突分析与部署路径分开维护，避免改变备份和回滚的文件归属。对应回归覆盖见 [`ConflictDetectorTests`](../../UEModManager.Core.Tests/Services/Conflict/ConflictDetectorTests.cs)。
 
 ### 5. 为什么 IDeploymentBackend 接口在 Core？
 
@@ -189,22 +191,6 @@ public class ConfigMergeEngine          // 主项目
 
 ---
 
-## 历史 v2.0 Phase 记录（2026-04-30）
-
-下表保留当时的实施记录。当前已移除 Adapter 和无入口窗口，配置合并与方案部署的连接缺陷已在 2026-09-05 修复；实际覆盖范围见修复报告，历史完成标记不能作为当前功能验收结论。
-
-| Phase | 内容 | 状态 |
-|-------|------|------|
-| 0–9 | 后端 + UI 全部完成（Profile/Package/Deployment/Conflict/Overwrite/Adapter/ConfigMerge/ResolvedView/Launch） | ✅ |
-| UX 优化 | Header 简化 + 管理中心 + 文案可读性 | ✅ |
-| **10** | 多部署后端（VFS） | ⬜ 实验性，未做 |
-| **11** | 工程硬化（测试/日志/诊断/崩溃恢复/健康检查） | ✅ |
-| **12** | 整合包（lock JSON + bundle ZIP） | ✅ |
-| **13** | SDK / Adapter 模板 / Backend 模板 / 开发者文档 | ✅ |
-| **Core 拆分** | 第六至第十七轮（共 12 轮持续 ROI 拆分） | ✅ |
-
----
-
 ## 启动流程
 
 ```
@@ -226,40 +212,8 @@ LoginWindow → MainWindow.OnLoaded
 
 ---
 
-## 历史测试结构（2026-04-30，第十七轮）
-
-以下数字用于理解旧拆分记录；当前数量与验证命令见 [文档索引](../README.md)。
-
-```
-UEModManager.Core.Tests/                              552 个测试
-├── Models/                                          12+ 测试
-├── Services/Config/                                 32  测试
-├── Services/Conflict/                               44+ 测试 (Resolver + Detector + AnalysisResult + Queries)
-├── Services/Recovery/                                9  测试
-├── Services/Lock/                                   10  测试
-├── Services/ResolvedViews/                          16+ 测试 (Layer 1+2+3)
-├── Services/DeploymentPlanning/                     25+ 测试 (Diff + TargetPath + TogglePlan)
-├── Services/Deployment/                             20+ 测试 (Rollback + ResultBuilder)
-├── Services/Launch/                                 25+ 测试 (Pipeline + StepEvaluator)
-├── Services/Detection/                              80+ 测试 (PackageKind + ArtifactType + ModCategory + GameName + Engine)
-├── Services/Migration/                              50+ 测试 (Decision + Step + Catalog + Tracker)
-├── Services/Import/                                 70+ 测试 (CompressedArchive + Classifier + Grouper + PreviewSelector)
-├── Services/Profile/                                30+ 测试 (LegacyMigrator + SyncPlanner)
-├── Health/                                           9  测试
-├── Logging/                                         30  测试
-└── Diagnostics/                                      7  测试
-```
-
-跑测试：
-
-```bash
-dotnet test UEModManager.Core.Tests/UEModManager.Core.Tests.csproj
-```
-
----
-
 ## 相关文档
 
-- [项目概览](../../CLAUDE.md) — 老式版，部分内容已过时
-- [findings/](../findings/) — 设计漏洞记录
-- [playbooks/](../playbooks/) — 操作指南（如 Backend / Core Service / Manifest 写法）
+- [文档索引](../README.md) — 构建、验证与贡献入口
+- [更新日志](../../CHANGELOG.md) — 版本变化
+- [部署后端指南](../playbooks/writing-deployment-backend.md)、[Core 服务指南](../playbooks/writing-core-service.md)、[包格式说明](../playbooks/package-manifest-format.md)

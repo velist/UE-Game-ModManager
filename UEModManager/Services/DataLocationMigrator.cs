@@ -99,7 +99,7 @@ namespace UEModManager.Services
         /// （新目录建不出来时才退回安装目录）；</item>
         /// <item>搬完后的绝对路径改写已就位（<see cref="RewriteConfigPaths"/>）；</item>
         /// <item>诊断包同时采集新旧两处，搬迁失败时仍有证据；</item>
-        /// <item>安装脚本不再删 <c>{app}\Data\Backups</c>，清理脚本与 INFO_AFTER 指向新位置；</item>
+        /// <item>安装脚本不再删 <c>{app}\Data\Backups</c>，清理脚本与随包使用说明指向新位置；</item>
         /// <item>保存类操作的失败语义统一为 log + throw，不再有静默丢数据的通道；</item>
         /// <item>搬移前做磁盘空间预检（<see cref="PassesSpacePrecheck"/> + Core 的
         /// <see cref="DiskSpacePrecheck"/>）：目标盘装不下时该项一个字节都不写。</item>

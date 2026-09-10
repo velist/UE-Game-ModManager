@@ -13,7 +13,7 @@ namespace UEModManager.Services.DeploymentPlanning
     /// 其中 TargetRootPath 优先取 ProfilePackageEntry.TargetRootPath，否则取 Package.TargetRootPath。
     ///
     /// 与主项目的部署逻辑一致；与 ResolvedView Layer 1 的"无 PackageKey 子目录"语义不同
-    /// （后者用于冲突检测，详见 docs/findings/2026-04-28-conflict-detector-noop-by-design.md）。
+    /// （后者用于冲突检测，详见 docs/architecture/overview.md#load-order-conflicts）。
     /// </summary>
     public static class DeploymentTargetPathBuilder
     {

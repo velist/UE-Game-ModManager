@@ -11,7 +11,7 @@ namespace UEModManager.Core.Tests.Services.Conflict;
 /// 关键是 <see cref="ConflictDetector.ComputeLoadConflictKey"/> 用"无 PackageKey 子目录"的规范化路径作 dict key，
 /// 与实际部署路径（DeploymentTargetPathBuilder.ComputeTargetPath，含 PackageKey 子目录）解耦。
 ///
-/// 设计来源：docs/findings/2026-04-28-conflict-detector-noop-by-design.md（已修复）。
+/// 设计说明：docs/architecture/overview.md#load-order-conflicts。
 /// </summary>
 public class ConflictDetectorTests
 {
