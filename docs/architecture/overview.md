@@ -161,6 +161,23 @@ MOD 和插件按 `PackageKey` 使用独立部署目录。例如，两个包的 `
 
 实际写盘仍由 `DeploymentTargetPathBuilder` 决定：MOD 和插件保持包目录隔离；配置文件在相同目标上合并后只部署一份。冲突分析与部署路径分开维护，避免改变备份和回滚的文件归属。对应回归覆盖见 [`ConflictDetectorTests`](../../UEModManager.Core.Tests/Services/Conflict/ConflictDetectorTests.cs)。
 
+**用户覆盖必须真正改变磁盘内容（2026-09-17 修复）。** 冲突面板的"设为胜者"把规则写进 `InstanceProfile.ConflictOverrides`，键是加载顺序路径（`@mod/shared.pak`，不含 `PackageKey`）。`ResolvedViewBuilder` 早先只用**实际部署路径**比对，而 MOD 的实际路径多一层包目录，于是规则永远匹配不上任何候选 —— 磁盘上两个包的 `shared.pak` 同时存在，引擎仍按自己的加载顺序决定谁生效。现在 `ResolvedEntry.LoadConflictKey` 携带归一化路径，覆盖规则据此命中候选，败者条目不再进入最终视图，下一次部署会按托管归属把它从游戏目录移除。
+
+只有"败者与胜者落在不同目标路径"时才丢弃败者。目标路径相同的配置文件必须保留全部候选，键级合并（`ConfigMergeEngine`）依赖它们才能把 `OnlyA` / `OnlyB` 合成一份；提前丢掉败者会连带丢掉它独有的配置键。
+
+同一路径被同一个包重复声称（包内多处同名同内容文件）不算冲突：`ConflictDetector` 先按 `PackageKey` 去重，只把**不同包之间**的覆盖报给用户。此前实测 16 个包报"3 个冲突"，去重后实际为 0。
+
+### 4.1 非 MOD 包的部署路径
+
+`DeploymentTargetPathBuilder` 对非 Mod 包（Plugin / Config）按 `RelativeTargetPath` 是否自带目录层级分两种：
+
+- **自带层级**（文件夹或压缩包整体导入的产物，如 `ue4ss/Mods/mods.json`）：直接落到 `{gamePath}/{TargetRootPath}/{RelativeTargetPath}`，**不套包目录**。那些层级本身就是安装位置，再套一层会让 UE4SS / CSharpLoader 找不到文件。
+- **裸文件名**（如 `dll.dll`）：落到 `{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}`，靠包目录隔离同名文件。
+
+导入侧由 `ArchiveTargetPathResolver` 保证层级正确：剥掉 `b1/Binaries/Win64`、`Content/Paks` 等游戏根锚点（游戏根本身已经是 `.../b1/Binaries/Win64`），并刻意**不**剥掉 `ue4ss`、`CSharpLoader` 这类安装锚点目录。包装目录前缀最多只剥一层。
+
+拖入文件夹与压缩包共用同一套分流逻辑：只有 `.pak/.ucas/.utoc` 参与 MOD 分组，其余载荷整包保留目录结构。不能用 `EngineProfile.ModFileExtensions` 分流 —— 它含 `.json`，会把 UE4SS 的 `mods.json` 当 MOD 处理，并让同包的 `.lua`/`.dll` 变成无人认领的孤儿文件被静默丢弃。
+
 ### 5. 为什么 IDeploymentBackend 接口在 Core？
 
 下沉到 Core 后，`samples/UEModManager.SampleBackend` 仅引用 Core 即可独立编译，

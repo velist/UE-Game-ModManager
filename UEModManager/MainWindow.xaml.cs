@@ -1800,6 +1800,15 @@ namespace UEModManager
                 var result = await _vm.ConflictAnalysis.AnalyzeAsync();
                 var win = new Views.ConflictResultWindow(_vm.ConflictAnalysis, result.Conflicts) { Owner = this };
                 win.ShowDialog();
+
+                // 用户在面板里指定过胜者，就必须让磁盘跟上：覆盖规则只写进 Profile
+                // 而败者文件留在游戏目录时，"替换"等于没发生（引擎仍按自己的加载顺序决定谁生效）。
+                if (win.OverridesChanged)
+                {
+                    var applied = await _vm.RedeployCurrentProfileAsync();
+                    if (!applied.Success)
+                        ShowOperationFailure(applied, UiText.Get("应用冲突选择失败"));
+                }
             }, _logger, "冲突检测");
 
         /// <summary>打开管理中心窗口。</summary>
@@ -2052,7 +2061,9 @@ namespace UEModManager
                             }
 
                             BgOverlay.Visibility = Visibility.Visible;
-                            Console.WriteLine($"[MainWindow] 背景图已应用: {bg.ImagePath} (Opacity={bg.Opacity:F2}, Blur={bg.BlurRadius:F2})");
+                            // 不透明度滑块的每一次取值变化都会走到这里，实测拖动一次刷 62 行日志。
+                            // 背景应用成功是可从画面上直接确认的事实，没有留痕价值；
+                            // 只有失败/跳过才值得进日志（下面的路径不存在分支）。
                         }
                         else if (!string.IsNullOrEmpty(bg.ImagePath))
                         {

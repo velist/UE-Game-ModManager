@@ -38,9 +38,16 @@ namespace UEModManager.Services.Conflict
 
             foreach (var (loadKey, owners) in targetMap)
             {
-                if (owners.Count <= 1) continue;
+                // 同一路径被同一个包重复声称（包内同名同内容文件、或重复登记的 Artifact）
+                // 不是冲突：只有**不同包之间**的覆盖才是需要用户决策的问题。
+                // 每个包只保留一条声明，避免把"3 个冲突"这种自我重复报成用户可见的冲突。
+                var distinct = owners
+                    .GroupBy(o => o.PackageKey, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+                if (distinct.Count <= 1) continue;
 
-                var resolution = ConflictResolver.Resolve(loadKey, owners, userOverrides);
+                var resolution = ConflictResolver.Resolve(loadKey, distinct, userOverrides);
                 if (resolution == null) continue;
 
                 conflicts.Add(new ConflictRecord

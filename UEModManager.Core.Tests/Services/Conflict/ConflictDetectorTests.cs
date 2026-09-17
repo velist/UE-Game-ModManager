@@ -100,6 +100,36 @@ public class ConflictDetectorTests
     }
 
     [Fact]
+    public void DetectConflicts_SamePackageClaimingPathTwice_IsNotAConflict()
+    {
+        // 实测现场：压缩包里两处 ue4ss 的 mods.json 折进同一个包，于是同一 PackageKey
+        // 对同一路径登记了两次，面板报"3 个冲突"而实际去重后为 0。
+        // 只有不同包之间的覆盖才需要用户决策。
+        var profile = MakeProfile(("a", 0, true));
+        var packages = new Dictionary<string, Package>
+        {
+            ["a"] = MakeMod("a", "A", ("mods.json", "h"), ("mods.json", "h"), ("mods.json", "h")),
+        };
+
+        Assert.Empty(ConflictDetector.DetectConflicts(profile, packages, ModPath, GamePath));
+    }
+
+    [Fact]
+    public void DetectConflicts_TwoPackagesAndSelfDuplicate_ReportsSingleConflict()
+    {
+        var profile = MakeProfile(("a", 0, true), ("b", 1, true));
+        var packages = new Dictionary<string, Package>
+        {
+            ["a"] = MakeMod("a", "A", ("shared.pak", "h-a"), ("shared.pak", "h-a")),
+            ["b"] = MakeMod("b", "B", ("shared.pak", "h-b"), ("shared.pak", "h-b")),
+        };
+
+        var c = Assert.Single(ConflictDetector.DetectConflicts(profile, packages, ModPath, GamePath));
+        Assert.Equal("a", c.WinnerPackageKey);
+        Assert.Equal("b", Assert.Single(c.Losers).PackageKey);
+    }
+
+    [Fact]
     public void DetectConflicts_RecordsHostAndProfileContext()
     {
         var profile = MakeProfile(("a", 0, true), ("b", 1, true));

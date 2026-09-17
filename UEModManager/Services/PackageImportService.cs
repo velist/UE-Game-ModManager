@@ -103,9 +103,19 @@ namespace UEModManager.Services
 
             try
             {
-                if (!File.Exists(filePath))
+                var isDirectory = Directory.Exists(filePath) && !File.Exists(filePath);
+                if (!File.Exists(filePath) && !isDirectory)
                 {
-                    results.Add(new PackageImportResult { Success = false, ErrorMessage = "文件不存在" });
+                    results.Add(new PackageImportResult { Success = false, ErrorMessage = "文件或文件夹不存在" });
+                    return results;
+                }
+
+                // 文件夹不是压缩包也不是可直读文件：走目录导入，保留其内部目录结构。
+                // 旧实现用 File.Exists 判定，文件夹一路被拒成"文件不存在"，
+                // 而唯一支持目录的 ImportPluginAsync 没有任何调用方 —— 拖文件夹导入因此完全不可用。
+                if (isDirectory)
+                {
+                    results = await ImportFolderAsync(filePath, targetRootPath);
                     return results;
                 }
 
@@ -167,19 +177,27 @@ namespace UEModManager.Services
                     ImportSourcePath = filePath,
                 };
 
-                // 收集文件
+                // 收集文件。目录导入同样按黑名单过滤，避免把调试符号/日志一起搬进仓库。
                 List<string> files;
                 if (isDirectory)
-                    files = Directory.EnumerateFiles(filePath, "*.*", SearchOption.AllDirectories).ToList();
+                    files = Directory.EnumerateFiles(filePath, "*.*", SearchOption.AllDirectories)
+                        .Where(ArchiveImportPolicy.ShouldImport)
+                        .ToList();
                 else
                     files = new List<string> { filePath };
 
                 // 存储到仓库
                 long totalSize = 0;
+                var seenArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var file in files)
                 {
+                    // 保留目录结构，但剥掉文件夹自带的游戏根层级
+                    // （b1/Binaries/Win64/ue4ss/... → ue4ss/...），
+                    // 否则会部署成 <gamePath>/b1/Binaries/Win64/ue4ss/... 而游戏找不到。
                     var relativeName = isDirectory
-                        ? IOPath.GetRelativePath(filePath, file)
+                        ? ArchiveTargetPathResolver.StripLeadingGameAnchor(
+                            IOPath.GetRelativePath(filePath, file)
+                                .Replace(IOPath.AltDirectorySeparatorChar, IOPath.DirectorySeparatorChar))
                         : IOPath.GetFileName(file);
                     string safeRelativeName;
                     try
@@ -192,7 +210,11 @@ namespace UEModManager.Services
                         continue;
                     }
 
+                    if (string.IsNullOrWhiteSpace(safeRelativeName)) continue;
+
                     var (relPath, hash, size) = await _objectStore.StoreFileAsync(pluginName, file, safeRelativeName);
+                    if (!seenArtifacts.Add(safeRelativeName + "\n" + hash)) continue;
+
                     totalSize += size;
 
                     package.Artifacts.Add(new PackageArtifact
@@ -322,44 +344,42 @@ namespace UEModManager.Services
                 }
                 CleanupArchives(tempDir);
 
-                // 收集 MOD 文件（惰性枚举 + 过滤，避免先把整棵解压树的路径物化一遍）
-                var modFiles = Directory.EnumerateFiles(tempDir, "*.*", SearchOption.AllDirectories)
-                    .Where(f => IsModFile(f)).ToList();
-
-                if (modFiles.Count == 0)
+                // 收集解压产物。这里不再按 EngineProfile 的扩展名白名单过滤——
+                // 白名单只含 .pak/.ucas/.utoc/.json，会把插件型 MOD 的 .lua/.dll/.ini
+                // 整包丢掉且不留日志（实测 1194 个文件丢 1174 个）。
+                // 现改为黑名单：只排除调试符号、日志、系统垃圾与第三方可执行程序。
+                var allFiles = Directory.EnumerateFiles(tempDir, "*.*", SearchOption.AllDirectories).ToList();
+                var keptFiles = new List<string>();
+                var droppedCount = 0;
+                long droppedBytes = 0;
+                foreach (var candidate in allFiles)
                 {
-                    // 可能是纯插件/配置文件
-                    var allFiles = Directory.EnumerateFiles(tempDir, "*.*", SearchOption.AllDirectories).ToList();
-                    if (allFiles.Count > 0)
+                    if (ArchiveImportPolicy.ShouldImport(candidate))
                     {
-                        var packageName = EnsureUniquePackageName(archiveName, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                        var result = await ImportFilesAsPackageAsync(packageName, allFiles, tempDir, filePath, targetRootPath);
-                        results.Add(result);
+                        keptFiles.Add(candidate);
                     }
                     else
                     {
-                        results.Add(new PackageImportResult { Success = false, ErrorMessage = "压缩包中无可识别文件" });
+                        droppedCount++;
+                        try { droppedBytes += new FileInfo(candidate).Length; } catch (IOException) { }
                     }
+                }
+
+                if (droppedCount > 0)
+                {
+                    // 每次排除都留痕：旧实现静默丢弃，用户与日志都无从察觉。
+                    _logger.LogInformation(
+                        "导入 {Archive}: 保留 {Kept} 个文件，按策略排除 {Dropped} 个（{Bytes} 字节）",
+                        archiveName, keptFiles.Count, droppedCount, droppedBytes);
+                }
+
+                if (keptFiles.Count == 0)
+                {
+                    results.Add(new PackageImportResult { Success = false, ErrorMessage = "压缩包中无可识别文件" });
                     return results;
                 }
 
-                var groups = ModFileGrouper.SplitByImportScope(modFiles, tempDir)
-                    .SelectMany(scope => GroupModFilesByPrefix(scope)
-                        .Where(g => g.Value.Count > 0)
-                        .Select(g => new KeyValuePair<string, List<string>>(g.Key, g.Value)))
-                    .ToList();
-
-                int index = 1;
-                var usedPackageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var group in groups)
-                {
-                    var packageName = DetermineGroupName(group.Value) ?? group.Key ?? $"{archiveName}_{index}";
-                    packageName = EnsureUniquePackageName(packageName, usedPackageNames);
-
-                    var result = await ImportFilesAsPackageAsync(packageName, group.Value, tempDir, filePath, targetRootPath);
-                    results.Add(result);
-                    index++;
-                }
+                await ImportCollectedFilesAsync(keptFiles, tempDir, archiveName, filePath, targetRootPath, results);
             }
             catch (Exception ex)
             {
@@ -385,12 +405,13 @@ namespace UEModManager.Services
         }
 
         private Task<PackageImportResult> ImportFilesAsPackageAsync(
-            string packageName, List<string> files, string tempDir, string sourcePath, string? targetRootPath = null)
+            string packageName, List<string> files, string tempDir, string sourcePath,
+            string? targetRootPath = null, bool keepDirectoryStructure = false, PackageKind? kindOverride = null)
         {
             return ImportWithCompensationAsync(packageName, async () =>
             {
                 var gameName = _gameConfig.CurrentGameName ?? "Unknown";
-                var kind = DetectPackageKindFromFiles(files);
+                var kind = kindOverride ?? DetectPackageKindFromFiles(files);
                 var package = new Package
                 {
                     PackageKey = packageName,
@@ -404,11 +425,30 @@ namespace UEModManager.Services
 
                 long totalSize = 0;
                 var hashFiles = new List<string>();
+                // 同一个包内不允许出现重复的 (目标相对路径, 哈希)：
+                // 压缩包里不同文件夹下的同名同内容文件（如两个 ue4ss 的 mods.json）
+                // 会折叠成同一个目标路径，重复登记只会撑大索引并制造假冲突。
+                var seenArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                var relativePaths = keepDirectoryStructure
+                    ? files.Select(f => ArchiveTargetPathResolver.Resolve(f, tempDir, true)).ToList()
+                    : files.Select(IOPath.GetFileName).ToList();
+                var commonPrefix = keepDirectoryStructure
+                    ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths)
+                    : string.Empty;
 
                 foreach (var file in files)
                 {
-                    var fileName = IOPath.GetFileName(file);
-                    var (relPath, hash, size) = await _objectStore.StoreFileAsync(packageName, file);
+                    var relativePath = keepDirectoryStructure
+                        ? ArchiveTargetPathResolver.Resolve(file, tempDir, true)
+                        : IOPath.GetFileName(file);
+                    relativePath = ArchiveTargetPathResolver.StripPrefix(relativePath, commonPrefix);
+                    relativePath = ArchiveTargetPathResolver.NormalizeGameRelativePath(relativePath);
+                    if (string.IsNullOrWhiteSpace(relativePath)) continue;
+
+                    var (relPath, hash, size) = await _objectStore.StoreFileAsync(packageName, file, relativePath);
+                    if (!seenArtifacts.Add(relativePath + "\n" + hash)) continue;
+
                     totalSize += size;
                     hashFiles.Add(file);
 
@@ -416,8 +456,8 @@ namespace UEModManager.Services
                     {
                         PackageId = package.Id,
                         RelativeSourcePath = relPath,
-                        RelativeTargetPath = fileName,
-                        FileName = fileName,
+                        RelativeTargetPath = relativePath,
+                        FileName = IOPath.GetFileName(file),
                         FileSize = size,
                         FileHash = hash,
                         ArtifactType = DetectArtifactType(file),
@@ -489,6 +529,114 @@ namespace UEModManager.Services
             if (string.IsNullOrWhiteSpace(targetRootPath)) return null;
             return PathSanitizer.SanitizeRelative(targetRootPath);
         }
+
+        /// <summary>
+        /// 目录导入的默认落点（相对游戏根）。
+        ///
+        /// 拖入文件夹时用户没有机会填安装目录。游戏根（<c>CurrentGamePath</c>）本身就已经是
+        /// UE 的 <c>.../b1/Binaries/Win64</c>，所以这里必须是空串：
+        /// 再填一次 <c>Binaries/Win64</c> 会部署成 <c>.../Win64/Binaries/Win64/...</c>，
+        /// 与 UE4SS 约定目录错位，插件永远不生效。
+        /// 文件夹里剥掉游戏根锚点后剩下的层级（<c>ue4ss/Mods/...</c>）就是最终安装位置。
+        /// </summary>
+        private const string DefaultPluginTargetRootPath = "";
+
+        /// <summary>
+        /// 目录导入：按**内容**决定是 MOD 包还是插件/配置包，而不是一律当成插件。
+        ///
+        /// 用户手动解压后把文件夹拖进来是最常见的用法（RAR 本身就要求先手动解压），
+        /// 而旧实现把文件夹拒成"文件不存在"，唯一支持目录的 ImportPluginAsync 没有调用方。
+        /// 这里复用压缩包导入的同一套分组逻辑：有 .pak 就按 pak 分组出多个 MOD 包
+        /// （同名 pak + 配置归一组），没有 .pak 才整包当作插件/配置保留目录结构。
+        /// </summary>
+        private async Task<List<PackageImportResult>> ImportFolderAsync(string folderPath, string? targetRootPath)
+        {
+            var results = new List<PackageImportResult>();
+
+            var keptFiles = Directory.EnumerateFiles(folderPath, "*.*", SearchOption.AllDirectories)
+                .Where(ArchiveImportPolicy.ShouldImport)
+                .ToList();
+            if (keptFiles.Count == 0)
+            {
+                results.Add(new PackageImportResult { Success = false, ErrorMessage = "文件夹中无可识别文件" });
+                return results;
+            }
+
+            var archiveName = new DirectoryInfo(folderPath).Name;
+            await ImportCollectedFilesAsync(
+                keptFiles, folderPath, archiveName, folderPath,
+                targetRootPath ?? DefaultPluginTargetRootPath, results);
+            return results;
+        }
+
+        /// <summary>
+        /// 压缩包与文件夹共用的"已筛选文件 → 包"分配逻辑。
+        ///
+        /// 只按"二进制 MOD 文件"（.pak/.ucas/.utoc）分组；.json/.lua/.dll/.ini 一律走非 MOD 通道。
+        /// 早先这里用 <see cref="IsModFile"/>（引擎的 ModFileExtensions 含 <c>.json</c>），
+        /// 于是 UE4SS 的 mods.json 被当成 MOD 载荷去分组，既会把纯插件包误判成 MOD，
+        /// 也会让组外的 .lua 文件既不分组也不兜底 —— 直接消失（实测超级筋斗云 587 文件只剩 2 个）。
+        /// 非 MOD 文件必须整体成包并保留目录结构。
+        /// </summary>
+        private async Task ImportCollectedFilesAsync(
+            List<string> keptFiles, string rootDirectory, string archiveName, string sourcePath,
+            string? targetRootPath, List<PackageImportResult> results)
+        {
+            var modFiles = keptFiles.Where(IsBinaryModFile).ToList();
+
+            if (modFiles.Count == 0)
+            {
+                // 纯插件/配置：保留包内目录结构，否则 UE4SS/CSharpLoader 找不到文件
+                var packageName = EnsureUniquePackageName(archiveName, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                results.Add(await ImportFilesAsPackageAsync(
+                    packageName, keptFiles, rootDirectory, sourcePath, targetRootPath,
+                    keepDirectoryStructure: true, kindOverride: KindForPayload(keptFiles)));
+                return;
+            }
+
+            var groups = ModFileGrouper.SplitByImportScope(modFiles, rootDirectory)
+                .SelectMany(scope => GroupModFilesByPrefix(scope)
+                    .Where(g => g.Value.Count > 0)
+                    .Select(g => new KeyValuePair<string, List<string>>(g.Key, g.Value)))
+                .ToList();
+
+            int index = 1;
+            var usedPackageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in groups)
+            {
+                var packageName = DetermineGroupName(group.Value) ?? group.Key ?? $"{archiveName}_{index}";
+                packageName = EnsureUniquePackageName(packageName, usedPackageNames);
+
+                results.Add(await ImportFilesAsPackageAsync(
+                    packageName, group.Value, rootDirectory, sourcePath, targetRootPath));
+                index++;
+            }
+
+            // 没被任何 MOD 组认领的插件/配置载荷不能丢：单独成一个保留目录结构的包。
+            var claimed = groups.SelectMany(g => g.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var unclaimed = keptFiles.Where(f => !modFiles.Contains(f) && !claimed.Contains(f)).ToList();
+            if (unclaimed.Count > 0)
+            {
+                var packageName = EnsureUniquePackageName(archiveName, usedPackageNames);
+                _logger.LogInformation("导入 {Archive}: {Count} 个非 MOD 文件单独成包 {Package}",
+                    archiveName, unclaimed.Count, packageName);
+                // 这一包里全是插件/配置载荷，显式定型：按扩展名聚合会因单个 .pak 被判成 Mod，
+                // 从而落错部署根（MOD 根而不是游戏根）。
+                results.Add(await ImportFilesAsPackageAsync(
+                    packageName, unclaimed, rootDirectory, sourcePath, targetRootPath,
+                    keepDirectoryStructure: true, kindOverride: KindForPayload(unclaimed)));
+            }
+        }
+
+        /// <summary>
+        /// 非 MOD 载荷的包类型：含 DLL/SO 就是插件，否则算配置。
+        /// 不用 <see cref="DetectPackageKindFromFiles"/> —— 它见到单个 .pak 就整体判成 Mod，
+        /// 会让这些"必须落在游戏根"的文件被部署到 MOD 根。
+        /// </summary>
+        private static PackageKind KindForPayload(IReadOnlyList<string> files)
+            => files.Any(f => IOPath.GetExtension(f).ToLowerInvariant() is ".dll" or ".exe" or ".so")
+                ? PackageKind.Plugin
+                : PackageKind.Config;
 
         // ─── 类型检测 ───
 
@@ -630,6 +778,16 @@ namespace UEModManager.Services
 
         private bool IsModFile(string filePath)
             => EngineConfig.ModFileExtensions.Contains(IOPath.GetExtension(filePath).ToLower());
+
+        /// <summary>
+        /// 是否为"二进制 MOD 载荷"：UE 只会加载这些扩展名，且 ~mods 不递归子目录。
+        ///
+        /// 刻意不用 <see cref="IsModFile"/>：引擎的 ModFileExtensions 含 <c>.json</c>，
+        /// 用它做分流会把 UE4SS 的 mods.json 当 MOD 处理，并让同包的 .lua/.dll 变成
+        /// 无人认领的孤儿文件而被静默丢弃。
+        /// </summary>
+        private static bool IsBinaryModFile(string filePath)
+            => IOPath.GetExtension(filePath).ToLowerInvariant() is ".pak" or ".ucas" or ".utoc";
 
         private static string? FindPreviewInDirectory(string directory)
         {

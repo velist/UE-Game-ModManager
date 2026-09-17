@@ -17,6 +17,9 @@ namespace UEModManager.Views
         private readonly ConflictAnalyzer _conflictAnalyzer;
         private List<ConflictRecord> _conflicts = [];
 
+        /// <summary>本次会话是否改动过覆盖规则。调用方据此决定要不要重新部署。</summary>
+        public bool OverridesChanged { get; private set; }
+
         /// <summary>显示当前冲突分析结果。</summary>
         public ConflictResultWindow(ConflictAnalyzer analyzer, List<ConflictRecord> conflicts)
         {
@@ -113,6 +116,8 @@ namespace UEModManager.Views
 
             // 胜者行
             stack.Children.Add(CreateParticipantRow(
+                record: record,
+                packageKey: record.WinnerPackageKey,
                 isWinner: true,
                 displayName: record.WinnerDisplayName,
                 detail: record.Resolution == ResolutionMethod.UserOverride
@@ -124,6 +129,8 @@ namespace UEModManager.Views
             foreach (var loser in record.Losers)
             {
                 stack.Children.Add(CreateParticipantRow(
+                    record: record,
+                    packageKey: loser.PackageKey,
                     isWinner: false,
                     displayName: loser.DisplayName,
                     detail: UiText.Interpolate($"优先级 #{loser.Priority}")
@@ -134,7 +141,12 @@ namespace UEModManager.Views
             ConflictListPanel.Children.Add(group);
         }
 
-        private static Border CreateParticipantRow(bool isWinner, string displayName, string detail)
+        /// <summary>
+        /// 一行参与者。败者行带"设为胜者"按钮：早先这个面板只能看，用户没有任何办法
+        /// 改变已经判定的胜者，ConflictAnalyzer.SetOverrideAsync 在生产链路上零调用方。
+        /// </summary>
+        private Border CreateParticipantRow(
+            ConflictRecord record, string packageKey, bool isWinner, string displayName, string detail)
         {
             var color = isWinner
                 ? Color.FromRgb(0x22, 0xc5, 0x5e)
@@ -182,8 +194,30 @@ namespace UEModManager.Views
                 Foreground = new SolidColorBrush(Color.FromRgb(0x71, 0x71, 0x7a)),
                 VerticalAlignment = VerticalAlignment.Center
             };
-            Grid.SetColumn(detailText, 1);
-            grid.Children.Add(detailText);
+
+            var rightPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            rightPanel.Children.Add(detailText);
+
+            // 只有"加载顺序"冲突能被用户指定胜者：配置键冲突由 Key 级合并裁决，
+            // 同一个文件的目标路径本来就只有一份，指定胜者没有意义。
+            if (!isWinner && record.Type == ConflictType.LoadOrder)
+            {
+                var selectButton = new Button
+                {
+                    Content = UiText.Get("设为胜者"),
+                    FontSize = 12,
+                    Margin = new Thickness(10, 0, 0, 0),
+                    Padding = new Thickness(10, 3, 10, 3),
+                    Cursor = Cursors.Hand,
+                    Tag = (record, packageKey),
+                };
+                selectButton.SetResourceReference(StyleProperty, "CyberSecondaryButton");
+                selectButton.Click += SetWinner_Click;
+                rightPanel.Children.Add(selectButton);
+            }
+
+            Grid.SetColumn(rightPanel, 1);
+            grid.Children.Add(rightPanel);
 
             border.Child = grid;
             return border;
@@ -199,6 +233,24 @@ namespace UEModManager.Views
                 _conflicts = result.Conflicts;
                 RefreshUI();
             }, null, UiText.Get("自动解决冲突"));
+
+        /// <summary>
+        /// 把这一行的包设为该冲突路径的胜者并立刻重算。
+        ///
+        /// 重算后败者条目不再进入最终视图，下一次部署会把它的文件从游戏目录移除 ——
+        /// 早先 override 只写进 Profile，磁盘上两个包目录同时存在，用户看到的"替换"从未发生。
+        /// </summary>
+        private void SetWinner_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
+            {
+                if (sender is not Button { Tag: (ConflictRecord record, string packageKey) }) return;
+
+                await _conflictAnalyzer.SetOverrideAsync(record.TargetPath, packageKey);
+                var result = await _conflictAnalyzer.AnalyzeAsync();
+                _conflicts = result.Conflicts;
+                RefreshUI();
+                OverridesChanged = true;
+            }, null, UiText.Get("指定冲突胜者"));
 
         private void Apply_Click(object sender, RoutedEventArgs e)
         {

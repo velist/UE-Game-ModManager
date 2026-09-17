@@ -47,9 +47,37 @@ public class ModCategoryClassifierTests
     [InlineData("服装替换", "服装")]
     [InlineData("衣服扩充", "服装")]
     [InlineData("套装合集", "服装")]
+    [InlineData("红底龙纹披风", "服装")]
+    [InlineData("神珍大圣套披风（避火罩)", "服装")]
     public void Classify_OutfitKeywords(string name, string expected)
     {
         Assert.Equal(expected, ModCategoryClassifier.Classify(name));
+    }
+
+    [Theory]
+    [InlineData("红色经文金箍棒", "武器")]
+    [InlineData("三尖两刃枪替换为红樱枪_P", "武器")]
+    public void Classify_WeaponNamesFromRealLibrary(string name, string expected)
+    {
+        // 实测现场：16 个包里有 16 个中文名全部落进"其他"，
+        // 因为关键词表只有"剑/刀"两个中文字。这里用真实库里的名字锁定覆盖。
+        Assert.Equal(expected, ModCategoryClassifier.Classify(name));
+    }
+
+    [Theory]
+    [InlineData("肤色（带金发）", "人物")]
+    public void Classify_CharacterNamesFromRealLibrary(string name, string expected)
+    {
+        Assert.Equal(expected, ModCategoryClassifier.Classify(name));
+    }
+
+    [Theory]
+    [InlineData("真大圣套（金属感）贴图")]
+    [InlineData("SomersaultCloudAnywhere")]
+    public void Classify_UncategorizedNames_StillFallBackToOther(string name)
+    {
+        // 没有明确类别信号的名字不该被硬塞进某一组：兜底"其他"比错分类更有用。
+        Assert.Equal("其他", ModCategoryClassifier.Classify(name));
     }
 
     [Theory]

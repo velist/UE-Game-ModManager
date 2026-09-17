@@ -50,6 +50,10 @@ public sealed class WorkerEmailService : IDisposable
             {
                 return new(true, message, challenge, retryAfter, expiresIn.Value);
             }
+            // 非 2xx 也必须留痕：404（Worker 尚未部署新路由）在异常过滤器眼里是"正常响应"，
+            // 于是日志里一个字都没有，用户只看到"发送失败：not found"这种无从下手的信息。
+            _logger.LogWarning("[WorkerOTP] 获取验证码被拒绝: HTTP {Status} {Message}",
+                (int)response.StatusCode, message);
             return new(false, response.IsSuccessStatusCode ? "认证服务响应无效，请稍后重试" : message,
                 RetryAfterSeconds: retryAfter);
         }
@@ -77,7 +81,10 @@ public sealed class WorkerEmailService : IDisposable
             {
                 return new(true, "验证成功", verifiedEmail);
             }
-            return new(false, ReadString(body, "message") ?? "验证码验证失败，请重新获取");
+            var verifyMessage = ReadString(body, "message") ?? "验证码验证失败，请重新获取";
+            _logger.LogWarning("[WorkerOTP] 验证码核验被拒绝: HTTP {Status} {Message}",
+                (int)response.StatusCode, verifyMessage);
+            return new(false, verifyMessage);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {

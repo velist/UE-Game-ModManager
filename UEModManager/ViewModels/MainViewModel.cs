@@ -540,6 +540,44 @@ namespace UEModManager.ViewModels
             }
         }
 
+        /// <summary>
+        /// 按当前方案整体重新部署。
+        ///
+        /// 冲突面板改的是"哪个包该落盘"，而单包开关只会处理自己那一个包：
+        /// 用户把 A 设为胜者后，B 的文件仍在游戏目录里，光靠单包开关永远清不掉。
+        /// 这里用完整视图重算，让败者条目按托管归属被移除、胜者条目被写入。
+        /// </summary>
+        public async Task<OperationResult> RedeployCurrentProfileAsync()
+        {
+            using var loading = BeginLoading(UiText.Get("应用冲突选择..."));
+            try
+            {
+                var plan = await _deploymentPlanner.CreatePlanAsync();
+                if (!plan.HasChanges)
+                {
+                    _logger.LogInformation("[Conflict] 部署已与当前方案一致，无需变更");
+                    return OperationResult.Ok();
+                }
+
+                var transaction = await _deploymentService.ExecuteAsync(plan);
+                if (transaction.Status == DeploymentStatus.Committed)
+                {
+                    _logger.LogInformation("[Conflict] 冲突选择已应用: +{Add} -{Remove} ~{Replace}",
+                        plan.AddCount, plan.RemoveCount, plan.ReplaceCount);
+                    await RefreshFromRepositoryAsync();
+                    return OperationResult.Ok();
+                }
+
+                _logger.LogWarning("[Conflict] 应用冲突选择失败: {Error}", transaction.ErrorMessage);
+                return OperationResult.Fail(transaction.ErrorMessage);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Conflict] 应用冲突选择失败");
+                return OperationResult.Fail(ex.Message);
+            }
+        }
+
         public async Task<OperationResult> ToggleModAsync(ModInfo mod, bool enable)
         {
             var result = await DeployToggleAsync(mod.RealName, enable);

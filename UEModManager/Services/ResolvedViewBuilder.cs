@@ -56,17 +56,48 @@ public class ResolvedViewBuilder
         var overrides = ConflictOverridePaths.Resolve(profile.ConflictOverrides, modPath, gamePath);
         // Candidate collection MUST precede winner selection. Equal logical MOD names still have distinct destinations.
         var candidates = ResolvedViewLayerBuilder.BuildDeploymentCandidates(profile, packages, _packageRepo.Store, modPath, gamePath);
-        var effectiveOverrides = overrides.Where(pair => candidates.Any(e =>
-            string.Equals(e.TargetAbsolutePath, pair.Key, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(e.PackageKey, pair.Value, StringComparison.OrdinalIgnoreCase)))
-            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        // 覆盖规则的键可能是"加载顺序路径"（MOD 的 @mod/RelativeTargetPath，不含 PackageKey 子目录，
+        // 与 ConflictDetector.ComputeLoadConflictKey 同源），也可能是实际部署路径或 @game/ 相对路径。
+        // 早先只用实际部署路径比对，而 MOD 的实际路径多一层 PackageKey，
+        // 于是用户在冲突面板里选出的胜者永远匹配不上任何候选 —— 规则存进了 Profile，磁盘上什么都没变。
+        var effectiveOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, winner) in overrides)
+        {
+            var match = candidates.FirstOrDefault(e =>
+                string.Equals(e.PackageKey, winner, StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(e.TargetAbsolutePath, key, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(e.LoadConflictKey, key, StringComparison.OrdinalIgnoreCase)));
+            if (match != null && !effectiveOverrides.ContainsKey(key))
+                effectiveOverrides[key] = winner;
+        }
+
+        // 被用户明确判负的包，不得再落盘：否则同名文件在不同包目录里同时存在，
+        // "选择胜者"只是面板上的装饰，引擎仍按自己的加载顺序决定谁生效。
+        //
+        // 只在"败者与胜者落在不同目标路径"时丢弃。目标路径相同的配置文件必须全部保留，
+        // 键级合并（ConfigMergeEngine）依赖所有候选才能把 OnlyA / OnlyB 合成一份；
+        // 提前丢掉败者会连带丢掉它独有的配置键。同路径竞争由下面的 GroupBy 去重按优先级裁决。
+        var overriddenLosers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in candidates.Where(e => e.LoadConflictKey != null).GroupBy(e => e.LoadConflictKey!, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!effectiveOverrides.TryGetValue(group.Key, out var winnerKey)) continue;
+            var winnerTarget = group.FirstOrDefault(e => string.Equals(e.PackageKey, winnerKey, StringComparison.OrdinalIgnoreCase))?.TargetAbsolutePath;
+            if (winnerTarget == null) continue;
+            foreach (var loser in group.Where(e => !string.Equals(e.PackageKey, winnerKey, StringComparison.OrdinalIgnoreCase)
+                                                   && !string.Equals(e.TargetAbsolutePath, winnerTarget, StringComparison.OrdinalIgnoreCase)))
+                overriddenLosers.Add(loser.TargetAbsolutePath);
+        }
         var checkedCandidates = new List<ResolvedEntry>();
         foreach (var entry in candidates)
         {
+            if (overriddenLosers.Contains(entry.TargetAbsolutePath)) continue;
             if (!File.Exists(entry.SourceAbsolutePath))
                 throw new FileNotFoundException($"仓库源文件不存在: {entry.SourceAbsolutePath}", entry.SourceAbsolutePath);
             var priority = entry.Priority;
-            if (effectiveOverrides.TryGetValue(entry.TargetAbsolutePath, out var winner))
+            if (entry.LoadConflictKey != null && effectiveOverrides.TryGetValue(entry.LoadConflictKey, out var winner))
+                priority = string.Equals(winner, entry.PackageKey, StringComparison.OrdinalIgnoreCase)
+                    ? int.MinValue : Math.Max(entry.Priority, int.MinValue + 1);
+            else if (effectiveOverrides.TryGetValue(entry.TargetAbsolutePath, out winner))
                 priority = string.Equals(winner, entry.PackageKey, StringComparison.OrdinalIgnoreCase)
                     ? int.MinValue : Math.Max(entry.Priority, int.MinValue + 1);
             checkedCandidates.Add(await WithContentAsync(entry, entry.SourceAbsolutePath, entry.Source, priority));

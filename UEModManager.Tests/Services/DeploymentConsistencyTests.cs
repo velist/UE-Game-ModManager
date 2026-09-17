@@ -400,6 +400,31 @@ public sealed class DeploymentConsistencyTests : IDisposable
     }
 
     [Fact]
+    public async Task ConflictOverride_OnModsInSeparateDirectories_RemovesTheLoserFromDisk()
+    {
+        // 现场症状：冲突面板显示胜者/败者，用户选定"替换"后磁盘上两个包目录都还在，
+        // 游戏仍按自己的加载顺序决定谁生效 —— 覆盖规则只是面板上的装饰。
+        // 覆盖规则用加载顺序键（@mod/shared.pak，不含 PackageKey 子目录）保存，
+        // 必须能命中实际落在 modPath/<packageKey>/shared.pak 的候选。
+        await InitializeAsync();
+        await AddEnabledPackageAsync("loser", "shared.pak", "LOSER");
+        await AddEnabledPackageAsync("winner", "shared.pak", "WINNER");
+        var profile = _profiles.CurrentProfile!;
+        foreach (var entry in profile.Packages)
+            entry.Priority = entry.PackageKey == "winner" ? 0 : 1;
+        await _profiles.SetConflictOverrideAsync(profile.Id, "@mod/shared.pak", "winner");
+
+        var view = await _views.BuildAsync();
+        var resolved = Assert.Single(view.Entries);
+        Assert.Equal("winner", resolved.PackageKey);
+        Assert.Equal(DeploymentStatus.Committed,
+            (await _deployment.ExecuteAsync(await _planner.CreatePlanForViewAsync(view))).Status);
+
+        Assert.Equal("WINNER", await File.ReadAllTextAsync(Path.Combine(_game.CurrentModPath, "winner", "shared.pak")));
+        Assert.False(File.Exists(Path.Combine(_game.CurrentModPath, "loser", "shared.pak")));
+    }
+
+    [Fact]
     public async Task ExternallyEditedOwnedFile_IsPreservedAndStopsRemoval()
     {
         await InitializeAsync();

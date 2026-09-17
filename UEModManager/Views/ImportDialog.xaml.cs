@@ -85,8 +85,16 @@ namespace UEModManager.Views
 
         private void ProcessFiles(string[] filePaths)
         {
-            var valid = filePaths.Where(f => File.Exists(f)).ToList();
-            if (valid.Count == 0) return;
+            // 文件夹同样合法：解压后把文件夹拖进来是最自然的用法，
+            // 早先这里只认 File.Exists，文件夹被静默丢掉 —— 对话框看起来毫无反应。
+            var valid = filePaths.Where(f => File.Exists(f) || Directory.Exists(f)).ToList();
+            if (valid.Count == 0)
+            {
+                CyberMessageBox.Show(this,
+                    UiText.Get("拖入的内容既不是文件也不是文件夹，请重新选择。"),
+                    UiText.Get("无法导入"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             var unsupportedArchives = valid
                 .Where(ImportWarningMessages.IsUnsupportedArchive)

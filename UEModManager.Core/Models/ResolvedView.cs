@@ -63,6 +63,9 @@ namespace UEModManager.Models
         /// <summary>被此条目覆盖的败者包 Key 列表。</summary>
         public List<string> OverriddenPackageKeys { get; init; } = [];
 
+        /// <summary>该条目在加载顺序（忽略 PackageKey 子目录）模型下的归一化目标路径。</summary>
+        public string? LoadConflictKey { get; init; }
+
         /// <summary>优先级（来源排序用）。</summary>
         public int Priority { get; init; }
 

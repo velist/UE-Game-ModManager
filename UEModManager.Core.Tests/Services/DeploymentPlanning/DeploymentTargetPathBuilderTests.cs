@@ -59,6 +59,48 @@ public class DeploymentTargetPathBuilderTests
     }
 
     [Fact]
+    public void ComputeTargetPath_PluginWithBareFile_KeepsPackageDirectory()
+    {
+        // 裸文件名没有方位信息：同名 dll 必须靠包目录隔离，否则互相覆盖。
+        var artifact = MakeArtifact("dll.dll", ArtifactType.PluginFile);
+        var package = MakePlugin("plugA", "Engine/Plugins");
+        var entry = new ProfilePackageEntry { PackageKey = "plugA", TargetRootPath = null };
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry, modPath: "/g/mods", gamePath: "/g/game");
+
+        Assert.Equal("/g/game/Engine/Plugins/plugA/dll.dll", path.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ComputeTargetPath_PluginWithNestedPath_OmitsPackageDirectory()
+    {
+        // 目录导入的插件：相对路径自带安装位置（ue4ss/Mods/...），
+        // 再套一层包目录会让 UE4SS 找不到文件。
+        var artifact = MakeArtifact("ue4ss/Mods/mods.json", ArtifactType.PluginFile);
+        var package = MakePlugin("plugA", targetRootPath: null);
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
+
+        Assert.Equal("/g/game/Binaries/Win64/ue4ss/Mods/mods.json", path.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ComputeTargetPath_PluginWithNestedPath_EmptyTargetRootPathStaysAtGameRoot()
+    {
+        // 游戏根本身就是 .../b1/Binaries/Win64，空 TargetRootPath 才能让
+        // 剥掉锚点后的层级落到正确位置，而不是 .../Win64/Binaries/Win64/...。
+        var artifact = MakeArtifact("version.dll", ArtifactType.PluginFile);
+        var package = MakePlugin("plugA", targetRootPath: "");
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
+
+        Assert.Equal("/g/game/Binaries/Win64/plugA/version.dll", path.Replace('\\', '/'));
+    }
+
+    [Fact]
     public void ComputeTargetPath_Plugin_PreferEntryPluginPath()
     {
         var artifact = MakeArtifact("dll.dll", ArtifactType.PluginFile);

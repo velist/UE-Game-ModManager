@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using UEModManager.Models;
 using UEModManager.Services.Config;
+using UEModManager.Services.Conflict;
 using UEModManager.Services.DeploymentPlanning;
 using UEModManager.Services.Security;
 
@@ -33,8 +34,14 @@ namespace UEModManager.Services.ResolvedViews
             {
                 if (!packagesByKey.TryGetValue(profileEntry.PackageKey, out var package))
                     throw new InvalidOperationException($"方案引用的包不存在: {profileEntry.PackageKey}");
+                var packageSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var artifact in package.Artifacts.Where(a => a.ArtifactType != ArtifactType.PreviewImage))
                 {
+                    // 同一个包内重复登记同一目标路径 + 同一哈希（压缩包里多处同名同内容文件，
+                    // 例如两个 ue4ss/Mods/mods.json）不是冲突：只有包内自我重复。
+                    // 累加会把它算成 N 个所有者，让冲突面板报出"3 个冲突"而实际去重后为 0。
+                    if (!packageSeen.Add(artifact.RelativeTargetPath + "\n" + artifact.FileHash)) continue;
+
                     var root = package.Kind == PackageKind.Mod ? modPath : gamePath;
                     if (string.IsNullOrWhiteSpace(root))
                         throw new InvalidOperationException($"包 {package.PackageKey} 的游戏目标目录未配置");
@@ -44,6 +51,7 @@ namespace UEModManager.Services.ResolvedViews
                         DeploymentRootPath = Path.GetFullPath(root),
                         TargetAbsolutePath = target,
                         TargetRelativePath = Path.GetRelativePath(root, target),
+                        LoadConflictKey = ConflictDetector.ComputeLoadConflictKey(artifact, package, profileEntry, modPath, gamePath),
                         SourceAbsolutePath = PathSanitizer.SafeCombine(objectStore.RepositoryRoot, artifact.RelativeSourcePath),
                         Source = ResolvedEntrySource.Package,
                         PackageKey = package.PackageKey,

@@ -20,11 +20,11 @@ namespace UEModManager.Services.Detection
 
         private static readonly (string Category, string[] Keywords)[] _rules =
         [
-            ("面部", ["face", "facial", "脸", "面部"]),
-            ("人物", ["character", "body", "skin", "人物", "角色", "身体"]),
-            ("武器", ["weapon", "sword", "gun", "武器", "剑", "刀"]),
-            ("服装", ["outfit", "cloth", "suit", "服装", "衣服", "套装"]),
-            ("发型", ["hair", "头发", "发型"]),
+            ("面部", ["face", "facial", "脸", "面部", "面容"]),
+            ("人物", ["character", "body", "skin", "人物", "角色", "身体", "皮肤", "肤色", "面容"]),
+            ("武器", ["weapon", "sword", "gun", "武器", "剑", "刀", "枪", "棍", "棒", "弓", "戟"]),
+            ("服装", ["outfit", "cloth", "suit", "服装", "衣服", "套装", "披风", "盔甲", "战甲", "战袍"]),
+            ("发型", ["hair", "头发", "发型", "刘海"]),
         ];
 
         /// <summary>所有可识别的分类标签（按优先级顺序）。</summary>

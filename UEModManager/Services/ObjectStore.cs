@@ -206,7 +206,7 @@ namespace UEModManager.Services
             var packageFilesDir = GetPackageFilesDirectory(packageKey);
             Directory.CreateDirectory(packageFilesDir);
 
-            var targetPath = Path.Combine(packageFilesDir, fileName);
+            var targetPath = PathSanitizer.SafeCombine(packageFilesDir, fileName);
             var targetDir = Path.GetDirectoryName(targetPath);
             if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
                 Directory.CreateDirectory(targetDir);

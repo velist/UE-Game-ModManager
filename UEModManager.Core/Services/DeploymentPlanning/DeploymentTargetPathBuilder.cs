@@ -1,5 +1,6 @@
 using System.IO;
 using UEModManager.Models;
+using UEModManager.Services.Import;
 using UEModManager.Services.Security;
 
 namespace UEModManager.Services.DeploymentPlanning
@@ -8,7 +9,10 @@ namespace UEModManager.Services.DeploymentPlanning
     /// 部署目标路径计算（纯函数）。
     ///
     /// MOD 包：<c>{modPath}/{packageKey}/{RelativeTargetPath}</c>
-    /// 插件包：<c>{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}</c>。
+    /// 插件包：<c>{gamePath}/{TargetRootPath}/{packageKey}/{RelativeTargetPath}</c>；
+    /// 若 RelativeTargetPath 自带目录层级（文件夹/压缩包整体导入的产物，
+    /// 如 <c>ue4ss/Mods/mods.json</c>），则省略 <c>{packageKey}</c>，
+    /// 因为那些层级本身就是安装位置，再套一层包目录会让 UE4SS / CSharpLoader 找不到文件。
     /// 配置包：<c>{gamePath}/{TargetRootPath}/{RelativeTargetPath}</c>，同一配置目标合并后只部署一份。
     /// 其中 TargetRootPath 优先取 ProfilePackageEntry.TargetRootPath，否则取 Package.TargetRootPath。
     ///
@@ -28,11 +32,11 @@ namespace UEModManager.Services.DeploymentPlanning
             if (package.Kind != PackageKind.Mod)
             {
                 var targetRootPath = PathSanitizer.SanitizeRelative(entry?.TargetRootPath ?? package.TargetRootPath);
-                var packageKey = PathSanitizer.SanitizeSegment(package.PackageKey);
                 var artifactPath = PathSanitizer.SanitizeRelative(artifact.RelativeTargetPath);
-                return package.Kind == PackageKind.Config
+                // 自带层级的路径（含 Config 包）直接用声明的位置，不再加包目录隔离。
+                return package.Kind == PackageKind.Config || ArchiveTargetPathResolver.HasDirectoryStructure(artifact.RelativeTargetPath)
                     ? Path.Combine(gamePath, targetRootPath, artifactPath)
-                    : Path.Combine(gamePath, targetRootPath, packageKey, artifactPath);
+                    : Path.Combine(gamePath, targetRootPath, PathSanitizer.SanitizeSegment(package.PackageKey), artifactPath);
             }
 
             return Path.Combine(modPath,
