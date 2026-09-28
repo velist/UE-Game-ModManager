@@ -49,6 +49,41 @@ public class ArchiveTargetPathResolverTests
         Assert.Equal("mod.dll", resolved);
     }
 
+    [Fact]
+    public void Resolve_CommonPrefixBeforeAnchor_StripsModNameFromFileWithoutAnchor()
+    {
+        // 现场症状：游戏根下多出一个以 MOD 命名的目录，里面只有一个说明文档
+        // （Win64\黑神话26年8月最新版自动闪避MOD\说明与事项.txt）。
+        // 根因是共有包装目录算得太晚：先剥锚点会把最短的那条路径削成裸文件名
+        // （b1/Binaries/Win64/version.dll -> version.dll），共有前缀从此算不出来，
+        // 同一个包里没命中锚点的文件就带着 MOD 名目录落进游戏根。
+        var prefix = ArchiveTargetPathResolver.StripCommonPrefix(
+        [
+            ArchiveTargetPathResolver.ResolveRelativePath(
+                Path.Combine(Root, "ModName", "b1", "Binaries", "Win64", "version.dll"), Root),
+            ArchiveTargetPathResolver.ResolveRelativePath(
+                Path.Combine(Root, "ModName", "说明与事项.txt"), Root),
+        ]);
+        Assert.Equal("ModName", prefix);
+
+        // 先剥共有前缀、再剥锚点：代理 DLL 仍在游戏根，说明文档不再带目录。
+        Assert.Equal("version.dll", ArchiveTargetPathResolver.Resolve(
+            Path.Combine(Root, "ModName", "b1", "Binaries", "Win64", "version.dll"),
+            Root, keepDirectoryStructure: true, commonPrefix: prefix));
+        Assert.Equal("说明与事项.txt", ArchiveTargetPathResolver.Resolve(
+            Path.Combine(Root, "ModName", "说明与事项.txt"),
+            Root, keepDirectoryStructure: true, commonPrefix: prefix));
+    }
+
+    [Fact]
+    public void ResolveRelativePath_DoesNotStripGameAnchor()
+    {
+        Assert.Equal(
+            Path.Combine("ModName", "b1", "Binaries", "Win64", "version.dll"),
+            ArchiveTargetPathResolver.ResolveRelativePath(
+                Path.Combine(Root, "ModName", "b1", "Binaries", "Win64", "version.dll"), Root));
+    }
+
     [Theory]
     [InlineData("b1/Binaries/Win64/ue4ss/Mods/mods.json", "ue4ss/Mods/mods.json")]
     [InlineData("Binaries/Win64/version.dll", "version.dll")]

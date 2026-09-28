@@ -86,7 +86,7 @@
                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,1,0,0"
                 Padding="24,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="SecondaryButton" Width="110" Height="34" Margin="0,0,8,0"
+                <Button x:Name="SecondaryButton" MinWidth="110" Height="34" Margin="0,0,8,0"
                         Style="{StaticResource CyberSecondaryButton}" Click="Secondary_Click"/>
                 <Button x:Name="PrimaryButton" MinWidth="130" Height="34" Padding="14,0"
                         Style="{StaticResource CyberPrimaryButton}" Click="Primary_Click"/>

@@ -329,11 +329,18 @@
         <!-- ═══ 底部公共操作（Phase 11 诊断导出） ═══ -->
         <Border Grid.Row="3" Padding="24,10"
                 BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="0,1,0,0">
+            <!-- 说明文字与按钮此前同处一个单元格且没有分列，必然互相压住。
+                 按钮列用 Auto 并给文字列留出间距，长文案走省略号而不是叠到按钮上。 -->
             <Grid>
-                <TextBlock VerticalAlignment="Center" FontSize="12"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,12,0"
                            Foreground="{StaticResource Text500Brush}"
                            Text="{loc:Text &#x27;导出诊断包用于报 bug 时附带，含日志、数据快照、最近事务记录（敏感信息已脱敏）&#x27;}"/>
-                <Button HorizontalAlignment="Right" Content="{loc:Text &#x27;导出诊断包&#x27;}"
+                <Button Grid.Column="1" HorizontalAlignment="Right" Content="{loc:Text &#x27;导出诊断包&#x27;}"
                         Click="ExportDiagnostic_Click"
                         Style="{StaticResource CyberSecondaryButton}"/>
             </Grid>

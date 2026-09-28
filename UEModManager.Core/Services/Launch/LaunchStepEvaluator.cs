@@ -16,41 +16,33 @@ namespace UEModManager.Services.Launch
     public static class LaunchStepEvaluator
     {
         /// <summary>
-        /// 评估冲突检查步骤：
-        /// - 0 冲突 → Passed + "无冲突"
-        /// - 含 Error 级冲突 → Failed
-        /// - 仅 Warning/Info → Warning + 通过
+        /// 评估冲突检查步骤。
+        ///
+        /// 参数是**冲突组数**（面板上有几个框），不是资产数或路径数：
+        /// 旧模型按目标路径报出"582 个冲突"，用户数的是自己的 MOD 个数，
+        /// 两边永远对不上；而组数就是用户将要做的决策个数。
+        ///
+        /// 冲突只是提示，不拦启动 —— 所以一律 Passed，有冲突时降级成 Warning。
         /// </summary>
-        public static LaunchStepEvaluation EvaluateConflictCheck(int totalConflicts, int errorConflicts)
+        public static LaunchStepEvaluation EvaluateConflictCheck(int conflictGroups)
         {
-            if (totalConflicts == 0)
-                return new LaunchStepEvaluation(LaunchStepStatus.Passed, "无冲突", Passed: true);
-
-            if (errorConflicts > 0)
-                return new LaunchStepEvaluation(
-                    LaunchStepStatus.Failed,
-                    $"{totalConflicts} 个冲突（{errorConflicts} 个严重）",
-                    Passed: false);
+            if (conflictGroups <= 0)
+                return new LaunchStepEvaluation(LaunchStepStatus.Passed, "无 MOD 冲突", Passed: true);
 
             return new LaunchStepEvaluation(
                 LaunchStepStatus.Warning,
-                $"{totalConflicts} 个冲突（均为警告级别）",
+                $"{conflictGroups} 组 MOD 冲突待处理",
                 Passed: true);
         }
 
         /// <summary>
-        /// 评估视图构建步骤：
-        /// - 有冲突 → Warning（不阻止）
-        /// - 无冲突 → Passed
+        /// 评估视图构建步骤（不阻止启动，只提示）。
+        ///
+        /// 只报文件数。冲突调查由 <see cref="EvaluateConflictCheck"/> 单独负责 ——
+        /// 两个步骤各报一次冲突数，会让同一件事在清单上出现两遍。
         /// </summary>
-        public static LaunchStepEvaluation EvaluateBuildView(int totalEntries, int conflictCount)
-        {
-            var status = conflictCount > 0 ? LaunchStepStatus.Warning : LaunchStepStatus.Passed;
-            return new LaunchStepEvaluation(
-                status,
-                $"{totalEntries} 个文件, {conflictCount} 个冲突",
-                Passed: true);
-        }
+        public static LaunchStepEvaluation EvaluateBuildView(int totalEntries)
+            => new(LaunchStepStatus.Passed, $"{totalEntries} 个文件", Passed: true);
 
         /// <summary>
         /// 评估部署步骤的"是否需要执行"决策（执行前）。

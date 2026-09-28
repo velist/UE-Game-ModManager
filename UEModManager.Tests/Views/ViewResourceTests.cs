@@ -12,7 +12,7 @@ public sealed class ViewResourceTests
     [InlineData("Views/ManagementCenterWindow.xaml")]
     [InlineData("Views/SettingsWindow.xaml")]
     [InlineData("Views/ImportConfirmDialog.xaml")]
-    [InlineData("Views/ConflictResultWindow.xaml")]
+    [InlineData("Views/ConflictWindow.xaml")]
     [InlineData("Views/AdminDashboardWindow.xaml")]
     [InlineData("Views/RepositorySetupWindow.xaml")]
     public void ViewsAndModTemplates_ResolveTheirActualResources(string relativePath)

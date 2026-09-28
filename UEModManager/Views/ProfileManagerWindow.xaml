@@ -256,7 +256,7 @@
                             <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="10" Padding="0">
+                                    CornerRadius="8" Padding="0">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                             VerticalAlignment="Center">
                                     <TextBlock Text="+" FontSize="16" Foreground="{StaticResource Text400Brush}"

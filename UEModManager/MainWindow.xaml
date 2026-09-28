@@ -4,6 +4,7 @@
         xmlns:loc="clr-namespace:UEModManager.Localization"
         xmlns:converters="clr-namespace:UEModManager.Converters"
         xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
+        xmlns:views="clr-namespace:UEModManager.Views"
         Title="{loc:Text &#x27;爱酱MOD管理器&#x27;}"
         Icon="mnlogo.ico"
         Height="900" Width="1440"
@@ -65,7 +66,7 @@
                     <!-- UserArea (底部固定) -->
                     <Border DockPanel.Dock="Bottom" Padding="16"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,1,0,0">
-                        <Border x:Name="UserBtn" CornerRadius="14" Padding="8" Cursor="Hand"
+                        <Border x:Name="UserBtn" CornerRadius="8" Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="UserArea_Click">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -110,7 +111,7 @@
 
                     <!-- 使用说明书按钮 (底部固定，在 DonateArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,4,16,4">
-                        <Border x:Name="HelpDocBtn" CornerRadius="10" Padding="10,8" Cursor="Hand"
+                        <Border x:Name="HelpDocBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
                                 Background="Transparent"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 ToolTip="{loc:Text &#x27;打开在线使用说明书（WPS 云文档）&#x27;}"
@@ -133,7 +134,7 @@
 
                     <!-- DonateArea (底部固定，在 UserArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,12,16,8">
-                        <Border x:Name="DonateBtn" CornerRadius="10" Padding="10,8" Cursor="Hand"
+                        <Border x:Name="DonateBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
                                 Background="Transparent"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="DonateBtn_Click">
@@ -180,7 +181,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="CurrentGameLabel" Text="{loc:Text &#x27;当前游戏&#x27;}" Foreground="{StaticResource Text600Brush}"
                                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                    <Border x:Name="GameSwitcherBtn" CornerRadius="14" Padding="12,8"
+                                    <Border x:Name="GameSwitcherBtn" CornerRadius="8" Padding="12,8"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
                                             MouseLeftButtonDown="GameSwitcher_Click">
@@ -226,7 +227,7 @@
                                               />
 
                                     <!-- 全部 MOD (active) -->
-                                    <Border x:Name="NavAllMods" CornerRadius="10" Padding="8,8,12,8" Margin="0,0,0,4"
+                                    <Border x:Name="NavAllMods" CornerRadius="8" Padding="8,8,12,8" Margin="0,0,0,4"
                                             Background="{StaticResource SurfaceHoverBrush}" Cursor="Hand"
                                             BorderBrush="#27272A80" BorderThickness="1"
                                             MouseLeftButtonDown="NavItem_Click" Tag="全部">
@@ -253,7 +254,7 @@
                                     </Border>
 
                                     <!-- 已启用 -->
-                                    <Border x:Name="NavEnabled" CornerRadius="10" Padding="8,8,12,8" Margin="0,0,0,4"
+                                    <Border x:Name="NavEnabled" CornerRadius="8" Padding="8,8,12,8" Margin="0,0,0,4"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="NavItem_Click" Tag="已启用">
                                         <Grid>
@@ -279,7 +280,7 @@
                                     </Border>
 
                                     <!-- 已禁用 -->
-                                    <Border x:Name="NavDisabled" CornerRadius="10" Padding="8,8,12,8"
+                                    <Border x:Name="NavDisabled" CornerRadius="8" Padding="8,8,12,8"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="NavItem_Click" Tag="已禁用">
                                         <Grid>
@@ -341,7 +342,7 @@
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="ListBoxItem">
                                                             <Border Name="CatBorder" Background="Transparent"
-                                                                    CornerRadius="10" Padding="8,8,12,8" Margin="0,2">
+                                                                    CornerRadius="8" Padding="8,8,12,8" Margin="0,2">
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*"/>
@@ -353,11 +354,11 @@
                                                                                  Stroke="{StaticResource PrimaryBrush}"
                                                                                  StrokeThickness="2" Fill="Transparent"
                                                                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                                                        <TextBlock Text="{Binding LocalizedDisplayText}"
+                                                                        <TextBlock x:Name="CatName" Text="{Binding LocalizedDisplayText}"
                                                                                    Foreground="{StaticResource Text500Brush}"
                                                                                    FontSize="13" VerticalAlignment="Center"/>
                                                                     </StackPanel>
-                                                                    <TextBlock Grid.Column="1" Text="{Binding Count}"
+                                                                    <TextBlock x:Name="CatCount" Grid.Column="1" Text="{Binding Count}"
                                                                                Foreground="{StaticResource Text500Brush}"
                                                                                FontSize="12" VerticalAlignment="Center"/>
                                                                 </Grid>
@@ -367,9 +368,15 @@
                                                                     <Setter TargetName="CatBorder" Property="Background"
                                                                             Value="{StaticResource SurfaceHoverBrush}"/>
                                                                 </Trigger>
+                                                                <!-- 选中态与上方"全部 MOD"等导航项的激活态一致：
+                                                                     只有底色的话和悬停一模一样，看不出当前筛的是哪个分类。 -->
                                                                 <Trigger Property="IsSelected" Value="True">
                                                                     <Setter TargetName="CatBorder" Property="Background"
                                                                             Value="{StaticResource SurfaceHoverBrush}"/>
+                                                                    <Setter TargetName="CatName" Property="Foreground"
+                                                                            Value="{StaticResource PrimaryLightBrush}"/>
+                                                                    <Setter TargetName="CatCount" Property="Foreground"
+                                                                            Value="{StaticResource PrimaryBrush}"/>
                                                                 </Trigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
@@ -397,7 +404,7 @@
                                 <StackPanel Margin="0,16,0,0">
                                     <TextBlock Text="{loc:Text &#x27;MOD 配置方案&#x27;}" Foreground="{StaticResource Text600Brush}"
                                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                    <Border x:Name="ProfileSelectorBtn" CornerRadius="10" Padding="12,10"
+                                    <Border x:Name="ProfileSelectorBtn" CornerRadius="8" Padding="12,10"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
                                             MouseLeftButtonDown="ProfileSelector_Click">
@@ -495,7 +502,7 @@
                                     Padding="4" Margin="0,0,8,0"
                                     BorderBrush="#27272A99" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border x:Name="GridViewBtn" Width="28" Height="28" CornerRadius="6"
+                                    <Border x:Name="GridViewBtn" Width="28" Height="28" CornerRadius="8"
                                             Background="{StaticResource CyberBorderBrush}" Cursor="Hand"
                                             MouseLeftButtonDown="CardViewBtn_Click">
                                         <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -506,7 +513,7 @@
                                             </Canvas>
                                         </Viewbox>
                                     </Border>
-                                    <Border x:Name="ListViewBtnBorder" Width="28" Height="28" CornerRadius="6"
+                                    <Border x:Name="ListViewBtnBorder" Width="28" Height="28" CornerRadius="8"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="ListViewBtn_Click">
                                         <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -521,7 +528,7 @@
                             </Border>
 
                             <!-- 冲突检测 -->
-                            <Border CornerRadius="14" Padding="12,8" Cursor="Hand" Margin="0,0,8,0"
+                            <Border CornerRadius="8" Padding="12,8" Cursor="Hand" Margin="0,0,8,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="ConflictCheck_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -541,7 +548,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,8,0"/>
 
                             <!-- 导入 -->
-                            <Border CornerRadius="14" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
+                            <Border CornerRadius="8" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,8,0"
                                     MouseLeftButtonDown="ImportMod_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -561,7 +568,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,8,0"/>
 
                             <!-- 管理中心 -->
-                            <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}" Padding="16,10"
+                            <Border CornerRadius="8" Background="{StaticResource SurfaceBrush}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,8,0"
                                     BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                                     MouseLeftButtonDown="ManagementCenter_Click">
@@ -580,7 +587,7 @@
                             </Border>
 
                             <!-- 启动游戏 -->
-                            <Border CornerRadius="14" Padding="16,10"
+                            <Border CornerRadius="8" Padding="16,10"
                                     Cursor="Hand" MouseLeftButtonDown="LaunchGame_Click">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -626,7 +633,7 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- 全选 -->
-                            <Border CornerRadius="10" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
+                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SelectAll_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -637,7 +644,7 @@
                                                   StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                         </Canvas>
                                     </Viewbox>
-                                    <TextBlock x:Name="SelectAllText" Text="{loc:Text &#x27;全选&#x27;}" Foreground="{StaticResource Text500Brush}"
+                                    <TextBlock x:Name="SelectAllText" Text="{loc:Value {Binding ModList.SelectAllText}}" Foreground="{StaticResource Text500Brush}"
                                                FontSize="13" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
@@ -649,15 +656,15 @@
                                     <TextBlock Text="{loc:Value {Binding ModList.SelectedCount}, Format='已选 {0}'}"
                                                Foreground="{StaticResource Text300Brush}" FontSize="12"
                                                VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#2238D996" MouseLeftButtonDown="BatchEnable_Click">
                                         <TextBlock x:Name="BatchEnableText" Text="{loc:Text &#x27;启用&#x27;}" Foreground="{StaticResource StatusGreenBrush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#22A1A1AA" MouseLeftButtonDown="BatchDisable_Click">
                                         <TextBlock x:Name="BatchDisableText" Text="{loc:Text &#x27;禁用&#x27;}" Foreground="{StaticResource Text300Brush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="10" Padding="9,4" Cursor="Hand"
+                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand"
                                             Background="#33EF4444" MouseLeftButtonDown="BatchDelete_Click">
                                         <TextBlock x:Name="BatchDeleteText" Text="{loc:Text &#x27;卸载&#x27;}" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
                                     </Border>
@@ -665,7 +672,7 @@
                             </Border>
 
                             <!-- 排序 -->
-                            <Border CornerRadius="10" Padding="8,6" Cursor="Hand"
+                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SortButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -753,6 +760,8 @@
                                                 <MenuItem Header="{loc:Text &#x27;禁用MOD&#x27;}" Click="DisableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                                 <MenuItem Style="{StaticResource MoveToCategoryMenuItem}"/>
+                                                <Separator Style="{StaticResource CyberMenuSeparator}"/>
+                                                <MenuItem Header="{loc:Text &#x27;查看冲突&#x27;}" Click="ViewConflictsMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                                 <MenuItem Header="{loc:Text &#x27;编辑&#x27;}" Click="RenameModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                                 <MenuItem Header="{loc:Text &#x27;修改预览图&#x27;}" Click="ChangePreviewMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
@@ -913,6 +922,22 @@
                                                 <TextBlock Text="{Binding RealName}" FontSize="11"
                                                            Foreground="{StaticResource Text600Brush}"
                                                            TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                                                <!-- 冲突角标：红色数字 = 与几个已启用 MOD 冲突；灰色"重复"标签。
+                                                     两个标签各自按属性显隐，都没有时不占位。 -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,6,0"
+                                                            Background="#3F1D1D"
+                                                            ToolTip="{loc:Text '查看冲突'}"
+                                                            Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <TextBlock Text="{Binding ConflictCount}" FontSize="11"
+                                                                   FontWeight="Bold" Foreground="#F87171"/>
+                                                    </Border>
+                                                    <Border CornerRadius="6" Padding="6,2" Background="#27272A"
+                                                            Visibility="{Binding IsDuplicate, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <TextBlock Text="{loc:Text '重复'}" FontSize="11"
+                                                                   Foreground="{StaticResource Text400Brush}"/>
+                                                    </Border>
+                                                </StackPanel>
                                                 <!-- 底部：大小 + 分类 -->
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -980,6 +1005,8 @@
                                     <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                     <MenuItem Style="{StaticResource MoveToCategoryMenuItem}"/>
                                     <Separator Style="{StaticResource CyberMenuSeparator}"/>
+                                    <MenuItem Header="{loc:Text &#x27;查看冲突&#x27;}" Click="ViewConflictsMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
+                                    <Separator Style="{StaticResource CyberMenuSeparator}"/>
                                     <MenuItem Header="{loc:Text &#x27;编辑&#x27;}" Click="RenameModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <MenuItem Header="{loc:Text &#x27;修改预览图&#x27;}" Click="ChangePreviewMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
                                     <Separator Style="{StaticResource CyberMenuSeparator}"/>
@@ -1017,8 +1044,24 @@
 
                                         <!-- 名称 -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
-                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{StaticResource Text200Brush}"
-                                                       FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{StaticResource Text200Brush}"
+                                                           FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                                <!-- 列表行的冲突角标，与卡片模式同源（ModInfo.ConflictCount / IsDuplicate） -->
+                                                <Border CornerRadius="6" Padding="6,1" Margin="8,0,0,0"
+                                                        Background="#3F1D1D" VerticalAlignment="Center"
+                                                        ToolTip="{loc:Text '查看冲突'}"
+                                                        Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock Text="{Binding ConflictCount}" FontSize="11"
+                                                               FontWeight="Bold" Foreground="#F87171"/>
+                                                </Border>
+                                                <Border CornerRadius="6" Padding="6,1" Margin="6,0,0,0"
+                                                        Background="#27272A" VerticalAlignment="Center"
+                                                        Visibility="{Binding IsDuplicate, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock Text="{loc:Text '重复'}" FontSize="11"
+                                                               Foreground="{StaticResource Text400Brush}"/>
+                                                </Border>
+                                            </StackPanel>
                                             <TextBlock Text="{Binding RealName}" FontSize="11"
                                                        Foreground="{StaticResource Text600Brush}"
                                                        TextTrimming="CharacterEllipsis"/>
@@ -1071,16 +1114,13 @@
             </Grid>
         </Grid>
 
-        <!-- 加载遮罩 (覆盖整个内容区) -->
-        <Border x:Name="LoadingOverlay"
-                Background="{StaticResource OverlayBrush}" Visibility="Collapsed">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <ProgressBar Style="{StaticResource CyberProgressBar}" IsIndeterminate="True"
-                             Width="200" Margin="0,0,0,15"/>
-                <TextBlock x:Name="LoadingText" Text="{loc:Text &#x27;加载中...&#x27;}" Foreground="{StaticResource Text400Brush}"
-                           FontSize="14" HorizontalAlignment="Center"/>
-            </StackPanel>
-        </Border>
+        <!-- 加载遮罩 (覆盖整个内容区)。
+             绑定到 MainViewModel 的 IsLoading / LoadingMessage：此前这段 XAML 没有任何
+             消费者，BeginLoading 改了属性也没人听，遮罩永远停在 Collapsed，
+             于是"导入中"这类长操作全程零反馈。 -->
+        <views:LoadingOverlay
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                Message="{Binding LoadingMessage}"/>
     </Grid>
 
 </Window>

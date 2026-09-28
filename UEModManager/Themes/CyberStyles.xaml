@@ -322,11 +322,16 @@
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <!-- 模板必须消费 Padding：早先 Border 上既没有 TemplateBinding Padding、
+             样式也没有默认值，调用方写的 Padding="16,0" 全部被忽略，
+             文字直接顶到圆角上被切掉（实测"确认导入""确认"等按钮）。 -->
+        <Setter Property="Padding" Value="16,0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="border" Background="{TemplateBinding Background}"
-                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                            CornerRadius="{StaticResource RadiusButton}" Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -354,12 +359,14 @@
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="16,0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="border" Background="{TemplateBinding Background}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                            CornerRadius="{StaticResource RadiusMd}" SnapsToDevicePixels="True">
+                            CornerRadius="{StaticResource RadiusButton}" Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -392,7 +399,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="border" Background="{TemplateBinding Background}"
-                            CornerRadius="{StaticResource RadiusSm}" Padding="{TemplateBinding Padding}"
+                            CornerRadius="{StaticResource RadiusButton}" Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -422,7 +429,7 @@
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="border" Background="{TemplateBinding Background}"
                             BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
-                            CornerRadius="{StaticResource RadiusSm}" Padding="8,2"
+                            CornerRadius="{StaticResource RadiusButton}" Padding="8,2"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -1072,22 +1079,41 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ListViewItem}">
-                    <Border x:Name="border" Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}"
-                            BorderBrush="{StaticResource DividerBrush}"
-                            BorderThickness="0,0,0,1"
-                            SnapsToDevicePixels="True">
-                        <ContentPresenter VerticalAlignment="Center"/>
-                    </Border>
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                BorderBrush="{StaticResource DividerBrush}"
+                                BorderThickness="0,0,0,1"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <!-- 选中指示条：独立元素、落在左内边距里，不挪动内容，也不占用 border 的描边。
+                             此前把 BorderBrush 整个换成主色，底部 1px 分隔线跟着变青，
+                             多选时就是一排青色横线。 -->
+                        <Border x:Name="accent" Width="3" Height="24" CornerRadius="1.5"
+                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,1"
+                                Background="{StaticResource PrimaryBrush}" Visibility="Collapsed"/>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
                         </Trigger>
+                        <!-- 选中态：青色调底色 + 左侧指示条，分隔线保持中性色。
+                             此前底色用 ItemActiveBrush（#1a1a1d），与表面色几乎同色，看不出哪些行被选中。
+                             复用主题里已有的"选中项"色（仓库设置向导的选中卡片用的就是它），不新增资源键；
+                             也别写成 <SolidColorBrush Color="{StaticResource PrimaryColor}"/>：那是解析期立即求值，
+                             单独加载本字典（主题快照测试就是这么加载的）时找不到 PrimaryColor 会直接抛异常。 -->
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="border" Property="Background" Value="{StaticResource ItemActiveBrush}"/>
-                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="border" Property="BorderThickness" Value="2,0,0,1"/>
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SetupSelectedBrush}"/>
+                            <Setter TargetName="accent" Property="Visibility" Value="Visible"/>
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource SetupSelectedHoverBrush}"/>
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

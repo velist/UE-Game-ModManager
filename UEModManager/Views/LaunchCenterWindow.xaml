@@ -51,7 +51,7 @@
                     </Border>
 
                     <!-- 启动历史 -->
-                    <Border CornerRadius="10" Padding="12,10" Margin="0,2" Cursor="Hand"
+                    <Border CornerRadius="8" Padding="12,10" Margin="0,2" Cursor="Hand"
                             MouseLeftButtonDown="ShowHistory_Click">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -129,7 +129,7 @@
                 </Border>
 
                 <!-- 启动按钮 -->
-                <Border x:Name="LaunchButton" CornerRadius="14" Padding="0" Height="52"
+                <Border x:Name="LaunchButton" CornerRadius="8" Padding="0" Height="52"
                         HorizontalAlignment="Center" MinWidth="240"
                         Cursor="Hand" MouseLeftButtonDown="LaunchButton_Click">
                     <Border.Style>

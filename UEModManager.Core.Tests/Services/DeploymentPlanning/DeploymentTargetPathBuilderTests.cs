@@ -24,7 +24,8 @@ public class DeploymentTargetPathBuilderTests
             HostGameName = "demo",
         };
 
-    private static Package MakePlugin(string key = "plugA", string? targetRootPath = "Engine/Plugins")
+    private static Package MakePlugin(
+        string key = "plugA", string? targetRootPath = "Engine/Plugins", bool preservesInstallLayout = false)
         => new()
         {
             PackageKey = key,
@@ -32,6 +33,7 @@ public class DeploymentTargetPathBuilderTests
             Kind = PackageKind.Plugin,
             HostGameName = "demo",
             TargetRootPath = targetRootPath,
+            PreservesInstallLayout = preservesInstallLayout,
         };
 
     private static Package MakeConfig(string key = "cfgA", string? targetRootPath = "Saved/Config/WindowsNoEditor")
@@ -87,17 +89,61 @@ public class DeploymentTargetPathBuilderTests
     }
 
     [Fact]
-    public void ComputeTargetPath_PluginWithNestedPath_EmptyTargetRootPathStaysAtGameRoot()
+    public void ComputeTargetPath_LayoutPreservingPlugin_BareFileStaysAtGameRoot()
     {
-        // 游戏根本身就是 .../b1/Binaries/Win64，空 TargetRootPath 才能让
-        // 剥掉锚点后的层级落到正确位置，而不是 .../Win64/Binaries/Win64/...。
+        // 目录 / 压缩包整体导入的插件包（PreservesInstallLayout = true）：
+        // RelativeTargetPath 就是"相对游戏根的安装位置"，裸文件名即"必须在游戏根"。
+        // 现场症状：UE4SS 的 dwmapi.dll 与 CSharpLoader 的 version.dll 被套进包目录，
+        // 落到 .../Win64/超级筋斗云/dwmapi.dll，Windows 加载器按约定只认 exe 同目录，
+        // 三个插件 MOD 因此一个都没挂上。
         var artifact = MakeArtifact("version.dll", ArtifactType.PluginFile);
+        var package = MakePlugin("plugA", targetRootPath: "", preservesInstallLayout: true);
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
+
+        Assert.Equal("/g/game/Binaries/Win64/version.dll", path.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ComputeTargetPath_LayoutPreservingPlugin_NestedPathStaysAtGameRoot()
+    {
+        // 同一个包的带层级文件（ue4ss/Mods/mods.json）也走"不套包目录"这条路。
+        var artifact = MakeArtifact("ue4ss/Mods/mods.json", ArtifactType.PluginFile);
+        var package = MakePlugin("超级筋斗云", targetRootPath: "", preservesInstallLayout: true);
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
+
+        Assert.Equal("/g/game/Binaries/Win64/ue4ss/Mods/mods.json", path.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ComputeTargetPath_LegacyPluginWithoutLayoutFlag_BareFileStillIsolated()
+    {
+        // 旧数据兼容：PreservesInstallLayout 缺省为 false，手动导入的单文件插件包
+        // 行为不变，仍靠包目录隔离避免两个同名 dll 互相覆盖。
+        var artifact = MakeArtifact("dll.dll", ArtifactType.PluginFile);
         var package = MakePlugin("plugA", targetRootPath: "");
 
         var path = DeploymentTargetPathBuilder.ComputeTargetPath(
             artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
 
-        Assert.Equal("/g/game/Binaries/Win64/plugA/version.dll", path.Replace('\\', '/'));
+        Assert.Equal("/g/game/Binaries/Win64/plugA/dll.dll", path.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public void ComputeTargetPath_PluginWithBareDwmapiAndGameRoot_StaysAtGameRoot()
+    {
+        // T1 的直接回归：gamePath 就是 .../b1/Binaries/Win64，裸 dwmapi.dll 必须落在这里。
+        var artifact = MakeArtifact("dwmapi.dll", ArtifactType.PluginFile);
+        var package = MakePlugin("超级识破", targetRootPath: "", preservesInstallLayout: true);
+
+        var path = DeploymentTargetPathBuilder.ComputeTargetPath(
+            artifact, package, entry: null, modPath: "/g/mods", gamePath: "/g/game/Binaries/Win64");
+
+        Assert.Equal("/g/game/Binaries/Win64/dwmapi.dll", path.Replace('\\', '/'));
+        Assert.DoesNotContain("超级识破", path);
     }
 
     [Fact]

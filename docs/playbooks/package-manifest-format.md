@@ -46,6 +46,7 @@
   "totalSize": 1234567,                  // 文件总字节数
   "hostGameName": "Stellar Blade",
   "pluginTargetPath": null,              // Plugin 类型时为目标根目录（如 "Engine/Plugins"）
+  "preservesInstallLayout": false,       // 见下方"字段语义"
   "importSourcePath": "/some/zip.zip",   // 原始导入文件路径（可空）
   "importedAt": "2026-04-28T10:00:00",
   "lastModified": "2026-04-28T11:00:00",
@@ -79,6 +80,7 @@
 | `totalSize` | ✅ | 字节数（应用启动时统计用） |
 | `hostGameName` | ✅ | 该包属于哪款游戏（多游戏隔离） |
 | `pluginTargetPath` | 非 Mod 包 | 部署到 `gameRoot/{pluginTargetPath}/{packageKey}/`，Plugin 与 Config 都用它 |
+| `preservesInstallLayout` | ⚠ | 该包的 `relativeTargetPath` **就是**相对游戏根的安装位置（目录 / 压缩包整体导入的产物）。为 `true` 时部署**不再**套 `{packageKey}`，裸文件名直接落游戏根（UE4SS 的 `dwmapi.dll`、CSharpLoader 的 `version.dll` 必须与游戏 exe 同目录）。缺省 `false` = 老行为：裸文件名仍加一层包目录隔离。应用内同名属性为 `Package.PreservesInstallLayout`，外部工具生成目录导入型包时应显式写 `true` |
 | `artifacts` | ✅ | 文件清单 |
 
 ---
@@ -120,13 +122,15 @@
 取值优先用方案条目上的覆盖值（`ProfilePackageEntry.TargetRootPath`），没有才回落到包级值。
 Config 包同样落在这条路径上——它**不会**被放进 MOD 根目录。
 
-**例外：`relativeTargetPath` 自带目录层级时省略 `{packageKey}`：**
+**例外：`preservesInstallLayout: true`，或 `relativeTargetPath` 自带目录层级时省略 `{packageKey}`：**
 ```
 {游戏根目录}/{pluginTargetPath}/{relativeTargetPath}
 ```
-带层级说明这个 artifact 来自"文件夹/压缩包整体导入"，层级本身就是安装位置
-（如 `ue4ss/Mods/mods.json`、`CSharpLoader/Mods/X/config.json`）。再套一层包目录会让
-UE4SS / CSharpLoader 找不到文件。判据见 `ArchiveTargetPathResolver.HasDirectoryStructure`。
+这两种情形都说明该 artifact 来自"文件夹/压缩包整体导入"，其路径本身就是安装位置
+（如 `ue4ss/Mods/mods.json`、`CSharpLoader/Mods/X/config.json`），连**裸文件名**也不例外
+（`dwmapi.dll` / `version.dll` 是代理 DLL，必须与游戏 exe 同目录）。再套一层包目录会让
+UE4SS / CSharpLoader 找不到文件。判据见 `DeploymentTargetPathBuilder.ComputeTargetPath`
+与 `ArchiveTargetPathResolver.HasDirectoryStructure`。
 游戏根通常已经是 `.../b1/Binaries/Win64`，所以 `pluginTargetPath` 对 UE4SS 类载荷应为空。
 
 唯一权威实现：`UEModManager.Core/Services/DeploymentPlanning/DeploymentTargetPathBuilder.ComputeTargetPath`

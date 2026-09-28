@@ -12,6 +12,7 @@ using UEModManager.Converters;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Categories;
+using UEModManager.Services.Conflict;
 
 namespace UEModManager.ViewModels
 {
@@ -28,7 +29,7 @@ namespace UEModManager.ViewModels
         private readonly DataMigrationService _dataMigrationService;
         private readonly DeploymentPlanner _deploymentPlanner;
         private readonly DeploymentService _deploymentService;
-        private readonly ConflictAnalyzer _conflictAnalyzer;
+        private readonly ConflictModuleService _conflictModule;
         private readonly OverwriteStore _overwriteStore;
         private readonly Services.Config.ConfigMergeEngine _configMergeEngine;
         private readonly ResolvedViewBuilder _resolvedViewBuilder;
@@ -45,7 +46,7 @@ namespace UEModManager.ViewModels
         public DataMigrationService DataMigration => _dataMigrationService;
         public DeploymentPlanner DeployPlanner => _deploymentPlanner;
         public DeploymentService DeployService => _deploymentService;
-        public ConflictAnalyzer ConflictAnalysis => _conflictAnalyzer;
+        public ConflictModuleService ConflictModule => _conflictModule;
         public OverwriteStore OverwriteStore => _overwriteStore;
         public Services.Config.ConfigMergeEngine ConfigMerge => _configMergeEngine;
         public ResolvedViewBuilder ViewBuilder => _resolvedViewBuilder;
@@ -143,6 +144,16 @@ namespace UEModManager.ViewModels
         public ObservableCollection<ModInfo> AllMods { get; } = new();
 
         /// <summary>
+        /// <see cref="RefreshFromRepositoryAsync"/> 重建完 <see cref="AllMods"/> 之后触发，在 UI 线程上。
+        ///
+        /// 主窗口左侧的"已启用 / 已禁用"计数和顶部数量是 code-behind 手工算的，不走绑定。
+        /// 冲突面板在自己的窗口里禁用了 7 个 MOD、磁盘和方案文件都已经变了，
+        /// 但面板关掉后主窗口没人通知它重算 —— 左栏仍写"已启用 20"，用户据此判定"禁用无效"。
+        /// 任何一处刷新了仓库，主窗口都应该跟着重算，而不是靠每个调用点自己记得。
+        /// </summary>
+        public event Action? RepositoryRefreshed;
+
+        /// <summary>
         /// 当前游戏的所有 Profile 列表。
         /// </summary>
         public ObservableCollection<InstanceProfile> Profiles { get; } = new();
@@ -156,7 +167,7 @@ namespace UEModManager.ViewModels
             DataMigrationService dataMigrationService,
             DeploymentPlanner deploymentPlanner,
             DeploymentService deploymentService,
-            ConflictAnalyzer conflictAnalyzer,
+            ConflictModuleService conflictModule,
             OverwriteStore overwriteStore,
             Services.Config.ConfigMergeEngine configMergeEngine,
             ResolvedViewBuilder resolvedViewBuilder,
@@ -171,7 +182,7 @@ namespace UEModManager.ViewModels
             _dataMigrationService = dataMigrationService;
             _deploymentPlanner = deploymentPlanner;
             _deploymentService = deploymentService;
-            _conflictAnalyzer = conflictAnalyzer;
+            _conflictModule = conflictModule;
             _overwriteStore = overwriteStore;
             _configMergeEngine = configMergeEngine;
             _resolvedViewBuilder = resolvedViewBuilder;
@@ -211,6 +222,10 @@ namespace UEModManager.ViewModels
             // 监听 Profile 切换
             _profileService.ProfileChanged += OnProfileChanged;
             _profileService.ProfileListChanged += OnProfileListChanged;
+
+            // 冲突报告更新后立刻回填卡片角标：报告是异步算出来的，
+            // 光靠 RefreshFromRepositoryAsync 会让角标比面板晚一拍。
+            _conflictModule.ReportUpdated += _ => ApplyConflictBadges();
         }
 
         // ─── 选中项事件处理 ───
@@ -305,7 +320,7 @@ namespace UEModManager.ViewModels
                     await _packageRepository.SetCurrentGameAsync(CurrentGameName);
 
                     // v2.0: 初始化冲突分析器
-                    await _conflictAnalyzer.SetCurrentGameAsync(CurrentGameName);
+                    await _conflictModule.SetCurrentGameAsync(CurrentGameName);
                     await _overwriteStore.SetCurrentGameAsync(CurrentGameName);
 
                     // 分类：数据文件按游戏名分片，漏掉这一步分类就永远不会从磁盘读回来
@@ -360,7 +375,7 @@ namespace UEModManager.ViewModels
             await _packageRepository.SetCurrentGameAsync(gameName);
 
             // v2.0: 冲突分析器
-            await _conflictAnalyzer.SetCurrentGameAsync(gameName);
+            await _conflictModule.SetCurrentGameAsync(gameName);
             await _overwriteStore.SetCurrentGameAsync(gameName);
 
             // 分类同样按游戏名分片，和上面几个服务一起切，别再落下
@@ -376,7 +391,7 @@ namespace UEModManager.ViewModels
             await RefreshFromRepositoryAsync();
         }
 
-        public Task RefreshFromRepositoryAsync()
+        public async Task RefreshFromRepositoryAsync()
         {
             using var loading = BeginLoading(UiText.Get("刷新仓库..."));
             try
@@ -386,6 +401,19 @@ namespace UEModManager.ViewModels
                 var profileEntries = profile?.Packages.ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase)
                                      ?? new Dictionary<string, ProfilePackageEntry>(StringComparer.OrdinalIgnoreCase);
                 var packages = _packageRepository.GetAllPackages();
+
+                // 侧边栏分类目录必须覆盖列表里出现的每一个分类，否则列表右侧写着"人物"，
+                // 左侧目录里却没有"人物"，右键"移动到分类"也没有可选项。
+                // 用和下面 ModInfo.Categories 同一条显示规则（没标签 = 未分类）。
+                try
+                {
+                    await _categoryService.EnsureCategoriesAsync(
+                        packages.SelectMany(p => ModCategoryAssignment.DisplayCategoriesFor(p.Tags)));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "从 MOD 标签补齐分类失败，侧边栏可能缺少分类");
+                }
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -398,7 +426,7 @@ namespace UEModManager.ViewModels
                             Name = package.DisplayName,
                             RealName = package.PackageKey,
                             Description = package.Note ?? string.Empty,
-                            Categories = package.Tags.Count > 0 ? new List<string>(package.Tags) : new List<string> { "未分类" },
+                            Categories = ModCategoryAssignment.DisplayCategoriesFor(package.Tags),
                             IsEnabled = entry?.IsEnabled ?? false,
                             IsPlugin = package.Kind == PackageKind.Plugin,
                             PluginTargetPath = package.PluginTargetPath ?? string.Empty,
@@ -412,15 +440,128 @@ namespace UEModManager.ViewModels
                     Categories.UpdateCounts(AllMods);
                 });
 
+                ApplyConflictBadges();
                 RefreshProfileDisplay();
                 UpdateStatusBar();
                 _logger.LogInformation("仓库刷新完成: {Count} 个", packages.Count);
+
+                // 放在最后：订阅方（主窗口）会读 ModList.Mods 与 AllMods，此时两者都已就位。
+                Application.Current.Dispatcher.Invoke(() => RepositoryRefreshed?.Invoke());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "刷新仓库失败");
             }
-            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 重命名分类：包上的标签与侧边栏条目一起改，最后只刷新一次。
+        ///
+        /// 分类的权威存储是 <c>Package.Tags</c>。只改侧边栏的话包上还是旧名，
+        /// 下一次刷新 <see cref="RefreshFromRepositoryAsync"/> 会按标签把旧名字补回目录，
+        /// 用户看到的是"新名字 0 个 + 旧名字原样"。
+        /// </summary>
+        public async Task<OperationResult> RenameCategoryAsync(CategoryItem category, string newName)
+        {
+            var oldName = category.Name;
+            newName = newName.Trim();
+            if (string.Equals(oldName, newName, StringComparison.Ordinal))
+                return OperationResult.Ok();
+            if (!ModCategoryAssignment.IsAssignableTarget(newName))
+                return OperationResult.Fail(UiText.Interpolate($"「{newName}」是系统保留名称，不能用作分类名。"));
+            if (Categories.Categories.Any(c => string.Equals(c.Name, newName, StringComparison.Ordinal)))
+                return OperationResult.Fail(UiText.Interpolate($"已经有名为「{newName}」的分类了。"));
+
+            var retagged = await RetagPackagesAsync(tags => ModCategoryAssignment.RenameTag(tags, oldName, newName));
+            try
+            {
+                // 有包没改成功就不动侧边栏：那些包还叫旧名，旧条目得留着它们才有地方待。
+                if (retagged.Success)
+                    await Categories.DoRenameCategoryAsync(category, newName);
+            }
+            finally
+            {
+                // 无论成败都按仓库现状刷新一次，部分包已经改名的话界面要如实反映。
+                await RefreshFromRepositoryAsync();
+            }
+            return retagged;
+        }
+
+        /// <summary>
+        /// 删除分类：先把这个标签从所有包上摘掉（不论是不是主分类），再删侧边栏条目，最后只刷新一次。
+        /// 摘完没有别的标签的包就成了"未分类"。
+        ///
+        /// 只删侧边栏条目的话，下一次刷新会按包上残留的标签把它补回来 —— "删了又长回来"。
+        /// </summary>
+        public async Task<OperationResult> DeleteCategoryAsync(CategoryItem category)
+        {
+            var name = category.Name;
+            var retagged = await RetagPackagesAsync(tags => ModCategoryAssignment.RemoveTag(tags, name));
+            try
+            {
+                // 有包没摘掉就保留条目：删了也会在刷新时被残留的标签补回来。
+                if (retagged.Success)
+                    await Categories.DeleteCategoryAsync(category);
+            }
+            finally
+            {
+                await RefreshFromRepositoryAsync();
+            }
+            return retagged;
+        }
+
+        /// <summary>
+        /// 批量改包上的分类标签，逐个落盘，不刷新界面（由调用方最后统一刷一次）。
+        /// <paramref name="retag"/> 返回 null 表示这个包不用动。
+        ///
+        /// 不复用 <see cref="MoveModToCategoryAsync"/>：它每移一个就整页重建一次 AllMods，
+        /// 一个分类下几十个 MOD 就是几十次重建；它也只认主分类，处理不了附带的标签。
+        /// </summary>
+        private async Task<OperationResult> RetagPackagesAsync(Func<IReadOnlyList<string>, List<string>?> retag)
+        {
+            var failures = new List<OperationResult>();
+            foreach (var package in _packageRepository.GetAllPackages().ToList())
+            {
+                var tags = retag(package.Tags);
+                if (tags == null) continue;
+
+                var previousTags = package.Tags;
+                package.Tags = tags;
+                try
+                {
+                    await _packageRepository.UpdatePackageAsync(package);
+                }
+                catch (Exception ex)
+                {
+                    // 与 MoveModToCategoryAsync 同理：内存里的实例就是仓库索引里那一个，写盘失败得还原。
+                    package.Tags = previousTags;
+                    _logger.LogError(ex, "修改 MOD 分类标签失败: {Key}", package.PackageKey);
+                    failures.Add(OperationResult.Fail(
+                        UiText.Interpolate($"修改「{package.DisplayName}」的分类失败：{ex.Message}")));
+                }
+            }
+            return OperationResult.Aggregate(failures);
+        }
+
+        /// <summary>
+        /// 把冲突报告回填到卡片角标。
+        ///
+        /// 与 <see cref="AllMods"/> 一样跑在 UI 线程上：<see cref="ModInfo.ConflictCount"/>
+        /// 是绑定属性，后台线程改它会抛。
+        /// </summary>
+        private void ApplyConflictBadges()
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null) return;
+
+            dispatcher.Invoke(() =>
+            {
+                foreach (var mod in AllMods)
+                {
+                    mod.ConflictCount = _conflictModule.ConflictCountFor(mod.RealName);
+                    mod.IsDuplicate = _conflictModule.IsDuplicate(mod.RealName);
+                }
+            });
         }
 
         // ─── MOD 操作 ───
@@ -620,6 +761,91 @@ namespace UEModManager.ViewModels
             return OperationResult.Aggregate(results);
         }
 
+        /// <summary>
+        /// 按包键批量禁用，然后只重新部署一次。
+        ///
+        /// 冲突面板的"只保留 X"要一次关掉组内其余成员。逐个走
+        /// <see cref="ToggleModAsync"/> 会让每次禁用都触发一次完整重新部署 ——
+        /// 3 个成员的组要点 3 次、部署 3 遍，中间态还会让游戏目录短暂处于
+        /// 半部署状态。这里先攒完所有开关，最后统一部署。
+        /// </summary>
+        public async Task<OperationResult> DisableManyAsync(IReadOnlyList<string> packageKeys)
+        {
+            ArgumentNullException.ThrowIfNull(packageKeys);
+
+            var keys = packageKeys
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (keys.Count == 0) return OperationResult.Ok();
+
+            // 找不到目标必须报错，不能静默成功。
+            //
+            // 事故原型：冲突面板拿到的是另一个 MainViewModel 实例（它的 AllMods 是空的），
+            // 每个 key 都匹配不上、targets 为空、这里返回 Ok，面板于是显示"已禁用 X 并重新部署"，
+            // 而主列表和游戏目录纹丝不动。空列表 + Ok 把"什么都没做"包装成了成功，
+            // 用户和日志都拿不到任何线索。
+            var missing = keys
+                .Where(k => AllMods.All(m => !string.Equals(m.RealName, k, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (missing.Count > 0)
+            {
+                _logger.LogError("批量禁用：主列表里找不到 {Keys}（AllMods 共 {Count} 项）",
+                    string.Join(", ", missing), AllMods.Count);
+                return OperationResult.Fail(UiText.Format("找不到 MOD：{0}", string.Join("、", missing)));
+            }
+
+            var targets = keys
+                .Select(k => AllMods.First(m =>
+                    string.Equals(m.RealName, k, StringComparison.OrdinalIgnoreCase)))
+                .Where(m => m.IsEnabled)
+                .ToList();
+
+            // 全部目标本来就是禁用，才算无事可做。
+            if (targets.Count == 0) return OperationResult.Ok();
+
+            _logger.LogInformation("批量禁用 {Count} 个 MOD: {Keys}",
+                targets.Count, string.Join(", ", targets.Select(m => m.RealName)));
+
+            using var loading = BeginLoading(UiText.Get("批量禁用..."));
+
+            var results = new List<OperationResult>();
+            await using (await _profileService.BeginBatchAsync())
+            {
+                foreach (var mod in targets)
+                    results.Add(await DisableFlagAsync(mod));
+            }
+
+            var redeploy = await RedeployCurrentProfileAsync();
+            results.Add(redeploy);
+
+            await RefreshFromRepositoryAsync();
+            return OperationResult.Aggregate(results);
+        }
+
+        /// <summary>冲突面板"禁用 X"的单包入口，语义同 <see cref="DisableManyAsync"/>。</summary>
+        public Task<OperationResult> DisableManyAsyncForOne(string packageKey)
+            => DisableManyAsync([packageKey]);
+
+        /// <summary>
+        /// 只写元数据、不触发部署的单包禁用 —— 给 <see cref="DisableManyAsync"/>
+        /// 在批处理作用域内使用，部署留给调用方统一做一次。
+        /// </summary>
+        private async Task<OperationResult> DisableFlagAsync(ModInfo mod)
+        {
+            try
+            {
+                await _profileService.SetPackageEnabledFlagAsync(mod.RealName, false);
+                mod.IsEnabled = false;
+                return OperationResult.Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "禁用 MOD 失败: {Key}", mod.RealName);
+                return OperationResult.Fail(ex.Message);
+            }
+        }
+
         public async Task<OperationResult> RenameModAsync(ModInfo mod, string newName)
         {
             var package = _packageRepository.GetByKey(mod.RealName);
@@ -794,11 +1020,11 @@ namespace UEModManager.ViewModels
 
         // ─── 冲突分析（v2.0 Phase 4） ───
         //
-        // 这里曾有一个零引用的 AnalyzeConflictsAsync：catch 之后 return null，
-        // 失败只进日志。冲突分析失败和"没有冲突"在返回值上几乎分不出来，
-        // 任何人给按钮接上它，就等于把"冲突检测静默失效"再造一遍。
-        // 唯一入口是 MainWindow.OpenConflictPanel —— 它直接调 ConflictAnalysis.AnalyzeAsync()
-        // 并由 SafeEvent.Run 统一记日志 + 弹窗，异常必须能上抛，故不在此处包一层。
+        // 这里曾有一个零引用的冲突分析方法：catch 之后 return null，失败只进日志。
+        // 分析失败和"没有冲突"在返回值上几乎分不出来，任何人给按钮接上它，
+        // 就等于把"冲突检测静默失效"再造一遍。
+        // 唯一入口是 MainWindow.OpenConflictPanel —— 它开 ConflictWindow，
+        // 由窗口内的 SafeEvent.Run 统一记日志 + 弹窗，异常必须能上抛，故不在此处包一层。
 
         // ─── 内部方法 ───
 

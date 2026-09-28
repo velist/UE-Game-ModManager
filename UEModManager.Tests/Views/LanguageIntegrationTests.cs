@@ -94,7 +94,7 @@ public sealed class LanguageIntegrationTests : IDisposable
     [InlineData("Views/AccountSettingsWindow.xaml")]
     [InlineData("Views/AddCustomGameDialog.xaml")]
     [InlineData("Views/AdminDashboardWindow.xaml")]
-    [InlineData("Views/ConflictResultWindow.xaml")]
+    [InlineData("Views/ConflictWindow.xaml")]
     [InlineData("Views/CyberInputDialog.xaml")]
     [InlineData("Views/CyberMessageBox.xaml")]
     [InlineData("Views/DonateWindow.xaml")]

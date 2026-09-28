@@ -46,21 +46,51 @@ namespace UEModManager.Services.Import
         /// <param name="keepDirectoryStructure">
         /// 是否保留包内目录结构。非 Mod 包应为 true；Mod 包为 false。
         /// </param>
-        public static string Resolve(string filePath, string archiveRoot, bool keepDirectoryStructure)
+        /// <param name="commonPrefix">
+        /// 这组文件共有的包装目录（通常就是压缩包里的 MOD 名），由
+        /// <see cref="StripCommonPrefix"/> 在**未剥锚点**的相对路径上算出。
+        /// 先剥它再剥游戏根锚点，顺序不可颠倒，理由见
+        /// <see cref="ResolveRelativePath"/>。
+        /// </param>
+        public static string Resolve(
+            string filePath, string archiveRoot, bool keepDirectoryStructure, string? commonPrefix = null)
         {
             if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("文件路径不能为空", nameof(filePath));
             if (!keepDirectoryStructure) return Path.GetFileName(filePath);
             if (string.IsNullOrWhiteSpace(archiveRoot)) return Path.GetFileName(filePath);
 
+            var relative = ResolveRelativePath(filePath, archiveRoot);
+            if (string.IsNullOrEmpty(relative)) return Path.GetFileName(filePath);
+
+            // 先剥共有的包装目录（MOD 名），再剥游戏根锚点（b1/Binaries/Win64）。
+            return StripLeadingGameAnchor(StripPrefix(relative, commonPrefix));
+        }
+
+        /// <summary>
+        /// 文件相对解压根的原始相对路径，**不剥游戏根锚点**。
+        ///
+        /// 存在的理由是"共有的包装目录"必须在剥锚点**之前**计算：
+        /// 剥锚点会削掉一部分文件的目录层（<c>MOD名/b1/Binaries/Win64/version.dll</c> 变成 <c>version.dll</c>），
+        /// 若在剥完之后再找共有前缀，最短的那条路径可能已经只剩裸文件名，
+        /// 共有前缀就再也算不出来 —— 同一个包里没命中锚点的文件
+        /// （<c>MOD名/说明与事项.txt</c>）于是带着 MOD 名目录落进游戏根，
+        /// 在游戏根下留下一个以 MOD 命名的杂项目录。
+        /// </summary>
+        /// <param name="filePath">解压产物的绝对路径。</param>
+        /// <param name="archiveRoot">本次解压的根目录。</param>
+        /// <returns>相对解压根的路径；文件不在解压根下时返回空串。</returns>
+        public static string ResolveRelativePath(string filePath, string archiveRoot)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return string.Empty;
+            if (string.IsNullOrWhiteSpace(archiveRoot)) return string.Empty;
+
             var root = Path.GetFullPath(archiveRoot);
             var file = Path.GetFullPath(filePath);
             var relative = Path.GetRelativePath(root, file);
 
-            // 不在解压根下（理论上不会发生；防御性回退到裸文件名）
-            if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathFullyQualified(relative))
-                return Path.GetFileName(filePath);
-
-            return StripLeadingGameAnchor(relative);
+            return relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathFullyQualified(relative)
+                ? string.Empty
+                : relative;
         }
 
         /// <summary>
@@ -200,6 +230,9 @@ namespace UEModManager.Services.Import
         private static readonly HashSet<string> InstallAnchors = new(StringComparer.OrdinalIgnoreCase)
         {
             "ue4ss", "csharploader", "binaries", "win64", "win32", "content", "paks", "~mods",
+            // "b1" 是黑神话悟空的项目名（游戏根 = .../b1/Binaries/Win64）。
+            // 把它算作安装锚点，是为了识别"整个输入就是一个 MOD、只是自带 b1 层级"的形状。
+            "b1",
             "saved", "config", "engine", "plugins", "mods", "mod",
         };
 

@@ -194,7 +194,7 @@
                     <TextBox x:Name="GamePathTextBox" Grid.Column="0"
                              Style="{StaticResource CyberTextBox}"/>
                     <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                            Width="72" Margin="8,0,0,0" Height="40"
+                            MinWidth="72" Margin="8,0,0,0" Height="40"
                             Click="BrowseGamePath_Click"/>
                 </Grid>
 
@@ -207,7 +207,7 @@
                     <TextBox x:Name="ModPathTextBox" Grid.Column="0"
                              Style="{StaticResource CyberTextBox}"/>
                     <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                            Width="72" Margin="8,0,0,0" Height="40"
+                            MinWidth="72" Margin="8,0,0,0" Height="40"
                             Click="BrowseModPath_Click"/>
                 </Grid>
 
@@ -220,7 +220,7 @@
                     <TextBox x:Name="BackupPathTextBox" Grid.Column="0"
                              Style="{StaticResource CyberTextBox}"/>
                     <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                            Width="72" Margin="8,0,0,0" Height="40"
+                            MinWidth="72" Margin="8,0,0,0" Height="40"
                             Click="BrowseBackupPath_Click"/>
                 </Grid>
                 </StackPanel>
@@ -246,7 +246,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- 默认渐变 -->
-                        <Border x:Name="BgModeGradient" Grid.Column="0" CornerRadius="14"
+                        <Border x:Name="BgModeGradient" Grid.Column="0" CornerRadius="8"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderThickness="2" Padding="8" Cursor="Hand"
                                 MouseLeftButtonDown="BgModeGradient_Click">
@@ -269,7 +269,7 @@
                         </Border>
 
                         <!-- 自定义图片 -->
-                        <Border x:Name="BgModeImage" Grid.Column="2" CornerRadius="14"
+                        <Border x:Name="BgModeImage" Grid.Column="2" CornerRadius="8"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
                                 Padding="8" Cursor="Hand"
@@ -287,7 +287,7 @@
                         </Border>
 
                         <!-- 纯色背景 -->
-                        <Border x:Name="BgModeSolid" Grid.Column="4" CornerRadius="14"
+                        <Border x:Name="BgModeSolid" Grid.Column="4" CornerRadius="8"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="2"
                                 Padding="8" Cursor="Hand"
@@ -311,7 +311,7 @@
                                  Style="{StaticResource CyberTextBox}" Height="36" FontSize="12"/>
                         <Button x:Name="BrowseBgImageBtn" Grid.Column="1" Content="{loc:Text &#x27;选择图片&#x27;}"
                                 Style="{StaticResource CyberSecondaryButton}"
-                                Width="80" Height="36" Margin="8,0,0,0" FontSize="12"
+                                MinWidth="80" Height="36" Margin="8,0,0,0" FontSize="12"
                                 Click="BrowseBgImage_Click"/>
                     </Grid>
 
@@ -468,7 +468,7 @@
                         <TextBox x:Name="RepoPathTextBox" Grid.Column="0"
                                  Style="{StaticResource CyberTextBox}" IsReadOnly="True"/>
                         <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                                Width="72" Margin="8,0,0,0" Height="40"
+                                MinWidth="72" Margin="8,0,0,0" Height="40"
                                 Click="BrowseRepoPath_Click"/>
                     </Grid>
 
@@ -568,7 +568,7 @@
 
                             <Button x:Name="ExportDiagButton" Content="{loc:Text &#x27;导出诊断包&#x27;}"
                                     Style="{StaticResource CyberPrimaryButton}"
-                                    HorizontalAlignment="Left" Width="140" Height="36"
+                                    HorizontalAlignment="Left" MinWidth="140" Height="36"
                                     Click="ExportDiagnostic_Click"/>
                         </StackPanel>
                     </Border>
@@ -595,7 +595,7 @@
                                                Foreground="{StaticResource Text100Brush}" Margin="0,6,0,12"/>
                                     <Button x:Name="JoinQqGroupBtn" Content="{loc:Text &#x27;加入&#x27;}"
                                             Style="{StaticResource CyberSecondaryButton}"
-                                            HorizontalAlignment="Left" Width="80" Height="30" FontSize="12"
+                                            HorizontalAlignment="Left" MinWidth="80" Height="30" FontSize="12"
                                             Click="JoinQqGroup_Click"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -633,7 +633,7 @@
                                 </StackPanel>
                                 <Button Grid.Column="2" x:Name="SendEmailBtn" Content="{loc:Text &#x27;发送&#x27;}"
                                         Style="{StaticResource CyberSecondaryButton}"
-                                        Width="68" Height="28" FontSize="12"
+                                        MinWidth="68" Height="28" FontSize="12"
                                         Click="SendEmail_Click"/>
                             </Grid>
 
@@ -660,7 +660,7 @@
                                 </StackPanel>
                                 <Button Grid.Column="2" x:Name="OpenGithubBtn" Content="{loc:Text &#x27;打开&#x27;}"
                                         Style="{StaticResource CyberSecondaryButton}"
-                                        Width="68" Height="28" FontSize="12"
+                                        MinWidth="68" Height="28" FontSize="12"
                                         Click="OpenGithub_Click"/>
                             </Grid>
                         </StackPanel>
@@ -673,7 +673,7 @@
                     Background="#80030303">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,14">
                     <Button Content="{loc:Text &#x27;保存设置&#x27;}" Style="{StaticResource CyberPrimaryButton}"
-                            Width="120" Height="36" Click="Save_Click"/>
+                            MinWidth="120" Height="36" Click="Save_Click"/>
                 </StackPanel>
             </Border>
         </Grid>

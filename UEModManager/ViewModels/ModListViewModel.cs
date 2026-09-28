@@ -26,6 +26,17 @@ namespace UEModManager.ViewModels
         private ObservableCollection<ModInfo> _source = new();
 
         /// <summary>
+        /// 批量改动 <see cref="ModInfo.IsSelected"/> 期间置位。
+        ///
+        /// 每张卡片自己会发 PropertyChanged，<see cref="OnModPropertyChanged"/> 收到就把
+        /// <see cref="UpdateSelectionState"/> 跑一遍，而后者会把 IsSelectAll 重算成
+        /// "选中的确实全选了" —— 一个循环里只选到第 1 个时它就被改回 false，
+        /// 剩下的卡片跟着读到一个已经翻回去的值，于是"点一次只多选一个"。
+        /// 批量期间挡住重算，循环结束再统一算一次。
+        /// </summary>
+        private bool _suppressSelectionUpdate;
+
+        /// <summary>
         /// 过滤后的 MOD 列表（绑定到 UI）。
         /// </summary>
         public ObservableCollection<ModInfo> Mods { get; } = new();
@@ -43,7 +54,20 @@ namespace UEModManager.ViewModels
         private string _sortMode = "Name_Asc";
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(SelectAllText))]
         private bool _isSelectAll;
+
+        /// <summary>
+        /// "全选"按钮要显示哪一条文案：**未翻译的源串**（"全选" / "取消全选"）。
+        ///
+        /// 由 <see cref="IsSelectAll"/> 派生，让"现在点下去是全选还是取消"可见 ——
+        /// 用户此前只能靠数卡片判断按钮处在哪个档位。
+        ///
+        /// 这里刻意不做翻译、把源串交给 XAML 的 <c>loc:Value</c>：那条路带语言订阅，
+        /// 切换语言时会自己重取；在 VM 里翻好再绑，语言切了文案不会跟着变。
+        /// 返回源串也让单测不受进程当前语言影响。
+        /// </summary>
+        public string SelectAllText => IsSelectAll ? "取消全选" : "全选";
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(HasSelectedMods))]
@@ -112,6 +136,7 @@ namespace UEModManager.ViewModels
 
         private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (_suppressSelectionUpdate) return;
             if (e.PropertyName == nameof(ModInfo.IsSelected))
                 UpdateSelectionState();
         }
@@ -252,9 +277,15 @@ namespace UEModManager.ViewModels
         [RelayCommand]
         public void SelectAll()
         {
-            IsSelectAll = !IsSelectAll;
+            // 按当前**真实**选中情况决定，不信 IsSelectAll 字段：它是 UpdateSelectionState
+            // 算出来的结果，与"用户想干什么"不是一回事（部分选中时它早就是 false 了）。
+            var target = !(Mods.Count > 0 && Mods.All(m => m.IsSelected));
+
+            _suppressSelectionUpdate = true;
             foreach (var mod in Mods)
-                mod.IsSelected = IsSelectAll;
+                mod.IsSelected = target;
+            _suppressSelectionUpdate = false;
+
             UpdateSelectionState();
         }
 

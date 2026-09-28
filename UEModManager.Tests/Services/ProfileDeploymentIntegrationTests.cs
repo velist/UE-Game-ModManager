@@ -3,6 +3,7 @@ using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Backends;
 using UEModManager.Services.Config;
+using UEModManager.Services.Conflict;
 
 namespace UEModManager.Tests.Services;
 
@@ -85,10 +86,11 @@ public sealed class ProfileDeploymentIntegrationTests : IDisposable
 
     private static async Task AssertWinnerAsync(Fixture fixture, string expected)
     {
-        var analysis = await fixture.Conflicts.AnalyzeAsync();
-        var conflict = Assert.Single(analysis.Conflicts);
-        Assert.Equal(expected, conflict.WinnerPackageKey);
-        Assert.True(conflict.IsUserOverride);
+        // 覆盖规则现在是"按目标路径记的归属"，不再有逐条胜者/待处理的概念；
+        // 断言直接看这条规则本身。
+        await fixture.Conflicts.AnalyzeAsync();
+        var overrides = fixture.Conflicts.GetOverrides();
+        Assert.Equal(expected, Assert.Single(overrides).Value);
     }
 
     private static void AssertConfig(string content, string mode)
@@ -107,7 +109,7 @@ public sealed class ProfileDeploymentIntegrationTests : IDisposable
         private ObjectStore Store { get; init; } = null!;
         private PackageRepository Repository { get; init; } = null!;
         public ProfileService Profiles { get; init; } = null!;
-        public ConflictAnalyzer Conflicts { get; init; } = null!;
+        public ConflictModuleService Conflicts { get; init; } = null!;
         public ProfileLockService Locks { get; init; } = null!;
         public ResolvedViewBuilder Views { get; init; } = null!;
         public DeploymentPlanner Planner { get; init; } = null!;
@@ -131,7 +133,9 @@ public sealed class ProfileDeploymentIntegrationTests : IDisposable
             var overwrites = new OverwriteStore(NullLogger<OverwriteStore>.Instance, repository, null!,
                 data, Path.Combine(root, "Overwrites"));
             await overwrites.SetCurrentGameAsync("Integration");
-            var conflicts = new ConflictAnalyzer(NullLogger<ConflictAnalyzer>.Instance, repository, profiles, game);
+            var conflicts = new ConflictModuleService(
+                NullLogger<ConflictModuleService>.Instance, repository, profiles, game,
+                new AssetIndexService(NullLogger<AssetIndexService>.Instance, store, data));
             await conflicts.SetCurrentGameAsync("Integration");
             var views = new ResolvedViewBuilder(NullLogger<ResolvedViewBuilder>.Instance, repository, profiles,
                 new ConfigMergeEngine(NullLogger<ConfigMergeEngine>.Instance), overwrites, game);

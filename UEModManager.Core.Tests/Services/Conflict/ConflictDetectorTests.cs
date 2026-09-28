@@ -35,6 +35,23 @@ public class ConflictDetectorTests
             }).ToList(),
         };
 
+    private static Package MakePlugin(string key, string display, params (string rel, string? hash)[] artifacts)
+        => new()
+        {
+            PackageKey = key,
+            DisplayName = display,
+            Kind = PackageKind.Plugin,
+            HostGameName = "demo",
+            Artifacts = artifacts.Select(a => new PackageArtifact
+            {
+                RelativeSourcePath = a.rel,
+                RelativeTargetPath = a.rel,
+                ArtifactType = ArtifactType.PluginFile,
+                FileHash = a.hash,
+                FileSize = 100
+            }).ToList(),
+        };
+
     private static InstanceProfile MakeProfile(params (string key, int prio, bool enabled)[] entries)
         => new()
         {
@@ -318,6 +335,68 @@ public class ConflictDetectorTests
         Assert.Equal("/abs/file", rel);
     }
 
+    // ─── 真实压缩包形状（0916.zip）───
+
+    [Fact]
+    public void DetectConflicts_TwoPluginPackagesSharingUe4ssPayload_ReportsConflicts()
+    {
+        // 现场形状：两个 MOD 各自打包了一整套 UE4SS 载荷，其中 11 个文件同名
+        // （mods.json、BPML_GenericFunctions 等），另有 version.dll 与 b1cs.ini
+        // 内容不同。并包时它们同属一个 PackageKey，冲突检测去重后成为 0 个冲突；
+        // 按顶层目录拆包后，这才是真正该被报出来的冲突。
+        var profile = MakeProfile(("超级筋斗云", 0, true), ("超级识破", 1, true));
+        var packages = new Dictionary<string, Package>
+        {
+            ["超级筋斗云"] = MakePlugin("超级筋斗云", "超级筋斗云",
+                (Path.Combine("ue4ss", "Mods", "mods.json"), "h-same"),
+                (Path.Combine("ue4ss", "Mods", "BPML.lua"), "h-same"),
+                ("version.dll", "h-a"),
+                (Path.Combine("CSharpLoader", "b1cs.ini"), "h-a")),
+            ["超级识破"] = MakePlugin("超级识破", "超级识破",
+                (Path.Combine("ue4ss", "Mods", "mods.json"), "h-same"),
+                (Path.Combine("ue4ss", "Mods", "BPML.lua"), "h-same"),
+                ("version.dll", "h-b"),
+                (Path.Combine("CSharpLoader", "b1cs.ini"), "h-b")),
+        };
+
+        var conflicts = ConflictDetector.DetectConflicts(profile, packages, ModPath, GamePath);
+
+        // 4 个共享路径 → 4 条冲突；优先级 0 的包全胜。
+        Assert.Equal(4, conflicts.Count);
+        Assert.All(conflicts, c =>
+        {
+            Assert.Equal(ConflictType.LoadOrder, c.Type);
+            Assert.Equal("超级筋斗云", c.WinnerPackageKey);
+            Assert.Equal("超级识破", Assert.Single(c.Losers).PackageKey);
+        });
+
+        // 同名同内容 → Info（重复但不改变行为）；同名不同内容 → Warning。
+        var byHashSame = conflicts.Where(c => c.TargetPath.EndsWith("mods.json", StringComparison.OrdinalIgnoreCase)
+                                           || c.TargetPath.EndsWith("BPML.lua", StringComparison.OrdinalIgnoreCase));
+        Assert.All(byHashSame, c => Assert.Equal(ConflictSeverity.Info, c.Severity));
+        var differing = conflicts.Where(c => c.TargetPath.EndsWith("version.dll", StringComparison.OrdinalIgnoreCase)
+                                          || c.TargetPath.EndsWith("b1cs.ini", StringComparison.OrdinalIgnoreCase));
+        Assert.All(differing, c => Assert.Equal(ConflictSeverity.Warning, c.Severity));
+    }
+
+    [Fact]
+    public void DetectConflicts_MergedIntoOnePackage_MissesEverything()
+    {
+        // 对照实验：同样的文件，如果全塞进一个包（旧实现的并包行为），
+        // 按 PackageKey 去重后只剩一个声称者，冲突数是 0 —— 这就是"肯定有冲突却检测不出来"。
+        var profile = MakeProfile(("0916", 0, true));
+        var packages = new Dictionary<string, Package>
+        {
+            ["0916"] = MakePlugin("0916", "0916",
+                (Path.Combine("ue4ss", "Mods", "mods.json"), "h-same"),
+                (Path.Combine("ue4ss", "Mods", "mods.json"), "h-same"),
+                (Path.Combine("ue4ss", "Mods", "BPML.lua"), "h-same"),
+                ("version.dll", "h-a"),
+                ("version.dll", "h-b")),
+        };
+
+        Assert.Empty(ConflictDetector.DetectConflicts(profile, packages, ModPath, GamePath));
+    }
     // ─── 错误路径 ───
 
     [Fact]

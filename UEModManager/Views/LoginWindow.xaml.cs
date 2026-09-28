@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using UEModManager.Services;
 using UEModManager.Localization;
+using UEModManager.Infrastructure;
 
 namespace UEModManager.Views
 {    public partial class LoginWindow : Window
@@ -15,6 +16,7 @@ namespace UEModManager.Views
         private readonly LocalAuthService _localAuth;
         private readonly CustomOtpService _otpService;
         private readonly ILogger<LoginWindow> _logger;
+        private readonly ShowMessage _showDialog;
 
         private bool _isProcessing = false;
         private int _countdown = 0;
@@ -29,11 +31,12 @@ namespace UEModManager.Views
         }
 
         internal LoginWindow(LocalAuthService localAuth, CustomOtpService otpService, ILogger<LoginWindow> logger,
-            ResourceDictionary? resources = null)
+            ResourceDictionary? resources = null, ShowMessage? showMessage = null)
         {
             _localAuth = localAuth ?? throw new ArgumentNullException(nameof(localAuth));
             _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _showDialog = showMessage ?? DefaultDialog;
             if (resources != null) Resources = resources;
             InitializeComponent();
             LanguageManager.LanguageChanged += OnLanguageChanged;
@@ -42,6 +45,28 @@ namespace UEModManager.Views
 
         private static IServiceProvider GetServices()
             => (Application.Current as App)?.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider 未初始化");
+
+        /// <summary>
+        /// 把消息框收进一个可替换的委托。
+        ///
+        /// <para>
+        /// <b>为什么必须收：</b><c>CyberMessageBox.Show</c> 内部是 <c>ShowDialog</c>，是模态的。
+        /// 于是"发送验证码 / 验证登录"这条路径上没有任何一个结局是可离屏观测的：成功弹提示、
+        /// 失败弹错误，两种都会把调用它的 STA 线程吃在消息泵里。换成委托之后每个分支都能在
+        /// 无 GUI 的测试里走到底，"回车确实发出了验证码请求"才成为可判定的断言。
+        /// </para>
+        ///
+        /// <para>
+        /// 默认实现就是原来的 <c>CyberMessageBox.Show</c>，生产行为与改动前完全一致；
+        /// 只有测试会传别的实现进来。
+        /// </para>
+        /// </summary>
+        internal delegate MessageBoxResult ShowMessage(Window? owner, string message, string title,
+            MessageBoxButton buttons, MessageBoxImage icon);
+
+        private static MessageBoxResult DefaultDialog(Window? owner, string message, string title,
+            MessageBoxButton buttons, MessageBoxImage icon)
+            => CyberMessageBox.Show(owner, message, title, buttons, icon);
 
         private void OnLanguageChanged(bool english) => Dispatcher.Invoke(UpdateLanguage);
 
@@ -70,13 +95,39 @@ namespace UEModManager.Views
             VerifyLoginButton.IsEnabled = otp.Length == 6 && !_isProcessing;
         }
 
-        // 发送验证码
-        private async void SendOtpButton_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 邮箱框里回车 = 点"发送验证码"。
+        ///
+        /// 走按钮的 <c>IsEnabled</c> 判定而不是自己再判一遍：倒计时期间、处理中、
+        /// 邮箱不合法时按钮本来就是灰的，回车与鼠标点击因此行为完全一致。
+        /// </summary>
+        private void EmailTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            if (SendOtpButton.IsEnabled) SendOtpButton_Click(SendOtpButton, new RoutedEventArgs());
+        }
+
+        /// <summary>
+        /// 验证码框里回车 = 点"验证登录"，并保留焦点。
+        ///
+        /// 刻意不做"输满 6 位自动提交"：自动提交会在用户还打算改数字时就把请求发出去。
+        /// </summary>
+        private void OtpTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            if (VerifyLoginButton.IsEnabled) VerifyLoginButton_Click(VerifyLoginButton, new RoutedEventArgs());
+        }
+
+        /// <summary>发送验证码。走 <see cref="SafeEvent.Run"/> 包裹，失败必定记日志 + 弹窗。</summary>
+        private void SendOtpButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
         {            if (_isProcessing || _countdown > 0) return;
 
             var email = EmailTextBox.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
-            {                CyberMessageBox.Show(this, UiText.Get("请输入有效的邮箱地址"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            {                _showDialog(this, UiText.Get("请输入有效的邮箱地址"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -93,13 +144,13 @@ namespace UEModManager.Views
                     if (isMagicLink)
                     {                        OtpInputPanel.Visibility = Visibility.Collapsed;
                         VerifyLoginButton.Visibility = Visibility.Collapsed;
-                        CyberMessageBox.Show(this, result.Message, UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
+                        _showDialog(this, result.Message, UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
                     {                        OtpInputPanel.Visibility = Visibility.Visible;
                         VerifyLoginButton.Visibility = Visibility.Visible;
                         StartCountdown(result.RetryAfterSeconds ?? 60);
-                        CyberMessageBox.Show(this, UiText.Get("验证码已发送，请查收邮件"), UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
+                        _showDialog(this, UiText.Get("验证码已发送，请查收邮件"), UiText.Get("成功"), MessageBoxButton.OK, MessageBoxImage.Information);
                         OtpTextBox.Focus();
                     }
                 }
@@ -111,27 +162,28 @@ namespace UEModManager.Views
                         StartCountdown(result.RetryAfterSeconds.Value);
                     }
 
-                    CyberMessageBox.Show(this, UiText.Interpolate($"发送失败：{UiText.Get(result.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    _showDialog(this, UiText.Interpolate($"发送失败：{UiText.Get(result.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {                _logger.LogError(ex, "发送验证码失败");
-                CyberMessageBox.Show(this, UiText.Interpolate($"发送失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _showDialog(this, UiText.Interpolate($"发送失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {                _isProcessing = false;
             }
-        }
+            }, _logger, "发送验证码");
 
-        // 验证登录
-        private async void VerifyLoginButton_Click(object sender, RoutedEventArgs e)
+        /// <summary>验证登录。同样走 <see cref="SafeEvent.Run"/> 包裹。</summary>
+        private void VerifyLoginButton_Click(object sender, RoutedEventArgs e)
+            => SafeEvent.Run(this, async () =>
         {            if (_isProcessing) return;
 
             var email = EmailTextBox.Text?.Trim() ?? string.Empty;
             var otp = OtpTextBox.Text?.Trim() ?? string.Empty;
 
             if (otp.Length != 6)
-            {                CyberMessageBox.Show(this, UiText.Get("请输入6位验证码"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            {                _showDialog(this, UiText.Get("请输入6位验证码"), UiText.Get("提示"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -144,7 +196,7 @@ namespace UEModManager.Views
 
                 if (!verifyResult.Success)
                 {                    ShowLoading(false);
-                    CyberMessageBox.Show(this, UiText.Interpolate($"验证失败：{UiText.Get(verifyResult.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    _showDialog(this, UiText.Interpolate($"验证失败：{UiText.Get(verifyResult.Message)}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -163,18 +215,18 @@ namespace UEModManager.Views
                     Close();
                 }
                 else
-                {                    CyberMessageBox.Show(this, UiText.Get("设置登录状态失败，请重试"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                {                    _showDialog(this, UiText.Get("设置登录状态失败，请重试"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {                _logger.LogError(ex, "验证码登录失败");
                 ShowLoading(false);
-                CyberMessageBox.Show(this, UiText.Interpolate($"登录失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                _showDialog(this, UiText.Interpolate($"登录失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {                _isProcessing = false;
             }
-        }
+            }, _logger, "验证登录");
 
         /// <summary>
         /// 登录成功后上报一次账号（邮箱哈希，明文邮箱不出本机）。
@@ -244,7 +296,7 @@ namespace UEModManager.Views
             try { LanguageManager.SaveAndSetEnglish(!LanguageManager.IsEnglish); }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
+                _showDialog(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

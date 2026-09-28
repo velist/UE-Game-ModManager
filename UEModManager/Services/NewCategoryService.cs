@@ -111,6 +111,57 @@ namespace UEModManager.Services
         }
 
         /// <summary>
+        /// 把一批分类名补进侧边栏（已有的跳过，系统分类名跳过），只落盘一次。
+        ///
+        /// 分类的权威存储是包仓库里每个 <c>Package.Tags</c>，导入时分类器直接写进去
+        /// （人物 / 武器 / 其他 …）。但侧边栏"分类目录"读的是另一份分类文件，
+        /// 从没有人把标签同步过来 —— 于是列表右侧每行都写着分类、左侧目录却是空的，
+        /// 右键"移动到分类"的子菜单（由目录生成）也跟着是空的，用户没有任何地方能改分类。
+        /// 每次仓库刷新后调一次，标签一出现目录里就有它。
+        /// </summary>
+        /// <returns>新建的分类数。</returns>
+        public async Task<int> EnsureCategoriesAsync(IEnumerable<string> names)
+        {
+            var wanted = ModCategoryAssignment.SelectMissingCategories(
+                names, Categories.Select(c => c.Name), CategoryItem.DefaultOrder);
+            if (wanted.Count == 0) return 0;
+
+            var added = new List<CategoryItem>();
+            foreach (var name in wanted)
+            {
+                var category = new CategoryItem
+                {
+                    Name = name,
+                    FullPath = name,
+                    // 内置分类名（人物 / 其他 / 未分类 …）不能标成自定义：
+                    // LocalizedDisplayText 对自定义分类原样显示名字，英文界面下侧边栏会写"人物"，
+                    // 而列表那一列经 CategoryDisplayNames 翻成了 Characters。
+                    IsCustom = !IsBuiltInName(name),
+                    SortOrder = Categories.Count
+                };
+                Categories.Add(category);
+                added.Add(category);
+            }
+
+            try
+            {
+                await SaveCategoriesAsync();
+            }
+            catch
+            {
+                foreach (var category in added) Categories.Remove(category);
+                throw;
+            }
+            CategoriesChanged?.Invoke();
+
+            _logger.LogInformation("从 MOD 标签补齐 {Count} 个分类: {Names}", added.Count, string.Join(", ", wanted));
+            return added.Count;
+        }
+
+        private static bool IsBuiltInName(string name)
+            => Array.IndexOf(CategoryItem.DefaultOrder, name) >= 0;
+
+        /// <summary>
         /// 删除分类。落盘失败时抛出，并把分类放回原位。
         /// </summary>
         public async Task RemoveCategoryAsync(CategoryItem category)
@@ -151,9 +202,14 @@ namespace UEModManager.Services
 
             var oldName = category.Name;
             var oldFullPath = category.FullPath;
+            var oldDisplayName = category.DisplayName;
+            var oldIsCustom = category.IsCustom;
 
             category.Name = newName;
             category.FullPath = newName;
+            // 旧数据里可能带显示别名：不清掉的话界面继续显示别名，看起来像没改成。
+            category.DisplayName = null;
+            category.IsCustom = !IsBuiltInName(newName);
             try
             {
                 await SaveCategoriesAsync();
@@ -162,6 +218,8 @@ namespace UEModManager.Services
             {
                 category.Name = oldName;
                 category.FullPath = oldFullPath;
+                category.DisplayName = oldDisplayName;
+                category.IsCustom = oldIsCustom;
                 throw;
             }
             CategoriesChanged?.Invoke();

@@ -87,7 +87,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="GamePathTextBox" Grid.Column="0" Style="{StaticResource CyberTextBox}"/>
                 <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                        Width="72" Height="40" Margin="8,0,0,0" Click="BrowseGamePath_Click"/>
+                        MinWidth="72" Height="40" Margin="8,0,0,0" Click="BrowseGamePath_Click"/>
             </Grid>
 
             <!-- MOD路径 -->
@@ -99,7 +99,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="ModPathTextBox" Grid.Column="0" Style="{StaticResource CyberTextBox}"/>
                 <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                        Width="72" Height="40" Margin="8,0,0,0" Click="BrowseModPath_Click"/>
+                        MinWidth="72" Height="40" Margin="8,0,0,0" Click="BrowseModPath_Click"/>
             </Grid>
 
             <!-- 备份路径 -->
@@ -111,7 +111,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="BackupPathTextBox" Grid.Column="0" Style="{StaticResource CyberTextBox}"/>
                 <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                        Width="72" Height="40" Margin="8,0,0,0" Click="BrowseBackupPath_Click"/>
+                        MinWidth="72" Height="40" Margin="8,0,0,0" Click="BrowseBackupPath_Click"/>
             </Grid>
         </StackPanel>
 
@@ -122,9 +122,9 @@
         <!-- 底部按钮 -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{loc:Text &#x27;取消&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                    Width="80" Height="36" Margin="0,0,12,0" Click="Cancel_Click"/>
+                    MinWidth="80" Height="36" Margin="0,0,12,0" Click="Cancel_Click"/>
             <Button Content="{loc:Text &#x27;确认&#x27;}" Style="{StaticResource CyberPrimaryButton}"
-                    Width="80" Height="36" Click="Confirm_Click"/>
+                    MinWidth="80" Height="36" Click="Confirm_Click"/>
         </StackPanel>
     </Grid>
 </Window>

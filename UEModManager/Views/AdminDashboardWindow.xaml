@@ -74,7 +74,7 @@
             </Grid.ColumnDefinitions>
             <TextBox x:Name="UserSearchBox" Style="{StaticResource CyberTextBox}"/>
             <Button Grid.Column="1" Content="{loc:Text &#x27;搜索&#x27;}" Style="{StaticResource CyberPrimaryButton}"
-                    Width="80" Height="40" Margin="8,0,0,0" Click="SearchUsersButton_Click"/>
+                    MinWidth="80" Height="40" Margin="8,0,0,0" Click="SearchUsersButton_Click"/>
         </Grid>
 
         <DataGrid x:Name="UsersDataGrid" Grid.Row="3"

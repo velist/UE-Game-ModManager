@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
+using UEModManager.Services.Conflict;
 using UEModManager.Services.Launch;
 using UEModManager.Services.Persistence;
 
@@ -26,7 +27,7 @@ namespace UEModManager.Services
         private readonly ResolvedViewBuilder _viewBuilder;
         private readonly DeploymentPlanner _deployPlanner;
         private readonly DeploymentService _deployService;
-        private readonly ConflictAnalyzer _conflictAnalyzer;
+        private readonly ConflictModuleService _conflictModule;
         private readonly string _sessionLogDir;
 
         /// <summary>启动步骤进度变化事件。</summary>
@@ -45,9 +46,9 @@ namespace UEModManager.Services
             ResolvedViewBuilder viewBuilder,
             DeploymentPlanner deployPlanner,
             DeploymentService deployService,
-            ConflictAnalyzer conflictAnalyzer)
+            ConflictModuleService conflictModule)
             : this(logger, gameConfig, profileService, viewBuilder, deployPlanner,
-                deployService, conflictAnalyzer, AppPaths.LaunchSessionsDirectory)
+                deployService, conflictModule, AppPaths.LaunchSessionsDirectory)
         {
         }
 
@@ -59,7 +60,7 @@ namespace UEModManager.Services
             ResolvedViewBuilder viewBuilder,
             DeploymentPlanner deployPlanner,
             DeploymentService deployService,
-            ConflictAnalyzer conflictAnalyzer,
+            ConflictModuleService conflictModule,
             string sessionLogDirectory)
         {
             _logger = logger;
@@ -68,7 +69,7 @@ namespace UEModManager.Services
             _viewBuilder = viewBuilder;
             _deployPlanner = deployPlanner;
             _deployService = deployService;
-            _conflictAnalyzer = conflictAnalyzer;
+            _conflictModule = conflictModule;
 
             _sessionLogDir = sessionLogDirectory;
             AppPaths.TryEnsureDirectory(_sessionLogDir);
@@ -228,7 +229,7 @@ namespace UEModManager.Services
             context.ResolvedViewHash = view.ViewHash;
             session.ViewHash = view.ViewHash;
 
-            var eval = LaunchStepEvaluator.EvaluateBuildView(view.TotalEntries, view.ConflictCount);
+                var eval = LaunchStepEvaluator.EvaluateBuildView(view.TotalEntries);
             step.Message = eval.Message;
             if (eval.Status == LaunchStepStatus.Warning)
                 step.Status = LaunchStepStatus.Warning;
@@ -272,10 +273,12 @@ namespace UEModManager.Services
 
         private async Task<bool> CheckConflicts(LaunchStep step, LaunchContext context)
         {
-            var result = await _conflictAnalyzer.AnalyzeAsync();
-            var errors = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error);
+            // 报的是**冲突组数**（面板上有几个框），不是资产数或路径数 ——
+            // 旧模型按目标路径报出"582 个冲突"，用户数的是自己的 MOD 个数，
+            // 两边永远对不上。
+            var report = await _conflictModule.AnalyzeAsync();
 
-            var eval = LaunchStepEvaluator.EvaluateConflictCheck(result.TotalConflicts, errors);
+            var eval = LaunchStepEvaluator.EvaluateConflictCheck(report.Groups.Count);
             step.Message = eval.Message;
             if (eval.Status == LaunchStepStatus.Warning)
                 step.Status = LaunchStepStatus.Warning;

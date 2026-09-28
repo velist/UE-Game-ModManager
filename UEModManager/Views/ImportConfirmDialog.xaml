@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:UEModManager.Localization"
+        xmlns:views="clr-namespace:UEModManager.Views"
         Title="{loc:Text &#x27;导入确认&#x27;}" Height="640" Width="500"
         WindowStartupLocation="CenterOwner"
         Style="{StaticResource CyberModalWindow}">
@@ -250,10 +251,10 @@
 
                 <Button Grid.Column="1" Content="{loc:Text &#x27;← 返回&#x27;}" Click="BackButton_Click"
                         Style="{StaticResource CyberSecondaryButton}"
-                        Width="80" Height="36" Margin="0,0,8,0"/>
+                        MinWidth="80" Height="36" Margin="0,0,8,0"/>
                 <Button Grid.Column="2" Content="{loc:Text &#x27;取消&#x27;}" Click="CancelButton_Click"
                         Style="{StaticResource CyberSecondaryButton}"
-                        Width="70" Height="36" Margin="0,0,8,0"/>
+                        MinWidth="70" Height="36" Margin="0,0,8,0"/>
                 <Button Grid.Column="3" x:Name="ConfirmButton" Click="ConfirmButton_Click"
                         Style="{StaticResource CyberPrimaryButton}"
                         Height="38" Padding="16,0" Cursor="Hand">
@@ -265,5 +266,11 @@
                 </Button>
             </Grid>
         </Border>
+
+        <!-- 导入期间的加载遮罩。解压 600 MB 压缩包再写 1189 个文件约 15 秒，
+             这段时间此前界面完全冻住且没有任何提示，用户看不出是在工作还是卡死。
+             Grid.RowSpan 覆盖全部 9 行，同时挡掉重复点击。 -->
+        <views:LoadingOverlay x:Name="ImportLoadingOverlay" Grid.RowSpan="9"
+                              Visibility="Collapsed"/>
     </Grid>
 </Window>

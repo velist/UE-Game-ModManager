@@ -32,10 +32,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="1" Content="{loc:Text &#x27;取消&#x27;}" Width="80" Height="36"
+            <Button Grid.Column="1" Content="{loc:Text &#x27;取消&#x27;}" MinWidth="80" Height="36"
                     Style="{StaticResource CyberSecondaryButton}"
                     Click="CancelButton_Click" Margin="0,0,8,0"/>
-            <Button Grid.Column="2" Content="{loc:Text &#x27;确定&#x27;}" Width="80" Height="36"
+            <Button Grid.Column="2" Content="{loc:Text &#x27;确定&#x27;}" MinWidth="80" Height="36"
                     Style="{StaticResource CyberPrimaryButton}"
                     Click="OkButton_Click" IsDefault="True"/>
         </Grid>

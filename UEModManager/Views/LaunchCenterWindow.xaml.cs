@@ -9,6 +9,7 @@ using System.Windows.Shapes;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Services;
+using UEModManager.Services.Conflict;
 using UEModManager.ViewModels;
 
 namespace UEModManager.Views
@@ -21,12 +22,12 @@ namespace UEModManager.Views
             LaunchOrchestrator launcher,
             ProfileService profileService,
             GameConfigService gameConfig,
-            ConflictAnalyzer conflictAnalyzer,
+            ConflictModuleService conflictModule,
             ILogger<LaunchCenterWindow> logger)
         {
             InitializeComponent();
 
-            _vm = new LaunchViewModel(launcher, profileService, gameConfig, conflictAnalyzer, logger);
+            _vm = new LaunchViewModel(launcher, profileService, gameConfig, conflictModule, logger);
             _vm.PropertyChanged += Vm_PropertyChanged;
         }
 
@@ -226,11 +227,11 @@ namespace UEModManager.Views
                         LaunchButton.IsEnabled = _vm.CanLaunch;
                         LaunchButton.Opacity = _vm.CanLaunch ? 1.0 : 0.5;
                         break;
-                    case nameof(LaunchViewModel.ConflictCount):
+                    case nameof(LaunchViewModel.ConflictGroupCount):
                         RebuildCheckList();
                         break;
-                    // 预检失败同样要重画：失败时 ConflictCount 停在 0 不会触发上面那条，
-                    // 清单就会一直显示预置的"无文件冲突"
+                    // 预检失败同样要重画：失败时 ConflictGroupCount 停在 0 不会触发上面那条，
+                    // 清单就会一直显示预置的"无 MOD 冲突"
                     case nameof(LaunchViewModel.ConflictPreCheckError):
                         RebuildCheckList();
                         break;

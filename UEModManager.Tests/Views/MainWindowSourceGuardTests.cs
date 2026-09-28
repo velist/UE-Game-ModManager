@@ -131,21 +131,23 @@ public class MainWindowSourceGuardTests
         var vm = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
 
         var handler = Regex.Match(view,
-            @"private void OpenConflictPanel\(\).*?, _logger, ""冲突检测""\);", RegexOptions.Singleline);
+            @"private void OpenConflictPanel\(.*?, _logger, ""冲突检测""\);", RegexOptions.Singleline);
 
         Assert.True(handler.Success, "找不到走 SafeEvent.Run 的 OpenConflictPanel");
-        Assert.Contains("AnalyzeAsync()", handler.Value);
+        // 面板自己分析、自己部署；MainWindow 只开窗 + 刷新角标。
+        // 它再自己调一次分析，就会变成"面板内外两份分析结果"。
+        Assert.Contains("ConflictWindow", handler.Value);
         Assert.DoesNotMatch(@"\bcatch\s*\(", handler.Value);
 
-        // VM 侧也不许再有"catch 后 return null"的第二条冲突分析入口：
-        // 失败与"零冲突"在返回值上分不出来，接上按钮就等于把静默失效再造一遍
-        Assert.DoesNotMatch(@"Task<ConflictAnalysisResult\?>\s+AnalyzeConflictsAsync", vm);
+        // VM 侧不许有第二条冲突分析入口：失败与"零冲突"在返回值上分不出来，
+        // 接上按钮就等于把静默失效再造一遍。
+        Assert.DoesNotMatch(@"AnalyzeConflictsAsync", vm);
     }
 
     [Fact]
     public void 启动中心的冲突预检失败不会被显示成检查通过()
     {
-        // BuildPreCheckSteps 把第 3 步预置成绿色的"无文件冲突"，
+        // BuildPreCheckSteps 把第 3 步预置成绿色的"无 MOD 冲突"，
         // RunConflictPreCheckAsync 抛异常时若只记日志，清单就一直停在那个绿勾上。
         var launchVm = File.ReadAllText(Path.Combine(
             RepoRoot(), "UEModManager", "ViewModels", "LaunchViewModel.cs"));

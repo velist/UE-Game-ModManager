@@ -133,6 +133,8 @@
          ════════════════════════════════════════════════════════════ -->
 
     <CornerRadius x:Key="RadiusSm">8</CornerRadius>
+    <!-- 按钮圆角：所有可点击的圆角矩形按钮共用此值，改这里即全局生效。 -->
+    <CornerRadius x:Key="RadiusButton">8</CornerRadius>
     <CornerRadius x:Key="RadiusMd">12</CornerRadius>
     <CornerRadius x:Key="RadiusLg">16</CornerRadius>
 

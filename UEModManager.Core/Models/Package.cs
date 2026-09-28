@@ -105,6 +105,16 @@ namespace UEModManager.Models
         public string? TargetRootPath { get; set; }
 
         /// <summary>
+        /// 该包的 Artifacts 的 RelativeTargetPath 是否就是相对游戏根的安装位置。
+        ///
+        /// 目录导入 / 压缩包整体导入的产物（ImportFilesAsPackageAsync 收到
+        /// keepDirectoryStructure: true、以及 ImportPluginAsync 的目录分支）为 true：
+        /// 此时裸文件名意味着必须落在游戏根，部署时不得再套一层包目录。
+        /// 手动导入的单个插件文件为 false，仍靠包目录隔离避免同名互相覆盖。
+        /// </summary>
+        public bool PreservesInstallLayout { get; set; }
+
+        /// <summary>
         /// 插件目标路径（旧字段，保留兼容）。
         /// </summary>
         public string? PluginTargetPath

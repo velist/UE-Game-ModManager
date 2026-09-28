@@ -22,6 +22,8 @@ namespace UEModManager.Models
         private string _previewImagePath = string.Empty;
         private ImageSource? _previewImageSource;
         private long _fileSize;
+        private int _conflictCount;
+        private bool _isDuplicate;
 
         /// <summary>
         /// MOD 标识符 (= RealName/文件夹名)。用于持久化查找。
@@ -114,6 +116,34 @@ namespace UEModManager.Models
         /// 安装/导入日期。
         /// </summary>
         public DateTime InstallDate { get; set; } = DateTime.Now;
+
+        /// <summary>
+        /// 与几个已启用 MOD 冲突 —— 具体是"出现在几个冲突组里"（UI 绑定）。
+        ///
+        /// 组数而不是资产数：面板上有几个框，卡片上就写几，用户能一眼对上。
+        /// </summary>
+        [JsonIgnore]
+        public int ConflictCount
+        {
+            get => _conflictCount;
+            set
+            {
+                if (SetField(ref _conflictCount, value))
+                    OnPropertyChanged(nameof(HasConflict));
+            }
+        }
+
+        /// <summary>角标显隐：0 组冲突时不占位。</summary>
+        [JsonIgnore]
+        public bool HasConflict => _conflictCount > 0;
+
+        /// <summary>是否为重复 MOD（仓库里已有内容完全相同的另一份）。</summary>
+        [JsonIgnore]
+        public bool IsDuplicate
+        {
+            get => _isDuplicate;
+            set => SetField(ref _isDuplicate, value);
+        }
 
         /// <summary>
         /// 是否为插件（非标准 MOD，任意格式文件放到指定目录）。

@@ -22,6 +22,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.ViewModels;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Categories;
 using UEModManager.Services.Backends;
 using UEModManager.Services.Paths;
 using UEModManager.Services.Recovery;
@@ -98,6 +99,15 @@ namespace UEModManager
                 // 获取 ViewModel
                 _vm = sp.GetRequiredService<MainViewModel>();
                 DataContext = _vm;
+
+                // 仓库一刷新，左栏计数 / 顶部数量 / 空状态就重算。
+                // 这三样是手工算的，不靠绑定；此前只在各个点击处理器里零散调用，
+                // 冲突面板在自己窗口里禁用 MOD 后关掉，主窗口就没人重算 —— 左栏仍显示"已启用 20"。
+                _vm.RepositoryRefreshed += () =>
+                {
+                    UpdateNavCounts();
+                    UpdateModCountText();
+                };
 
                 // 获取服务
                 _gameConfig = sp.GetRequiredService<GameConfigService>();
@@ -1177,23 +1187,61 @@ namespace UEModManager
         private void RenameCategoryMenuItem_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
             {
-                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                if (CategoryList.SelectedItem is not CategoryItem cat || CategoryItem.SystemNames.Contains(cat.Name))
+                    return;
+
+                // 没有标签的 MOD 一律显示成"未分类"，它不是一个能改名的真分类。
+                if (cat.Name == ModCategoryAssignment.Uncategorized)
                 {
-                    var newName = CyberInputDialog.Show(this, UiText.Get("重命名分类"), UiText.Get("请输入新名称:"), cat.DisplayText);
-                    if (!string.IsNullOrWhiteSpace(newName) && newName != cat.DisplayText)
-                        await _vm.Categories.DoRenameCategoryAsync(cat, newName.Trim());
+                    CyberMessageBox.Show(this, UiText.Get("「未分类」用来放没有分类的 MOD，不能重命名。"),
+                        UiText.Get("提示"), MessageBoxButton.OK);
+                    return;
                 }
+
+                var newName = CyberInputDialog.Show(this, UiText.Get("重命名分类"), UiText.Get("请输入新名称:"), cat.DisplayText);
+                if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == cat.Name) return;
+
+                var result = await _vm.RenameCategoryAsync(cat, newName);
+                if (!result.Success)
+                    ShowOperationFailure(result, UiText.Get("重命名分类失败"));
+                UpdateNavCounts();
+                UpdateModCountText();
             }, _logger, "重命名分类");
 
         private void DeleteCategoryMenuItem_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
             {
-                if (CategoryList.SelectedItem is CategoryItem cat && !CategoryItem.SystemNames.Contains(cat.Name))
+                if (CategoryList.SelectedItem is not CategoryItem cat || CategoryItem.SystemNames.Contains(cat.Name))
+                    return;
+
+                // 未分类里的 MOD 已经没有分类可退了：删掉条目，刷新时又会因为它们被补回来。
+                if (cat.Name == ModCategoryAssignment.Uncategorized && cat.Count > 0)
                 {
-                    var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除分类 '{cat.DisplayText}'？"), UiText.Get("确认"), MessageBoxButton.YesNo);
-                    if (r == MessageBoxResult.Yes)
-                        await _vm.Categories.DeleteCategoryAsync(cat);
+                    CyberMessageBox.Show(this,
+                        UiText.Interpolate($"「未分类」里还有 {cat.Count} 个 MOD，不能删除。可以先把它们移动到其他分类。"),
+                        UiText.Get("提示"), MessageBoxButton.OK);
+                    return;
                 }
+
+                var message = cat.Count > 0
+                    ? UiText.Interpolate($"确认删除分类 '{cat.LocalizedDisplayText}'？其中 {cat.Count} 个 MOD 将移到「未分类」。")
+                    : UiText.Interpolate($"确认删除分类 '{cat.LocalizedDisplayText}'？");
+                var r = CyberMessageBox.Show(this, message, UiText.Get("确认"), MessageBoxButton.YesNo);
+                if (r != MessageBoxResult.Yes) return;
+
+                var result = await _vm.DeleteCategoryAsync(cat);
+                if (!result.Success)
+                {
+                    ShowOperationFailure(result, UiText.Get("删除分类失败"));
+                }
+                else
+                {
+                    // 被删的正是当前筛选的分类：筛选已由视图模型退回"全部"，导航高亮也得跟上。
+                    _activeNavTag = "全部";
+                    UpdateNavHighlight();
+                }
+                UpdateNavCounts();
+                UpdateModCountText();
             }, _logger, "删除分类");
 
 
@@ -1440,6 +1488,13 @@ namespace UEModManager
                 if (mod != null)
                     await DeleteModFromUiAsync(mod);
             }, _logger, "删除 MOD");
+
+        /// <summary>右键"查看冲突"：打开面板并滚到该 MOD 所在的组。</summary>
+        private void ViewConflictsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var mod = GetModFromContextMenu(sender);
+            OpenConflictPanel(mod?.RealName);
+        }
 
         private void MoveToCategoryMenuItem_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, async () =>
@@ -1786,29 +1841,38 @@ namespace UEModManager
         private void ConflictCheck_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            // v2.0: 使用 ConflictAnalyzer 结果打开新冲突面板
             OpenConflictPanel();
         }
 
-        /// <summary>v2.0 冲突面板：使用 ConflictAnalyzer 分析结果。</summary>
-        private void OpenConflictPanel()
+        /// <summary>
+        /// 打开冲突面板。
+        ///
+        /// 面板自己分析、自己执行动作、自己重新部署 —— 这里只负责开窗，
+        /// 不再像旧实现那样在窗口关闭后补一次部署（那会让"面板里什么都没点"
+        /// 也触发一次全量部署）。<paramref name="focusPackageKey"/> 非空时定位到该 MOD 的组。
+        /// </summary>
+        private void OpenConflictPanel(string? focusPackageKey = null)
             => SafeEvent.Run(this, async () =>
             {
-                // 此前这里 catch 后"回退到旧版冲突检测"，而回退目标已在重构中被掏空成
-                // 空方法 —— 分析失败时用户得不到任何反馈（那个空方法已随死代码清理删除）。
-                // 现改由 SafeEvent 统一记日志 + 弹窗。
-                var result = await _vm.ConflictAnalysis.AnalyzeAsync();
-                var win = new Views.ConflictResultWindow(_vm.ConflictAnalysis, result.Conflicts) { Owner = this };
+                var sp = ((App)Application.Current).ServiceProvider;
+                // 显式 new，窗口拿到的必须是**本窗口正在用的这个** _vm。
+                //
+                // 曾走 DI 注册（AddTransient<ConflictWindow>），容器会顺手再造一个
+                // MainViewModel：面板的 AllMods 是空的，禁用动作在空列表里找不到目标，
+                // 于是"显示已禁用、主列表和游戏目录都不动"。App 里那条注册已删除，
+                // 这里也不再从容器取——两处一起，避免同样的错误再出现一次。
+                var win = new Views.ConflictWindow(
+                    sp.GetRequiredService<Services.Conflict.ConflictModuleService>(),
+                    _vm,
+                    sp.GetRequiredService<ILogger<Views.ConflictWindow>>())
+                {
+                    Owner = this,
+                    FocusPackageKey = focusPackageKey
+                };
                 win.ShowDialog();
 
-                // 用户在面板里指定过胜者，就必须让磁盘跟上：覆盖规则只写进 Profile
-                // 而败者文件留在游戏目录时，"替换"等于没发生（引擎仍按自己的加载顺序决定谁生效）。
-                if (win.OverridesChanged)
-                {
-                    var applied = await _vm.RedeployCurrentProfileAsync();
-                    if (!applied.Success)
-                        ShowOperationFailure(applied, UiText.Get("应用冲突选择失败"));
-                }
+                // 面板里的动作都已自行落盘并部署，这里只需让卡片角标与主列表跟上。
+                await _vm.RefreshFromRepositoryAsync();
             }, _logger, "冲突检测");
 
         /// <summary>打开管理中心窗口。</summary>

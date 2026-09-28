@@ -9,9 +9,11 @@ using Microsoft.Extensions.Logging;
 using SharpCompress.Common;
 using SharpCompress.Readers;
 using UEModManager.Models;
+using UEModManager.Services.Conflict;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Import;
 using UEModManager.Services.Security;
+using UEModManager.Localization;
 using IOPath = System.IO.Path;
 
 namespace UEModManager.Services
@@ -28,6 +30,18 @@ namespace UEModManager.Services
     }
 
     /// <summary>
+    /// 仓库里已有内容完全相同的包。
+    ///
+    /// 用异常而不是返回值传递，是为了复用 <see cref="PackageImportService"/> 的
+    /// 补偿清理：文件这时候已经落盘，只有补偿路径知道包目录是不是本次新建的。
+    /// </summary>
+    public sealed class DuplicateModContentException(string existingDisplayName, string message)
+        : Exception(message)
+    {
+        public string ExistingDisplayName { get; } = existingDisplayName;
+    }
+
+    /// <summary>
     /// 包导入服务。v2.0 唯一的导入入口（v1.x 的 ModManagementService 已删除）。
     /// 负责：解压 → 类型识别 → 文件存储到仓库 → 生成 Package + Artifacts → 注册到 Repository。
     /// </summary>
@@ -38,6 +52,7 @@ namespace UEModManager.Services
         private readonly ObjectStore _objectStore;
         private readonly GameConfigService _gameConfig;
         private readonly RepositoryReclaimService _reclaim;
+        private readonly AssetIndexService _assetIndexService;
         private readonly long _maximumExtractedBytes;
 
         /// <summary>
@@ -50,8 +65,10 @@ namespace UEModManager.Services
             PackageRepository repository,
             ObjectStore objectStore,
             GameConfigService gameConfig,
-            RepositoryReclaimService reclaim)
-            : this(logger, repository, objectStore, gameConfig, reclaim, ArchiveExtractor.MaxTotalExtractedBytes)
+            RepositoryReclaimService reclaim,
+            AssetIndexService assetIndexService)
+            : this(logger, repository, objectStore, gameConfig, reclaim, assetIndexService,
+                ArchiveExtractor.MaxTotalExtractedBytes)
         {
         }
 
@@ -61,6 +78,7 @@ namespace UEModManager.Services
             ObjectStore objectStore,
             GameConfigService gameConfig,
             RepositoryReclaimService reclaim,
+            AssetIndexService assetIndexService,
             long maximumExtractedBytes)
         {
             ArgumentOutOfRangeException.ThrowIfNegative(maximumExtractedBytes);
@@ -69,6 +87,7 @@ namespace UEModManager.Services
             _objectStore = objectStore;
             _gameConfig = gameConfig;
             _reclaim = reclaim;
+            _assetIndexService = assetIndexService;
             _maximumExtractedBytes = maximumExtractedBytes;
         }
 
@@ -78,6 +97,22 @@ namespace UEModManager.Services
         private EngineProfile EngineConfig => EngineProfile.Get(_gameConfig.CurrentEngineType);
 
         // ─── 主导入入口 ───
+
+        /// <summary>
+        /// 导入成功后立刻在后台建一次容器索引。
+        ///
+        /// 不预热的话，用户第一次打开冲突面板要现场读十几个 pak 的索引 ——
+        /// 面板会先卡几秒再出内容。预热是 fire-and-forget：失败只记日志，
+        /// 反正真分析时还会再读一次，不影响导入结果。
+        /// </summary>
+        private void WarmUpImported(IReadOnlyList<PackageImportResult> results)
+        {
+            foreach (var package in results.Where(r => r.Success && r.Package is not null)
+                         .Select(r => r.Package!))
+            {
+                _ = _assetIndexService.WarmUpAsync(package);
+            }
+        }
 
         /// <summary>
         /// 从文件路径导入包。支持压缩包和直接文件。
@@ -91,6 +126,7 @@ namespace UEModManager.Services
                 var result = await ImportSingleAsync(filePath, targetRootPath);
                 results.AddRange(result);
             }
+            WarmUpImported(results);
             return results;
         }
 
@@ -175,6 +211,10 @@ namespace UEModManager.Services
                     HostGameName = gameName,
                     TargetRootPath = NormalizeTargetRootPath(pluginTargetPath),
                     ImportSourcePath = filePath,
+                    // 目录导入保留目录结构，RelativeTargetPath 即相对游戏根的安装位置：
+                    // 裸文件名（dwmapi.dll / version.dll）必须落在游戏根，不能再套包目录。
+                    // 单文件导入没有方位信息，保持 false 靠包目录隔离避免同名互相覆盖。
+                    PreservesInstallLayout = isDirectory,
                 };
 
                 // 收集文件。目录导入同样按黑名单过滤，避免把调试符号/日志一起搬进仓库。
@@ -283,6 +323,19 @@ namespace UEModManager.Services
                     ArtifactType = KindToArtifactType(kind),
                 });
 
+                // 与压缩包导入同一道拦截：内容完全相同的 MOD 再导一次没有意义。
+                // 直接拖一个 .pak 进来走的是这条路径，漏掉它就会出现
+                // "红色经文金箍棒_2 与 红色经文金箍棒 内容完全相同"这种重复包。
+                if (kind == PackageKind.Mod)
+                {
+                    var duplicate = FindDuplicateModByContent(package.Artifacts, fileName);
+                    if (duplicate is not null)
+                    {
+                        throw new DuplicateModContentException(
+                            duplicate.DisplayName,
+                            UiText.Interpolate($"仓库已有相同内容的 MOD：{duplicate.DisplayName}"));
+                    }
+                }
                 // 查找同目录预览图
                 var previewDir = IOPath.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(previewDir))
@@ -421,6 +474,10 @@ namespace UEModManager.Services
                     HostGameName = gameName,
                     ImportSourcePath = sourcePath,
                     TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
+                    // 保留目录结构的导入（文件夹 / 压缩包整体导入的产物）：
+                    // RelativeTargetPath 就是相对游戏根的安装位置，裸文件名即必须在游戏根。
+                    // 部署时不得再套包目录，否则 UE4SS / CSharpLoader 的代理 DLL 会被关进子目录。
+                    PreservesInstallLayout = keepDirectoryStructure,
                 };
 
                 long totalSize = 0;
@@ -430,8 +487,12 @@ namespace UEModManager.Services
                 // 会折叠成同一个目标路径，重复登记只会撑大索引并制造假冲突。
                 var seenArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                // 共有包装目录必须在"剥游戏根锚点之前"算：剥完锚点后最短的路径可能只剩裸文件名
+                // （b1/Binaries/Win64/version.dll -> version.dll），共有前缀就再也算不出来，
+                // 同包里没命中锚点的文件（MOD名/说明与事项.txt）会带着 MOD 名目录落进游戏根，
+                // 在游戏根下留下一个以 MOD 命名的杂项目录。
                 var relativePaths = keepDirectoryStructure
-                    ? files.Select(f => ArchiveTargetPathResolver.Resolve(f, tempDir, true)).ToList()
+                    ? files.Select(f => ArchiveTargetPathResolver.ResolveRelativePath(f, tempDir)).ToList()
                     : files.Select(IOPath.GetFileName).ToList();
                 var commonPrefix = keepDirectoryStructure
                     ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths)
@@ -440,9 +501,8 @@ namespace UEModManager.Services
                 foreach (var file in files)
                 {
                     var relativePath = keepDirectoryStructure
-                        ? ArchiveTargetPathResolver.Resolve(file, tempDir, true)
+                        ? ArchiveTargetPathResolver.Resolve(file, tempDir, true, commonPrefix)
                         : IOPath.GetFileName(file);
-                    relativePath = ArchiveTargetPathResolver.StripPrefix(relativePath, commonPrefix);
                     relativePath = ArchiveTargetPathResolver.NormalizeGameRelativePath(relativePath);
                     if (string.IsNullOrWhiteSpace(relativePath)) continue;
 
@@ -467,6 +527,22 @@ namespace UEModManager.Services
                 package.TotalSize = totalSize;
                 if (hashFiles.Count > 0)
                     package.ContentHash = await ObjectStore.ComputeContentHashAsync(hashFiles);
+
+                // 内容完全相同的 MOD 再导一次没有意义：玩家的"装错了"表现是列表里
+                // 出现两个一模一样的 MOD，之后还要靠冲突面板的"重复"提示去删。
+                // 在入口拦住并说清是哪一个，比事后让他自己发现更好。
+                var duplicate = kind == PackageKind.Mod
+                    ? FindDuplicateModByContent(package.Artifacts, packageName)
+                    : null;
+                if (duplicate is not null)
+                {
+                    // 走异常而不是就地 return：包目录已经落盘了，必须由
+                    // ImportWithCompensationAsync 的补偿清理收尾（它才知道目录
+                    // 是不是本次新建的）。就地 return 会把残留目录留在仓库里。
+                    throw new DuplicateModContentException(
+                        duplicate.DisplayName,
+                        UiText.Interpolate($"仓库已有相同内容的 MOD：{duplicate.DisplayName}"));
+                }
 
                 // 查找预览图
                 var modFileDir = IOPath.GetDirectoryName(files[0]) ?? tempDir;
@@ -572,25 +648,115 @@ namespace UEModManager.Services
         /// <summary>
         /// 压缩包与文件夹共用的"已筛选文件 → 包"分配逻辑。
         ///
-        /// 只按"二进制 MOD 文件"（.pak/.ucas/.utoc）分组；.json/.lua/.dll/.ini 一律走非 MOD 通道。
-        /// 早先这里用 <see cref="IsModFile"/>（引擎的 ModFileExtensions 含 <c>.json</c>），
-        /// 于是 UE4SS 的 mods.json 被当成 MOD 载荷去分组，既会把纯插件包误判成 MOD，
-        /// 也会让组外的 .lua 文件既不分组也不兜底 —— 直接消失（实测超级筋斗云 587 文件只剩 2 个）。
-        /// 非 MOD 文件必须整体成包并保留目录结构。
+        /// 以**顶层目录**为界把一个文件夹/压缩包切成多个互不相干的包：
+        /// 一个顶层目录 = 一个 MOD。这是打包者表达"我这里面有几个 MOD"的唯一方式，
+        /// 丢掉它就等于把整包当成一个 MOD。
+        ///
+        /// 旧实现把整包所有 <c>.pak</c> 丢进同一个分组池按基础名分组，再把全部非 MOD 载荷
+        /// 折成一个以压缩包名命名的包。实测 <c>0916.zip</c>（7 个 MOD 文件夹、14 个 .pak、
+        /// 1177 个插件载荷文件）因此变成单个名叫 <c>0916</c> 的包：界面里只有一个条目，
+        /// 而冲突检测也随之失效 —— 所有文件同属一个 PackageKey，
+        /// <c>ConflictDetector</c> 去重后只剩一个声称者，"两个包抢同一路径"永远不成立
+        /// （实测该压缩包内有 583 处跨 MOD 重叠，全部漏报）。
+        ///
+        /// 每个单元内部再按 MOD 文件分组：单元里没有 .pak 时整单元做成一个保留目录结构的
+        /// 插件/配置包；有 .pak 时按基础名分组成 MOD 包，剩下的非 MOD 载荷另成一个包。
         /// </summary>
         private async Task ImportCollectedFilesAsync(
             List<string> keptFiles, string rootDirectory, string archiveName, string sourcePath,
             string? targetRootPath, List<PackageImportResult> results)
         {
-            var modFiles = keptFiles.Where(IsBinaryModFile).ToList();
+            var usedPackageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var units = ArchiveImportUnitResolver.Partition(keptFiles, rootDirectory);
+            var multiUnit = units.Count > 1 || (units.Count == 1 && units[0].Name != ArchiveImportUnitResolver.RootUnitName);
+
+            // 顶层第一段是 b1 / Binaries 这类引擎锚点，说明这不是"一个压缩包里装了多个 MOD"，
+            // 而是"这一个 MOD 自带游戏目录层级"（用户单独拖入解压后的「超级识破」文件夹，
+            // 或压缩包内容直接是 b1\Binaries\...）。退回单单元，用压缩包名 / 文件夹名命名，
+            // 否则包名会变成 b1，第二个这样的 MOD 变成 b1_2，真名全丢。
+            if (multiUnit && ArchiveImportUnitResolver.LooksLikeSingleModLayout(units))
+            {
+                _logger.LogWarning(
+                    "导入 {Name}: 顶层目录 {Units} 命中安装锚点，按「整个输入就是一个 MOD」处理，" +
+                    "包名改用压缩包/文件夹名；若这是把多个 MOD 打进了同一个压缩包，请重新打包",
+                    archiveName,
+                    string.Join(", ", units.Select(u => u.Name)));
+                multiUnit = false;
+            }
+
+            if (multiUnit)
+            {
+                // 以压缩包名命名根单元，其余单元用自己的目录名。
+                // 目录名天然互不相同，_2 这类后缀因此不再出现（旧实现里每个单元
+                // 都拿同一批 pak 去抢同一个基础名，撞名后被迫加序号）。
+                foreach (var unit in units)
+                {
+                    var unitName = string.IsNullOrEmpty(unit.Name) ? archiveName : unit.Name;
+                    await ImportUnitAsync(unit.Files, rootDirectory, unitName, sourcePath,
+                        targetRootPath, usedPackageNames, results);
+                }
+                return;
+            }
+
+            // 没有可用的顶层目录（压缩包根下直接平铺文件）：沿用单包行为。
+            await ImportUnitAsync(keptFiles, rootDirectory, archiveName, sourcePath,
+                targetRootPath, usedPackageNames, results);
+        }
+
+        /// <summary>
+        /// 导入单个单元（一个 MOD 文件夹的全部文件）。
+        /// </summary>
+        private async Task ImportUnitAsync(
+            IReadOnlyList<string> unitFiles, string rootDirectory, string unitName, string sourcePath,
+            string? targetRootPath, HashSet<string> usedPackageNames, List<PackageImportResult> results)
+        {
+            // 单元根上的说明文件（readme*、说明*、*.txt）不部署：
+            // 它们会被原样复制进游戏目录，在 Win64 根下留下"steam属性口令.txt"
+            // 这类和游戏毫无关系的文件。
+            //
+            // 本方法的 unitFiles 是相对**解压根**的，而单元边界就是解压根下的第一段目录
+            // （见 ArchiveImportUnitResolver），所以实测 0916.zip 里的
+            // 「红色经文金箍棒/steam属性口令.txt」在这里看是低了一层。
+            // "是否只有一个顶层目录"区分两种情况：单元被包了一层时（只有 MOD名/）
+            // 那层是包装，说明文件其实就在单元根上；而 ue4ss/ 与 b1/ 并列时
+            // 那些是真实安装位置，里面的 mods.txt 属于运行时，不能当说明丢掉。
+            var topLevelDirectories = unitFiles
+                .Select(f => Path.GetRelativePath(rootDirectory, f))
+                .Where(p => p.Contains(Path.DirectorySeparatorChar))
+                .Select(p => p[..p.IndexOf(Path.DirectorySeparatorChar)])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // 只有一个顶层目录、且"低一层是单元根"还不足以判定它是包装：
+            // 单元内容直接就是「ue4ss/Mods/…」（用户单独拖入解压后的 UE4SS MOD）时，
+            // 那一层是真实安装位置，里面的 mods.txt 不能当说明丢掉。
+            // 安装锚点名录是现成的判据 —— 与 ArchiveImportUnitResolver 判断
+            // "这一层是包装还是安装位置"用的是同一套词汇。
+            var wrapped = topLevelDirectories.Count == 1
+                && !ArchiveTargetPathResolver.IsInstallAnchor(topLevelDirectories[0]);
+            var attachments = unitFiles
+                .Where(f => SharedComponentClassifier.IsAttachment(
+                    Path.GetRelativePath(rootDirectory, f), wrapped))
+                .ToList();
+            if (attachments.Count > 0)
+            {
+                var dropped = attachments.Sum(f => { try { return new FileInfo(f).Length; } catch (IOException) { return 0L; } });
+                _logger.LogInformation("导入 {Unit}: 跳过 {Count} 个说明文件（{Bytes} 字节）",
+                    unitName, attachments.Count, dropped);
+                unitFiles = unitFiles.Except(attachments, StringComparer.OrdinalIgnoreCase).ToList();
+                if (unitFiles.Count == 0) return;
+            }
+
+            var modFiles = unitFiles.Where(IsBinaryModFile).ToList();
 
             if (modFiles.Count == 0)
             {
-                // 纯插件/配置：保留包内目录结构，否则 UE4SS/CSharpLoader 找不到文件
-                var packageName = EnsureUniquePackageName(archiveName, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                // 纯插件/配置（UE4SS / CSharpLoader 型 MOD）：整单元一个包，保留目录结构，
+                // 否则插件按约定找不到自己的文件。
                 results.Add(await ImportFilesAsPackageAsync(
-                    packageName, keptFiles, rootDirectory, sourcePath, targetRootPath,
-                    keepDirectoryStructure: true, kindOverride: KindForPayload(keptFiles)));
+                    EnsureUniquePackageName(unitName, usedPackageNames), [.. unitFiles],
+                    rootDirectory, sourcePath, targetRootPath,
+                    keepDirectoryStructure: true, kindOverride: KindForPayload(unitFiles)));
                 return;
             }
 
@@ -600,11 +766,10 @@ namespace UEModManager.Services
                     .Select(g => new KeyValuePair<string, List<string>>(g.Key, g.Value)))
                 .ToList();
 
-            int index = 1;
-            var usedPackageNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var index = 1;
             foreach (var group in groups)
             {
-                var packageName = DetermineGroupName(group.Value) ?? group.Key ?? $"{archiveName}_{index}";
+                var packageName = DetermineGroupName(group.Value) ?? group.Key ?? $"{unitName}_{index}";
                 packageName = EnsureUniquePackageName(packageName, usedPackageNames);
 
                 results.Add(await ImportFilesAsPackageAsync(
@@ -612,14 +777,14 @@ namespace UEModManager.Services
                 index++;
             }
 
-            // 没被任何 MOD 组认领的插件/配置载荷不能丢：单独成一个保留目录结构的包。
+            // 单元内没被任何 MOD 组认领的载荷不能丢：单独成一个保留目录结构的包。
             var claimed = groups.SelectMany(g => g.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var unclaimed = keptFiles.Where(f => !modFiles.Contains(f) && !claimed.Contains(f)).ToList();
+            var unclaimed = unitFiles.Where(f => !modFiles.Contains(f) && !claimed.Contains(f)).ToList();
             if (unclaimed.Count > 0)
             {
-                var packageName = EnsureUniquePackageName(archiveName, usedPackageNames);
-                _logger.LogInformation("导入 {Archive}: {Count} 个非 MOD 文件单独成包 {Package}",
-                    archiveName, unclaimed.Count, packageName);
+                var packageName = EnsureUniquePackageName(unitName, usedPackageNames);
+                _logger.LogInformation("导入 {Unit}: {Count} 个非 MOD 文件单独成包 {Package}",
+                    unitName, unclaimed.Count, packageName);
                 // 这一包里全是插件/配置载荷，显式定型：按扩展名聚合会因单个 .pak 被判成 Mod，
                 // 从而落错部署根（MOD 根而不是游戏根）。
                 results.Add(await ImportFilesAsPackageAsync(
@@ -715,16 +880,21 @@ namespace UEModManager.Services
         private bool IsPackageKeyTaken(string packageKey)
             => _repository.Exists(packageKey) || _objectStore.PackageDirectoryExists(packageKey);
 
-        /// <summary>用时间戳后缀避开已被占用的包键（同一秒内再撞则继续加序号）。</summary>
+        /// <summary>
+        /// 用序号后缀避开已被占用的包键。
+        ///
+        /// 取 _2、_3… 而不是时间戳：用户看到的包名是"红色经文金箍棒_2"这种，
+        /// 一眼能对上"这是同一款 MOD 的第二份"；时间戳后缀
+        /// （…_20260922_143012）只会让人以为是另一个 MOD。
+        /// </summary>
         private string EnsureUniquePackageKey(string packageKey)
         {
             if (!IsPackageKeyTaken(packageKey)) return packageKey;
 
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var candidate = $"{packageKey}_{stamp}";
-            var suffix = 1;
+            var suffix = 2;
+            var candidate = $"{packageKey}_{suffix}";
             while (IsPackageKeyTaken(candidate))
-                candidate = $"{packageKey}_{stamp}_{++suffix}";
+                candidate = $"{packageKey}_{++suffix}";
 
             return candidate;
         }
@@ -747,10 +917,56 @@ namespace UEModManager.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "导入失败: {Package}", packageKey);
+                // 重复内容不算错误：这是导入入口的主动拦截，日志按 Information 记，
+                // 失败消息原样带给用户（"仓库已有相同内容的 MOD：xxx"）。
+                if (ex is DuplicateModContentException duplicate)
+                {
+                    _logger.LogInformation("导入 {Package}: 仓库已有相同内容的 {Existing}，取消导入",
+                        packageKey, duplicate.ExistingDisplayName);
+                }
+                else
+                {
+                    _logger.LogError(ex, "导入失败: {Package}", packageKey);
+                }
                 CleanupPartialImport(packageKey, directoryPreexisted);
                 return new PackageImportResult { Success = false, ErrorMessage = ex.Message };
             }
+        }
+
+        /// <summary>
+        /// 仓库里是否已有"内容完全相同"的包。
+        ///
+        /// 用**逐文件哈希的多重集**判定，不用 <see cref="Package.ContentHash"/>：
+        /// 那个哈希把 <c>RelativeSourcePath</c> 也算进去，同一个 MOD 换个文件夹名导入
+        /// 就会算出不同的值，拿它去重等于没去重。
+        ///
+        /// 只对**文件完全一致**的 MOD 判重：真·重复 MOD（红色经文金箍棒 / _2）文件数
+        /// 相同、逐个哈希相同。凡是文件集合或数量不同的，一个都不拦 —— 两个各带一份
+        /// 相同 dwmapi.dll 的插件 MOD 内容并不相同（判重在调用方已限定 Kind == Mod，
+        /// 插件的代理 DLL 由共享组件裁决处理）；压缩包里夹了一篇导入说明
+        /// （说明与事项.txt）的 MOD，除了那篇说明外完全一致，也不该被当成重复。
+        /// </summary>
+        private Package? FindDuplicateModByContent(IReadOnlyList<PackageArtifact> artifacts, string packageKey)
+        {
+            var own = artifacts.Select(a => a.FileHash).OrderBy(h => h, StringComparer.Ordinal).ToList();
+            if (own.Count == 0) return null;
+
+            foreach (var candidate in _repository.GetAllPackages())
+            {
+                if (string.Equals(candidate.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase)) continue;
+                if (candidate.PackageKey.StartsWith(packageKey + "_", StringComparison.OrdinalIgnoreCase)) continue;
+                if (candidate.Artifacts.Count != own.Count) continue;
+
+                var theirs = candidate.Artifacts.Select(a => a.FileHash)
+                    .OrderBy(h => h, StringComparer.Ordinal).ToList();
+                if (own.SequenceEqual(theirs, StringComparer.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation("导入 {Package}: 与 {Existing} 内容完全相同", packageKey, candidate.PackageKey);
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>只删本次导入自己创建、且最终没能登记成功的包目录。</summary>

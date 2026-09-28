@@ -52,6 +52,14 @@ namespace UEModManager.Models
         /// <summary>插件目标路径（Plugin 类型）。</summary>
         public string? PluginTargetPath { get; set; }
 
+        /// <summary>
+        /// 该包的 RelativeTargetPath 是否就是相对游戏根的安装位置（目录/压缩包整体导入的产物）。
+        /// 必须随 manifest 一起持久化：整合包（lock）导入是用 <see cref=ToPackage/>
+        /// 从 manifest 重建 Package 的，漏了它就会退回再加一层包目录的旧行为，
+        /// 代理 DLL（dwmapi.dll / version.dll）又会被关进子目录。
+        /// </summary>
+        public bool PreservesInstallLayout { get; set; }
+
         /// <summary>导入来源路径。</summary>
         public string? ImportSourcePath { get; set; }
 
@@ -78,6 +86,7 @@ namespace UEModManager.Models
                 TotalSize = package.TotalSize,
                 HostGameName = package.HostGameName,
                 PluginTargetPath = package.PluginTargetPath,
+                PreservesInstallLayout = package.PreservesInstallLayout,
                 ImportSourcePath = package.ImportSourcePath,
                 ImportedAt = package.ImportedAt,
                 LastModified = package.LastModified,
@@ -117,6 +126,7 @@ namespace UEModManager.Models
                 TotalSize = TotalSize,
                 HostGameName = HostGameName,
                 PluginTargetPath = PluginTargetPath,
+                PreservesInstallLayout = PreservesInstallLayout,
                 ImportSourcePath = ImportSourcePath,
                 ImportedAt = ImportedAt,
                 LastModified = LastModified,

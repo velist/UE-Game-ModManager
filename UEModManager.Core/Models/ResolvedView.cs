@@ -121,7 +121,7 @@ namespace UEModManager.Models
         /// <summary>生成物文件数。</summary>
         public int GeneratedEntries => Entries.Count(e => e.Source == ResolvedEntrySource.Generated);
 
-        /// <summary>冲突数。</summary>
+        /// <summary>冲突数（目标路径级总数，含内容相同的重复与已决定项）。</summary>
         public int ConflictCount => Conflicts.Count;
 
         /// <summary>总文件大小。</summary>

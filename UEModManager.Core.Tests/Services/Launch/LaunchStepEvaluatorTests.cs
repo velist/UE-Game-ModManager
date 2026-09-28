@@ -8,73 +8,88 @@ public class LaunchStepEvaluatorTests
     // ─── EvaluateConflictCheck ───
 
     [Fact]
-    public void Conflict_Zero_PassedAndCleanMessage()
+    public void Conflict_NoGroups_PassedWithCleanMessage()
     {
-        var eval = LaunchStepEvaluator.EvaluateConflictCheck(0, 0);
+        var eval = LaunchStepEvaluator.EvaluateConflictCheck(0);
 
         Assert.True(eval.Passed);
         Assert.Equal(LaunchStepStatus.Passed, eval.Status);
-        Assert.Equal("无冲突", eval.Message);
+        Assert.Equal("无 MOD 冲突", eval.Message);
     }
 
+    /// <summary>
+    /// 冲突只是提示，不拦启动。
+    ///
+    /// 旧实现把"内容不同的目标路径冲突"归成 Failed —— 用户装两个改同一张贴图的 MOD
+    /// 就被挡在启动按钮外面。新版一律 Passed，有冲突时降级成 Warning。
+    /// </summary>
     [Fact]
-    public void Conflict_AnyError_FailsWithCount()
+    public void Conflict_AnyGroup_WarningButStillPassed()
     {
-        var eval = LaunchStepEvaluator.EvaluateConflictCheck(totalConflicts: 5, errorConflicts: 2);
-
-        Assert.False(eval.Passed);
-        Assert.Equal(LaunchStepStatus.Failed, eval.Status);
-        Assert.Contains("5", eval.Message);
-        Assert.Contains("2", eval.Message);
-    }
-
-    [Fact]
-    public void Conflict_OnlyWarnings_PassedAsWarning()
-    {
-        var eval = LaunchStepEvaluator.EvaluateConflictCheck(totalConflicts: 3, errorConflicts: 0);
+        var eval = LaunchStepEvaluator.EvaluateConflictCheck(3);
 
         Assert.True(eval.Passed);
         Assert.Equal(LaunchStepStatus.Warning, eval.Status);
         Assert.Contains("3", eval.Message);
-        Assert.Contains("警告", eval.Message);
+        Assert.Contains("组 MOD 冲突待处理", eval.Message);
+    }
+
+    /// <summary>
+    /// 数字必须是"组数"而不是"目标路径冲突数"。
+    ///
+    /// 现场回归：旧模型报"582 个文件冲突"，用户数自己的 MOD 个数（十几个），
+    /// 两边永远对不上，只能判定软件在乱报。组数就是面板上的框数，也是用户
+    /// 真正要做的决策数，可以一条条核对。
+    /// </summary>
+    [Fact]
+    public void Conflict_ReportsGroupCountNotPathCount()
+    {
+        var eval = LaunchStepEvaluator.EvaluateConflictCheck(7);
+
+        Assert.Contains("7 组", eval.Message);
+        Assert.DoesNotContain("582", eval.Message);
     }
 
     [Fact]
-    public void Conflict_OneErrorAmongMany_FailsAnyway()
+    public void Conflict_NegativeCount_TreatedAsClean()
     {
-        var eval = LaunchStepEvaluator.EvaluateConflictCheck(totalConflicts: 100, errorConflicts: 1);
+        var eval = LaunchStepEvaluator.EvaluateConflictCheck(-1);
 
-        Assert.False(eval.Passed);
-        Assert.Equal(LaunchStepStatus.Failed, eval.Status);
+        Assert.Equal(LaunchStepStatus.Passed, eval.Status);
+        Assert.Equal("无 MOD 冲突", eval.Message);
     }
 
     // ─── EvaluateBuildView ───
 
     [Fact]
-    public void BuildView_NoConflict_Passed()
+    public void BuildView_ReportsFileCountAndPasses()
     {
-        var eval = LaunchStepEvaluator.EvaluateBuildView(totalEntries: 42, conflictCount: 0);
+        var eval = LaunchStepEvaluator.EvaluateBuildView(totalEntries: 42);
 
         Assert.True(eval.Passed);
         Assert.Equal(LaunchStepStatus.Passed, eval.Status);
         Assert.Contains("42", eval.Message);
     }
 
+    /// <summary>
+    /// 视图构建不再掺冲突数。
+    ///
+    /// 旧实现这一步报"607 个文件, 582 个冲突"，而冲突检查步骤另报一次 —— 同一件事
+    /// 在清单上出现两遍且说法不同。现在冲突调查只由冲突步骤负责。
+    /// </summary>
     [Fact]
-    public void BuildView_WithConflict_WarningButPassed()
+    public void BuildView_DoesNotMentionConflicts()
     {
-        var eval = LaunchStepEvaluator.EvaluateBuildView(totalEntries: 10, conflictCount: 3);
+        var eval = LaunchStepEvaluator.EvaluateBuildView(607);
 
-        Assert.True(eval.Passed); // 视图构建有冲突仍允许继续
-        Assert.Equal(LaunchStepStatus.Warning, eval.Status);
-        Assert.Contains("10", eval.Message);
-        Assert.Contains("3", eval.Message);
+        Assert.DoesNotContain("冲突", eval.Message);
+        Assert.Contains("607", eval.Message);
     }
 
     [Fact]
     public void BuildView_EmptyView_StillPasses()
     {
-        var eval = LaunchStepEvaluator.EvaluateBuildView(0, 0);
+        var eval = LaunchStepEvaluator.EvaluateBuildView(0);
 
         Assert.True(eval.Passed);
         Assert.Equal(LaunchStepStatus.Passed, eval.Status);

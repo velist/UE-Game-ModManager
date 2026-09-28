@@ -149,4 +149,99 @@ public class ModCategoryAssignmentTests
         Assert.Equal(new[] { "全部", "已启用", "已禁用" },
             ModCategoryAssignment.SystemCategoryNames);
     }
+
+    // ─── 包在界面上显示成哪些分类 ───
+    //
+    // 事故：分类目录（侧边栏）和列表"分类"列是两份数据，从没有人把后者同步给前者，
+    // 列表每行都写着"人物/其他"，左侧目录却是空的。同步必须和列表用同一条显示规则。
+
+    [Fact]
+    public void 没有标签的包显示为未分类()
+    {
+        Assert.Equal(new[] { "未分类" }, ModCategoryAssignment.DisplayCategoriesFor(new List<string>()));
+        Assert.Equal(new[] { "未分类" }, ModCategoryAssignment.DisplayCategoriesFor(null));
+        Assert.Equal(new[] { "未分类" }, ModCategoryAssignment.DisplayCategoriesFor(new[] { " ", "" }));
+    }
+
+    [Fact]
+    public void 有标签的包按标签显示且保持顺序()
+    {
+        Assert.Equal(new[] { "武器", "人物" },
+            ModCategoryAssignment.DisplayCategoriesFor(new[] { " 武器", "人物", "武器" }));
+    }
+
+    // ─── 侧边栏缺哪些分类 ───
+
+    private static readonly string[] Canonical = { "面部", "人物", "武器", "服装", "发型", "修改", "其他", "未分类" };
+
+    [Fact]
+    public void 已有的系统的空白的都不算缺()
+    {
+        var missing = ModCategoryAssignment.SelectMissingCategories(
+            new[] { "人物", "全部", "  ", "已启用", "武器" },
+            new[] { "全部", "已启用", "已禁用", "人物" },
+            Canonical);
+
+        Assert.Equal(new[] { "武器" }, missing);
+    }
+
+    [Fact]
+    public void 内置分类按固定顺序排在前面其余按出现顺序排在后面()
+    {
+        // 首次同步一次补进好几个：顺序不能取决于哪个包碰巧先被扫到。
+        var missing = ModCategoryAssignment.SelectMissingCategories(
+            new[] { "未分类", "自定义B", "其他", "自定义A", "人物", "其他" },
+            Array.Empty<string>(),
+            Canonical);
+
+        Assert.Equal(new[] { "人物", "其他", "未分类", "自定义B", "自定义A" }, missing);
+    }
+
+    // ─── 改名 / 删除分类后标签怎么变 ───
+    //
+    // 分类的权威存储是包上的标签。只改侧边栏的话，下一次刷新会按旧标签
+    // 把旧分类重新补回来——改名变成"多出一个同名旧分类"，删除变成"删了又长回来"。
+
+    [Fact]
+    public void 改名就地替换不改变主分类()
+    {
+        Assert.Equal(new[] { "人物", "兵器" },
+            ModCategoryAssignment.RenameTag(new[] { "人物", "武器" }, "武器", "兵器"));
+        Assert.Equal(new[] { "兵器", "人物" },
+            ModCategoryAssignment.RenameTag(new[] { "武器", "人物" }, "武器", "兵器"));
+    }
+
+    [Fact]
+    public void 改名后与已有标签重名时合并()
+    {
+        Assert.Equal(new[] { "人物" },
+            ModCategoryAssignment.RenameTag(new[] { "武器", "人物" }, "武器", "人物"));
+    }
+
+    [Fact]
+    public void 不带该分类的包改名和删除都不用动()
+    {
+        Assert.Null(ModCategoryAssignment.RenameTag(new[] { "人物" }, "武器", "兵器"));
+        Assert.Null(ModCategoryAssignment.RenameTag(new List<string>(), "武器", "兵器"));
+        Assert.Null(ModCategoryAssignment.RemoveTag(new[] { "人物" }, "武器"));
+        Assert.Null(ModCategoryAssignment.RemoveTag(null, "武器"));
+    }
+
+    [Fact]
+    public void 删除分类时附带标签也要去掉()
+    {
+        // 只处理"主分类是它"的包，第二个标签是它的包会让分类在下次刷新时复活。
+        Assert.Equal(new[] { "人物" },
+            ModCategoryAssignment.RemoveTag(new[] { "人物", "武器" }, "武器"));
+    }
+
+    [Fact]
+    public void 删掉唯一的标签后是空列表也就是未分类()
+    {
+        var tags = ModCategoryAssignment.RemoveTag(new[] { "武器" }, "武器");
+
+        Assert.NotNull(tags);
+        Assert.Empty(tags);
+        Assert.Equal(new[] { "未分类" }, ModCategoryAssignment.DisplayCategoriesFor(tags));
+    }
 }

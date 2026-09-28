@@ -80,7 +80,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="GamePathTextBox" Grid.Column="0" Style="{StaticResource CyberTextBox}"/>
                     <Button Grid.Column="1" Content="{loc:Text &#x27;浏览&#x27;}" Style="{StaticResource CyberSecondaryButton}"
-                            Width="72" Height="40" Margin="8,0,0,0" Click="BrowseGamePath_Click"/>
+                            MinWidth="72" Height="40" Margin="8,0,0,0" Click="BrowseGamePath_Click"/>
                 </Grid>
 
                 <!-- 引擎类型 -->
@@ -106,7 +106,7 @@
                     <Button Content="{loc:Text &#x27;取消&#x27;}" Style="{StaticResource CyberGhostButton}"
                             Margin="0,0,12,0" Click="CancelButton_Click"/>
                     <Button Content="{loc:Text &#x27;添加&#x27;}" Style="{StaticResource CyberPrimaryButton}"
-                            Width="80" Height="36" Click="ConfirmButton_Click"/>
+                            MinWidth="80" Height="36" Click="ConfirmButton_Click"/>
                 </StackPanel>
             </Border>
         </Grid>

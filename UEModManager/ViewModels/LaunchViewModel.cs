@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Conflict;
 
 namespace UEModManager.ViewModels
 {
@@ -16,7 +17,7 @@ namespace UEModManager.ViewModels
         private readonly LaunchOrchestrator _launcher;
         private readonly ProfileService _profileService;
         private readonly GameConfigService _gameConfig;
-        private readonly ConflictAnalyzer _conflictAnalyzer;
+        private readonly ConflictModuleService _conflictModule;
         private readonly ILogger _logger;
 
         public ObservableCollection<LaunchStepItem> Steps { get; } = new();
@@ -51,14 +52,20 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private int _enabledPackageCount;
 
+        /// <summary>
+        /// 冲突组数 —— 面板上有几个框，就是用户要做几个决策。
+        ///
+        /// 旧模型报的是"582 个文件冲突"（目标路径级），用户数的是自己的 MOD 个数，
+        /// 两边永远对不上。组数才是可核对的数字。
+        /// </summary>
         [ObservableProperty]
-        private int _conflictCount;
+        private int _conflictGroupCount;
 
         /// <summary>
         /// 冲突预检的失败原因；非空表示"冲突数未知"。
         ///
-        /// 不能只靠 <see cref="ConflictCount"/>：预检失败时它停在 0，
-        /// 而 0 在界面上被渲染成绿色的"无文件冲突"——"没检查成功"被显示成"检查通过"，
+        /// 不能只靠 <see cref="ConflictGroupCount"/>：预检失败时它停在 0，
+        /// 而 0 在界面上被渲染成绿色的"无 MOD 冲突"——"没检查成功"被显示成"检查通过"，
         /// 比直接报错危险得多。界面另外监听这个属性来重画检查清单。
         /// </summary>
         [ObservableProperty]
@@ -68,13 +75,13 @@ namespace UEModManager.ViewModels
             LaunchOrchestrator launcher,
             ProfileService profileService,
             GameConfigService gameConfig,
-            ConflictAnalyzer conflictAnalyzer,
+            ConflictModuleService conflictModule,
             ILogger logger)
         {
             _launcher = launcher;
             _profileService = profileService;
             _gameConfig = gameConfig;
-            _conflictAnalyzer = conflictAnalyzer;
+            _conflictModule = conflictModule;
             _logger = logger;
         }
 
@@ -90,7 +97,7 @@ namespace UEModManager.ViewModels
             ModCountInfo = UiText.Interpolate($"{EnabledPackageCount} 个包已启用");
 
             // 冲突统计
-            ConflictCount = 0;
+            ConflictGroupCount = 0;
             ConflictPreCheckError = string.Empty;
 
             // 上次启动信息
@@ -138,14 +145,7 @@ namespace UEModManager.ViewModels
             });
 
             // 3. 冲突检查（快速预检）
-            Steps.Add(new LaunchStepItem
-            {
-                DisplayName = ConflictCount > 0
-                    ? UiText.Interpolate($"{ConflictCount} 个文件冲突, 已自动解决")
-                    : UiText.Get("无文件冲突"),
-                Message = ConflictCount > 0 ? UiText.Get("冲突已通过优先级自动解决") : UiText.Get("所有文件无冲突"),
-                Status = ConflictCount > 0 ? StepItemStatus.Warning : StepItemStatus.Passed
-            });
+            Steps.Add(ConflictStep());
 
             // 4. 配置有效性
             bool exeValid = !string.IsNullOrEmpty(context.ExecutablePath)
@@ -165,28 +165,19 @@ namespace UEModManager.ViewModels
         {
             try
             {
-                var result = await _conflictAnalyzer.AnalyzeAsync();
-                ConflictCount = result.TotalConflicts;
+                var report = await _conflictModule.AnalyzeAsync();
+                ConflictGroupCount = report.Groups.Count;
 
                 // 更新冲突步骤
                 if (Steps.Count >= 3)
-                {
-                    Steps[2] = new LaunchStepItem
-                    {
-                        DisplayName = ConflictCount > 0
-                            ? UiText.Interpolate($"{ConflictCount} 个文件冲突, 已自动解决")
-                            : UiText.Get("无文件冲突"),
-                        Message = ConflictCount > 0 ? UiText.Get("冲突已通过优先级自动解决") : UiText.Get("所有文件无冲突"),
-                        Status = ConflictCount > 0 ? StepItemStatus.Warning : StepItemStatus.Passed
-                    };
-                }
+                    Steps[2] = ConflictStep();
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "冲突预检失败");
 
                 // 只记日志是不够的：BuildPreCheckSteps 把第 3 步预置成了绿色的
-                // "无文件冲突 / 所有文件无冲突"，预检抛异常后它会一直停在那儿，
+                // "无 MOD 冲突"，预检抛异常后它会一直停在那儿，
                 // 用户看到的是"冲突检查通过"。冲突数未知必须显式降级成警告——
                 // 但不用 Failed，冲突分析只是启动前的提示，不该把游戏拦下来。
                 if (Steps.Count >= 3)
@@ -202,6 +193,34 @@ namespace UEModManager.ViewModels
                 // 放在最后：属性变更会触发界面重画清单，此时 Steps[2] 必须已经更新
                 ConflictPreCheckError = ex.Message;
             }
+        }
+
+        /// <summary>
+        /// 冲突检查步骤的渲染。
+        ///
+        /// 两个位置（预检占位与预检结果）共用一份文案，避免"占位时写 A、
+        /// 结果时写 B"导致同一状态在不同时刻显示不同的话。
+        /// </summary>
+        private LaunchStepItem ConflictStep()
+        {
+            var groups = ConflictGroupCount;
+
+            // 摘要里点名前 3 组的成员，让用户不用打开面板就知道跟哪几个 MOD 有关。
+            var named = _conflictModule.LastReport?.Groups
+                .Take(3)
+                .Select(g => string.Join("、", g.Members.Select(m => m.DisplayName)))
+                .ToList() ?? [];
+
+            var message = groups == 0 ? string.Empty : UiText.Interpolate($"涉及：{string.Join("；", named)}");
+
+            return new LaunchStepItem
+            {
+                DisplayName = groups > 0
+                    ? UiText.Interpolate($"{groups} 组 MOD 冲突待处理")
+                    : UiText.Get("无 MOD 冲突"),
+                Message = message,
+                Status = groups > 0 ? StepItemStatus.Warning : StepItemStatus.Passed
+            };
         }
 
         public async Task<LaunchSession?> LaunchGameAsync()

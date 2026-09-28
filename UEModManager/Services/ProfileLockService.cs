@@ -29,7 +29,7 @@ namespace UEModManager.Services
         private readonly ILogger<ProfileLockService> _logger;
         private readonly ProfileService _profileService;
         private readonly PackageRepository _packageRepo;
-        private readonly ConflictAnalyzer? _conflictAnalyzer;
+        private readonly ConflictModuleService? _conflictModule;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -41,12 +41,12 @@ namespace UEModManager.Services
             ILogger<ProfileLockService> logger,
             ProfileService profileService,
             PackageRepository packageRepo,
-            ConflictAnalyzer? conflictAnalyzer = null)
+            ConflictModuleService? conflictModule = null)
         {
             _logger = logger;
             _profileService = profileService;
             _packageRepo = packageRepo;
-            _conflictAnalyzer = conflictAnalyzer;
+            _conflictModule = conflictModule;
         }
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace UEModManager.Services
             var packagesByKey = _packageRepo.GetAllPackages()
                 .ToDictionary(p => p.PackageKey, p => p, StringComparer.OrdinalIgnoreCase);
 
-            var overrides = _conflictAnalyzer?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
+            var overrides = _conflictModule?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
 
             var lockFile = ProfileLockBuilder.Build(
                 profile, packagesByKey, overrides,
@@ -190,7 +190,7 @@ namespace UEModManager.Services
             var packagesByKey = _packageRepo.GetAllPackages()
                 .ToDictionary(p => p.PackageKey, p => p, StringComparer.OrdinalIgnoreCase);
 
-            var overrides = _conflictAnalyzer?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
+            var overrides = _conflictModule?.GetPortableOverrides(profile) ?? profile.ConflictOverrides;
 
             var lockFile = ProfileLockBuilder.Build(
                 profile, packagesByKey, overrides,

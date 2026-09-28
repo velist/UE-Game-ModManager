@@ -63,7 +63,7 @@
                     <!-- 浏览按钮 -->
                     <Button x:Name="BrowseButton" Click="BrowseButton_Click"
                             Style="{StaticResource CyberSecondaryButton}"
-                            Width="140" Height="36" HorizontalAlignment="Center" Cursor="Hand">
+                            MinWidth="140" Height="36" HorizontalAlignment="Center" Cursor="Hand">
                         <TextBlock Text="{loc:Text &#x27;或点击浏览文件&#x27;}" FontSize="13"/>
                     </Button>
                 </StackPanel>

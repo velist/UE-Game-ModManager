@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Import;
 
 namespace UEModManager.Views
 {
@@ -277,22 +279,40 @@ namespace UEModManager.Views
                 return;
             }
 
+            // 导入必须在后台线程跑：解压 + 落盘整段是同步文件 IO
+            // （Directory.EnumerateFiles / File.Copy / SharpCompress 的解压循环都不同步让出），
+            // 直接在 UI 线程 await 会把消息泵堵死，遮罩根本渲染不出来，
+            // 用户看到的仍然是一个冻住的窗口 —— 只是这次连"卡住"都无从判断。
+            // 导入链路（PackageImportService / ObjectStore / PackageRepository / ArchiveExtractor）
+            // 里没有任何一处碰 Dispatcher，PackageImported 与 PackagesChanged 也都没有订阅者，
+            // 因此整批搬离 UI 线程是安全的。
+            ImportLoadingOverlay.Message = UiText.Get("正在导入 MOD...");
+            ImportLoadingOverlay.Visibility = Visibility.Visible;
             ConfirmButton.IsEnabled = false;
+            List<PackageImportResult>? results;
             try
             {
-                ImportResults = await _importService.ImportAsync(toImport, targetRootPath);
-                ReportFailedImports(ImportResults);
-                DialogResult = true;
+                results = await Task.Run(() => _importService.ImportAsync(toImport, targetRootPath));
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
+                // 先收起遮罩再报失败：CyberMessageBox 是模态窗口，
+                // 让它盖在遮罩上会变成一个点不动的对话框。
+                ImportLoadingOverlay.Visibility = Visibility.Collapsed;
                 ConfirmButton.IsEnabled = true;
+                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                Close();
+                return;
             }
-            Close();
+
+            ImportLoadingOverlay.Visibility = Visibility.Collapsed;
+            ConfirmButton.IsEnabled = true;
+            ImportResults = results;
+            // 必须在关窗之前报失败：DialogResult 一赋值窗口立刻隐藏，
+            // CyberMessageBox 因 owner.IsVisible == false 拿不到 Owner，
+            // 提示会落到主窗口后面或屏幕中央（用户看不到，等于没提示）。
+            ReportFailedImports(results);
+            DialogResult = true;   // 赋值即关窗，后面不要再 Close()
         }
 
         /// <summary>
@@ -306,21 +326,14 @@ namespace UEModManager.Views
         /// </summary>
         private void ReportFailedImports(List<PackageImportResult> results)
         {
-            var reasons = results
-                .Where(r => !r.Success)
-                .Select(r => string.IsNullOrWhiteSpace(r.ErrorMessage) ? UiText.Get("原因未知，详细信息请查看日志。") : r.ErrorMessage!)
-                .Distinct()
-                .ToList();
-
-            if (reasons.Count == 0) return;
-
-            var succeeded = results.Count(r => r.Success);
-            var header = succeeded > 0
-                ? UiText.Interpolate($"{results.Count} 个文件中有 {results.Count - succeeded} 个导入失败：")
-                : UiText.Get("导入失败：");
+            var summary = ImportFailureSummary.Build(
+                results.Select(r => (r.Success, r.ErrorMessage)),
+                UiText.Get("原因未知，详细信息请查看日志。"));
+            if (summary == null) return;
 
             CyberMessageBox.Show(this,
-                header + Environment.NewLine + string.Join(Environment.NewLine, reasons),
+                UiText.Format(summary.HeaderTemplate, summary.HeaderArguments)
+                    + Environment.NewLine + string.Join(Environment.NewLine, summary.Reasons),
                 UiText.Get("导入未全部完成"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 

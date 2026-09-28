@@ -72,7 +72,8 @@
                                Style="{StaticResource CyberLabel}" Margin="0,0,0,6"/>
                     <TextBox x:Name="EmailTextBox"
                              Style="{StaticResource CyberTextBox}"
-                             TextChanged="EmailTextBox_TextChanged"/>
+                             TextChanged="EmailTextBox_TextChanged"
+                             KeyDown="EmailTextBox_KeyDown"/>
 
                     <!-- 发送验证码按钮 -->
                     <Button x:Name="SendOtpButton" Content="{loc:Text &#x27;发 送 验 证 码&#x27;}"
@@ -87,7 +88,8 @@
                         <TextBox x:Name="OtpTextBox"
                                  Style="{StaticResource CyberTextBox}"
                                  MaxLength="6"
-                                 TextChanged="OtpTextBox_TextChanged"/>
+                                 TextChanged="OtpTextBox_TextChanged"
+                                 KeyDown="OtpTextBox_KeyDown"/>
                         <TextBlock x:Name="OtpHintText"
                                    Text="{loc:Text &#x27;验证码已发送到您的邮箱，10分钟内有效&#x27;}"
                                    FontSize="11" Foreground="{StaticResource StatusGreenBrush}"

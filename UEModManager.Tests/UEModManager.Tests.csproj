@@ -26,4 +26,14 @@
     <ProjectReference Include="..\UEModManager\UEModManager.csproj" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <!--
+      pak 夹具只有一份实现：链接引用 UEModManager.Core.Tests 里的源文件，
+      而不是在本项目里复制一份。两份格式实现迟早会分叉，而分叉之后
+      "读取器能读回夹具" 就不再能证明读取器读得对。
+    -->
+    <Compile Include="..\UEModManager.Core.Tests\Services\Conflict\PakFixtureBuilder.cs"
+             Link="Services\Conflict\PakFixtureBuilder.cs" />
+  </ItemGroup>
 </Project>

@@ -54,6 +54,9 @@ namespace UEModManager
                 FrameworkElement.LoadedEvent,
                 new RoutedEventHandler((s, _) => WindowCorners.ApplyRounded(s as Window)));
 
+            // 自绘标题栏的 × / 最小化 / 最大化：类级别接一次，任何窗口都不用再各写一段 CommandBindings。
+            WindowCommands.RegisterClassBindings();
+
             base.OnStartup(e);
 
             // 读取UI语言偏好并提前应用
@@ -311,7 +314,10 @@ namespace UEModManager
                     services.AddSingleton<DeploymentService>();
 
                     // v2.0 Phase 4: 冲突治理
-                    services.AddSingleton<ConflictAnalyzer>();
+                    // ConflictAnalyzer 已随"冲突检测模块重做"删除：
+                    // 它按目标路径裁决胜者/败者，而新模型按资产比对、一个组给一个决策。
+                    services.AddSingleton<Services.Conflict.AssetIndexService>();
+                    services.AddSingleton<Services.Conflict.ConflictModuleService>();
 
                     // v2.0 Phase 5: 生成物管理
                     services.AddSingleton<OverwriteStore>();

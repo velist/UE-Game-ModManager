@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Conflict;
 
 namespace UEModManager.Tests.Services;
 
@@ -184,7 +185,11 @@ public sealed class ProfileLockOverrideTests : IDisposable
         var config = new GameConfigService(NullLogger<GameConfigService>.Instance, Path.Combine(_root, "config.json"));
         config.Config.GamePath = Path.Combine(_root, "game");
         config.Config.ModPath = Path.Combine(_root, "game", "mods");
-        var analyzer = new ConflictAnalyzer(NullLogger<ConflictAnalyzer>.Instance, repository, profiles, config);
+        var analyzer = new ConflictModuleService(
+            NullLogger<ConflictModuleService>.Instance, repository, profiles, config,
+            new AssetIndexService(NullLogger<AssetIndexService>.Instance,
+                new ObjectStore(NullLogger<ObjectStore>.Instance, Path.Combine(_root, "repository")),
+                Path.Combine(_root, "data")));
 
         await Task.WhenAll(Enumerable.Range(0, 20).Select(i => analyzer.SetOverrideAsync(
             Path.Combine(config.CurrentGamePath, "Config", $"{i}.ini"), "cfg")));

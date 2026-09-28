@@ -148,13 +148,13 @@
                         <Button x:Name="ToggleBtn" Grid.Column="0" Content="{loc:Text &#x27;启用MOD&#x27;}"
                                 Height="36" Style="{StaticResource CyberPrimaryButton}"
                                 Click="ToggleBtn_Click" HorizontalAlignment="Stretch" Margin="0,0,8,0"/>
-                        <Button Grid.Column="1" Content="{loc:Text &#x27;预览图&#x27;}" Height="36" Width="72"
+                        <Button Grid.Column="1" Content="{loc:Text &#x27;预览图&#x27;}" Height="36" MinWidth="72"
                                 Style="{StaticResource CyberSecondaryButton}"
                                 Click="ChangePreviewBtn_Click" Margin="0,0,8,0"/>
-                        <Button Grid.Column="2" Content="{loc:Text &#x27;编辑&#x27;}" Height="36" Width="60"
+                        <Button Grid.Column="2" Content="{loc:Text &#x27;编辑&#x27;}" Height="36" MinWidth="60"
                                 Style="{StaticResource CyberSecondaryButton}"
                                 Click="RenameBtn_Click" Margin="0,0,8,0"/>
-                        <Button Grid.Column="3" Content="{loc:Text &#x27;删除&#x27;}" Height="36" Width="60"
+                        <Button Grid.Column="3" Content="{loc:Text &#x27;删除&#x27;}" Height="36" MinWidth="60"
                                 Style="{StaticResource CyberSecondaryButton}"
                                 Foreground="{StaticResource StatusRedBrush}"
                                 Click="DeleteBtn_Click"/>

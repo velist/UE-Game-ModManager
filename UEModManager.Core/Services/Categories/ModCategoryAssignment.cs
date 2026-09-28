@@ -98,4 +98,97 @@ public static class ModCategoryAssignment
         var first = currentCategories?.FirstOrDefault();
         return first != null && string.Equals(first.Trim(), target!.Trim(), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// 一个包在界面上归在哪些分类下：有标签就是标签本身，一个都没有就是 <see cref="Uncategorized"/>。
+    ///
+    /// 列表的"分类"列、侧边栏计数、按分类筛选读的都是由这条规则算出的 <c>ModInfo.Categories</c>；
+    /// 侧边栏补目录也必须用同一条，否则会出现"列表写着未分类、左侧却没有未分类"。
+    /// </summary>
+    public static List<string> DisplayCategoriesFor(IEnumerable<string?>? tags)
+    {
+        var result = Normalize(tags);
+        if (result.Count == 0)
+            result.Add(Uncategorized);
+        return result;
+    }
+
+    /// <summary>
+    /// 侧边栏"分类目录"里还缺哪些分类，按应当追加的顺序给出。
+    ///
+    /// 系统分类、空白名、目录里已有的（按名字精确匹配）都不算缺。
+    /// 同一批里出现在 <paramref name="canonicalOrder"/> 中的内置分类按它排在前面，
+    /// 其余按首次出现的顺序排在后面 —— 首次同步时一次补进好几个分类，
+    /// 顺序不能取决于哪个包碰巧先被扫到。
+    /// </summary>
+    public static IReadOnlyList<string> SelectMissingCategories(
+        IEnumerable<string?>? wanted, IEnumerable<string> existing, IReadOnlyList<string> canonicalOrder)
+    {
+        var have = new HashSet<string>(existing, StringComparer.Ordinal);
+        return SelectAssignableTargets(wanted)
+            .Where(name => !have.Contains(name))
+            .Select((name, index) => (name, index, rank: IndexIn(canonicalOrder, name)))
+            .OrderBy(x => x.rank < 0 ? int.MaxValue : x.rank)
+            .ThenBy(x => x.index)
+            .Select(x => x.name)
+            .ToList();
+    }
+
+    /// <summary>
+    /// 分类改名后，一个包的标签该变成什么。包不带 <paramref name="from"/> 时返回 null，表示不用动它。
+    ///
+    /// 就地替换而不是删掉再追加：标签顺序决定主分类（<c>PrimaryCategory</c> 取首个），
+    /// 改名不该顺带换掉主分类。替换后与已有标签重名的合并成一个。
+    /// </summary>
+    public static List<string>? RenameTag(IEnumerable<string?>? tags, string from, string to)
+    {
+        var current = Normalize(tags);
+        if (!current.Contains(from.Trim(), StringComparer.Ordinal))
+            return null;
+
+        return Normalize(current.Select(t => string.Equals(t, from.Trim(), StringComparison.Ordinal) ? to : t));
+    }
+
+    /// <summary>
+    /// 删除分类后，一个包的标签该变成什么。包不带 <paramref name="name"/> 时返回 null，表示不用动它。
+    ///
+    /// 不管它是主分类还是附带的标签都要去掉：只要还有一个包带着它，
+    /// 下一次刷新就会按标签把这个分类重新补回侧边栏。
+    /// 结果可以是空列表 —— 那就是"未分类"（见 <see cref="DisplayCategoriesFor"/>），
+    /// 不需要往包上写一个"未分类"字面量。
+    /// </summary>
+    public static List<string>? RemoveTag(IEnumerable<string?>? tags, string name)
+    {
+        var current = Normalize(tags);
+        if (!current.Contains(name.Trim(), StringComparer.Ordinal))
+            return null;
+
+        return current.Where(t => !string.Equals(t, name.Trim(), StringComparison.Ordinal)).ToList();
+    }
+
+    /// <summary>去空白、去首尾空格、按序去重。</summary>
+    private static List<string> Normalize(IEnumerable<string?>? tags)
+    {
+        var result = new List<string>();
+        if (tags == null)
+            return result;
+
+        foreach (var tag in tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag))
+                continue;
+            var trimmed = tag.Trim();
+            if (!result.Contains(trimmed, StringComparer.Ordinal))
+                result.Add(trimmed);
+        }
+        return result;
+    }
+
+    private static int IndexIn(IReadOnlyList<string> order, string name)
+    {
+        for (var i = 0; i < order.Count; i++)
+            if (string.Equals(order[i], name, StringComparison.Ordinal))
+                return i;
+        return -1;
+    }
 }

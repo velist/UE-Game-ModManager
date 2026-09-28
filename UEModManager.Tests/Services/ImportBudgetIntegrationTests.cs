@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Conflict;
 
 namespace UEModManager.Tests.Services;
 
@@ -31,6 +32,7 @@ public sealed class ImportBudgetIntegrationTests : IDisposable
         var imports = new PackageImportService(NullLogger<PackageImportService>.Instance,
             fixture.Repository, fixture.Store, fixture.Config,
             new RepositoryReclaimService(NullLogger<RepositoryReclaimService>.Instance, fixture.Store, fixture.Data),
+            new AssetIndexService(NullLogger<AssetIndexService>.Instance, fixture.Store, fixture.Data),
             budget);
 
         var result = Assert.Single(await imports.ImportSingleAsync(archive));
