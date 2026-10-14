@@ -169,7 +169,7 @@ namespace UEModManager.Views
             var result = CyberMessageBox.Show(this,
                 UiText.Interpolate($"确定要回滚 {tx.CreatedAt:yyyy-MM-dd HH:mm} 的部署事务吗？"),
                 UiText.Get("确认回滚"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: UiText.Get("回滚"), noText: UiText.Get("取消"));
+                yesText: "回滚", noText: "取消", danger: true);
             if (result != MessageBoxResult.Yes) return;
 
             try
@@ -179,7 +179,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"回滚失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "回滚", ex);
             }
         }
 
@@ -360,7 +360,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"合并失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "合并重复文件", ex);
             }
         }
 
@@ -369,7 +369,7 @@ namespace UEModManager.Views
             var confirm = CyberMessageBox.Show(this,
                 UiText.Get("确定要清理所有未被任何 MOD 方案使用的文件吗？此操作不可撤销。"),
                 UiText.Get("确认清理"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: UiText.Get("清理"), noText: UiText.Get("取消"));
+                yesText: "清理", noText: "取消", danger: true);
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -398,7 +398,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"清理失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "清理未使用的文件", ex);
             }
         }
 
@@ -419,7 +419,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"转换失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "转为正式 MOD", ex);
             }
         }
 
@@ -428,7 +428,7 @@ namespace UEModManager.Views
             if (sender is not Button btn || btn.Tag is not Guid artifactId) return;
 
             var confirm = CyberMessageBox.Show(this, UiText.Get("确定要删除此临时文件吗？"), UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: UiText.Get("删除"), noText: UiText.Get("取消"));
+                yesText: "删除", noText: "取消", danger: true);
             if (confirm != MessageBoxResult.Yes) return;
 
             try
@@ -438,7 +438,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"删除失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "删除临时文件", ex);
             }
         }
 
@@ -452,7 +452,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"清理失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "清理临时文件", ex);
             }
         }
 
@@ -480,9 +480,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this,
-                    UiText.Interpolate($"导出失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导出诊断包", ex);
             }
             finally
             {

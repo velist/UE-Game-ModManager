@@ -109,7 +109,7 @@ namespace UEModManager.Views
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "选择头像失败");
-                CyberMessageBox.Show(this, UiText.Interpolate($"选择头像失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "选择头像", ex);
             }
         }
 
@@ -171,7 +171,7 @@ namespace UEModManager.Views
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "保存账户设置失败");
-                CyberMessageBox.Show(this, UiText.Interpolate($"保存失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "保存账户设置", ex);
             }
         }
     }

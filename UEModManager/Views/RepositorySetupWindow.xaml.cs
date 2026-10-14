@@ -90,8 +90,7 @@ namespace UEModManager.Views
             try { LanguageManager.SaveAndSetEnglish(!LanguageManager.IsEnglish); }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "保存语言设置", ex);
             }
         }
 
@@ -344,7 +343,8 @@ namespace UEModManager.Views
                 // 用户会以为自己已经把 MOD 换到别的盘了。
                 _logger?.LogError(ex, "[UI] 保存仓库位置失败");
                 CyberMessageBox.Show(this,
-                    UiText.Interpolate($"没能把位置保存下来：{ex.Message}\n\n请换一个文件夹再试，或者先点「以后再说」。"),
+                    UiText.Format("没能把位置保存下来：{0}\n\n请换一个文件夹再试，或者先点「以后再说」。",
+                        UiText.Get(UEModManager.Diagnostics.UserFacingErrors.Describe(ex).Summary)),
                     UiText.Get("保存失败"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

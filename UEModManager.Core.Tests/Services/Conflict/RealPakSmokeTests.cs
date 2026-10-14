@@ -124,6 +124,11 @@ public class RealPakSmokeTests
 
         if (hashes.Count == 0) return;
 
+        // 仓库里没有这对样本时同样跳过：这个用例验证的是“重复能被判定出来”，
+        // 而不是“这台机器上一定导过这两份”。缺样本就退化成环境检查——
+        // 与本类“有样本才深查”的约定一致（同文件里重叠用例就是这么处理的）。
+        if (!hashes.ContainsKey("红色经文金箍棒") || !hashes.ContainsKey("红色经文金箍棒_2")) return;
+
         var groups = hashes
             .Where(h => !string.IsNullOrEmpty(h.Value))
             .GroupBy(h => h.Value, StringComparer.OrdinalIgnoreCase)

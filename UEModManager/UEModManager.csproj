@@ -27,7 +27,14 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.29" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.29" />
+    <!-- 设计期专用包：裸引用会把它的运行期闭包（Roslyn 编译器 Microsoft.CodeAnalysis
+         四件套、Humanizer、Mono.TextTemplating 与 Design 本体，实测约 21 MB）打进发布
+         产物，占安装包近四分之一，运行期一行都用不到。build/buildtransitive 资产保留，
+         dotnet ef 迁移工具链不受影响。 -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.29">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <!-- 以下两项为安全加固的显式提升：EF Core 8.0.29 仍传递引用存在高危通告的
          SQLitePCLRaw 2.1.6（GHSA-2m69-gcr7-jv3q），而 System.Text.Json 8.0.0
          受 GHSA-hh2w-p6rv-4g7w 影响。显式声明以覆盖传递版本。

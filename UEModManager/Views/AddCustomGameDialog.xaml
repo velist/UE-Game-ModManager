@@ -4,8 +4,8 @@
         xmlns:loc="clr-namespace:UEModManager.Localization"
         Title="{loc:Text &#x27;添加游戏&#x27;}" Height="540" Width="480"
         WindowStartupLocation="CenterOwner"
-        WindowStyle="None" AllowsTransparency="True"
-        Background="Transparent"
+        Style="{StaticResource CyberBorderlessWindow}"
+        Background="{StaticResource SurfaceBrush}"
         ResizeMode="NoResize">
 
     <Border Background="{StaticResource SurfaceBrush}"

@@ -117,8 +117,7 @@ namespace UEModManager.Views
                 LanguageComboBox.SelectedIndex = LanguageManager.IsEnglish ? 1 : 0;
                 LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
 
-                CyberMessageBox.Show(this, UiText.Interpolate($"保存语言设置失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "保存语言设置", ex);
                 return;
             }
 
@@ -273,8 +272,7 @@ namespace UEModManager.Views
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[Settings] 背景图选择失败: {ex.Message}");
-                    CyberMessageBox.Show(this, UiText.Interpolate($"选择图片失败: {ex.Message}"), UiText.Get("错误"),
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    CyberMessageBox.ShowError(this, "选择图片", ex);
                 }
             }
         }
@@ -362,8 +360,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}"), UiText.Get("\u9519\u8bef"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "设置图标", ex);
             }
         }
 
@@ -515,7 +512,7 @@ namespace UEModManager.Views
             LanguageComboBox.SelectionChanged += LanguageComboBox_SelectionChanged;
             UpdateCurrentGameHint();
             UpdateRepoStats();
-            var version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "2.1.0";
+            var version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "2.1.1";
             VersionText.Text = UiText.Format("版本 {0}", version);
         }
 
@@ -561,9 +558,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this,
-                    UiText.Interpolate($"导出失败：{ex.Message}"),
-                    UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导出诊断包", ex);
             }
             finally
             {
@@ -677,8 +672,7 @@ namespace UEModManager.Views
                 // 落盘失败都会抛到这里。抛之前偏好没被改动，此时窗口保持打开、DialogResult 仍是
                 // null，用户看到失败原因后可以改路径重试。别把它收窄成某个具体异常类型，
                 // 也别在中途 catch 掉——那等于把"设置没保存上"重新变成静默。
-                CyberMessageBox.Show(this, UiText.Interpolate($"保存设置失败: {ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "保存设置", ex);
             }
         }
 

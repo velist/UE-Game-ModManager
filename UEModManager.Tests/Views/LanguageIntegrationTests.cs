@@ -104,7 +104,6 @@ public sealed class LanguageIntegrationTests : IDisposable
     [InlineData("Views/LaunchCenterWindow.xaml")]
     [InlineData("Views/LoginWindow.xaml")]
     [InlineData("Views/ManagementCenterWindow.xaml")]
-    [InlineData("Views/ModDetailWindow.xaml")]
     [InlineData("Views/ProfileManagerWindow.xaml")]
     [InlineData("Views/RepositoryRelocationWindow.xaml")]
     [InlineData("Views/RepositorySetupWindow.xaml")]

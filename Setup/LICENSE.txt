@@ -3,7 +3,7 @@
 发布方：爱酱工作室（Ai-chan Studio）
 联系邮箱：mr.xzuo@foxmail.com
 官方网站：https://www.modmanger.com
-版本：v2.1.0
+版本：v2.1.1
 
 一、关于本软件
 

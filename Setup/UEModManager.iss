@@ -1,7 +1,7 @@
 ﻿; 爱酱 MOD 管理器：Inno Setup 6.7+。使用根目录 Build-Installer.ps1 构建。
 #define MyAppName "爱酱MOD管理器"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.0"
+  #define MyAppVersion "2.1.1"
 #endif
 #ifndef MyAppDisplayVer
   #define MyAppDisplayVer "v" + MyAppVersion

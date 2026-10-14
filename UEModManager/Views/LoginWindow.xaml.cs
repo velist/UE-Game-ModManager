@@ -17,6 +17,7 @@ namespace UEModManager.Views
         private readonly CustomOtpService _otpService;
         private readonly ILogger<LoginWindow> _logger;
         private readonly ShowMessage _showDialog;
+        private readonly bool _dialogInjected;
 
         private bool _isProcessing = false;
         private int _countdown = 0;
@@ -37,6 +38,7 @@ namespace UEModManager.Views
             _otpService = otpService ?? throw new ArgumentNullException(nameof(otpService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _showDialog = showMessage ?? DefaultDialog;
+            _dialogInjected = showMessage != null;
             if (resources != null) Resources = resources;
             InitializeComponent();
             LanguageManager.LanguageChanged += OnLanguageChanged;
@@ -67,6 +69,22 @@ namespace UEModManager.Views
         private static MessageBoxResult DefaultDialog(Window? owner, string message, string title,
             MessageBoxButton buttons, MessageBoxImage icon)
             => CyberMessageBox.Show(owner, message, title, buttons, icon);
+
+        /// <summary>
+        /// 失败提示走白话说明 + "复制诊断信息"（<see cref="CyberMessageBox.ShowError"/>），不展示异常原文。
+        /// 测试注入了自己的弹窗时改交给它：文案与生产一致，测试也不会被真的模态框挂住。
+        /// </summary>
+        private void ShowFailure(string operation, Exception ex)
+        {
+            if (ex is OperationCanceledException && ex.InnerException is not TimeoutException) return;
+            if (!_dialogInjected)
+            {
+                CyberMessageBox.ShowError(this, operation, ex);
+                return;
+            }
+            var (title, message) = CyberMessageBox.DescribeError(operation, ex);
+            _showDialog(this, message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
 
         private void OnLanguageChanged(bool english) => Dispatcher.Invoke(UpdateLanguage);
 
@@ -167,7 +185,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {                _logger.LogError(ex, "发送验证码失败");
-                _showDialog(this, UiText.Interpolate($"发送失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowFailure("发送验证码", ex);
             }
             finally
             {                _isProcessing = false;
@@ -221,7 +239,7 @@ namespace UEModManager.Views
             catch (Exception ex)
             {                _logger.LogError(ex, "验证码登录失败");
                 ShowLoading(false);
-                _showDialog(this, UiText.Interpolate($"登录失败：{ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowFailure("登录", ex);
             }
             finally
             {                _isProcessing = false;
@@ -296,8 +314,7 @@ namespace UEModManager.Views
             try { LanguageManager.SaveAndSetEnglish(!LanguageManager.IsEnglish); }
             catch (Exception ex)
             {
-                _showDialog(this, UiText.Format("保存语言设置失败：{0}", ex.Message), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowFailure("保存语言设置", ex);
             }
         }
 

@@ -305,8 +305,45 @@ public class MainWindowSourceGuardTests
             @"private void MoveToCategoryMenuItem_Click\(.*?\n            \}, _logger", RegexOptions.Singleline);
         Assert.True(handler.Success, "找不到 MoveToCategoryMenuItem_Click");
         Assert.Contains("SafeEvent.Run", handler.Value);
-        Assert.Contains("MoveModToCategoryAsync", handler.Value);
-        Assert.Contains("ShowOperationFailure", handler.Value);
+        Assert.Contains("MoveModToCategoryFromUiAsync", handler.Value);
+
+        // VM 调用与失败提示收进共用帮助方法（右键菜单与详情面板都走这一条路径），
+        // 这里继续钉住它确实调了 VM、也确实把失败弹给用户。
+        var helper = Regex.Match(source,
+            @"private async Task<bool> MoveModToCategoryFromUiAsync\(.*?\n        \}", RegexOptions.Singleline);
+        Assert.True(helper.Success, "找不到 MoveModToCategoryFromUiAsync");
+        Assert.Contains("MoveModToCategoryAsync", helper.Value);
+        Assert.Contains("ShowOperationFailure", helper.Value);
+    }
+
+    [Fact]
+    public void 详情面板真的接了线_而不是挂在那里没人管()
+    {
+        // 事故原型：ModDetailViewModel 与 MainViewModel.IsDetailPanelOpen 整套逻辑都在，
+        // 却没有任何 View 绑定、也没人调 ConfigureActions——VM 层是"已接线但没人用"的死代码。
+        // 这里钉住：面板在 XAML 里存在并绑到 VM、按钮回调被真的注入、开合动画由 VM 驱动。
+        var xaml = ReadMainWindow("MainWindow.xaml");
+        var source = ReadMainWindow("MainWindow.xaml.cs");
+
+        Assert.Contains("DetailPanelHost", xaml);
+        Assert.Contains("DataContext=\"{Binding ModDetail}\"", xaml);
+        Assert.Contains("Command=\"{Binding ToggleEnabledCommand}\"", xaml);
+        Assert.Contains("Command=\"{Binding RenameCommand}\"", xaml);
+        Assert.Contains("Command=\"{Binding EditNoteCommand}\"", xaml);
+        Assert.Contains("Command=\"{Binding DeleteCommand}\"", xaml);
+
+        // 六个回调必须真的注入，否则命令一执行就抛"未接线"
+        Assert.Contains("ModDetail.ConfigureActions", source);
+        Assert.Contains("editNoteAsync: EditNoteFromUiAsync", source);
+        Assert.Contains("moveToCategoryAsync: MoveModToCategoryFromUiAsync", source);
+
+        // 且只能有一处接线：MainViewModel 里再挂一份，"谁生效"就取决于调用顺序，
+        // 而面板操作要弹对话框，只有 View 层那份能弹。
+        var vm = ReadMainWindow(Path.Combine("ViewModels", "MainViewModel.cs"));
+        Assert.DoesNotContain("ModDetail.ConfigureActions(", vm);
+
+        // 面板宽度动画由 IsDetailPanelOpen 驱动
+        Assert.Contains("nameof(MainViewModel.IsDetailPanelOpen)", source);
     }
 
     [Fact]

@@ -56,7 +56,7 @@ namespace UEModManager.Views
                 UiText.Get("这些目录没有 manifest.json、任何游戏的 MOD 清单里也没有记录，") +
                 UiText.Get("是导入中途失败或程序被强制结束留下的，删除不会影响任何已导入的 MOD。\n\n是否清理？"),
                 UiText.Get("清理导入残留"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                yesText: UiText.Get("清理"), noText: UiText.Get("保留"));
+                yesText: UiText.Get("清理"), noText: UiText.Get("保留"), danger: true);
 
             if (answer != MessageBoxResult.Yes) return false;
 

@@ -190,7 +190,7 @@ namespace UEModManager.ViewModels
             _logger = logger;
 
             ModList = new ModListViewModel(logger);
-            // ModListViewModel / ModDetailViewModel 的回调契约仍是 Task<bool>，
+            // ModListViewModel 的回调契约仍是 Task<bool>，
             // 这里把 OperationResult 降级成 bool 适配。失败原因由 View 层
             // （MainWindow 的 *FromUiAsync）直接从 OperationResult 取，不经过这条通道。
             ModList.ConfigureActions(
@@ -198,11 +198,12 @@ namespace UEModManager.ViewModels
                 async mod => (await DeletePackageModAsync(mod)).Success,
                 async (mods, enable) => (await ToggleModsAsync(mods, enable)).Success,
                 async mods => (await DeletePackageModsAsync(mods)).Success);
+
+            // ModDetail 的操作回调刻意不在这里接：面板的每个操作都要先弹对话框
+            //（重命名输入框、描述编辑器、选图、删除确认），只有 View 层能做。
+            // 唯一接线点是 MainWindow 构造函数里的 ModDetail.ConfigureActions——
+            // 这里再接一份，"谁生效"就取决于调用顺序。
             ModDetail = new ModDetailViewModel(logger);
-            ModDetail.ConfigureActions(
-                async (mod, enable) => (await ToggleModAsync(mod, enable)).Success,
-                async (mod, path) => (await ChangePreviewAsync(mod, path)).Success,
-                async mod => (await DeletePackageModAsync(mod)).Success);
             Categories = new CategoryViewModel(categoryService);
 
             // 连接子 ViewModel 事件
@@ -248,6 +249,30 @@ namespace UEModManager.ViewModels
         {
             ModDetail.CurrentMod = mod;
             IsDetailPanelOpen = mod != null;
+        }
+
+        /// <summary>
+        /// 仓库刷新后 <see cref="AllMods"/> 全是新实例，选中项还攥着旧引用——
+        /// 详情面板会停在一个已经不在列表里的对象上（重命名后名字不更新、
+        /// 分类看着"改完又弹回去"）。按包键把选中项重新指向新实例；
+        /// 包已不在仓库里（删除、切换游戏）就一起收起。
+        ///
+        /// 面板开合状态原样保留：刷新不是用户操作，不该把用户刚关掉的面板又弹回来。
+        /// </summary>
+        private void ResolveSelectionAfterRefresh()
+        {
+            var selected = ModList.SelectedMod;
+            if (selected == null) return;
+
+            var wasOpen = IsDetailPanelOpen;
+            var fresh = AllMods.FirstOrDefault(m =>
+                string.Equals(m.RealName, selected.RealName, StringComparison.OrdinalIgnoreCase));
+
+            // fresh 为 null 时这一行会让 OnModListSelectionChanged 收起面板并清掉 CurrentMod
+            ModList.SelectedMod = fresh;
+
+            // fresh == selected 时上一行不发事件，这个赋值同样是无操作
+            IsDetailPanelOpen = wasOpen && fresh != null;
         }
 
         // ─── Profile 事件处理 ───
@@ -438,6 +463,9 @@ namespace UEModManager.ViewModels
 
                     ModList.SetSource(AllMods);
                     Categories.UpdateCounts(AllMods);
+
+                    // AllMods 刚被整体重建，选中项还指着旧实例——重新按包键对上
+                    ResolveSelectionAfterRefresh();
                 });
 
                 ApplyConflictBadges();
@@ -944,6 +972,46 @@ namespace UEModManager.ViewModels
 
             mod.PreviewImage = null;
             mod.PreviewImagePath = storedPath;
+            await RefreshFromRepositoryAsync();
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// 更新 MOD 的备注/描述。
+        ///
+        /// 权威存储是 <c>Package.Note</c>（<see cref="RefreshFromRepositoryAsync"/> 每次都用它
+        /// 重建 <c>ModInfo.Description</c>），只改内存的话下一次刷新就把描述打回原样。
+        /// </summary>
+        public async Task<OperationResult> UpdateModNoteAsync(ModInfo mod, string note)
+        {
+            note = note.Trim();
+
+            var package = _packageRepository.GetByKey(mod.RealName);
+            if (package == null)
+            {
+                _logger.LogWarning("保存描述失败，仓库中找不到包: {Key}", mod.RealName);
+                return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
+            }
+
+            if (string.Equals(package.Note ?? string.Empty, note, StringComparison.Ordinal))
+                return OperationResult.Ok();
+
+            var previousNote = package.Note;
+            package.Note = note;
+            try
+            {
+                await _packageRepository.UpdatePackageAsync(package);
+            }
+            catch (Exception ex)
+            {
+                // 与 MoveModToCategoryAsync 同理：内存里是仓库索引里那一个 Package 实例，
+                // 写盘失败要放回去，否则界面刷新会读到一个磁盘上并不存在的描述。
+                package.Note = previousNote;
+                _logger.LogError(ex, "保存 MOD 描述失败: {Key}", mod.RealName);
+                return OperationResult.Fail(UiText.Interpolate($"保存「{mod.Name}」的描述失败：{ex.Message}"));
+            }
+
+            mod.Description = note;
             await RefreshFromRepositoryAsync();
             return OperationResult.Ok();
         }

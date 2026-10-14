@@ -3,7 +3,7 @@ Ai-chan Mod Manager v2.1 — Software License Agreement
 Publisher: Ai-chan Studio
 Contact: mr.xzuo@foxmail.com
 Official website: https://www.modmanger.com
-Version: v2.1.0
+Version: v2.1.1
 
 1. About this software
 

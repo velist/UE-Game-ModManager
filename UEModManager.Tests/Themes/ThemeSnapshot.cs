@@ -4,6 +4,9 @@ namespace UEModManager.Tests.Themes;
 
 /// <summary>
 /// 主题资源快照。由 ThemeSnapshotGenerator 生成，请勿手工编辑。
+///
+/// 2026-09-28 有意变更：Text500/600/700 提亮到 #8b8b94 / #7e7e87 / #76767f，
+/// 使辅助文字在 Bg/Surface 底色上的对比度从 1.9~4.3:1 提到 4.3~6.1:1（原值低于 WCAG 4.5:1）。
 /// </summary>
 public static partial class ThemeSnapshot
 {
@@ -30,6 +33,7 @@ public static partial class ThemeSnapshot
         "CyberComboBoxToggleButton",
         "CyberCompactButton",
         "CyberContextMenu",
+        "CyberDangerButton",
         "CyberDarkWindow",
         "CyberGhostButton",
         "CyberHorizontalScrollBar",
@@ -185,6 +189,7 @@ public static partial class ThemeSnapshot
         ["CyberComboBoxToggleButton"] = "Style<ToggleButton> setters=5 triggers=0",
         ["CyberCompactButton"] = "Style<Button> setters=9 triggers=0",
         ["CyberContextMenu"] = "Style<ContextMenu> setters=10 triggers=0",
+        ["CyberDangerButton"] = "Style<Button> setters=10 triggers=0",
         ["CyberDarkWindow"] = "Style<Window> setters=10 triggers=0",
         ["CyberGhostButton"] = "Style<Button> setters=8 triggers=0",
         ["CyberHorizontalScrollBar"] = "Style<ScrollBar> setters=4 triggers=0",
@@ -268,7 +273,7 @@ public static partial class ThemeSnapshot
         ["SetupMutedBrush"] = "Solid #FFA1A1AA @1",
         ["SetupOnCloseBrush"] = "Solid #FFFFFFFF @1",
         ["SetupOnCloseColor"] = "#FFFFFFFF",
-        ["SetupRadioOutlineBrush"] = "Solid #FF71717A @1",
+        ["SetupRadioOutlineBrush"] = "Solid #FF8B8B94 @1",
         ["SetupRowBrush"] = "Solid #FF202023 @1",
         ["SetupRowColor"] = "#FF202023",
         ["SetupSecondaryBrush"] = "Solid #FFB0B0BA @1",
@@ -307,12 +312,12 @@ public static partial class ThemeSnapshot
         ["Text300Color"] = "#FFD4D4D8",
         ["Text400Brush"] = "Solid #FFA1A1AA @1",
         ["Text400Color"] = "#FFA1A1AA",
-        ["Text500Brush"] = "Solid #FF71717A @1",
-        ["Text500Color"] = "#FF71717A",
-        ["Text600Brush"] = "Solid #FF52525B @1",
-        ["Text600Color"] = "#FF52525B",
-        ["Text700Brush"] = "Solid #FF3F3F46 @1",
-        ["Text700Color"] = "#FF3F3F46",
+        ["Text500Brush"] = "Solid #FF8B8B94 @1",
+        ["Text500Color"] = "#FF8B8B94",
+        ["Text600Brush"] = "Solid #FF7E7E87 @1",
+        ["Text600Color"] = "#FF7E7E87",
+        ["Text700Brush"] = "Solid #FF76767F @1",
+        ["Text700Color"] = "#FF76767F",
         ["TitlebarBrush"] = "Solid #FF0A0A0C @1",
         ["TitlebarColor"] = "#FF0A0A0C",
     };

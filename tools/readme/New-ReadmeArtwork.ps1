@@ -55,7 +55,7 @@ public static class ReadmeArtwork
             Text(g,"\u591a\u5f15\u64ce\u9002\u914d",23,"#67e8f9",76,421,false);
             Text(g,"\u672c\u5730\u4f18\u5148",23,"#b9c7cf",312,421,false);
             Text(g,"\u79bb\u7ebf\u53ef\u7528",23,"#b9c7cf",500,421,false);
-            Text(g,"v2.1.0",23,"#b9c7cf",874,421,false);
+            Text(g,"v2.1.1",23,"#b9c7cf",874,421,false);
             using (var p = Round(1189,108,250,250,34))
             using (var pen = new Pen(Color.FromArgb(75,75,151,171),2f)) g.DrawPath(pen,p);
             using (var p = Round(1214,133,250,250,34))

@@ -79,7 +79,7 @@
         <Setter Property="WindowStyle" Value="None"/>
         <Setter Property="AllowsTransparency" Value="False"/>
         <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="ResizeMode" Value="CanResizeWithGrip"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
@@ -88,7 +88,7 @@
             <Setter.Value>
                 <shell:WindowChrome CaptionHeight="36"
                                     ResizeBorderThickness="6"
-                                    GlassFrameThickness="0"
+                                    GlassFrameThickness="1"
                                     CornerRadius="0"
                                     UseAeroCaptionButtons="False"/>
             </Setter.Value>
@@ -183,7 +183,7 @@
         <Setter Property="WindowStyle" Value="None"/>
         <Setter Property="AllowsTransparency" Value="False"/>
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="ResizeMode" Value="NoResize"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
@@ -192,7 +192,7 @@
             <Setter.Value>
                 <shell:WindowChrome CaptionHeight="36"
                                     ResizeBorderThickness="0"
-                                    GlassFrameThickness="0"
+                                    GlassFrameThickness="1"
                                     CornerRadius="0"
                                     UseAeroCaptionButtons="False"/>
             </Setter.Value>
@@ -250,7 +250,7 @@
         <Setter Property="WindowStyle" Value="None"/>
         <Setter Property="AllowsTransparency" Value="False"/>
         <Setter Property="Background" Value="{StaticResource BgBaseBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CyberBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="ResizeMode" Value="NoResize"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
@@ -261,7 +261,7 @@
             <Setter.Value>
                 <shell:WindowChrome CaptionHeight="0"
                                     ResizeBorderThickness="0"
-                                    GlassFrameThickness="0"
+                                    GlassFrameThickness="1"
                                     CornerRadius="0"
                                     UseAeroCaptionButtons="False"/>
             </Setter.Value>
@@ -376,6 +376,43 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="border" Property="Background" Value="{StaticResource BorderLightBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── 危险按钮 (红色填充) ──
+         删除、清理、回滚这类不可撤销操作的确认键。模板与主按钮一致（消费 Padding、8px 圆角），
+         只换颜色，让用户一眼分清"这一下会丢东西"。 -->
+    <Style x:Key="CyberDangerButton" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height" Value="44"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusButton}" Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#dc2626"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#b91c1c"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5"/>

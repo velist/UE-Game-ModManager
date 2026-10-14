@@ -6,8 +6,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UEModManager.Views"
         mc:Ignorable="d"
-        Title="{loc:Text &#x27;MOD 存储设置&#x27;}" Width="640" MinWidth="560"
-        SizeToContent="Height" MaxHeight="1000"
+        Title="{loc:Text &#x27;MOD 存储设置&#x27;}" Width="672" MinWidth="592"
+        SizeToContent="Height" MaxHeight="1032"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14"
@@ -195,6 +195,13 @@
         </Style>
     </Window.Resources>
 
+    <!-- 透明窗口不会有系统阴影：外圈留 16px 画投影，深色桌面上也能看清窗口边界。
+         投影放在卡片背后的独立一层，不挂在卡片本身上——挂上去整张卡片都会经过特效渲染，文字丢掉 ClearType。
+         窗口的 Width / MinWidth / MaxHeight 因此各加 32，卡片可见尺寸不变。 -->
+    <Grid Margin="16">
+    <Border CornerRadius="14" Background="{DynamicResource SetupSurfaceBrush}" IsHitTestVisible="False">
+        <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Opacity="0.6" Color="Black" /></Border.Effect>
+    </Border>
     <Border x:Name="WindowFrame" Background="{DynamicResource SetupSurfaceBrush}" BorderBrush="{DynamicResource SetupLineBrush}" BorderThickness="1" CornerRadius="14">
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="44" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -274,4 +281,5 @@
             </Border>
         </Grid>
     </Border>
+    </Grid>
 </Window>

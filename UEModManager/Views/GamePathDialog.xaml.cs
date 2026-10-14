@@ -180,8 +180,7 @@ namespace UEModManager.Views
             }
             catch (Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"\u8bbe\u7f6e\u56fe\u6807\u5931\u8d25: {ex.Message}"), UiText.Get("\u9519\u8bef"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "设置图标", ex);
             }
         }
 
@@ -224,15 +223,15 @@ namespace UEModManager.Views
 
             try
             {
+                // 构造函数在 UI 线程上调用本方法，await 之后本来就回到 UI 线程，不需要再套 Dispatcher
                 var result = await System.Threading.Tasks.Task.Run(() => BuildAutoSearchResult(gameName, engineType));
-                await Dispatcher.InvokeAsync(() => ApplyAutoSearchResult(result));
+                ApplyAutoSearchResult(result);
             }
             catch (Exception ex)
             {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    SearchStatusText.Text = UiText.Interpolate($"\u641c\u7d22\u5931\u8d25: {ex.Message}");
-                });
+                try { Console.WriteLine($"[GamePath] 自动搜索失败: {ex}"); } catch { }
+                SearchStatusText.Text = UiText.Format("没能自动找到游戏：{0} 可以点「浏览」手动选择游戏目录。",
+                    UiText.Get(UEModManager.Diagnostics.UserFacingErrors.Describe(ex).Summary));
             }
         }
 

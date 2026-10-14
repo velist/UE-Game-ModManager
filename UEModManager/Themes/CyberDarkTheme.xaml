@@ -42,9 +42,9 @@
     <Color x:Key="Text200Color">#e4e4e7</Color>
     <Color x:Key="Text300Color">#d4d4d8</Color>
     <Color x:Key="Text400Color">#a1a1aa</Color>
-    <Color x:Key="Text500Color">#71717a</Color>
-    <Color x:Key="Text600Color">#52525b</Color>
-    <Color x:Key="Text700Color">#3f3f46</Color>
+    <Color x:Key="Text500Color">#8b8b94</Color>
+    <Color x:Key="Text600Color">#7e7e87</Color>
+    <Color x:Key="Text700Color">#76767f</Color>
 
     <!-- ── 状态色 ── -->
     <Color x:Key="StatusGreenColor">#22c55e</Color>

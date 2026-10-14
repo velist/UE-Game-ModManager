@@ -39,6 +39,35 @@ namespace UEModManager
             catch { /* 忽略构造期异常，尽量不影响启动 */ }
         }
 
+        /// <summary>
+        /// 启动阶段的致命错误提示：优先用主题化弹窗（白话说明 + 复制诊断信息），
+        /// 主题资源本身坏掉时退回系统弹窗，但同样不展示异常原文，只告诉用户日志在哪。
+        /// </summary>
+        private static void ShowFatalError(string stage, Exception ex, Window? owner = null)
+        {
+            try
+            {
+                UEModManager.Views.CyberMessageBox.ShowError(owner, stage, ex);
+                return;
+            }
+            catch { }
+
+            try
+            {
+                // 走到这里说明资源已经坏了，翻译表也可能读不出来：翻译失败就用中文原文
+                static string T(string source, params object[] args)
+                {
+                    try { return args.Length == 0 ? UiText.Get(source) : UiText.Format(source, args); }
+                    catch { return args.Length == 0 ? source : string.Format(source, args); }
+                }
+                var error = UEModManager.Diagnostics.UserFacingErrors.Describe(ex);
+                MessageBox.Show(
+                    $"{T("{0}失败。", T(stage))}\n\n{T(error.Summary)}\n{T(error.Suggestion)}\n\n{T("详细日志：")}{UEModManager.Infrastructure.AppPaths.LogsDirectory}",
+                    T("爱酱MOD管理器"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch { }
+        }
+
         protected override async void OnStartup(StartupEventArgs e)
         {
             // 再次确保异常挂接（防御重复初始化）
@@ -46,13 +75,13 @@ namespace UEModManager
 
             Console.WriteLine("[App] OnStartup 开始");
 
-            // 给所有窗口套上 Win11 系统圆角。挂 Window 的类级 Loaded 处理器，
+            // 给所有窗口套上 Win11 系统圆角和浅色描边。挂 Window 的类级 Loaded 处理器，
             // 一处覆盖主窗口和全部对话框——此时 hwnd 已创建。
-            // 详见 Infrastructure/WindowCorners.cs 里为什么不能改 WindowChrome.CornerRadius。
+            // 详见 Infrastructure/WindowFrame.cs 里为什么不能改 WindowChrome.CornerRadius。
             EventManager.RegisterClassHandler(
                 typeof(Window),
                 FrameworkElement.LoadedEvent,
-                new RoutedEventHandler((s, _) => WindowCorners.ApplyRounded(s as Window)));
+                new RoutedEventHandler((s, _) => WindowFrame.Apply(s as Window)));
 
             // 自绘标题栏的 × / 最小化 / 最大化：类级别接一次，任何窗口都不用再各写一段 CommandBindings。
             WindowCommands.RegisterClassBindings();
@@ -100,7 +129,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 try { Console.WriteLine($"[FATAL] 应用程序启动失败: {ex}"); } catch { }
-                try { MessageBox.Show(UiText.Interpolate($"应用程序启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error); } catch { }
+                ShowFatalError("启动程序", ex);
                 Shutdown();
             }
         }
@@ -151,12 +180,9 @@ namespace UEModManager
                 _isShowingFatalDialog = true;
                 try
                 {
-                    MessageBox.Show(
-                        UiText.Interpolate($"操作失败：{e.Exception.Message}\n\n") +
-                        UiText.Interpolate($"详细信息已写入日志：\n{_logFilePath}"),
-                        UiText.Get("UEModManager 发生错误"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
+                    // 与启动失败同一套：主题化弹窗（白话 + 复制诊断信息），主题资源坏了才退回系统弹窗
+                    var owner = Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
+                    ShowFatalError("操作", e.Exception, owner);
                 }
                 catch { /* 弹窗本身失败时不能再抛，否则递归 */ }
                 finally { _isShowingFatalDialog = false; }
@@ -559,7 +585,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 try { Console.WriteLine($"[FATAL][Auth] ShowAuthenticationWindow failed: {ex}"); } catch { }
-                MessageBox.Show(UiText.Interpolate($"认证窗口启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowFatalError("打开登录窗口", ex);
                 Shutdown();
             }
         }
@@ -658,7 +684,7 @@ namespace UEModManager
             {
                 Console.WriteLine($"[App] 主窗口启动失败: {ex.Message}");
                 Console.WriteLine($"[App] 异常详情: {ex}");
-                MessageBox.Show(UiText.Interpolate($"主窗口启动失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowFatalError("打开主窗口", ex);
                 Shutdown();
             }
         }

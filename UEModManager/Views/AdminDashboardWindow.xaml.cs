@@ -85,7 +85,7 @@ namespace UEModManager.Views
                 ActiveUsersText.Text = "—";
                 DatabaseStatusText.Text = LanguageManager.IsEnglish ? "Read failed" : UiText.Get("读取失败");
                 DatabaseStatusText.Foreground = (System.Windows.Media.Brush)FindResource("StatusRedBrush");
-                DatabaseStatusText.ToolTip = ex.Message;
+                DatabaseStatusText.ToolTip = UiText.Get(UEModManager.Diagnostics.UserFacingErrors.Describe(ex).Summary);
             }
             finally
             {

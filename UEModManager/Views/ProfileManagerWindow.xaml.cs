@@ -72,7 +72,7 @@ namespace UEModManager.Views
             {
                 await _vm.CreateProfileCommand.ExecuteAsync(null);
                 RefreshProfileCards();
-            }, _logger, "Create profile");
+            }, _logger, "新建方案");
         }
 
         private void CloneProfile_Click(object sender, RoutedEventArgs e)
@@ -81,7 +81,7 @@ namespace UEModManager.Views
             {
                 await _vm.CloneProfileCommand.ExecuteAsync(null);
                 RefreshProfileCards();
-            }, _logger, "Clone profile");
+            }, _logger, "复制方案");
         }
 
         private void DeleteProfile_Click(object sender, RoutedEventArgs e)
@@ -95,8 +95,8 @@ namespace UEModManager.Views
                 }
 
                 var result = CyberMessageBox.Show(this, UiText.Interpolate($"确定删除方案「{_vm.SelectedProfile.Name}」吗？"),
-                    UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Question,
-                    yesText: UiText.Get("删除"), noText: UiText.Get("取消"));
+                    UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "删除方案", noText: "保留", danger: true);
                 if (result == MessageBoxResult.Yes)
                 {
                     await _vm.DeleteProfileCommand.ExecuteAsync(null);
@@ -214,8 +214,7 @@ namespace UEModManager.Views
             }
             catch (System.Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"导出失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导出方案", ex);
             }
             finally
             {
@@ -281,8 +280,7 @@ namespace UEModManager.Views
             }
             catch (System.Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导入方案", ex);
             }
             finally
             {
@@ -330,8 +328,7 @@ namespace UEModManager.Views
             catch (System.Exception ex)
             {
                 Mouse.OverrideCursor = null;
-                CyberMessageBox.Show(this, UiText.Interpolate($"导出失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导出整合包", ex);
             }
         }
 
@@ -396,8 +393,7 @@ namespace UEModManager.Views
             }
             catch (System.Exception ex)
             {
-                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败：{ex.Message}"), UiText.Get("错误"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "导入整合包", ex);
             }
             finally
             {

@@ -300,7 +300,9 @@ namespace UEModManager.Views
                 // 让它盖在遮罩上会变成一个点不动的对话框。
                 ImportLoadingOverlay.Visibility = Visibility.Collapsed;
                 ConfirmButton.IsEnabled = true;
-                CyberMessageBox.Show(this, UiText.Interpolate($"导入失败: {ex.Message}"), UiText.Get("错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                // 本窗口没有注入 ILogger；Console 已被 App 重定向到日志文件，原始异常只能在这里留证
+                try { Console.WriteLine($"[Import] 导入失败: {ex}"); } catch { }
+                CyberMessageBox.ShowError(this, "导入", ex);
                 Close();
                 return;
             }

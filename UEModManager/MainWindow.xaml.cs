@@ -2,6 +2,7 @@ using UEModManager.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -139,6 +141,20 @@ namespace UEModManager
                 _vm.ModDetail.ModStateChanged += async () => await RefreshAfterModChange();
                 _vm.ModDetail.CloseRequested += () => _vm.IsDetailPanelOpen = false;
 
+                // 详情面板的操作回调。面板按钮 → VM 命令 → 这里注入的帮助方法：
+                // 打开对话框、写仓库、失败提示、刷新计数都在 code-behind，
+                // 与右键菜单共用同一批 FromUiAsync——同一个操作只有一份实现。
+                _vm.ModDetail.ConfigureActions(
+                    toggleModAsync: ToggleModFromUiAsync,
+                    changePreviewAsync: ChangePreviewFromUiAsync,
+                    deleteModAsync: m => DeleteModFromUiAsync(m),
+                    renameAsync: RenameModFromUiAsync,
+                    moveToCategoryAsync: MoveModToCategoryFromUiAsync,
+                    editNoteAsync: EditNoteFromUiAsync);
+
+                // 面板宽度动画由 IsDetailPanelOpen 驱动（VM 只存开合状态，动画留在视图层）
+                _vm.PropertyChanged += OnViewModelPropertyChanged;
+
                 // 方案选择器的名称/摘要走 XAML 绑定（{Binding CurrentProfileName/CurrentProfileSummary}），
                 // ProfileChanged / ProfileListChanged 由 MainViewModel 独家订阅，
                 // 这里不再挂第二份直接写 TextBlock.Text 的实现。
@@ -189,7 +205,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 Console.WriteLine($"MainWindow 构造函数异常: {ex}");
-                CyberMessageBox.Show(IsVisible ? this : null, UiText.Interpolate($"初始化失败: {ex.Message}"), UiText.Get("严重错误"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(IsVisible ? this : null, "初始化", ex);
                 throw;
             }
         }
@@ -410,6 +426,7 @@ namespace UEModManager
 
             // ProfileService 是单例，退订后 ViewModel 才能被回收。
             // 本窗口自己已不再订阅它的事件，退订由 MainViewModel.Dispose 完成。
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
             _vm.Dispose();
         }
 
@@ -746,8 +763,7 @@ namespace UEModManager
                                 // 窗口构造 / XAML 解析 / DI 解析失败原先全部静默，
                                 // 用户点了"账户设置"什么都不发生且日志里毫无痕迹
                                 _logger?.LogError(ex, "[UI] 打开账户设置窗口失败");
-                                CyberMessageBox.Show(this, UiText.Interpolate($"打开账户设置失败：{ex.Message}"),
-                                    UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
+                                CyberMessageBox.ShowError(this, "打开账户设置", ex);
                             }
                         };
                         menu.Items.Add(accountItem);
@@ -765,8 +781,7 @@ namespace UEModManager
                                 {
                                     // 管理员入口原先静默失败，"后台打不开"没有任何线索可查
                                     _logger?.LogError(ex, "[UI] 打开管理面板失败");
-                                    CyberMessageBox.Show(this, UiText.Interpolate($"打开管理面板失败：{ex.Message}"),
-                                        UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
+                                    CyberMessageBox.ShowError(this, "打开管理面板", ex);
                                 }
                             };
                             menu.Items.Add(adminItem);
@@ -823,8 +838,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[UI] 打开捐赠窗口失败");
-                CyberMessageBox.Show(this, UiText.Interpolate($"打开捐赠窗口失败：{ex.Message}"),
-                    UiText.Get("操作失败"), MessageBoxButton.OK, MessageBoxImage.Error);
+                CyberMessageBox.ShowError(this, "打开捐赠窗口", ex);
             }
         }
 
@@ -1056,7 +1070,7 @@ namespace UEModManager
                 }
                 finally { IsEnabled = true; Cursor = Cursors.Arrow; }
             }
-            }, _logger, "Configure game path");
+            }, _logger, "设置游戏路径");
         }
 
         // ═════════════════════════════════════════
@@ -1226,7 +1240,8 @@ namespace UEModManager
                 var message = cat.Count > 0
                     ? UiText.Interpolate($"确认删除分类 '{cat.LocalizedDisplayText}'？其中 {cat.Count} 个 MOD 将移到「未分类」。")
                     : UiText.Interpolate($"确认删除分类 '{cat.LocalizedDisplayText}'？");
-                var r = CyberMessageBox.Show(this, message, UiText.Get("确认"), MessageBoxButton.YesNo);
+                var r = CyberMessageBox.Show(this, message, UiText.Get("删除分类"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "删除分类", noText: "保留", danger: true);
                 if (r != MessageBoxResult.Yes) return;
 
                 var result = await _vm.DeleteCategoryAsync(cat);
@@ -1313,31 +1328,11 @@ namespace UEModManager
             {
                 _vm.ModList.SelectedMod = mod;
 
-                // 双击打开详情窗口
-                if (e.ClickCount == 2)
-                {
-                    OpenModDetailWindow(mod);
-                }
+                // 已经选中的卡片再点一次不会触发选中变更事件，面板关着的话这里补开一次
+                //（"点 MOD = 看详情"是唯一入口，双击不再是另一条路径）。
+                _vm.IsDetailPanelOpen = true;
 
                 e.Handled = true;
-            }
-        }
-
-        private void OpenModDetailWindow(ModInfo mod)
-        {
-            var detailWin = new ModDetailWindow(
-                mod,
-                onToggle: async m => await ToggleModFromUiAsync(m, !m.IsEnabled),
-                onDelete: async m => await DeleteModFromUiAsync(m, confirm: false),
-                onChangePreview: async m => await ChangePreviewFromUiAsync(m),
-                onRename: async (m, newName) => await RenameModFromUiAsync(m, newName)
-            );
-            detailWin.Owner = this;
-            detailWin.ShowDialog();
-
-            if (detailWin.ModChanged)
-            {
-                _ = RefreshAfterModChange();
             }
         }
 
@@ -1355,7 +1350,7 @@ namespace UEModManager
         private void ImportMod_Click(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "Import MOD");
+            SafeEvent.Run(this, () => OpenImportWizardAsync(), _logger, "导入 MOD");
         }
 
         /// <summary>v2.0 统一导入流程：ImportDialog → ImportConfirmDialog → 刷新。</summary>
@@ -1441,7 +1436,7 @@ namespace UEModManager
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 if (files?.Length > 0)
                 {
-                    SafeEvent.Run(this, () => OpenImportWizardAsync(files), _logger, "Drag import MOD");
+                    SafeEvent.Run(this, () => OpenImportWizardAsync(files), _logger, "拖拽导入 MOD");
                 }
             }
         }
@@ -1505,15 +1500,7 @@ namespace UEModManager
                 var mod = GetModFromContextMenu(sender);
                 if (mod == null) return;
 
-                var result = await _vm.MoveModToCategoryAsync(mod, category.Name);
-                if (!result.Success)
-                {
-                    ShowOperationFailure(result, UiText.Get("移动到分类失败"));
-                    return;
-                }
-
-                UpdateNavCounts();
-                UpdateModCountText();
+                await MoveModToCategoryFromUiAsync(mod, category.Name);
             }, _logger, "移动 MOD 到分类");
 
         private ModInfo? GetModFromContextMenu(object sender)
@@ -1574,12 +1561,14 @@ namespace UEModManager
                 title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
-        private async Task RenameModFromUiAsync(ModInfo mod)
+        /// <summary>弹输入框改显示名（右键"编辑"与详情面板共用）。返回是否真的改了。</summary>
+        private async Task<bool> RenameModFromUiAsync(ModInfo mod)
         {
             var newName = CyberInputDialog.Show(this, UiText.Get("编辑MOD"), UiText.Get("请输入MOD显示名称:"), mod.Name);
-            if (string.IsNullOrWhiteSpace(newName) || newName == mod.Name) return;
+            // 用户取消或没改：不是失败，不弹错误框
+            if (string.IsNullOrWhiteSpace(newName) || newName == mod.Name) return false;
 
-            await RenameModFromUiAsync(mod, newName);
+            return await RenameModFromUiAsync(mod, newName);
         }
 
         private async Task<bool> RenameModFromUiAsync(ModInfo mod, string newName)
@@ -1623,7 +1612,8 @@ namespace UEModManager
         {
             if (confirm)
             {
-                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。"), UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认删除 '{mod.Name}'？\n此操作会从当前方案、包仓库和已部署文件中移除此 MOD。"), UiText.Get("确认删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "删除 MOD", noText: "保留", danger: true);
                 // 用户选择"否"——不是失败，直接退出，不能弹错误框
                 if (r != MessageBoxResult.Yes) return false;
             }
@@ -1640,6 +1630,123 @@ namespace UEModManager
             UpdateModCountText();
             UpdateEmptyState();
             return true;
+        }
+
+        /// <summary>
+        /// 移动 MOD 到指定分类。右键菜单和详情面板共用这一条路径，
+        /// 失败提示与计数刷新才不会有一处漏掉。
+        /// </summary>
+        private async Task<bool> MoveModToCategoryFromUiAsync(ModInfo mod, string categoryName)
+        {
+            var result = await _vm.MoveModToCategoryAsync(mod, categoryName);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, UiText.Get("移动到分类失败"));
+                return false;
+            }
+
+            UpdateNavCounts();
+            UpdateModCountText();
+            return true;
+        }
+
+        /// <summary>
+        /// 编辑 MOD 描述/备注（多行输入框；Enter 换行，提交点"确定"）。
+        /// </summary>
+        private async Task<bool> EditNoteFromUiAsync(ModInfo mod)
+        {
+            var note = CyberInputDialog.Show(this, UiText.Get("编辑描述"),
+                UiText.Get("请输入MOD描述:"), mod.Description, multiline: true);
+            // 用户取消或没改：不是失败，不弹错误框
+            if (note == null || note.Trim() == mod.Description) return false;
+
+            var result = await _vm.UpdateModNoteAsync(mod, note);
+            if (!result.Success)
+            {
+                ShowOperationFailure(result, UiText.Get("保存描述失败"));
+                return false;
+            }
+
+            return true;
+        }
+
+        // ═════════════════════════════════════════
+        //  MOD 详情面板
+        // ═════════════════════════════════════════
+
+        private const double DetailPanelWidth = 360;
+
+        /// <summary>
+        /// 面板宽度动画：0 ↔ 360。VM 只存开合状态（IsDetailPanelOpen），动画留在视图层。
+        /// 面板内容固定 360 宽 + ClipToBounds，展开过程中文字不会跟着重排。
+        /// </summary>
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(MainViewModel.IsDetailPanelOpen)) return;
+
+            var opening = _vm.IsDetailPanelOpen;
+            DetailPanelHost.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation
+            {
+                To = opening ? DetailPanelWidth : 0,
+                Duration = TimeSpan.FromMilliseconds(opening ? 220 : 160),
+                EasingFunction = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn },
+                FillBehavior = FillBehavior.HoldEnd
+            });
+        }
+
+        /// <summary>Esc 收起详情面板（面板开着时才有反应，不抢其它 Esc 用途）。</summary>
+        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape && _vm.IsDetailPanelOpen)
+            {
+                _vm.IsDetailPanelOpen = false;
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>点面板里的预览图 = 换图，与右键菜单同一条路径。</summary>
+        private void DetailPreview_Click(object sender, MouseButtonEventArgs e)
+        {
+            var mod = _vm.ModDetail.CurrentMod;
+            if (mod == null) return;
+
+            SafeEvent.Run(this, () => ChangePreviewFromUiAsync(mod), _logger, "更换 MOD 预览图");
+        }
+
+        /// <summary>
+        /// 面板里的"移动到分类"：菜单在点击时才建（与游戏切换器同一手法）。
+        /// 分类名单用 AssignableCategories——"全部/已启用/已禁用"是筛选视图，不是归属。
+        /// </summary>
+        private void DetailMoveCategory_Click(object sender, RoutedEventArgs e)
+        {
+            var mod = _vm.ModDetail.CurrentMod;
+            if (mod == null) return;
+
+            var targets = _vm.Categories.AssignableCategories;
+            if (targets.Count == 0)
+            {
+                // 弹一个空菜单等于没反应，把唯一可行路径直接告诉用户
+                CyberMessageBox.Show(this, UiText.Get("请先在左侧新建分类"),
+                    UiText.Get("移动到分类"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var menu = new ContextMenu { Style = FindResource("CyberContextMenu") as Style };
+            foreach (var category in targets)
+            {
+                var item = new MenuItem
+                {
+                    Header = category.LocalizedDisplayText,
+                    Style = FindResource("CyberMenuItem") as Style,
+                    Tag = category.Name
+                };
+                item.Click += (_, _) => SafeEvent.Run(this, () => MoveModToCategoryFromUiAsync(mod, category.Name), _logger, "移动 MOD 到分类");
+                menu.Items.Add(item);
+            }
+
+            menu.PlacementTarget = sender as UIElement;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
         }
 
         // ═════════════════════════════════════════
@@ -1681,7 +1788,7 @@ namespace UEModManager
                 UpdateNavCounts();
                 UpdateModCountText();
                 UpdateEmptyState();
-            }, _logger, "Batch enable MOD");
+            }, _logger, "批量启用 MOD");
         }
 
         private void BatchDisable_Click(object sender, MouseButtonEventArgs e)
@@ -1693,7 +1800,7 @@ namespace UEModManager
                 UpdateNavCounts();
                 UpdateModCountText();
                 UpdateEmptyState();
-            }, _logger, "Batch disable MOD");
+            }, _logger, "批量禁用 MOD");
         }
 
         private void BatchDelete_Click(object sender, MouseButtonEventArgs e)
@@ -1704,7 +1811,8 @@ namespace UEModManager
                 var count = _vm.ModList.SelectedCount;
                 if (count <= 0) return;
 
-                var r = CyberMessageBox.Show(this, UiText.Interpolate($"\u786e\u8ba4\u5378\u8f7d\u9009\u4e2d\u7684 {count} \u4e2a MOD\uff1f\n\u6b64\u64cd\u4f5c\u4f1a\u4ece\u5f53\u524d\u65b9\u6848\u3001\u5305\u4ed3\u5e93\u548c\u5df2\u90e8\u7f72\u6587\u4ef6\u4e2d\u79fb\u9664\u8fd9\u4e9b MOD\u3002"), UiText.Get("\u6279\u91cf\u5378\u8f7d"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认卸载选中的 {count} 个 MOD？\n此操作会从当前方案、包仓库和已部署文件中移除这些 MOD。"), UiText.Get("批量卸载"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "全部卸载", noText: "保留", danger: true);
                 if (r != MessageBoxResult.Yes) return;
 
                 await _vm.ModList.DeleteSelectedAsync();
@@ -1712,7 +1820,7 @@ namespace UEModManager
                 UpdateNavCounts();
                 UpdateModCountText();
                 UpdateEmptyState();
-            }, _logger, "Batch delete MOD");
+            }, _logger, "批量删除 MOD");
         }
 
         private void SortButton_Click(object sender, MouseButtonEventArgs e)
@@ -1736,13 +1844,12 @@ namespace UEModManager
         private void ModsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ModsListView.SelectedItem is ModInfo mod)
+            {
                 _vm.ModList.SelectedMod = mod;
-        }
 
-        private void ModsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (ModsListView.SelectedItem is ModInfo mod)
-                OpenModDetailWindow(mod);
+                // 与卡片同样：选中即展开右侧详情面板
+                _vm.IsDetailPanelOpen = true;
+            }
         }
 
 
@@ -1911,9 +2018,14 @@ namespace UEModManager
                 // 之后的操作全都基于已失效的 ModInfo 引用 —— 这正是"幽灵 MOD"类
                 // 难复现故障的来源。必须让用户知道界面已经不可信。
                 _logger?.LogError(ex, "[UI] 管理中心操作后刷新列表失败");
-                CyberMessageBox.Show(this,
-                    UiText.Interpolate($"MOD 列表刷新失败，当前显示的内容可能已过期，建议重新打开本窗口。\n{ex.Message}"),
-                    UiText.Get("刷新失败"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                // 这里就是主窗口，"重新打开本窗口"等于让用户重启程序；直接给一键重试
+                var r = CyberMessageBox.Show(this,
+                    UiText.Format("MOD 列表没能刷新，当前显示的内容可能已过期。\n{0}",
+                        UiText.Get(UEModManager.Diagnostics.UserFacingErrors.Describe(ex).Summary)),
+                    UiText.Get("刷新失败"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "重新加载", noText: "稍后再说");
+                if (r == MessageBoxResult.Yes)
+                    await RefreshAfterManagementAsync();
             }
         }
 
@@ -1933,8 +2045,7 @@ namespace UEModManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "打开启动中心失败");
-                CyberMessageBox.Show(this, UiText.Interpolate($"无法打开启动中心：{ex.Message}"), UiText.Get("启动失败"),
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                CyberMessageBox.ShowError(this, "打开启动中心", ex);
             }
         }
 
