@@ -116,7 +116,7 @@ public sealed class ConflictModuleIntegrationTests : IDisposable
         {
             await panel.LoadAsync();
             Assert.Equal(2, panel.Groups.Count);
-            Assert.Equal(["只共享A", "只共享B"], panel.PlanDefaultResolution().OrderBy(k => k));
+            Assert.Equal(["只共享A", "只共享B"], panel.PlanDefaultResolution().OrderBy(k => k, System.StringComparer.Ordinal));
             return await panel.ResolveAllAsync();
         });
         Assert.True(result.Success, result.Error);
@@ -143,7 +143,9 @@ public sealed class ConflictModuleIntegrationTests : IDisposable
 
         var group = Assert.Single(report.Groups);
         Assert.Equal(2, group.Members.Count);
-        Assert.Equal(["披风甲", "披风乙"], group.Members.Select(m => m.PackageKey).OrderBy(k => k));
+        // 排序用 Ordinal：默认比较器跟系统语言走（中文拼音 vs en-US 的码点顺序），
+        // CI 的英文环境下顺序会翻转，本机中文环境则不会。
+        Assert.Equal(["披风乙", "披风甲"], group.Members.Select(m => m.PackageKey).OrderBy(k => k, System.StringComparer.Ordinal));
         // 无关那个 MOD 一个资产都没重叠，不该出现在任何组里。
         Assert.DoesNotContain(group.Members, m => m.PackageKey == "无关");
 
