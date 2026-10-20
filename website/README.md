@@ -58,3 +58,5 @@ wrangler pages deploy bin/website-publish-20260908 --project-name modmanger --br
 打包脚本仅收集静态页面、资源、`_headers` 和 IndexNow 验证文件，并在发布目录旁生成 SHA-256 清单；开发说明、工具和环境文件不会进入发布目录。Wrangler 使用本机已有登录或当前进程的 `CLOUDFLARE_API_TOKEN`。
 
 发布后检查正式域名的首页、帮助页、旧锚点跳转和下载二维码，并核对 canonical、站点地图及响应头。需要回退时，在 Cloudflare Pages 的生产部署历史中回退到前一个成功部署。
+
+**这个 Pages 项目没有连接 Git 仓库**（`source` 为 `null`），推送到 GitHub 不会触发任何部署，每次都必须手动执行上面的 `wrangler pages deploy`。也不要直接部署整个 `website/` 目录：本文件的 `README.md` 会被当成静态资源发布到站点根路径，正确做法始终是先跑 `package.mjs` 生成发布目录。
