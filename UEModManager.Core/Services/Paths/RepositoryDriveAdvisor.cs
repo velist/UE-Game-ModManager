@@ -36,7 +36,8 @@ public sealed record RepositoryDriveOption(
     long? AvailableBytes,
     long? TotalBytes,
     bool IsCurrentDefault,
-    bool HostsCurrentGame = false);
+    bool HostsCurrentGame = false,
+    bool IsSystemDrive = false);
 
 /// <summary>
 /// 引导界面上盘位列表的排序与推荐（纯函数，不碰 IO）。
@@ -79,6 +80,8 @@ public static class RepositoryDriveAdvisor
 
         var ordered = drives
             .OrderBy(d => KindRank(d.Kind))
+            // 系统盘排在其他固定盘之后：MOD 动辄几十 GB，默认堆到 C 盘迟早把系统盘撑满
+            .ThenBy(d => d.IsSystemDrive ? 1 : 0)
             .ThenBy(d => d.AvailableBytes is null ? 1 : 0)
             .ThenByDescending(d => d.AvailableBytes ?? 0)
             .ThenBy(d => d.RootPath, StringComparer.OrdinalIgnoreCase)
@@ -90,14 +93,16 @@ public static class RepositoryDriveAdvisor
     /// <summary>
     /// 从已排序的列表里挑一个推荐项：可用空间最大、且满足
     /// <see cref="RepositoryLocationValidator.RecommendedFreeBytes"/> 的固定盘。
-    /// 没有符合条件的盘时返回 <c>null</c>。
+    /// 系统盘不参与推荐。没有符合条件的盘时返回 <c>null</c>。
     /// </summary>
     public static RepositoryDriveOption? Recommend(IEnumerable<RepositoryDriveOption> drives)
     {
         if (drives is null) throw new ArgumentNullException(nameof(drives));
 
+        // 系统盘永不推荐：C 盘空间再大也不默认放过去（用户仍可以手动选它）
         return drives
             .Where(d => d.Kind == RepositoryVolumeKind.Fixed)
+            .Where(d => !d.IsSystemDrive)
             .Where(d => d.AvailableBytes >= RepositoryLocationValidator.RecommendedFreeBytes)
             .OrderByDescending(d => d.AvailableBytes ?? 0)
             .ThenBy(d => d.RootPath, StringComparer.OrdinalIgnoreCase)

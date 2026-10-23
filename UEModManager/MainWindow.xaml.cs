@@ -375,8 +375,8 @@ namespace UEModManager
 
         /// <summary>
         /// 启动匿名统计。
-        /// 不弹窗打断：没告知过的用户在内容区底部看到一条告知（<c>TelemetryNoticeBar</c>），
-        /// 选了"参与"才开始上报；已经选过的按选择执行。
+        /// 不弹窗、不显示任何告知条（2026-10-23 用户决定去掉首次底部告知条）：
+        /// 只有在设置里明确打开过统计的用户才上报；没告知过的用户一律不发（TelemetryConsent 红线）。
         /// </summary>
         private void StartTelemetry()
         {
@@ -393,33 +393,11 @@ namespace UEModManager
 
                 if (decision.ShouldReport)
                     telemetry.StartHeartbeat();
-                else if (decision.ShouldAsk)
-                    TelemetryNoticeBar.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
                 // 统计是我们的需求，不是用户的。它出任何问题都不该在界面上留下一个字。
                 _logger?.LogDebug(ex, "[Telemetry] 启动失败");
-            }
-        }
-
-        private void TelemetryAccept_Click(object sender, RoutedEventArgs e) => DecideTelemetry(true);
-
-        private void TelemetryDecline_Click(object sender, RoutedEventArgs e) => DecideTelemetry(false);
-
-        /// <summary>告知条上的选择：记下"已告知 + 选择"，参与则立即开始心跳（不必等下次启动）。</summary>
-        private void DecideTelemetry(bool participate)
-        {
-            TelemetryNoticeBar.Visibility = Visibility.Collapsed;
-            try
-            {
-                UiPreferences.SaveTelemetryConsent(participate);
-                if (participate)
-                    ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>()?.StartHeartbeat();
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogDebug(ex, "[Telemetry] 保存选择失败");
             }
         }
 

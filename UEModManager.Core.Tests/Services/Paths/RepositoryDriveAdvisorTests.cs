@@ -162,4 +162,35 @@ public class RepositoryDriveAdvisorTests
         Assert.Same(drives[0], RepositoryDriveAdvisor.Recommend(drives));
         Assert.Same(drives[0], RepositoryDriveAdvisor.Rank(drives)[0]);
     }
+
+    // ─── 系统盘：永不推荐，排在其他固定盘之后 ───
+
+    private static RepositoryDriveOption SystemDrive(long available)
+        => new(@"C:\", "C:", RepositoryVolumeKind.Fixed, available, available * 2, false, IsSystemDrive: true);
+
+    [Fact]
+    public void 系统盘空间最大也不推荐()
+    {
+        // 用户实际遇到的情形：C 盘更空，但 MOD 不该默认堆到系统盘
+        var drives = new[] { SystemDrive(800 * GiB), Drive(@"D:\", RepositoryVolumeKind.Fixed, 60 * GiB) };
+
+        Assert.Equal(@"D:\", RepositoryDriveAdvisor.Recommend(drives)!.RootPath);
+    }
+
+    [Fact]
+    public void 只有系统盘时不推荐任何盘()
+        => Assert.Null(RepositoryDriveAdvisor.Recommend(new[] { SystemDrive(800 * GiB) }));
+
+    [Fact]
+    public void 系统盘排在其他固定盘之后()
+    {
+        var ranked = RepositoryDriveAdvisor.Rank(new[]
+        {
+            SystemDrive(800 * GiB),
+            Drive(@"D:\", RepositoryVolumeKind.Fixed, 60 * GiB),
+            Drive(@"E:\", RepositoryVolumeKind.Removable, 2000 * GiB),
+        });
+
+        Assert.Equal(new[] { @"D:\", @"C:\", @"E:\" }, ranked.Select(d => d.RootPath));
+    }
 }

@@ -221,6 +221,7 @@ namespace UEModManager.Services
             var gameRoot = VolumePaths.TryGetVolumeRoot(TryGetConfiguredGamePath(paths));
 
             var options = new List<RepositoryDriveOption>();
+            var systemRoot = SystemDriveRoot();
 
             DriveInfo[] drives;
             try
@@ -253,7 +254,9 @@ namespace UEModManager.Services
                         IsCurrentDefault: currentRoot != null && string.Equals(
                             currentRoot, root, StringComparison.OrdinalIgnoreCase),
                         HostsCurrentGame: gameRoot != null && string.Equals(
-                            gameRoot, root, StringComparison.OrdinalIgnoreCase)));
+                            gameRoot, root, StringComparison.OrdinalIgnoreCase),
+                        IsSystemDrive: systemRoot != null && string.Equals(
+                            systemRoot, root, StringComparison.OrdinalIgnoreCase)));
                 }
                 catch (Exception ex)
                 {
@@ -507,6 +510,10 @@ namespace UEModManager.Services
         /// </summary>
         public void Skip()
         {
+            // 默认位置在 %LOCALAPPDATA%（系统盘）下：跳过就等于把仓库默认放进 C 盘。
+            // 能换到非系统盘就换过去（会写入位置并记"已问过"）；换不了才走下面只记标记的老路。
+            if (TryMoveDefaultOffSystemDrive()) return;
+
             try
             {
                 ResolveEnvironment().Preferences.SavePrompted();
@@ -515,6 +522,64 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "[RepoSetup] 记录引导标记失败，下次启动会再问一次");
+            }
+        }
+
+        /// <summary>系统盘的卷根（例如 C 盘根目录）；查不到返回 null。</summary>
+        internal static string? SystemDriveRoot()
+        {
+            try { return Path.GetPathRoot(Environment.SystemDirectory); }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// 当前默认仓库在系统盘上、且还是空的时，改到推荐的非系统盘（盘根下的 UEModManager/Repository）。
+        /// 只有一块系统盘、或候选位置检查不通过时什么都不做。<b>不抛</b>。
+        /// </summary>
+        /// <summary>
+        /// 启动时调用：已经问过（引导不再弹）但仓库仍是系统盘上的空默认位置时，同样移到非系统盘。
+        /// 覆盖"更新前就点过跳过"的用户——他们的跳过发生在这条规则出现之前。<b>不抛</b>。
+        /// </summary>
+        public void EnsureDefaultOffSystemDrive() => TryMoveDefaultOffSystemDrive();
+
+        private bool TryMoveDefaultOffSystemDrive()
+        {
+            // 只在生产环境做：它要枚举本机真实磁盘并在上面试写、建目录。
+            // 测试注入的是临时目录环境，绝不能顺手在开发者的 D 盘上建 UEModManager。
+            // 选盘规则本身（系统盘不推荐、排在后面）由 Core 的 RepositoryDriveAdvisor 单测覆盖。
+            if (_environment != null) return false;
+
+            try
+            {
+                // 用户亲自指定过位置（哪怕是 C 盘）就尊重他的选择，只纠正"没人选、落到默认"的情况
+                if (!string.IsNullOrWhiteSpace(ResolveEnvironment().Preferences.LoadRepositoryRoot()))
+                    return false;
+
+                var current = ResolveEnvironment().Paths.CurrentRepositoryRoot;
+                var systemRoot = SystemDriveRoot();
+                if (systemRoot == null || !string.Equals(Path.GetPathRoot(current), systemRoot, StringComparison.OrdinalIgnoreCase))
+                    return false;
+                // 已经有内容就不动：换位置必须走"先搬数据再改指针"那条路，这里不做搬迁
+                if (Directory.Exists(current) && Directory.EnumerateFileSystemEntries(current).Any())
+                    return false;
+
+                var pick = RepositoryDriveAdvisor.Recommend(ListDrives());
+                if (pick == null)
+                {
+                    _logger.LogInformation("[RepoSetup] 没有合适的非系统盘，仓库保持在系统盘默认位置");
+                    return false;
+                }
+
+                var verdict = Inspect(pick.RootPath);
+                if (!verdict.CanUse) return false;
+                Apply(verdict.ResolvedPath);
+                _logger.LogInformation("[RepoSetup] 用户跳过引导，仓库自动放到非系统盘 {Path}", verdict.ResolvedPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[RepoSetup] 自动选择非系统盘失败，沿用默认位置");
+                return false;
             }
         }
     }

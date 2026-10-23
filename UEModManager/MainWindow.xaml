@@ -1265,34 +1265,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- 匿名统计首次告知：贴在内容区底部，不挡操作；选过一次就不再出现。
-                             没告知过就绝不上报（TelemetryConsent.Decide），这条就是"告知"本身。 -->
-                        <Border x:Name="TelemetryNoticeBar" Visibility="Collapsed"
-                                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,8"
-                                MaxWidth="860" Padding="18,12" CornerRadius="12"
-                                Background="#F20F0F11" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1">
-                            <Border.Effect>
-                                <DropShadowEffect ShadowDepth="0" BlurRadius="24" Opacity="0.55" Color="Black"/>
-                            </Border.Effect>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,18,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:Text '帮我们了解有多少人在用？'}" Foreground="{StaticResource Text100Brush}"
-                                               FontSize="14" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{loc:Text '参与后，启动时会发送随机设备编号、软件版本和 Windows 版本；登录后附带邮箱的哈希值（不是邮箱本身）。不上传文件路径、游戏目录和 MOD 清单，随时可以在设置里关闭。'}"
-                                               Foreground="{StaticResource Text400Brush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Content="{loc:Text '不参与'}" Style="{StaticResource CyberSecondaryButton}"
-                                            Margin="0,0,8,0" Padding="14,6" Click="TelemetryDecline_Click"/>
-                                    <Button Content="{loc:Text '参与'}" Style="{StaticResource CyberPrimaryButton}"
-                                            Padding="18,6" Click="TelemetryAccept_Click"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
                 </Grid>
             </DockPanel>
             </Grid>

@@ -616,7 +616,12 @@ namespace UEModManager
                 var setup = ServiceProvider!.GetRequiredService<RepositorySetupService>();
                 var decision = setup.Decide();
                 Console.WriteLine($"[Startup] 仓库位置引导: {decision}");
-                if (!decision.ShouldPrompt) return;
+                if (!decision.ShouldPrompt)
+                {
+                    // 不弹引导时也别让仓库默认待在系统盘（空的默认位置才会被移走）
+                    setup.EnsureDefaultOffSystemDrive();
+                    return;
+                }
 
                 var logger = ServiceProvider.GetService<ILogger<Views.RepositorySetupWindow>>();
                 new Views.RepositorySetupWindow(setup, logger).ShowDialog();
