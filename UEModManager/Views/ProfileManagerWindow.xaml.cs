@@ -38,13 +38,16 @@ namespace UEModManager.Views
         public ProfileManagerWindow(
             ProfileService profileService,
             ILogger<ProfileManagerWindow> logger,
-            ProfileLockService? lockService = null)
+            ProfileLockService? lockService = null,
+            ProfileSwitchService? switchService = null)
         {
             InitializeComponent();
             _profileService = profileService;
             _lockService = lockService;
             _logger = logger;
-            _vm = new ProfileViewModel(profileService);
+            _vm = new ProfileViewModel(profileService, switchService is null ? null : switchService.SwitchAsync);
+            _vm.SwitchFailed += reason => CyberMessageBox.Show(this, reason, UiText.Get("切换方案"),
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             _vm.PropertyChanged += Vm_PropertyChanged;
             DataContext = _vm;
         }

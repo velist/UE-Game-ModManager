@@ -9,3 +9,6 @@
 
 /indexnow-*
   X-Robots-Tag: noindex
+
+/assets/video/*
+  Cache-Control: public, max-age=31536000, immutable

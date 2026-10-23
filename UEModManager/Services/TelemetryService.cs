@@ -234,6 +234,7 @@ namespace UEModManager.Services
 
                 _consecutiveFailures = 0;
                 if (report.AccountHash != null) _reportedAccountHash = report.AccountHash;
+                await NotifyIfUpdateAvailableAsync(response, token);
                 _logger?.LogDebug("[Telemetry] 上报成功（{Bytes} 字节）", report.ByteCount);
                 return true;
             }
@@ -315,6 +316,34 @@ namespace UEModManager.Services
             {
                 _logger?.LogDebug(ex, "[Telemetry] 写入设备标识失败，本机不参与统计");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// 发现新版本时触发（每次会话最多一次）。在线程池上触发，订阅方自己切回 UI 线程。
+        /// </summary>
+        public event Action<UpdateInfo>? UpdateAvailable;
+
+        private bool _updateNotified;
+
+        /// <summary>读心跳响应里的 latest：以前只看状态码，"检查更新"实际上从没检查过。</summary>
+        private async Task NotifyIfUpdateAvailableAsync(HttpResponseMessage response, CancellationToken token)
+        {
+            if (_updateNotified) return;
+            try
+            {
+                if (response.Content.Headers.ContentLength is > UpdateCheck.MaxResponseBytes) return;
+                var body = await response.Content.ReadAsStringAsync(token);
+                if (UpdateCheck.Parse(body) is not { } info || !UpdateCheck.IsNewer(AppVersion(), info.Latest)) return;
+
+                _updateNotified = true;
+                _logger?.LogInformation("[Update] 发现新版本 {Latest}（当前 {Current}）", info.Latest, AppVersion());
+                UpdateAvailable?.Invoke(info);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // 更新提示是锦上添花，读不出来就当没有
+                _logger?.LogDebug(ex, "[Update] 解析更新信息失败");
             }
         }
 

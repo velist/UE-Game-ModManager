@@ -79,7 +79,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
                         <TextBlock Text="{loc:Text &#x27;检查更新与匿名统计&#x27;}" FontSize="14" Foreground="{StaticResource Text200Brush}"/>
-                        <TextBlock Text="{loc:Text &#x27;启动时看一眼有没有新版本，同时发送一个随机编号和版本号，让我们知道有多少人在用。不含邮箱、电脑名、文件路径和 MOD 信息。&#x27;}"
+                        <TextBlock Text="{loc:Text &#x27;开启后，启动时发送随机设备编号、软件版本和 Windows 版本，让我们知道有多少人在用；登录后会附带邮箱的哈希值（不是邮箱本身）。不上传邮箱明文、电脑名、文件路径、游戏目录和 MOD 清单。&#x27;}"
                                    FontSize="12" TextWrapping="Wrap"
                                    Foreground="{StaticResource Text500Brush}" Margin="0,4,0,0"/>
                     </StackPanel>

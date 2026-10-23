@@ -94,5 +94,13 @@ namespace UEModManager.Models
         /// <summary>包内容哈希（可选，用于检测远端版本是否与本地匹配）。</summary>
         [JsonPropertyName("contentHash")]
         public string? ContentHash { get; init; }
+
+        /// <summary>
+        /// 与系统语言无关的内容指纹（<c>PackageFingerprint</c>，可选）。两边都有时优先比它：
+        /// ContentHash 受排序文化影响，跨中英文系统比对会误报不一致。旧版 lock 没有这个字段。
+        /// </summary>
+        [JsonPropertyName("fingerprint")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Fingerprint { get; init; }
     }
 }

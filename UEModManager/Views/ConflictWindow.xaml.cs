@@ -39,7 +39,11 @@ public partial class ConflictWindow : Window
         ILogger<ConflictWindow> logger)
     {
         InitializeComponent();
-        _vm = new ConflictViewModel(conflictModule, main, logger);
+        _vm = new ConflictViewModel(conflictModule, main, logger)
+        {
+            ConfirmDanger = (message, title) => CyberMessageBox.Show(this, message, title,
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, yesText: "删除副本", noText: "保留", danger: true) == MessageBoxResult.Yes
+        };
         DataContext = _vm;
         Loaded += OnLoaded;
     }

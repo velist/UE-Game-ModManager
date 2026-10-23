@@ -35,6 +35,16 @@ namespace UEModManager.Models
         /// <summary>直接导入支持的扩展名（非压缩包）。</summary>
         public HashSet<string> DirectImportExtensions { get; init; } = new();
 
+        /// <summary>
+        /// 主 MOD 载荷扩展名：游戏从 MOD 目录加载的资源容器（UE 的 .pak 三件套、Godot 的 .pck…）。
+        ///
+        /// 压缩包 / 文件夹导入据此分流：命中的文件按 MOD 处理、进 MOD 目录；其余文件
+        /// （脚本、DLL、配置、松散资源）整单元保留目录结构，作为插件或配置装进游戏目录。
+        /// 必须是 <see cref="ModFileExtensions"/> 的子集，且不能含 .json / .dll / .lua 这类
+        /// 插件或配置也会用到的扩展名，否则 UE4SS 的 mods.json 之类会被误当成 MOD。
+        /// </summary>
+        public HashSet<string> BinaryModExtensions { get; init; } = new();
+
         /// <summary>文件选择对话框过滤器字符串。</summary>
         public string FileDialogFilter { get; init; } = string.Empty;
 
@@ -83,6 +93,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "Unreal Engine",
                 ModFileExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc", ".json" },
+                BinaryModExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc" },
                 DirectImportExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc", ".json" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.pak;*.ucas;*.utoc|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "Content/Paks/~mods", "Content/Paks/Mods" },
@@ -95,6 +106,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "Unity",
                 ModFileExtensions = new HashSet<string> { ".dll", ".unity3d", ".assets", ".bundle", ".assetbundle" },
+                BinaryModExtensions = new HashSet<string> { ".unity3d", ".assets", ".bundle", ".assetbundle" },
                 DirectImportExtensions = new HashSet<string> { ".dll", ".unity3d", ".assets", ".bundle", ".assetbundle" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.dll;*.unity3d;*.assets;*.bundle|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "BepInEx/plugins", "Mods" },
@@ -106,6 +118,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "RE Engine",
                 ModFileExtensions = new HashSet<string> { ".pak", ".tex", ".mesh", ".lua" },
+                BinaryModExtensions = new HashSet<string> { ".pak" },
                 DirectImportExtensions = new HashSet<string> { ".pak", ".tex", ".mesh", ".lua" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.pak;*.tex;*.mesh;*.lua|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "natives", "Mods" },
@@ -117,6 +130,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "Godot",
                 ModFileExtensions = new HashSet<string> { ".pck", ".gd", ".tres", ".tscn" },
+                BinaryModExtensions = new HashSet<string> { ".pck" },
                 DirectImportExtensions = new HashSet<string> { ".pck", ".gd", ".tres", ".tscn" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.pck;*.gd;*.tres;*.tscn|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "mods" },
@@ -128,6 +142,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "Decima",
                 ModFileExtensions = new HashSet<string> { ".bin", ".core", ".stream", ".pak", ".psarc" },
+                BinaryModExtensions = new HashSet<string> { ".bin", ".core", ".stream", ".pak", ".psarc" },
                 DirectImportExtensions = new HashSet<string> { ".bin", ".core", ".stream", ".pak", ".psarc" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.bin;*.core;*.stream;*.pak|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "Mods", "data" },
@@ -141,6 +156,7 @@ namespace UEModManager.Models
                 // MOD 主体：MPQ 打包包；数据：JSON/XML；专属二进制：.stl 字符串、.meta 索引、.d4a 动画；
                 // 贴图：.dds（.png 不收，避免误识别普通图片）；启动配置：.wtf。
                 ModFileExtensions = new HashSet<string> { ".mpq", ".json", ".xml", ".stl", ".meta", ".d4a", ".dds", ".wtf" },
+                BinaryModExtensions = new HashSet<string> { ".mpq" },
                 DirectImportExtensions = new HashSet<string> { ".mpq", ".json", ".xml", ".stl", ".meta", ".d4a", ".dds", ".wtf" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.mpq;*.json;*.xml;*.stl;*.meta;*.d4a;*.dds;*.wtf|所有文件|*.*",
                 // mods/ 是 D4ModManager 等加载器约定目录；WTF/ 用于反和谐 Config.wtf。
@@ -153,6 +169,7 @@ namespace UEModManager.Models
             {
                 DisplayName = "通用",
                 ModFileExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc", ".json", ".dll", ".pck" },
+                BinaryModExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc", ".pck" },
                 DirectImportExtensions = new HashSet<string> { ".pak", ".ucas", ".utoc", ".json", ".dll", ".pck" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.pak;*.dll;*.pck|所有文件|*.*",
                 DefaultModPathPatterns = new[] { "Mods", "mods" },

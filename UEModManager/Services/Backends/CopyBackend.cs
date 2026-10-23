@@ -32,7 +32,26 @@ namespace UEModManager.Services.Backends
                 if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
                     Directory.CreateDirectory(targetDir);
 
-                File.Copy(sourcePath, targetPath, overwrite: true);
+                // 先复制到同目录的临时文件，再用 Move 换上去。
+                // 不能直接 File.Copy(overwrite: true)：Win32 的 CREATE_ALWAYS 会原地截断并改写
+                // 既有文件；若目标是此前硬链接模式留下的链接，写入就穿过去改掉了仓库里的
+                // MOD 源文件（之后该包哈希对不上，再也部署不了）。Move 替换的是目录项，
+                // 不碰旧数据；同目录同卷，目标位置要么是旧文件、要么是完整的新文件。
+                var tempPath = targetPath + ".uemm-" + System.Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    File.Copy(sourcePath, tempPath, overwrite: false);
+                    File.Move(tempPath, targetPath, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        try { File.Delete(tempPath); }
+                        catch (IOException ex) { _logger.LogWarning(ex, "清理复制临时文件失败: {Path}", tempPath); }
+                        catch (System.UnauthorizedAccessException ex) { _logger.LogWarning(ex, "清理复制临时文件失败: {Path}", tempPath); }
+                    }
+                }
                 _logger.LogDebug("复制部署: {Source} → {Target}", sourcePath, targetPath);
             });
         }

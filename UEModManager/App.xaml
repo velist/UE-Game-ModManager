@@ -19,6 +19,7 @@
             <converters:PackageKindToBrushConverter x:Key="PackageKindToBrushConverter"/>
             <converters:PackageKindToBgBrushConverter x:Key="PackageKindToBgBrushConverter"/>
             <converters:PackageKindToLabelConverter x:Key="PackageKindToLabelConverter"/>
+            <converters:OptionEqualsToBoolConverter x:Key="OptionEqualsToBoolConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

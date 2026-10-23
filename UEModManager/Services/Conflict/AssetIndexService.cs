@@ -124,7 +124,7 @@ public sealed class AssetIndexService
             PackageKey: package.PackageKey,
             DisplayName: package.DisplayName,
             Kind: package.Kind,
-            ContentHash: package.ContentHash,
+            ContentHash: PackageFingerprint.Of(package),
             Entries: deduped,
             Status: status,
             StatusDetail: detail);

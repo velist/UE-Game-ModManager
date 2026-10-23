@@ -143,7 +143,8 @@ public sealed class LanguageIntegrationTests : IDisposable
                 var list = (ItemsControl)window.FindName(listName);
                 var item = (FrameworkElement)list.ItemTemplate.LoadContent();
                 item.Resources = window.Resources;
-                var mod = new ModInfo { Name = "玩家的 MOD", RealName = "config.ini", IsEnabled = true, Categories = new() { category } };
+                // 类型取自 Package.Kind（刷新时写入 ModInfo.Kind），不再按包名扩展名猜
+                var mod = new ModInfo { Name = "玩家的 MOD", RealName = "config.ini", Kind = PackageKind.Config, IsEnabled = true, Categories = new() { category } };
                 item.DataContext = mod;
                 foreach (var english in new[] { true, false, true })
                 {

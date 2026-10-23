@@ -32,6 +32,23 @@ namespace UEModManager.ViewModels
         /// <summary>方案切换事件（通知主窗口刷新 MOD 列表）。</summary>
         public event Action? ProfileSwitched;
 
+        /// <summary>
+        /// 切换失败（部署没成功、仍在原方案）时触发，参数是给玩家看的原因。
+        /// </summary>
+        public event Action<string>? SwitchFailed;
+
+        private readonly Func<Guid, Task<OperationResult>>? _switchAndDeploy;
+
+        /// <param name="switchAndDeploy">
+        /// 部署并切换（<see cref="ProfileSwitchService.SwitchAsync"/>）。不传时退回只改当前方案的旧行为，
+        /// 仅供不涉及游戏目录的测试使用。
+        /// </param>
+        public ProfileViewModel(ProfileService profileService, Func<Guid, Task<OperationResult>>? switchAndDeploy)
+            : this(profileService)
+        {
+            _switchAndDeploy = switchAndDeploy;
+        }
+
         public ProfileViewModel(ProfileService profileService)
         {
             _profileService = profileService;
@@ -101,7 +118,19 @@ namespace UEModManager.ViewModels
         {
             if (profile == null || profile.IsActive) return;
 
-            await _profileService.SwitchProfileAsync(profile.Id);
+            if (_switchAndDeploy is null)
+            {
+                await _profileService.SwitchProfileAsync(profile.Id);
+            }
+            else
+            {
+                var result = await _switchAndDeploy(profile.Id);
+                if (!result.Success)
+                {
+                    SwitchFailed?.Invoke(result.Error ?? UiText.Get("切换方案失败"));
+                    return;
+                }
+            }
 
             // 刷新列表状态
             foreach (var p in Profiles)

@@ -338,6 +338,7 @@ namespace UEModManager
                     services.AddSingleton<DeploymentStateStore>();
                     services.AddSingleton<DeploymentPlanner>();
                     services.AddSingleton<DeploymentService>();
+                    services.AddSingleton<ProfileSwitchService>();
 
                     // v2.0 Phase 4: 冲突治理
                     // ConflictAnalyzer 已随"冲突检测模块重做"删除：
@@ -553,28 +554,11 @@ namespace UEModManager
                     return;
                 }
 
-                // 显示登录窗口
-                Console.WriteLine("[Auth] Resolve LoginWindow");
-                LoginWindow? loginWindow = null;
-                try { loginWindow = ServiceProvider.GetRequiredService<LoginWindow>(); }
-                catch (Exception resEx) { Console.WriteLine($"[Auth] Resolve LoginWindow failed: {resEx}"); throw; }
-                Console.WriteLine("[Auth] Show LoginWindow");
-                bool? result = null;
-                try { result = loginWindow.ShowDialog(); }
-                catch (Exception dlgEx) { Console.WriteLine($"[Auth] ShowDialog failed: {dlgEx}"); throw; }
-
-                if (result == true)
-                {
-                    // 登录成功，显示主窗口
-                    Console.WriteLine("[Auth] LoginWindow -> OK, ShowMainWindow");
-                    ShowMainWindow();
-                }
-                else
-                {
-                    // 用户选择离线模式或关闭窗口
-                    Console.WriteLine("[Auth] LoginWindow -> Cancel/Offline, ShowMainWindow");
-                    ShowMainWindow();
-                }
+                // 没有可恢复的会话：直接进主窗口，不再先弹登录窗口。
+                // 核心 MOD 管理不需要登录，而登录窗口唯一的出口是右上角一个小 ×，
+                // 很多玩家会以为"必须登录才能用"。账号入口在主窗口侧栏（"点击登录账号"）。
+                Console.WriteLine("[Auth] No session -> ShowMainWindow (login from sidebar)");
+                ShowMainWindow();
             }
             catch (ObjectDisposedException)
             {

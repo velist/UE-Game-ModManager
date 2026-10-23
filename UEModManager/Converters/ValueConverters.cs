@@ -99,15 +99,23 @@ namespace UEModManager.Converters
     public class PackageKindToLabelConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-            value is PackageKind kind ? kind switch
-            {
-                PackageKind.Plugin => "插件",
-                PackageKind.Config => "配置",
-                _ => "MOD"
-            } : "MOD";
+            value is PackageKind kind ? Services.Detection.PackageKindText.Label(kind) : "MOD";
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// 字符串选项 ↔ RadioButton.IsChecked：值等于 ConverterParameter 时勾选；
+    /// 勾选时回写参数，取消勾选不回写（分段切换里取消由另一个按钮被勾选完成）。
+    /// </summary>
+    public class OptionEqualsToBoolConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+            string.Equals(value as string, parameter as string, StringComparison.Ordinal);
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            value is true ? parameter : Binding.DoNothing;
     }
 
     public class NullToVisibilityConverter : IValueConverter

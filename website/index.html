@@ -10,6 +10,7 @@
   <link rel="canonical" href="https://www.modmanger.com/">
   <link rel="icon" href="assets/favicon-48.png" type="image/png" sizes="48x48">
   <link rel="apple-touch-icon" href="assets/brand.png">
+  <link rel="preload" as="image" href="assets/hero-hub-1600.webp" imagesrcset="assets/hero-hub-800.webp 800w, assets/hero-hub-1600.webp 1600w" imagesizes="100vw" fetchpriority="high">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="release.css">
   <meta property="og:type" content="website">
@@ -42,7 +43,8 @@
         "url": "https://www.modmanger.com/",
         "name": "爱酱MOD管理器官网｜Windows MOD 管理工具免费下载",
         "inLanguage": "zh-CN", "isPartOf": { "@id": "https://www.modmanger.com/#website" },
-        "mainEntity": { "@id": "https://www.modmanger.com/#software" }
+        "mainEntity": { "@id": "https://www.modmanger.com/#software" },
+        "video": { "@id": "https://www.modmanger.com/#promo-video" }
       },
       {
         "@type": "SoftwareApplication", "@id": "https://www.modmanger.com/#software",
@@ -52,128 +54,180 @@
         "description": "支持多款游戏的免费本地 MOD 管理工具，可导入、分类、启用和禁用 MOD，核心功能无需登录，离线可用。",
         "softwareHelp": { "@type": "WebPage", "url": "https://www.modmanger.com/help" },
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
+      },
+      {
+        "@type": "VideoObject", "@id": "https://www.modmanger.com/#promo-video",
+        "name": "爱酱MOD管理器宣传片",
+        "description": "52 秒看懂爱酱MOD管理器：拖拽导入、方案一键切换、冲突一眼看清、失败自动回滚、分类与清理，以及内置支持的游戏。",
+        "thumbnailUrl": "https://www.modmanger.com/assets/video/promo-v5b-poster.webp",
+        "contentUrl": "https://www.modmanger.com/assets/video/promo-v5b-1080p.mp4",
+        "uploadDate": "2026-10-22T00:00:00+08:00", "duration": "PT52S", "inLanguage": "zh-CN",
+        "about": { "@id": "https://www.modmanger.com/#software" }
       }
     ]
   }
   </script>
 </head>
-<body>
+<body class="lp-home">
   <a class="lp-skip" href="#top">跳到主要内容</a>
   <div class="site-shell">
     <header class="lp-header">
       <a class="lp-brand" href="./" aria-label="爱酱MOD管理器首页"><img src="assets/brand.png" alt="" width="32" height="32"><span>爱酱<span class="lp-brand-mod">MOD</span>管理器</span></a>
-      <nav class="lp-nav" aria-label="主导航"><a href="#features">功能</a><a href="#faq">常见问题</a><a href="/help">使用帮助</a></nav>
+      <nav class="lp-nav" aria-label="主导航"><a href="#features">功能</a><a href="#games">游戏</a><a href="#faq">常见问题</a><a href="/help">使用帮助</a></nav>
       <a class="lp-button lp-button-small" href="#download">下载 <span aria-hidden="true">↓</span></a>
     </header>
     <main id="top" tabindex="-1">
-      <section class="lp-hero lp-wrap" aria-labelledby="hero-title">
-        <div class="lp-hero-copy">
-          <p class="lp-kicker"><span aria-hidden="true"></span> 为喜欢折腾 MOD 的你</p>
-          <h1 id="hero-title">让 MOD 管理<br><em>简单一点。</em></h1>
-          <p class="lp-lead">Windows 上的多游戏 MOD 管理工具。<br>导入、分类、启用，把时间留给游戏。</p>
-          <div class="lp-actions">
-            <a class="lp-button" href="#download"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg> 获取 Windows 版</a>
-            <a class="lp-text-link" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明 <span aria-hidden="true">↗</span></a>
-          </div>
-          <p class="lp-system">Windows 10 / 11 <span>·</span> 免费使用 <span>·</span> 核心功能无需登录</p>
-        </div>
-        <figure class="lp-product" id="preview">
-          <div class="lp-app" role="img" aria-label="MOD 管理界面示意：在游戏列表中选择游戏，按分类查看 MOD，并管理启用状态。界面中的 MOD 名称为示例。">
-            <div class="lp-app-title" aria-hidden="true"><span><img src="assets/brand.png" alt="" width="18" height="18"> 爱酱MOD管理器</span><span class="lp-window-controls">— &nbsp; □ &nbsp; ×</span></div>
-            <div class="lp-app-body" aria-hidden="true">
-              <aside class="lp-app-sidebar">
-                <span class="lp-app-label">我的游戏</span>
-                <div class="lp-app-game selected"><img src="assets/games/black-myth-wukong.webp" alt="" width="28" height="28"><span>黑神话·悟空</span></div>
-                <div class="lp-app-game"><img src="assets/games/stellar-blade.webp" alt="" width="28" height="28"><span>剑星</span></div>
-                <div class="lp-app-game"><img src="assets/games/clair-obscur-expedition-33.webp" alt="" width="28" height="28"><span>33号远征队</span></div>
-                <div class="lp-app-game"><img src="assets/games/wuchang-fallen-feathers.webp" alt="" width="28" height="28"><span>明末·渊虚之羽</span></div>
-                <span class="lp-app-add">＋ 添加游戏</span><div class="lp-app-local"><span></span> 本地管理</div>
-              </aside>
-              <div class="lp-app-content">
-                <div class="lp-app-toolbar"><div><span class="lp-app-label">游戏 MOD</span><strong>黑神话·悟空</strong></div><span class="lp-demo-import">＋ 导入 MOD</span></div>
-                <div class="lp-app-tabs"><span>全部 MOD <small>3</small></span><span>已启用 <small>2</small></span></div>
-                <div class="lp-app-columns"><span>名称 / 分类</span><span>状态</span></div>
-                <div class="lp-mod-row"><span class="lp-mod-icon">材</span><div><strong>高画质纹理</strong><small>画面 · 纹理</small></div><span class="lp-toggle on"></span></div>
-                <div class="lp-mod-row"><span class="lp-mod-icon">UI</span><div><strong>简洁 HUD</strong><small>界面 · 工具</small></div><span class="lp-toggle on"></span></div>
-                <div class="lp-mod-row"><span class="lp-mod-icon muted">衣</span><div><strong>角色外观</strong><small>外观 · 角色</small></div><span class="lp-toggle"></span></div>
-                <div class="lp-app-status"><span><i></i> 已启用 2 个 MOD</span><span>本地仓库</span></div>
-              </div>
+      <section class="lp-hero" aria-labelledby="hero-title">
+        <picture class="lp-hero-bg" aria-hidden="true">
+          <img src="assets/hero-hub-1600.webp" srcset="assets/hero-hub-800.webp 800w, assets/hero-hub-1600.webp 1600w" sizes="100vw" alt="" width="1600" height="900" fetchpriority="high" decoding="async">
+        </picture>
+        <div class="lp-hero-inner lp-wrap">
+          <div class="lp-hero-copy">
+            <p class="lp-kicker"><span aria-hidden="true"></span>免费 · Windows 10 / 11 · 核心功能无需登录</p>
+            <h1 id="hero-title">装 MOD，<br><em>不该这么难。</em></h1>
+            <p class="lp-lead">导入、换搭配、查冲突、出错恢复，一个窗口搞定。</p>
+            <div class="lp-actions">
+              <a class="lp-button" href="#download"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg> 免费下载 v2.1.1</a>
             </div>
           </div>
-          <figcaption><span class="lp-caption-line"></span> 管理界面示意 · MOD 名称为演示内容</figcaption>
-        </figure>
-      </section>
-      <section class="lp-games lp-wrap" aria-labelledby="games-title">
-        <div><h2 id="games-title">多款游戏，一个管理器。</h2><p>内置游戏预设，也支持自行添加。</p></div>
-        <ul class="lp-game-list">
-          <li><img src="assets/games/black-myth-wukong.webp" alt="" width="40" height="40"><span>黑神话·悟空</span></li>
-          <li><img src="assets/games/stellar-blade.webp" alt="" width="40" height="40"><span>剑星</span></li>
-          <li><img src="assets/games/clair-obscur-expedition-33.webp" alt="" width="40" height="40"><span>33号远征队</span></li>
-          <li><img src="assets/games/wuchang-fallen-feathers.webp" alt="" width="40" height="40"><span>明末·渊虚之羽</span></li>
-          <li><a href="/help#games">更多游戏 <span aria-hidden="true">↗</span></a></li>
-        </ul>
-      </section>
-      <section id="features" class="lp-features lp-wrap" aria-labelledby="features-title">
-        <div class="lp-section-top"><h2 id="features-title">从导入到开玩，顺手就好。</h2><a class="lp-text-link" href="/help#storage">看看新版存储设置 <span aria-hidden="true">↗</span></a></div>
-        <div class="lp-feature-list">
-          <article><span class="lp-feature-number">01 / 导入</span><h3>拖进来，整理好</h3><p>导入 MOD，按游戏和分类整理。<br>常用内容集中在一处。</p></article>
-          <article><span class="lp-feature-number">02 / 管理</span><h3>想用哪个，就启用哪个</h3><p>启用、禁用，随时调整组合。<br>核心管理在本地完成，离线也能用。</p></article>
-          <article><span class="lp-feature-number">03 / 存储</span><h3>放在哪个盘，由你选</h3><p>选择 MOD 的存储位置。<br>需要腾空间时，可以在设置里迁移。</p></article>
+          <figure class="lp-video" id="video">
+            <div class="lp-video-frame">
+              <video controls playsinline preload="none" poster="assets/video/promo-v5b-poster.webp" width="1920" height="1080" aria-label="爱酱MOD管理器宣传片，52 秒，有背景音乐">
+                <source src="assets/video/promo-v5b-720p.mp4" type="video/mp4" media="(max-width: 760px)">
+                <source src="assets/video/promo-v5b-1080p.mp4" type="video/mp4">
+                <p>你的浏览器无法播放视频，可以<a href="assets/video/promo-v5b-720p.mp4">直接下载宣传片（约 7 MB）</a>。</p>
+              </video>
+            </div>
+          </figure>
         </div>
       </section>
 
-      <section id="download" class="section download-section reveal">
+      <section id="features" class="lp-features lp-wrap" aria-labelledby="features-title">
+        <div class="lp-section-head">
+          <h2 id="features-title">从导入到开玩，顺手就好。</h2>
+        </div>
+        <article class="lp-feature">
+          <div class="lp-feature-text">
+            <span class="lp-feature-no">01 · 导入</span>
+            <h3>拖进来，就装好了</h3>
+            <p>压缩包、文件夹、单个文件，拖进窗口自动识别。</p>
+          </div>
+          <img class="lp-feature-shot" src="assets/features/feature-01.webp" alt="导入窗口示意：拖入文件后列出检测到的 MOD 包和配置文件" width="1020" height="790" loading="lazy" decoding="async">
+        </article>
+        <article class="lp-feature">
+          <div class="lp-feature-text">
+            <span class="lp-feature-no">02 · 方案</span>
+            <h3>一套方案，一键切换</h3>
+            <p>剧情向、截图党、纯净原版，各存一套，点一下就换。</p>
+          </div>
+          <img class="lp-feature-shot" src="assets/features/feature-02.webp" alt="方案切换示意：左侧选择方案，右侧 MOD 卡片的开关随之变化" width="1020" height="790" loading="lazy" decoding="async">
+        </article>
+        <article class="lp-feature">
+          <div class="lp-feature-text">
+            <span class="lp-feature-no">03 · 冲突</span>
+            <h3>谁覆盖了谁，一眼看清</h3>
+            <p>两个 MOD 改了同一个文件，直接告诉你哪个生效；配置改动自动合并。</p>
+          </div>
+          <img class="lp-feature-shot" src="assets/features/feature-03.webp" alt="冲突检测示意：列出覆盖同一文件的两个 MOD 及最终生效的一方" width="1020" height="790" loading="lazy" decoding="async">
+        </article>
+        <article class="lp-feature">
+          <div class="lp-feature-text">
+            <span class="lp-feature-no">04 · 安全</span>
+            <h3>出了错，自动回到原样</h3>
+            <p>装之前先备份，中途失败自动撤回，报错说人话。</p>
+          </div>
+          <img class="lp-feature-shot" src="assets/features/feature-04.webp" alt="部署失败示意：提示文件被占用，并显示已回到部署前的状态" width="1020" height="790" loading="lazy" decoding="async">
+        </article>
+        <article class="lp-feature">
+          <div class="lp-feature-text">
+            <span class="lp-feature-no">05 · 整理</span>
+            <h3>装得再多，也井井有条</h3>
+            <p>分类、搜索、清理不再用到的文件，仓库放哪个盘你定。</p>
+          </div>
+          <img class="lp-feature-shot" src="assets/features/feature-05.webp" alt="高级管理示意：显示总占用、MOD 数量、分类统计和清理按钮" width="1020" height="790" loading="lazy" decoding="async">
+        </article>
+      </section>
+
+      <section id="games" class="lp-games" aria-labelledby="games-title">
+        <div class="lp-wrap">
+          <div class="lp-section-head">
+            <p class="lp-overline">支持的游戏</p>
+            <h2 id="games-title">不止虚幻引擎。</h2>
+          </div>
+          <ul class="lp-game-wall">
+            <li><img src="assets/games/black-myth-wukong.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>黑神话·悟空</strong><span>Unreal Engine</span></li>
+            <li><img src="assets/games/stellar-blade.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>剑星</strong><span>Unreal Engine</span></li>
+            <li><img src="assets/games/stellar-blade.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>剑星 (CNS)</strong><span>CNS 模式</span></li>
+            <li><img src="assets/games/clair-obscur-expedition-33.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>光与影：33号远征队</strong><span>Unreal Engine</span></li>
+            <li><img src="assets/games/wuchang-fallen-feathers.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>明末·渊虚之羽</strong><span>Unreal Engine</span></li>
+            <li><img src="assets/games/borderlands-4.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>无主之地4</strong><span>Unreal Engine</span></li>
+            <li><img src="assets/games/diablo-iv.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>暗黑破坏神4</strong><span>暗黑 4 引擎</span></li>
+            <li><img src="assets/games/resident-evil-requiem.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>生化危机9</strong><span>RE Engine</span></li>
+            <li><img src="assets/games/pragmata.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>识质存在</strong><span>RE Engine</span></li>
+            <li><img src="assets/games/death-stranding-2.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>死亡搁浅2</strong><span>Decima</span></li>
+            <li><img src="assets/games/slay-the-spire-2.webp" alt="" width="56" height="56" loading="lazy" decoding="async"><strong>杀戮尖塔2</strong><span>Godot</span></li>
+            <li class="lp-game-custom"><span class="lp-game-plus" aria-hidden="true">＋</span><strong>添加你的游戏</strong><span>选引擎 · 设路径</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="download" class="section download-section">
+        <picture class="lp-download-bg" aria-hidden="true"><img src="assets/download-stage.webp" alt="" width="1600" height="900" loading="lazy" decoding="async"></picture>
         <div class="download-card">
-          <p class="eyebrow">下载与文档</p>
-          <h2>获取爱酱MOD管理器 v2.1.1</h2>
-          <p>扫描下方二维码任选一个网盘下载。首次使用前建议对重要 MOD 和游戏存档留一份备份。</p>
+          <h2>免费下载 v2.1.1</h2>
           <div class="download-actions">
             <a class="btn secondary" href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明书</a>
           </div>
           <div class="download-meta">
-            <span>系统：Windows 10 / 11</span>
-            <span>版本：v2.1.1</span>
-            <span>安装包：UEModManager_v2.1.1_Setup.exe · 约 40 MB</span>
+            <span>64 位 Windows 10 / 11</span>
+            <span>约 40 MB</span>
           </div>
           <div class="download-methods-grid inline-downloads">
             <article class="download-method">
-              <img src="assets/download-baidu.png" alt="百度网盘下载二维码" loading="lazy">
+              <img src="assets/download-baidu.png" alt="百度网盘下载二维码" width="138" height="138" loading="lazy">
               <strong>百度网盘</strong>
               <span>提取码：6679</span>
             </article>
             <article class="download-method">
-              <img src="assets/download-xunlei.png" alt="迅雷网盘下载二维码" loading="lazy">
+              <img src="assets/download-xunlei.png" alt="迅雷网盘下载二维码" width="138" height="138" loading="lazy">
               <strong>迅雷网盘</strong>
               <span class="meta-muted">无需提取码</span>
             </article>
             <article class="download-method">
-              <img src="assets/download-uc.png" alt="UC网盘下载二维码" loading="lazy">
+              <img src="assets/download-uc.png" alt="UC网盘下载二维码" width="138" height="138" loading="lazy">
               <strong>UC网盘</strong>
               <span class="meta-muted">无需提取码</span>
             </article>
             <article class="download-method">
-              <img src="assets/download-quark.png" alt="夸克网盘下载二维码" loading="lazy">
+              <img src="assets/download-quark.png" alt="夸克网盘下载二维码" width="138" height="138" loading="lazy">
               <strong>夸克网盘</strong>
               <span class="meta-muted">无需提取码</span>
             </article>
           </div>
+          <p class="lp-download-note">需要 .NET 8 桌面运行库，安装时会提示。</p>
         </div>
       </section>
 
       <section id="faq" class="lp-faq lp-wrap" aria-labelledby="faq-title">
-        <div class="lp-faq-intro"><p class="lp-overline">开始之前</p><h2 id="faq-title">你可能想问</h2><p>还有疑问？<br><a class="lp-text-link" href="/help">查看使用帮助 <span aria-hidden="true">↗</span></a></p></div>
+        <div class="lp-faq-intro"><h2 id="faq-title">常见问题</h2><p><a class="lp-text-link" href="/help">使用帮助 <span aria-hidden="true">↗</span></a></p></div>
         <div class="lp-questions">
-          <details><summary>需要注册或一直联网吗？<span aria-hidden="true">＋</span></summary><p>核心 MOD 管理无需登录。导入、分类、启用和禁用都可以在本地完成，离线时也能使用。</p></details>
-          <details><summary>登录后会同步我的 MOD 文件吗？<span aria-hidden="true">＋</span></summary><p>不会。MOD 文件保存在本地仓库和游戏目录中，当前账号功能不提供 MOD 文件云同步。</p></details>
-          <details><summary>从旧版本升级，数据怎么办？<span aria-hidden="true">＋</span></summary><p>先保留旧数据并关闭旧程序，再运行安装目录中的“一键迁移老版本数据.bat”。完整步骤见<a href="/help#migration">迁移说明</a>。</p></details>
-          <details><summary>MOD 启用失败，去哪里找帮助？<span aria-hidden="true">＋</span></summary><p>先查看高级管理中的安装记录，再按<a href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明书</a>检查游戏路径、权限和冲突。也可以<a href="https://qm.qq.com/q/5PeqQxiszC" target="_blank" rel="noopener">加入爱酱MOD管理器交流群（147223127）</a>反馈。</p></details>
+          <details><summary>需要注册或一直联网吗？<span aria-hidden="true">＋</span></summary><p>不需要。核心 MOD 管理无需登录，离线也能用。</p></details>
+          <details><summary>登录后会同步我的 MOD 文件吗？<span aria-hidden="true">＋</span></summary><p>不会。MOD 文件只保存在你的电脑上。</p></details>
+          <details><summary>我的游戏不在列表里，还能用吗？<span aria-hidden="true">＋</span></summary><p>可以。点“添加游戏”，选引擎、填路径；不确定引擎就选“通用规则”。</p></details>
+          <details><summary>从旧版本升级，数据怎么办？<span aria-hidden="true">＋</span></summary><p>关闭旧程序，运行安装目录里的“一键迁移老版本数据.bat”，详见<a href="/help#migration">迁移说明</a>。</p></details>
+          <details><summary>MOD 启用失败，去哪里找帮助？<span aria-hidden="true">＋</span></summary><p>先看高级管理里的安装记录和<a href="https://www.kdocs.cn/l/chqhf7cWy7K8" target="_blank" rel="noopener">使用说明书</a>；还不行就到 QQ 群反馈。</p></details>
         </div>
+      </section>
+
+      <section class="lp-support-band lp-wrap" aria-labelledby="support-title">
+        <div><h2 id="support-title">觉得好用？</h2></div>
+        <div class="lp-actions"><a class="lp-button" href="https://qm.qq.com/q/5PeqQxiszC" target="_blank" rel="noopener">加入 QQ 群 147223127 ↗</a><a class="lp-button lp-button-ghost" href="/help#support">支持作者</a></div>
       </section>
     </main>
     <footer class="lp-footer lp-wrap">
-      <div><a class="lp-brand" href="./"><img src="assets/brand.png" alt="" width="26" height="26"><span>爱酱MOD管理器</span></a><p>把时间留给游戏。</p></div>
+      <div><a class="lp-brand" href="./"><img src="assets/brand.png" alt="" width="26" height="26"><span>爱酱MOD管理器</span></a><p>把 MOD 管好，把游戏玩好。</p></div>
       <nav aria-label="更多信息"><a id="migration" href="/help#migration">迁移说明</a><a id="v2" href="/help#v2">版本说明</a><a id="privacy" href="/help#privacy">隐私说明</a><a id="thanks" href="/help#thanks">鸣谢</a><a id="support" href="/help#support">支持作者</a><a href="https://qm.qq.com/q/5PeqQxiszC" title="爱酱MOD管理器交流群" target="_blank" rel="noopener">QQ 群 · 147223127 ↗</a></nav>
-      <small>游戏名称与图标归各自权利人所有，用于标识对应游戏。</small>
+      <small>游戏名称、图标及宣传片中的游戏画面归各自权利人所有，仅用于标识对应游戏。</small>
     </footer>
   </div>
   <script src="script.js" defer></script>

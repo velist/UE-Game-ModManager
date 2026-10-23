@@ -43,7 +43,9 @@ export async function checkWebsite(root = fileURLToPath(new URL('../../website/'
     } else {
       assert.match(html, /<meta name="robots" content="noindex"/, '404 page must not be indexed');
     }
-    for (const [, value] of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
+    const references = [...html.matchAll(/\b(?:href|src|poster)="([^"]+)"/g)].map(match => match[1]);
+    for (const [, set] of html.matchAll(/\b(?:srcset|imagesrcset)="([^"]+)"/g)) references.push(...set.split(',').map(item => item.trim().split(/\s+/)[0]));
+    for (const value of references) {
       const url = new URL(value, publicUrl);
       if (url.origin !== origin) continue;
       const route = decodeURIComponent(url.pathname);
@@ -77,6 +79,15 @@ export async function checkWebsite(root = fileURLToPath(new URL('../../website/'
   assert.equal(indexNowFiles.length, 1, 'Expected one IndexNow verification file');
   const indexNowKey = (await readFile(path.join(root, indexNowFiles[0]), 'utf8')).trim();
   assert.equal(indexNowFiles[0], `indexnow-${indexNowKey}.txt`, 'IndexNow key does not match its verification filename');
+  // Cloudflare Pages rejects any single file above 25 MiB.
+  async function assertFileSizes(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) await assertFileSizes(file);
+      else assert.ok((await stat(file)).size <= 25 * 1024 * 1024, `${path.relative(root, file)}: exceeds the 25 MiB Cloudflare Pages limit`);
+    }
+  }
+  await assertFileSizes(root);
   const headers = await readFile(path.join(root, '_headers'), 'utf8');
   for (const [, rule, values] of headers.matchAll(/^(\S+)\r?\n((?:[ \t]+[^\r\n]+\r?\n?)+)/gm)) {
     if (!/X-Robots-Tag:\s*[^\r\n]*noindex/i.test(values)) continue;

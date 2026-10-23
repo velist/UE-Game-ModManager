@@ -295,33 +295,9 @@ namespace UEModManager.Services
                 if (localRestore)
                 {
                     _logger.LogInformation("本地会话恢复成功");
-                    
-                    // 如果在线，尝试验证云端会话
-                    if (await CheckNetworkConnectivity())
-                    {
-                        try
-                        {
-                            var cloudRestore = await _cloudAuthService.ValidateTokenAsync();
-                            if (cloudRestore)
-                            {
-                                _logger.LogInformation("云端会话验证成功");
-                                return UnifiedAuthResult.Success("会话恢复成功", AuthSource.Hybrid, _localAuthService.CurrentUser);
-                            }
-                            else
-                            {
-                                // 云端token验证失败（可能过期），清理本地状态
-                                _logger.LogWarning("云端会话验证失败，清理本地会话状态");
-                                await _localAuthService.LogoutAsync();
-                                return UnifiedAuthResult.Failed("云端会话已过期，请重新登录");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "云端会话验证异常，清理本地会话状态");
-                            await _localAuthService.LogoutAsync();
-                            return UnifiedAuthResult.Failed("会话验证异常，请重新登录");
-                        }
-                    }
+
+                    // 不再联网校验云端令牌：验证码登录只建本地会话、从不设置云端令牌，
+                    // 那次校验必然失败，结果是"联网时反而被登出、断网反而保持登录"。
 
                     return UnifiedAuthResult.Success("本地会话恢复成功", AuthSource.Local, _localAuthService.CurrentUser);
                 }
@@ -365,8 +341,10 @@ namespace UEModManager.Services
             try
             {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
-                var response = await _httpClient.GetAsync("https://www.baidu.com", cts.Token);
-                return response.IsSuccessStatusCode;
+                // 探测自家 API 而不是第三方站点：隐私说明里只列了我们自己的服务；
+                // 海外用户访问 baidu 慢或不通，还会被误判成离线。任何 HTTP 响应都说明网络是通的。
+                using var response = await _httpClient.GetAsync("https://api.modmanger.com/", cts.Token);
+                return true;
             }
             catch
             {

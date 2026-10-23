@@ -37,6 +37,12 @@ public sealed partial class ConflictViewModel : ObservableObject
         _logger = logger;
     }
 
+    /// <summary>
+    /// 不可撤销操作前的确认（参数：正文、标题；返回 true = 用户确认）。由窗口注入危险确认框；
+    /// 未注入时视为不确认——宁可点了没反应，也不能不问就删。
+    /// </summary>
+    public Func<string, string, bool>? ConfirmDanger { get; set; }
+
     /// <summary>标题下方的统计行。</summary>
     [ObservableProperty]
     private string _headerText = UiText.Get("冲突检测");
@@ -230,6 +236,14 @@ public sealed partial class ConflictViewModel : ObservableObject
             var missing = UiText.Get("仓库中找不到这个 MOD");
             return await RunActionAsync(missing, () => Task.FromResult(OperationResult.Fail(missing)));
         }
+
+        // 删除是永久的：仓库里的文件一起删掉，只能重新导入。以前点了直接删，没有任何确认。
+        var keep = Duplicates.FirstOrDefault(d => string.Equals(d.Copy.PackageKey, packageKey, StringComparison.OrdinalIgnoreCase))?.Primary.DisplayName;
+        var message = keep is null
+            ? UiText.Format("删除“{0}”？删除后需要重新导入才能找回。", mod.Name)
+            : UiText.Format("删除“{0}”？它和“{1}”内容完全一样，删除后只保留“{1}”。删除后需要重新导入才能找回。", mod.Name, keep);
+        if (ConfirmDanger?.Invoke(message, UiText.Get("删除重复的 MOD")) != true)
+            return OperationResult.Cancel();
 
         return await RunActionAsync(UiText.Format("已删除 {0}", mod.Name), () => _main.DeletePackageModAsync(mod));
     }

@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using UEModManager.Services.Detection;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Import;
@@ -97,8 +98,8 @@ namespace UEModManager.Views
             // 分析每个文件
             foreach (var path in FilePaths)
             {
-                var ext = Path.GetExtension(path).ToLowerInvariant();
-                var kind = DetectKind(ext);
+                // 与导入流水线同一套规则，确认框里显示的类型就是导入后的类型
+                var kind = PackageKindDetector.DetectByExtension(path);
                 var fi = new FileInfo(path);
                 var entry = new FileEntry
                 {
@@ -106,7 +107,8 @@ namespace UEModManager.Views
                     FileName = Path.GetFileName(path),
                     Kind = kind,
                     Size = fi.Exists ? fi.Length : 0,
-                    ShouldImport = true
+                    // 疑似游戏原版文件默认不导入：导入后一启用就会覆盖原版，游戏可能起不来。玩家仍可手动勾上
+                    ShouldImport = !GameOriginalFileDetector.LooksLikeGameOriginal(path)
                 };
                 _fileEntries.Add(entry);
                 AddFileRow(entry);
@@ -237,16 +239,16 @@ namespace UEModManager.Views
                 .Where(f => existingKeys.Contains(Path.GetFileNameWithoutExtension(f.FileName)))
                 .ToList();
 
-            if (conflicts.Count > 0)
-            {
-                ConflictWarningPanel.Visibility = Visibility.Visible;
-                ConflictWarningText.Text = string.Join("\n",
-                    conflicts.Select(c => UiText.Interpolate($"{c.FileName} 与已有 MOD 存在文件路径冲突")));
-            }
-            else
-            {
-                ConflictWarningPanel.Visibility = Visibility.Collapsed;
-            }
+            // 只比了名字，而导入会自动另存为新名字（EnsureUniquePackageKey）——如实说，不说"路径冲突"
+            var lines = conflicts
+                .Select(c => UiText.Interpolate($"已有同名 MOD「{Path.GetFileNameWithoutExtension(c.FileName)}」，导入后会另存为新名字，不会覆盖"))
+                .Concat(_fileEntries
+                    .Where(f => GameOriginalFileDetector.LooksLikeGameOriginal(f.FilePath))
+                    .Select(f => UiText.Interpolate($"{f.FileName} 看起来是游戏自带的原版文件，不是 MOD，已默认不导入（导入后启用可能让游戏无法启动）")))
+                .ToList();
+
+            ConflictWarningPanel.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            ConflictWarningText.Text = string.Join(Environment.NewLine, lines);
         }
 
         // ─── 事件处理 ───
@@ -421,13 +423,6 @@ namespace UEModManager.Views
                 .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
         }
 
-        private static PackageKind DetectKind(string ext) => ext switch
-        {
-            ".pak" or ".utoc" or ".ucas" => PackageKind.Mod,
-            ".dll" => PackageKind.Plugin,
-            ".ini" or ".json" or ".cfg" or ".yaml" or ".xml" => PackageKind.Config,
-            _ => PackageKind.Mod // 压缩包默认为 MOD
-        };
 
         private class FileEntry
         {

@@ -33,13 +33,19 @@ public class DeploymentPlanner
         _stateStore = stateStore;
     }
 
-    public Task<DeploymentPlan> CreatePlanAsync()
-        => CreatePlanForProfileAsync(_profileService.CurrentProfile ?? throw new InvalidOperationException("没有活跃的 Profile"));
+    public Task<DeploymentPlan> CreatePlanAsync(bool releaseExternallyModified = false)
+        => CreatePlanForProfileAsync(_profileService.CurrentProfile ?? throw new InvalidOperationException("没有活跃的 Profile"),
+            releaseExternallyModified);
 
-    public async Task<DeploymentPlan> CreatePlanForProfileAsync(InstanceProfile profile)
-        => await CreatePlanForViewAsync(await _viewBuilder.BuildForProfileAsync(profile));
+    public async Task<DeploymentPlan> CreatePlanForProfileAsync(InstanceProfile profile, bool releaseExternallyModified = false)
+        => await CreatePlanForViewAsync(await _viewBuilder.BuildForProfileAsync(profile), releaseExternallyModified);
 
-    public async Task<DeploymentPlan> CreatePlanForViewAsync(ResolvedView view)
+    /// <param name="releaseExternallyModified">
+    /// 要移除的托管文件已被外部改过（典型是游戏更新换掉了它）时：false 抛
+    /// <see cref="ExternallyModifiedFilesException"/>；true 则"交给游戏"——文件原样留下、
+    /// 移出托管清单，不删除也不还原更新前的原版文件（那会覆盖掉游戏更新）。
+    /// </param>
+    public async Task<DeploymentPlan> CreatePlanForViewAsync(ResolvedView view, bool releaseExternallyModified = false)
     {
         if (view.ProfileId == Guid.Empty) throw new InvalidOperationException("没有活跃的 Profile");
         var modPath = DeploymentStateStore.NormalizeRoot(_gameConfigService.CurrentModPath);
@@ -90,11 +96,23 @@ public class DeploymentPlanner
                 owner?.Kind ?? wanted!.Kind, owner != null);
         }
 
+        var modified = new List<string>();
         foreach (var owner in known.Values.Where(f => !desired.ContainsKey(f.TargetPath)))
         {
             if (actual.TryGetValue(owner.TargetPath, out var file)
                 && !string.Equals(file.Hash, owner.FileHash, StringComparison.OrdinalIgnoreCase))
-                throw new IOException($"已部署文件被外部修改，无法安全移除；请先保留或处理该文件: {owner.TargetPath}");
+            {
+                if (!releaseExternallyModified)
+                {
+                    modified.Add(owner.TargetPath);
+                    continue;
+                }
+                // 交给游戏：既不在 desired 也不在 actual 里，diff 不会为它生成任何操作；
+                // 它也不在 nextFiles 里，提交后就不再属于托管文件
+                actual.Remove(owner.TargetPath);
+                _logger.LogInformation("已部署文件被外部修改，交给游戏不再托管: {Path}", owner.TargetPath);
+                continue;
+            }
             if (owner.OriginalFilePath == null) continue;
             if (!File.Exists(owner.OriginalFilePath))
                 throw new FileNotFoundException("原始文件备份缺失，已停止移除配置以保护游戏文件。", owner.OriginalFilePath);
@@ -102,6 +120,9 @@ public class DeploymentPlanner
                 owner.OriginalFilePath, owner.TargetPath, owner.RelativeTargetPath,
                 await ObjectStore.ComputeFileHashAsync(owner.OriginalFilePath), new FileInfo(owner.OriginalFilePath).Length, owner.Kind);
         }
+
+        if (modified.Count > 0)
+            throw new ExternallyModifiedFilesException(modified);
 
         var operations = DeploymentDiffComputer.ComputeDiff(desired, actual);
         foreach (var operation in operations)
@@ -122,7 +143,7 @@ public class DeploymentPlanner
         return plan;
     }
 
-    public Task<DeploymentPlan> CreateTogglePlanAsync(string packageKey, bool enable)
+    public Task<DeploymentPlan> CreateTogglePlanAsync(string packageKey, bool enable, bool releaseExternallyModified = false)
     {
         var profile = _profileService.CurrentProfile ?? throw new InvalidOperationException("没有活跃的 Profile");
         var package = _packageRepository.GetByKey(packageKey) ?? throw new InvalidOperationException($"包 '{packageKey}' 不存在");
@@ -145,7 +166,7 @@ public class DeploymentPlanner
                 PackageKey = package.PackageKey, IsEnabled = enable, Kind = package.Kind,
                 TargetRootPath = package.TargetRootPath, Priority = snapshot.Packages.Count
             });
-        return CreatePlanForProfileAsync(snapshot);
+        return CreatePlanForProfileAsync(snapshot, releaseExternallyModified);
     }
 
     private async Task AdoptLegacyFilesAsync(DeploymentState state, Dictionary<string, ManagedDeploymentFile> known)
@@ -213,4 +234,21 @@ public class DeploymentPlanner
             && f.RelativeTargetPath == other.RelativeTargetPath && f.Kind == other.Kind
             && f.FileHash == other.FileHash && f.FileSize == other.FileSize && f.OriginalFilePath == other.OriginalFilePath);
     }
+}
+
+/// <summary>
+/// 要移除的托管文件已被外部改过（多半是游戏更新换掉了它），为了安全没有动它们。
+/// 调用方应询问玩家是否"交给游戏"，同意后以 releaseExternallyModified=true 重新规划。
+/// </summary>
+public sealed class ExternallyModifiedFilesException : IOException
+{
+    public ExternallyModifiedFilesException(IReadOnlyList<string> paths)
+        : base(UEModManager.Localization.UiText.Interpolate(
+            $"游戏更新后改动了 {paths.Count} 个已安装的文件，为了安全没有删除它们：{Path.GetFileName(paths[0])}"))
+    {
+        Paths = paths;
+    }
+
+    /// <summary>被外部修改的目标文件（绝对路径）。</summary>
+    public IReadOnlyList<string> Paths { get; }
 }

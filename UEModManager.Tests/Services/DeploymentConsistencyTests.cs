@@ -433,8 +433,31 @@ public sealed class DeploymentConsistencyTests : IDisposable
         var target = Path.Combine(_game.CurrentModPath, "a", "a.pak");
         await File.WriteAllTextAsync(target, "USER");
         await SwitchToEmptyAsync();
-        await Assert.ThrowsAsync<IOException>(() => _planner.CreatePlanAsync());
+        await Assert.ThrowsAsync<ExternallyModifiedFilesException>(() => _planner.CreatePlanAsync());
         Assert.Equal("USER", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task ExternallyEditedOwnedFile_HandedToGame_IsKeptAndNoLongerManaged()
+    {
+        // 游戏更新换掉了已部署的文件：玩家选"交给游戏"后，禁用照常完成，
+        // 那个文件原样留下且不再托管——下一次规划不会再为它报错或生成操作。
+        await InitializeAsync();
+        await AddEnabledPackageAsync("a", "a.pak", "AAAA");
+        Assert.Equal(DeploymentStatus.Committed, (await _deployment.ExecuteAsync(await _planner.CreatePlanAsync())).Status);
+        var target = Path.Combine(_game.CurrentModPath, "a", "a.pak");
+        await File.WriteAllTextAsync(target, "GAME-UPDATE");
+        await SwitchToEmptyAsync();
+
+        var ex = await Assert.ThrowsAsync<ExternallyModifiedFilesException>(() => _planner.CreatePlanAsync());
+        Assert.Equal(target, Assert.Single(ex.Paths), ignoreCase: true);
+
+        var released = await _planner.CreatePlanAsync(releaseExternallyModified: true);
+        Assert.Empty(released.Operations);
+        Assert.Equal(DeploymentStatus.Committed, (await _deployment.ExecuteAsync(released)).Status);
+
+        Assert.Equal("GAME-UPDATE", await File.ReadAllTextAsync(target));
+        Assert.False((await _planner.CreatePlanAsync()).HasChanges);
     }
 
     [Theory]

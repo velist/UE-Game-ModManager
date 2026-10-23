@@ -46,6 +46,12 @@ namespace UEModManager.ViewModels
         [NotifyPropertyChangedFor(nameof(HasPreview))]
         [NotifyPropertyChangedFor(nameof(HasNoPreview))]
         [NotifyPropertyChangedFor(nameof(HasMod))]
+        [NotifyPropertyChangedFor(nameof(Kind))]
+        [NotifyPropertyChangedFor(nameof(KindExplain))]
+        [NotifyPropertyChangedFor(nameof(Title))]
+        [NotifyPropertyChangedFor(nameof(InstallRoot))]
+        [NotifyPropertyChangedFor(nameof(InstallSubPath))]
+        [NotifyPropertyChangedFor(nameof(HasInstallSubPath))]
         private ModInfo? _currentMod;
 
         /// <summary>
@@ -88,8 +94,38 @@ namespace UEModManager.ViewModels
         /// <summary>未翻译的源串，显示交给 XAML 的 loc:Value。</summary>
         public string StatusText => CurrentMod?.IsEnabled == true ? "已启用" : "已禁用";
 
-        /// <summary>未翻译的源串（按钮文案：点下去会发生什么）。</summary>
-        public string ToggleText => CurrentMod?.IsEnabled == true ? "禁用MOD" : "启用MOD";
+        /// <summary>未翻译的源串（按钮文案：点下去会发生什么，按类型称呼）。</summary>
+        public string ToggleText => (CurrentMod?.IsEnabled == true, Kind) switch
+        {
+            (true, PackageKind.Plugin) => "禁用插件",
+            (false, PackageKind.Plugin) => "启用插件",
+            (true, PackageKind.Config) => "禁用配置",
+            (false, PackageKind.Config) => "启用配置",
+            (true, _) => "禁用MOD",
+            _ => "启用MOD",
+        };
+
+        /// <summary>包类型（与卡片色标同源）。</summary>
+        public PackageKind Kind => CurrentMod?.DetectedKind ?? PackageKind.Mod;
+
+        /// <summary>类型的白话解释（未翻译源串）。</summary>
+        public string KindExplain => Services.Detection.PackageKindText.Explain(Kind);
+
+        /// <summary>面板标题：MOD 详情 / 插件详情 / 配置详情（未翻译源串）。</summary>
+        public string Title => Services.Detection.PackageKindText.DetailTitle(Kind);
+
+        /// <summary>
+        /// 安装位置的根（未翻译源串）：MOD 进游戏的 MOD 文件夹；插件 / 配置进游戏目录，
+        /// 具体子目录见 <see cref="InstallSubPath"/>。
+        /// </summary>
+        public string InstallRoot => Kind == PackageKind.Mod
+            ? "游戏的 MOD 文件夹"
+            : HasInstallSubPath ? "游戏目录下" : "游戏根目录";
+
+        /// <summary>插件 / 配置相对游戏根的安装子目录（如 Binaries\Win64），MOD 为空。</summary>
+        public string InstallSubPath => Kind == PackageKind.Mod ? string.Empty : CurrentMod?.PluginTargetPath ?? string.Empty;
+
+        public bool HasInstallSubPath => !string.IsNullOrWhiteSpace(InstallSubPath);
 
         /// <summary>未翻译的分类名（内置分类由 loc:Value 的 CategoryName 翻译，玩家分类原样保留）。</summary>
         public string Category => CurrentMod?.PrimaryCategory ?? "未分类";

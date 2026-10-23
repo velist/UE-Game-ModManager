@@ -35,6 +35,7 @@ namespace UEModManager.Services.Lock
                         IsEnabled = entry.IsEnabled,
                         Priority = entry.Priority,
                         ContentHash = pkg?.ContentHash,
+                        Fingerprint = pkg is null ? null : PackageFingerprint.Of(pkg),
                     };
                 })
                 .ToList();
@@ -103,9 +104,14 @@ namespace UEModManager.Services.Lock
                     continue;
                 }
 
-                if (!string.IsNullOrEmpty(lockPkg.ContentHash)
-                    && !string.IsNullOrEmpty(localPkg.ContentHash)
-                    && !string.Equals(lockPkg.ContentHash, localPkg.ContentHash, StringComparison.OrdinalIgnoreCase))
+                // 两边都有指纹就只比指纹（与系统语言无关）；对方是旧版 lock 才退回比 ContentHash
+                var localFingerprint = PackageFingerprint.Of(localPkg);
+                var mismatch = !string.IsNullOrEmpty(lockPkg.Fingerprint) && !string.IsNullOrEmpty(localFingerprint)
+                    ? !string.Equals(lockPkg.Fingerprint, localFingerprint, StringComparison.OrdinalIgnoreCase)
+                    : !string.IsNullOrEmpty(lockPkg.ContentHash)
+                      && !string.IsNullOrEmpty(localPkg.ContentHash)
+                      && !string.Equals(lockPkg.ContentHash, localPkg.ContentHash, StringComparison.OrdinalIgnoreCase);
+                if (mismatch)
                 {
                     diffs.Add(new LockPackageDiff(
                         lockPkg.PackageKey, lockPkg.DisplayName,

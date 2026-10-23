@@ -164,6 +164,14 @@ namespace UEModManager.Services
                     case ImportFileKind.DirectImport:
                         results.Add(await ImportDirectFileAsync(filePath, targetRootPath));
                         break;
+                    case ImportFileKind.NotAMod:
+                        _logger.LogInformation("跳过非 MOD 文件: {Path}", filePath);
+                        results.Add(new PackageImportResult
+                        {
+                            Success = false,
+                            ErrorMessage = UiText.Interpolate($"“{IOPath.GetFileName(filePath)}”不是 MOD 文件（说明、图片或网页），已跳过")
+                        });
+                        break;
                     default:
                         results.Add(await ImportAsPluginAsync(filePath, targetRootPath));
                         break;
@@ -207,7 +215,8 @@ namespace UEModManager.Services
                     PackageKey = pluginName,
                     DisplayName = pluginName,
                     Kind = PackageKind.Plugin,
-                    Tags = new List<string> { "插件" },
+                    // 不再自动打"插件"分类：类型已由 Kind 表达，主界面有类型切换；分类留给玩家自己的归类
+                    Tags = new List<string> { DetectCategory(pluginName) },
                     HostGameName = gameName,
                     TargetRootPath = NormalizeTargetRootPath(pluginTargetPath),
                     ImportSourcePath = filePath,
@@ -793,15 +802,9 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>
-        /// 非 MOD 载荷的包类型：含 DLL/SO 就是插件，否则算配置。
-        /// 不用 <see cref="DetectPackageKindFromFiles"/> —— 它见到单个 .pak 就整体判成 Mod，
-        /// 会让这些"必须落在游戏根"的文件被部署到 MOD 根。
-        /// </summary>
+        /// <summary>非 MOD 载荷的包类型，规则见 <see cref="PackageKindDetector.ClassifyPayload"/>。</summary>
         private static PackageKind KindForPayload(IReadOnlyList<string> files)
-            => files.Any(f => IOPath.GetExtension(f).ToLowerInvariant() is ".dll" or ".exe" or ".so")
-                ? PackageKind.Plugin
-                : PackageKind.Config;
+            => PackageKindDetector.ClassifyPayload(files);
 
         // ─── 类型检测 ───
 
@@ -996,14 +999,16 @@ namespace UEModManager.Services
             => EngineConfig.ModFileExtensions.Contains(IOPath.GetExtension(filePath).ToLower());
 
         /// <summary>
-        /// 是否为"二进制 MOD 载荷"：UE 只会加载这些扩展名，且 ~mods 不递归子目录。
+        /// 是否为"主 MOD 载荷"：当前引擎从 MOD 目录加载的容器（见 <see cref="EngineProfile.BinaryModExtensions"/>）。
         ///
+        /// 以前写死 .pak/.ucas/.utoc：杀戮尖塔2 的 .pck、暗黑4 的 .mpq 装在压缩包里时被当成
+        /// 插件/配置装进游戏根，而同一个文件直接拖进来却按 MOD 进 MOD 目录。
         /// 刻意不用 <see cref="IsModFile"/>：引擎的 ModFileExtensions 含 <c>.json</c>，
         /// 用它做分流会把 UE4SS 的 mods.json 当 MOD 处理，并让同包的 .lua/.dll 变成
         /// 无人认领的孤儿文件而被静默丢弃。
         /// </summary>
-        private static bool IsBinaryModFile(string filePath)
-            => IOPath.GetExtension(filePath).ToLowerInvariant() is ".pak" or ".ucas" or ".utoc";
+        private bool IsBinaryModFile(string filePath)
+            => EngineConfig.BinaryModExtensions.Contains(IOPath.GetExtension(filePath).ToLowerInvariant());
 
         private static string? FindPreviewInDirectory(string directory)
         {

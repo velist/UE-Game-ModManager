@@ -49,7 +49,8 @@ public static class FilePathAssetIndexBuilder
             PackageKey: package.PackageKey,
             DisplayName: package.DisplayName,
             Kind: package.Kind,
-            ContentHash: package.ContentHash,
+            // 整包重复判定用与系统语言无关的指纹（见 PackageFingerprint）
+            ContentHash: PackageFingerprint.Of(package),
             Entries: entries,
             Status: IndexStatus.Complete,
             StatusDetail: null);

@@ -22,6 +22,39 @@
     </Window.CommandBindings>
 
     <Window.Resources>
+        <!-- 类型切换（全部 / MOD / 插件 / 配置）的分段按钮。
+             IsChecked 经 OptionEqualsToBoolConverter 双向绑 ModList.KindFilter，
+             勾选态统一由 IsChecked 触发器画，四个按钮共用一份样式。 -->
+        <Style x:Key="KindFilterChip" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource Text400Brush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Chip" CornerRadius="8" Padding="11,5" Background="#80181818"
+                                BorderBrush="Transparent" BorderThickness="1">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Text500Brush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="#1F06B6D4"/>
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text100Brush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- "移动到分类"右键项。卡片模式和列表模式各有一份 ContextMenu，
              共用这个样式才不会出现"改了一处、另一处还是老样子"。
 
@@ -630,9 +663,54 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock x:Name="ModCountText" Grid.Column="0" Text="{loc:Text &#x27;全部 MOD&#x27;}"
-                                   Foreground="{StaticResource Text100Brush}" FontSize="24" FontWeight="Bold"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="ModCountText" Text="{loc:Text &#x27;全部 MOD&#x27;}"
+                                       Foreground="{StaticResource Text100Brush}" FontSize="24" FontWeight="Bold"
+                                       VerticalAlignment="Center" />
+
+                            <!-- 类型切换：只装了 pak 的仓库里整排隐藏（ModList.ShowKindFilter） -->
+                            <StackPanel Orientation="Horizontal" Margin="24,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding ModList.ShowKindFilter, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <RadioButton GroupName="KindFilter" Style="{StaticResource KindFilterChip}"
+                                         AutomationProperties.Name="{loc:Text '全部'}"
+                                         IsChecked="{Binding ModList.KindFilter, Converter={StaticResource OptionEqualsToBoolConverter}, ConverterParameter=All}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{loc:Text '全部'}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ModList.AllKindCount}" Margin="6,0,0,0" Opacity="0.6" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton GroupName="KindFilter" Style="{StaticResource KindFilterChip}"
+                                         AutomationProperties.Name="{loc:Text 'MOD'}"
+                                         ToolTip="{loc:Text '替换模型、贴图、音效等游戏资源，放进游戏的 MOD 文件夹'}"
+                                         IsChecked="{Binding ModList.KindFilter, Converter={StaticResource OptionEqualsToBoolConverter}, ConverterParameter=Mod}">
+                                <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Fill="{StaticResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{loc:Text 'MOD'}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ModList.ModKindCount}" Margin="6,0,0,0" Opacity="0.6" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton GroupName="KindFilter" Style="{StaticResource KindFilterChip}"
+                                         AutomationProperties.Name="{loc:Text '插件'}"
+                                         ToolTip="{loc:Text '由加载器（如 UE4SS、REFramework）运行的脚本或 DLL，给游戏加新功能，安装在游戏目录里'}"
+                                         IsChecked="{Binding ModList.KindFilter, Converter={StaticResource OptionEqualsToBoolConverter}, ConverterParameter=Plugin}">
+                                <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Fill="{StaticResource PluginPurpleBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{loc:Text '插件'}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ModList.PluginKindCount}" Margin="6,0,0,0" Opacity="0.6" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton GroupName="KindFilter" Style="{StaticResource KindFilterChip}"
+                                         AutomationProperties.Name="{loc:Text '配置'}"
+                                         ToolTip="{loc:Text '修改游戏设置的 .ini / .json 等文件，安装在游戏目录里'}"
+                                         IsChecked="{Binding ModList.KindFilter, Converter={StaticResource OptionEqualsToBoolConverter}, ConverterParameter=Config}">
+                                <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Fill="{StaticResource ConfigAmberBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{loc:Text '配置'}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ModList.ConfigKindCount}" Margin="6,0,0,0" Opacity="0.6" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+                            </StackPanel>
+                        </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- 全选 -->
@@ -669,7 +747,7 @@
                                     </Border>
                                     <Border CornerRadius="8" Padding="9,4" Cursor="Hand"
                                             Background="#33EF4444" MouseLeftButtonDown="BatchDelete_Click">
-                                        <TextBlock x:Name="BatchDeleteText" Text="{loc:Text &#x27;卸载&#x27;}" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="BatchDeleteText" Text="{loc:Text &#x27;删除&#x27;}" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
                                     </Border>
                                 </StackPanel>
                             </Border>
@@ -862,17 +940,20 @@
                                                         </StackPanel>
                                                     </Border>
 
-                                                    <!-- v2.0 类型色标徽章 (左上角) -->
-                                                    <Border CornerRadius="6" Padding="8,4"
+                                                    <!-- 类型色标徽章 (左上角)：盖在预览图上，底色加深保证看得清；悬停给白话解释 -->
+                                                    <Border CornerRadius="7" Padding="9,4"
                                                             HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                            Margin="8,8,0,0"
-                                                            Background="{Binding DetectedKind, Converter={StaticResource PackageKindToBgBrushConverter}}">
+                                                            Margin="10,10,0,0"
+                                                            BorderThickness="1"
+                                                            BorderBrush="{Binding DetectedKind, Converter={StaticResource PackageKindToBrushConverter}}"
+                                                            ToolTip="{loc:Value {Binding KindExplain}}"
+                                                            Background="#CC0B0B0D">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <Ellipse Width="6" Height="6"
+                                                            <Ellipse Width="7" Height="7"
                                                                      Fill="{Binding DetectedKind, Converter={StaticResource PackageKindToBrushConverter}}"
-                                                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                             <TextBlock Text="{loc:Value {Binding DetectedKind, Converter={StaticResource PackageKindToLabelConverter}}}"
-                                                                       FontSize="10" FontWeight="Bold"
+                                                                       FontSize="12" FontWeight="Bold"
                                                                        Foreground="{Binding DetectedKind, Converter={StaticResource PackageKindToBrushConverter}}"/>
                                                         </StackPanel>
                                                     </Border>
@@ -1047,6 +1128,14 @@
                                         <!-- 名称 -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
                                             <StackPanel Orientation="Horizontal">
+                                                <!-- 类型标签，与卡片模式同源（ModInfo.DetectedKind） -->
+                                                <Border CornerRadius="5" Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                        ToolTip="{loc:Value {Binding KindExplain}}"
+                                                        Background="{Binding DetectedKind, Converter={StaticResource PackageKindToBgBrushConverter}}">
+                                                    <TextBlock Text="{loc:Value {Binding DetectedKind, Converter={StaticResource PackageKindToLabelConverter}}}"
+                                                               FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding DetectedKind, Converter={StaticResource PackageKindToBrushConverter}}"/>
+                                                </Border>
                                                 <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="{StaticResource Text200Brush}"
                                                            FontSize="13" TextTrimming="CharacterEllipsis"/>
                                                 <!-- 列表行的冲突角标，与卡片模式同源（ModInfo.ConflictCount / IsDuplicate） -->
@@ -1111,6 +1200,62 @@
                             <TextBlock x:Name="EmptyStateSubtitle" Text="{loc:Text &#x27;点击「导入 MOD」按钮或拖拽文件到此处&#x27;}" Foreground="{StaticResource Text600Brush}"
                                        FontSize="13" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                         </StackPanel>
+
+                        <!-- 新版本提示：心跳响应里带回的 latest 比当前版本新时显示（每次会话一次） -->
+                        <Border x:Name="UpdateNoticeBar" Visibility="Collapsed"
+                                VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                MaxWidth="760" Padding="16,10" CornerRadius="12"
+                                Background="#F20F0F11" BorderBrush="{StaticResource StatusGreenBrush}" BorderThickness="1">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="24" Opacity="0.55" Color="Black"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="UpdateNoticeTitle" Foreground="{StaticResource Text100Brush}" FontSize="14" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="UpdateNoticeNotes" Foreground="{StaticResource Text400Brush}" FontSize="12"
+                                               TextWrapping="Wrap" Margin="0,3,0,0" Visibility="Collapsed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="{loc:Text '稍后'}" Style="{StaticResource CyberSecondaryButton}"
+                                            Margin="0,0,8,0" Padding="14,6" Click="UpdateLater_Click"/>
+                                    <Button Content="{loc:Text '去下载'}" Style="{StaticResource CyberPrimaryButton}"
+                                            Padding="18,6" Click="UpdateDownload_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 匿名统计首次告知：贴在内容区底部，不挡操作；选过一次就不再出现。
+                             没告知过就绝不上报（TelemetryConsent.Decide），这条就是"告知"本身。 -->
+                        <Border x:Name="TelemetryNoticeBar" Visibility="Collapsed"
+                                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,8"
+                                MaxWidth="860" Padding="18,12" CornerRadius="12"
+                                Background="#F20F0F11" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="24" Opacity="0.55" Color="Black"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,18,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:Text '帮我们了解有多少人在用？'}" Foreground="{StaticResource Text100Brush}"
+                                               FontSize="14" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{loc:Text '参与后，启动时会发送随机设备编号、软件版本和 Windows 版本；登录后附带邮箱的哈希值（不是邮箱本身）。不上传文件路径、游戏目录和 MOD 清单，随时可以在设置里关闭。'}"
+                                               Foreground="{StaticResource Text400Brush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="{loc:Text '不参与'}" Style="{StaticResource CyberSecondaryButton}"
+                                            Margin="0,0,8,0" Padding="14,6" Click="TelemetryDecline_Click"/>
+                                    <Button Content="{loc:Text '参与'}" Style="{StaticResource CyberPrimaryButton}"
+                                            Padding="18,6" Click="TelemetryAccept_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                 </Grid>
             </DockPanel>
             </Grid>
@@ -1132,7 +1277,7 @@
                     <!-- 标题栏 -->
                     <Border Grid.Row="0" Padding="20,14" BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="0,0,0,1">
                         <Grid>
-                            <TextBlock Text="{loc:Text 'MOD 详情'}" FontSize="15" FontWeight="SemiBold"
+                            <TextBlock Text="{loc:Value {Binding Title}}" FontSize="15" FontWeight="SemiBold"
                                        Foreground="{StaticResource Text100Brush}" VerticalAlignment="Center"/>
                             <Button HorizontalAlignment="Right" VerticalAlignment="Center" Padding="8,2"
                                     Style="{StaticResource CyberCompactButton}"
@@ -1208,19 +1353,43 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Text '分类'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Value {Binding Category}, CategoryName=True}" Foreground="{StaticResource Text200Brush}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <!-- 类型：标签 + 一句白话，让玩家知道这是 MOD、插件还是配置 -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Text '类型'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                                        <Border CornerRadius="5" Padding="7,2" HorizontalAlignment="Left"
+                                                Background="{Binding Kind, Converter={StaticResource PackageKindToBgBrushConverter}}">
+                                            <TextBlock Text="{loc:Value {Binding Kind, Converter={StaticResource PackageKindToLabelConverter}}}"
+                                                       FontSize="12" FontWeight="Bold"
+                                                       Foreground="{Binding Kind, Converter={StaticResource PackageKindToBrushConverter}}"/>
+                                        </Border>
+                                        <TextBlock Text="{loc:Value {Binding KindExplain}}" Foreground="{StaticResource Text400Brush}"
+                                                   FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    </StackPanel>
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Text '大小'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FileSize}" Foreground="{StaticResource Text200Brush}" FontSize="13" Margin="0,0,0,10"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Text '安装到'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,10">
+                                        <TextBlock Text="{loc:Value {Binding InstallRoot}}" Foreground="{StaticResource Text200Brush}" FontSize="13" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding InstallSubPath}" Foreground="{StaticResource Text400Brush}" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding InstallSubPath}"
+                                                   Visibility="{Binding HasInstallSubPath, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </StackPanel>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Text '安装日期'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding InstallDate}" Foreground="{StaticResource Text200Brush}" FontSize="13" Margin="0,0,0,10"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Text '分类'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{loc:Value {Binding Category}, CategoryName=True}" Foreground="{StaticResource Text200Brush}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Text '路径'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,0"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding FileName}" Foreground="{StaticResource Text500Brush}" FontSize="12"
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Text '大小'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding FileSize}" Foreground="{StaticResource Text200Brush}" FontSize="13" Margin="0,0,0,10"/>
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Text '安装日期'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,10"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding InstallDate}" Foreground="{StaticResource Text200Brush}" FontSize="13" Margin="0,0,0,10"/>
+
+                                    <!-- 这里显示的是仓库里的包名（PackageKey），不是磁盘路径 -->
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Text '包名'}" Foreground="{StaticResource Text500Brush}" FontSize="13" Margin="0,0,20,0"/>
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding FileName}" Foreground="{StaticResource Text500Brush}" FontSize="12"
                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding FileName}"/>
                                 </Grid>
                             </Border>

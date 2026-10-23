@@ -11,6 +11,7 @@
 - [部署后端示例](../samples/UEModManager.SampleBackend/README.md)：仅引用 Core、可独立构建的示例项目。
 - [账号与 Worker 协议](../cf-workers/modmanger-api/AUTH_PROTOCOL.md)：邮箱验证码、部署绑定与桌面客户端契约。
 - [官网维护](../website/README.md)：本地预览、资源检查、SEO 与发布流程。
+- [宣传片 v5 创作思路](promo/宣传片v5-创作思路.md)：受众定位、分镜与音效设计、v4→v5 取舍、素材版权与复用时的同步要求。
 
 新增游戏通常只需维护游戏预设与引擎规则，具体入口见[架构总览](architecture/overview.md)。
 

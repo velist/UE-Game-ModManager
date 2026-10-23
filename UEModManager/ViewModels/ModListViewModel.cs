@@ -53,6 +53,36 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private string _sortMode = "Name_Asc";
 
+        /// <summary>
+        /// 类型筛选：<c>All</c> / <c>Mod</c> / <c>Plugin</c> / <c>Config</c>，与分类、搜索叠加生效。
+        /// </summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowKindFilter))]
+        private string _kindFilter = KindAll;
+
+        /// <summary>当前分类 + 搜索范围内的条目数（未按类型筛）。</summary>
+        [ObservableProperty]
+        private int _allKindCount;
+
+        [ObservableProperty]
+        private int _modKindCount;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowKindFilter))]
+        private int _pluginKindCount;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowKindFilter))]
+        private int _configKindCount;
+
+        public const string KindAll = "All";
+
+        /// <summary>
+        /// 只有 MOD 时不显示类型切换：多出一排"插件 0 · 配置 0"只会让只装 pak 的玩家困惑。
+        /// 已经选了某个类型时保持显示，否则用户没法切回"全部"。
+        /// </summary>
+        public bool ShowKindFilter => PluginKindCount + ConfigKindCount > 0 || KindFilter != KindAll;
+
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(SelectAllText))]
         private bool _isSelectAll;
@@ -129,6 +159,20 @@ namespace UEModManager.ViewModels
             ApplyFilter(_currentCategory, value);
         }
 
+        partial void OnKindFilterChanged(string value)
+        {
+            ApplyFilter(_currentCategory, SearchText);
+        }
+
+        /// <summary>切换类型筛选；未知参数一律回到"全部"。</summary>
+        [RelayCommand]
+        private void SetKindFilter(string? kind)
+        {
+            KindFilter = kind is nameof(PackageKind.Mod) or nameof(PackageKind.Plugin) or nameof(PackageKind.Config)
+                ? kind
+                : KindAll;
+        }
+
         partial void OnSortModeChanged(string value)
         {
             ApplySort(value);
@@ -178,6 +222,16 @@ namespace UEModManager.ViewModels
                     m.RealName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                     m.Description.Contains(search, StringComparison.OrdinalIgnoreCase));
             }
+
+            // 类型计数按"分类 + 搜索"后的范围算，切换按钮上的数字和点进去看到的一致
+            var scoped = filtered.ToList();
+            AllKindCount = scoped.Count;
+            ModKindCount = scoped.Count(m => m.DetectedKind == PackageKind.Mod);
+            PluginKindCount = scoped.Count(m => m.DetectedKind == PackageKind.Plugin);
+            ConfigKindCount = scoped.Count(m => m.DetectedKind == PackageKind.Config);
+            filtered = scoped;
+            if (KindFilter != KindAll && Enum.TryParse<PackageKind>(KindFilter, out var kind))
+                filtered = filtered.Where(m => m.DetectedKind == kind);
 
             var result = ApplySortInternal(filtered, SortMode).ToList();
 

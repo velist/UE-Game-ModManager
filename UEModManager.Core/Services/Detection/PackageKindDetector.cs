@@ -15,13 +15,27 @@ namespace UEModManager.Services.Detection
     /// </summary>
     public static class PackageKindDetector
     {
+        /// <summary>
+        /// 插件载荷扩展名：二进制（DLL/EXE/SO）、ASI 加载器插件，以及 UE4SS / REFramework
+        /// 一类加载器运行的 Lua 脚本。它们都"由加载器跑起来、给游戏加功能"，
+        /// 对玩家而言就是插件，不是配置。
+        /// </summary>
+        private static readonly HashSet<string> PluginExtensions = new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ".dll", ".exe", ".so", ".asi", ".lua",
+        };
+
+        /// <summary>是否插件载荷文件（见 <see cref="PluginExtensions"/>）。</summary>
+        public static bool IsPluginFile(string filePath)
+            => PluginExtensions.Contains(Path.GetExtension(filePath));
+
         /// <summary>按单文件扩展名识别 PackageKind。</summary>
         public static PackageKind DetectByExtension(string filePath)
         {
+            if (IsPluginFile(filePath)) return PackageKind.Plugin;
             var ext = Path.GetExtension(filePath).ToLowerInvariant();
             return ext switch
             {
-                ".dll" or ".exe" or ".so" => PackageKind.Plugin,
                 ".ini" or ".cfg" or ".toml" or ".yaml" or ".yml" => PackageKind.Config,
                 ".json" when !IsModJsonFile(filePath) => PackageKind.Config,
                 _ => PackageKind.Mod
@@ -47,6 +61,19 @@ namespace UEModManager.Services.Detection
             if (kinds.Contains(PackageKind.Mod)) return PackageKind.Mod;
             if (kinds.Contains(PackageKind.Plugin)) return PackageKind.Plugin;
             return PackageKind.Config;
+        }
+
+        /// <summary>
+        /// 非 MOD 载荷（已确定不含 .pak 等 MOD 资源）的包类型：含任一插件载荷就是插件，否则是配置。
+        ///
+        /// 不能用 <see cref="AggregateFromFiles"/>：它见到单个 .pak 就整体判成 Mod，
+        /// 而这类包必须落在游戏根而不是 MOD 根。两种结果的部署路径相同
+        /// （都保留安装布局），区别只在给玩家看的类型名。
+        /// </summary>
+        public static PackageKind ClassifyPayload(IEnumerable<string> filePaths)
+        {
+            if (filePaths == null) throw new System.ArgumentNullException(nameof(filePaths));
+            return filePaths.Any(IsPluginFile) ? PackageKind.Plugin : PackageKind.Config;
         }
 
         /// <summary>

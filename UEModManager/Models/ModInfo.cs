@@ -24,6 +24,7 @@ namespace UEModManager.Models
         private long _fileSize;
         private int _conflictCount;
         private bool _isDuplicate;
+        private PackageKind _kind = PackageKind.Mod;
 
         /// <summary>
         /// MOD 标识符 (= RealName/文件夹名)。用于持久化查找。
@@ -151,24 +152,32 @@ namespace UEModManager.Models
         public bool IsPlugin { get; set; }
 
         /// <summary>
-        /// v2.0: 根据文件扩展名和 IsPlugin 推断包类型。
-        /// 用于卡片类型色标绑定。
+        /// 包类型。权威来源是仓库里的 <c>Package.Kind</c>，由刷新时写入。
+        ///
+        /// 以前这里按 <see cref="RealName"/> 的扩展名现猜：目录或压缩包导入的包名没有扩展名，
+        /// 配置包和纯 Lua 脚本插件因此在卡片上一律显示成"MOD"，
+        /// 而方案管理窗口读的是 Package.Kind，同一个包两处叫法不一样。
         /// </summary>
-        [JsonIgnore]
-        public PackageKind DetectedKind
+        public PackageKind Kind
         {
-            get
+            get => _kind;
+            set
             {
-                if (IsPlugin) return PackageKind.Plugin;
-                var ext = System.IO.Path.GetExtension(RealName ?? "").ToLowerInvariant();
-                return ext switch
+                if (SetField(ref _kind, value))
                 {
-                    ".dll" => PackageKind.Plugin,
-                    ".ini" or ".json" or ".cfg" or ".yaml" or ".xml" => PackageKind.Config,
-                    _ => PackageKind.Mod
-                };
+                    OnPropertyChanged(nameof(DetectedKind));
+                    OnPropertyChanged(nameof(KindExplain));
+                }
             }
         }
+
+        /// <summary>界面绑定用的包类型（卡片 / 列表色标、类型筛选）。</summary>
+        [JsonIgnore]
+        public PackageKind DetectedKind => IsPlugin ? PackageKind.Plugin : _kind;
+
+        /// <summary>类型的一句话白话解释（未翻译源串，界面经 loc: 翻译）。</summary>
+        [JsonIgnore]
+        public string KindExplain => Services.Detection.PackageKindText.Explain(DetectedKind);
 
         /// <summary>
         /// 插件的目标安装路径（相对于游戏根目录）。仅 IsPlugin=true 时有效。

@@ -90,4 +90,12 @@ public static class TelemetryConsent
             TelemetrySkipReason.NotSkipped,
             "已告知且用户未关闭");
     }
+
+    /// <summary>
+    /// 设置页开关该显示成什么：<b>实际会不会上报</b>，而不是 <see cref="TelemetryConsentState.Enabled"/>。
+    ///
+    /// 没告知过的用户 Enabled 默认是 true，照它显示等于替用户预先勾选了同意；
+    /// 再配上"保存时把开关值写回去"，用户只是改了别的设置就被记成同意。
+    /// </summary>
+    public static bool SettingsToggleValue(TelemetryConsentState state) => Decide(state).ShouldReport;
 }

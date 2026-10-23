@@ -370,8 +370,10 @@ namespace UEModManager.Services
         public List<List<Package>> GetDuplicateGroups()
         {
             return _packages
-                .Where(p => !string.IsNullOrEmpty(p.ContentHash))
-                .GroupBy(p => p.ContentHash!, StringComparer.OrdinalIgnoreCase)
+                // 按与系统语言无关的指纹分组（ContentHash 的拼接顺序受文化排序影响）
+                .Select(p => (Package: p, Fingerprint: PackageFingerprint.Of(p)))
+                .Where(x => !string.IsNullOrEmpty(x.Fingerprint))
+                .GroupBy(x => x.Fingerprint!, x => x.Package, StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1)
                 // 不依赖索引写入顺序。重复合并的保留规则是：最新导入，
                 // 再按最后修改时间和 PackageKey 稳定决胜。

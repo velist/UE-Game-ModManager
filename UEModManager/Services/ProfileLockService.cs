@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Conflict;
 using UEModManager.Services.Import;
@@ -41,13 +42,18 @@ namespace UEModManager.Services
             ILogger<ProfileLockService> logger,
             ProfileService profileService,
             PackageRepository packageRepo,
-            ConflictModuleService? conflictModule = null)
+            ConflictModuleService? conflictModule = null,
+            ProfileSwitchService? switchService = null)
         {
             _logger = logger;
             _profileService = profileService;
             _packageRepo = packageRepo;
             _conflictModule = conflictModule;
+            _switchService = switchService;
         }
+
+        /// <summary>部署并切换；为 null 时（测试）退回只改当前方案。</summary>
+        private readonly ProfileSwitchService? _switchService;
 
         /// <summary>
         /// 导出当前活跃 Profile 到 lock 文件。
@@ -150,7 +156,18 @@ namespace UEModManager.Services
                 backendType: Enum.TryParse<DeploymentBackendType>(lockFile.Profile.BackendType, out var backend)
                     ? backend : DeploymentBackendType.Copy);
 
-            await _profileService.SwitchProfileAsync(newProfile.Id);
+            if (_switchService is null)
+            {
+                await _profileService.SwitchProfileAsync(newProfile.Id);
+            }
+            else
+            {
+                // 导入后自动切换同样要先部署成功；失败时新方案保留但不启用，原方案照旧
+                var switched = await _switchService.SwitchAsync(newProfile.Id);
+                if (!switched.Success)
+                    throw new InvalidOperationException(UiText.Interpolate(
+                        $"方案「{newProfile.Name}」已导入，但切换过去时部署失败，仍在使用原方案，可稍后在方案列表里双击重试。{switched.Error}"));
+            }
 
             _logger.LogInformation(
                 "[Lock] Imported profile '{Name}' with {Count} packages (skipped {Skipped} missing)",

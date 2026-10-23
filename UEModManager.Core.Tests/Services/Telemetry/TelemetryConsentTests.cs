@@ -87,4 +87,12 @@ public class TelemetryConsentTests
         Assert.Contains("先问用户", TelemetryConsent.Decide(new TelemetryConsentState(false, true)).ToString());
         Assert.Contains("OptedOut", TelemetryConsent.Decide(new TelemetryConsentState(true, false)).ToString());
     }
+
+    [Theory]
+    [InlineData(false, true, false)]   // 没告知过：即使 Enabled 默认 true，也显示为关
+    [InlineData(false, false, false)]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    public void 设置页开关显示实际是否上报(bool asked, bool enabled, bool expected)
+        => Assert.Equal(expected, TelemetryConsent.SettingsToggleValue(new TelemetryConsentState(asked, enabled)));
 }

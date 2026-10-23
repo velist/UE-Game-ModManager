@@ -160,4 +160,46 @@ public sealed class ModDetailViewModelTests
         Assert.True(closed);
         Assert.NotNull(vm.CurrentMod);
     }
+
+    [Fact]
+    public void 插件的标题按钮与安装位置按类型显示()
+    {
+        var (vm, _) = NewVm();
+        var mod = NewMod();
+        mod.Kind = PackageKind.Plugin;
+        mod.IsPlugin = true;
+        mod.PluginTargetPath = @"Binaries\Win64";
+        vm.CurrentMod = mod;
+
+        Assert.Equal("插件详情", vm.Title);
+        Assert.Equal("启用插件", vm.ToggleText);
+        Assert.Equal(PackageKind.Plugin, vm.Kind);
+        Assert.Equal("游戏目录下", vm.InstallRoot);
+        Assert.Equal(@"Binaries\Win64", vm.InstallSubPath);
+        Assert.True(vm.HasInstallSubPath);
+    }
+
+    [Fact]
+    public void MOD装进MOD文件夹_不显示子目录()
+    {
+        var (vm, _) = NewVm();
+        vm.CurrentMod = NewMod();
+
+        Assert.Equal("MOD 详情", vm.Title);
+        Assert.Equal("游戏的 MOD 文件夹", vm.InstallRoot);
+        Assert.False(vm.HasInstallSubPath);
+    }
+
+    [Fact]
+    public void 未指定目录的配置装在游戏根目录()
+    {
+        var (vm, _) = NewVm();
+        var mod = NewMod();
+        mod.Kind = PackageKind.Config;
+        vm.CurrentMod = mod;
+
+        Assert.Equal("配置详情", vm.Title);
+        Assert.Equal("游戏根目录", vm.InstallRoot);
+        Assert.Equal("启用配置", vm.ToggleText);
+    }
 }

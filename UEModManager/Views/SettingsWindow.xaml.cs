@@ -11,12 +11,16 @@ using Microsoft.Extensions.DependencyInjection;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services;
+using UEModManager.Services.Telemetry;
 using UEModManager.Services.Paths;
 
 namespace UEModManager.Views
 {
     public partial class SettingsWindow : Window
     {
+        /// <summary>打开设置时统计开关的显示值；保存时据此判断用户是否真的拨动过。</summary>
+        private bool _telemetryToggleInitial;
+
         private readonly GameConfigService _gameConfig;
         private readonly ObjectStore? _objectStore;
         private readonly PackageRepository? _packageRepo;
@@ -67,8 +71,11 @@ namespace UEModManager.Views
             // 关闭行为
             CloseActionComboBox.SelectedIndex = (int)UiPreferences.LoadCloseAction();
 
-            // 检查更新与匿名统计（同一个开关，因为它们本来就是同一个网络请求）
-            UpdateAndStatsToggle.IsChecked = UiPreferences.LoadTelemetryConsent().Enabled;
+            // 检查更新与匿名统计（同一个开关，因为它们本来就是同一个网络请求）。
+            // 显示"实际会不会上报"：没告知过的用户 Enabled 默认是 true，但一个字节也不会发，
+            // 开关若照 Enabled 显示成开，等于替用户预先勾选了同意。
+            _telemetryToggleInitial = TelemetryConsent.SettingsToggleValue(UiPreferences.LoadTelemetryConsent());
+            UpdateAndStatsToggle.IsChecked = _telemetryToggleInitial;
 
             // 语言
             LanguageManager.LanguageChanged += OnLanguageChanged;
@@ -642,11 +649,20 @@ namespace UEModManager.Views
                 // 保存关闭行为
                 UiPreferences.SaveCloseAction((UiPreferences.CloseAction)CloseActionComboBox.SelectedIndex);
 
-                // 保存"检查更新与匿名统计"开关。
-                // 走 SaveTelemetryEnabled 而不是直接写字段：它会顺带把"已问过"钉上——
-                // 一个先在设置里关掉、却从没被弹窗问过的用户，下次启动本该被弹一次
-                // "我们要开始统计了"，而他刚刚才明确表示过不要。
-                UiPreferences.SaveTelemetryEnabled(UpdateAndStatsToggle.IsChecked == true);
+                // 保存"检查更新与匿名统计"开关——只在用户真的拨动过它时写。
+                // 以前每次点保存都写，而 SaveTelemetryEnabled 会把"已告知"一起钉上：
+                // 新用户只是改了背景、点了保存，就被记成"同意统计"，下次启动开始上报。
+                // 走 SaveTelemetryEnabled 而不是直接写字段：明确关掉的用户同样要记成"已告知"。
+                var telemetryToggle = UpdateAndStatsToggle.IsChecked == true;
+                if (telemetryToggle != _telemetryToggleInitial)
+                {
+                    UiPreferences.SaveTelemetryEnabled(telemetryToggle);
+                    _telemetryToggleInitial = telemetryToggle;
+                    // 打开后立即开始（以前要重启才生效）；关掉由心跳循环每轮重读设置自行停下
+                    if (telemetryToggle
+                        && ((App)Application.Current).ServiceProvider?.GetService(typeof(TelemetryService)) is TelemetryService telemetry)
+                        telemetry.StartHeartbeat();
+                }
 
                 // 保存部署设置
                 UiPreferences.SaveDeployBackend(_selectedBackend);

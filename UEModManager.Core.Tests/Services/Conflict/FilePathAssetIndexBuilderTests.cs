@@ -52,7 +52,8 @@ public class FilePathAssetIndexBuilderTests
         Assert.Equal(2, index.Entries.Count);
         Assert.Equal(IndexStatus.Complete, index.Status);
         Assert.Equal(PackageKind.Plugin, index.Kind);
-        Assert.Equal("CONTENT", index.ContentHash);
+        // 整包重复判定用与系统语言无关的指纹（由文件哈希算出），不再直接透传 ContentHash
+        Assert.StartsWith("fp1-", index.ContentHash);
     }
 
     [Fact]

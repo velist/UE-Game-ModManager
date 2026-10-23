@@ -101,6 +101,7 @@ namespace UEModManager
                 // 获取 ViewModel
                 _vm = sp.GetRequiredService<MainViewModel>();
                 DataContext = _vm;
+                _vm.ConfirmReleaseModifiedFiles = ConfirmReleaseModifiedFiles;
 
                 // 仓库一刷新，左栏计数 / 顶部数量 / 空状态就重算。
                 // 这三样是手工算的，不靠绑定；此前只在各个点击处理器里零散调用，
@@ -256,8 +257,57 @@ namespace UEModManager
         }
 
         /// <summary>
+        /// 要移除的文件已被游戏更新改过：问玩家是否交给游戏。
+        /// 可能从部署的异步续体里调到，统一切回 UI 线程弹窗。
+        /// </summary>
+        private bool ConfirmReleaseModifiedFiles(IReadOnlyList<string> paths)
+            => Dispatcher.Invoke(() =>
+            {
+                var names = string.Join("、", paths.Take(3).Select(Path.GetFileName));
+                if (paths.Count > 3) names += UiText.Interpolate($" 等 {paths.Count} 个");
+                var message = UiText.Interpolate($"游戏更新后改动了这个 MOD 的文件：{names}")
+                    + Environment.NewLine + Environment.NewLine
+                    + UiText.Get("为了安全，管理器没有自动删除它们。")
+                    + Environment.NewLine
+                    + UiText.Get("交给游戏：这些文件按游戏现在的版本保留、以后不再由管理器管理，MOD 的其余部分照常处理。");
+                return Views.CyberMessageBox.Show(this, message, UiText.Get("文件已被游戏更新"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning, yesText: "交给游戏（推荐）", noText: "取消") == MessageBoxResult.Yes;
+            });
+
+        private const string DownloadPageUrl = "https://www.modmanger.com/#download";
+
+        private void ShowUpdateNotice(Services.Telemetry.UpdateInfo info)
+        {
+            UpdateNoticeTitle.Text = info.Mandatory
+                ? UiText.Interpolate($"新版本 v{info.Latest} 已发布，这个版本建议尽快更新")
+                : UiText.Interpolate($"新版本 v{info.Latest} 已发布");
+            UpdateNoticeNotes.Text = info.Notes;
+            UpdateNoticeNotes.Visibility = string.IsNullOrWhiteSpace(info.Notes) ? Visibility.Collapsed : Visibility.Visible;
+            UpdateNoticeBar.Visibility = Visibility.Visible;
+        }
+
+        private void UpdateLater_Click(object sender, RoutedEventArgs e) => UpdateNoticeBar.Visibility = Visibility.Collapsed;
+
+        private void UpdateDownload_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateNoticeBar.Visibility = Visibility.Collapsed;
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = DownloadPageUrl, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "打开下载页失败");
+                Views.CyberMessageBox.Show(this,
+                    UiText.Interpolate($"无法打开默认浏览器，请手动复制此链接到浏览器访问：\n\n{DownloadPageUrl}"),
+                    UiText.Get("去下载"), MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        /// <summary>
         /// 启动匿名统计。
-        /// 新用户不再被弹窗打断；只有已经明确选择参与统计的用户才会上报。
+        /// 不弹窗打断：没告知过的用户在内容区底部看到一条告知（<c>TelemetryNoticeBar</c>），
+        /// 选了"参与"才开始上报；已经选过的按选择执行。
         /// </summary>
         private void StartTelemetry()
         {
@@ -266,16 +316,41 @@ namespace UEModManager
                 var telemetry = ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>();
                 if (telemetry == null) return;
 
+                // 先订阅：用户稍后在告知条上点"参与"时心跳才启动，那次的更新信息也要接得住
+                telemetry.UpdateAvailable += info => Dispatcher.BeginInvoke(() => ShowUpdateNotice(info));
+
                 var decision = TelemetryService.CurrentConsent();
                 Console.WriteLine($"[Telemetry] {decision}");
 
                 if (decision.ShouldReport)
                     telemetry.StartHeartbeat();
+                else if (decision.ShouldAsk)
+                    TelemetryNoticeBar.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
                 // 统计是我们的需求，不是用户的。它出任何问题都不该在界面上留下一个字。
                 _logger?.LogDebug(ex, "[Telemetry] 启动失败");
+            }
+        }
+
+        private void TelemetryAccept_Click(object sender, RoutedEventArgs e) => DecideTelemetry(true);
+
+        private void TelemetryDecline_Click(object sender, RoutedEventArgs e) => DecideTelemetry(false);
+
+        /// <summary>告知条上的选择：记下"已告知 + 选择"，参与则立即开始心跳（不必等下次启动）。</summary>
+        private void DecideTelemetry(bool participate)
+        {
+            TelemetryNoticeBar.Visibility = Visibility.Collapsed;
+            try
+            {
+                UiPreferences.SaveTelemetryConsent(participate);
+                if (participate)
+                    ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>()?.StartHeartbeat();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "[Telemetry] 保存选择失败");
             }
         }
 
@@ -1321,6 +1396,9 @@ namespace UEModManager
 
         private void ModCard_MouseDown(object sender, MouseButtonEventArgs e)
         {
+            // 只有左键是"看详情"；右键留给右键菜单，不能顺带打开面板、改掉选中项
+            if (e.ChangedButton != MouseButton.Left) return;
+
             ModInfo? mod = null;
             if (sender is FrameworkElement fe)
                 mod = fe.DataContext as ModInfo ?? fe.Tag as ModInfo;
@@ -1338,6 +1416,9 @@ namespace UEModManager
 
         private void ModToggle_MouseDown(object sender, MouseButtonEventArgs e)
         {
+            // 右键/中键点到电源图标不能触发部署或卸载（以前不分按键，右键一下就改了游戏目录）；
+            // 不置 Handled，让右键继续冒泡到卡片弹出右键菜单
+            if (e.ChangedButton != MouseButton.Left) return;
             e.Handled = true;
             var mod = (sender as FrameworkElement)?.Tag as ModInfo;
             if (mod == null) return;
@@ -1523,9 +1604,13 @@ namespace UEModManager
                     break;
                 }
 
-                current = current is FrameworkElement f && f.Parent != null
-                    ? f.Parent
-                    : LogicalTreeHelper.GetParent(current);
+                // ItemsSource 生成的子项（"移动到分类"下的每个分类）Parent 和逻辑父节点都是 null，
+                // 只能经 ItemsControlFromItemContainer 回到父 MenuItem。少了这一步循环第一步就断，
+                // 落回 SelectedMod——从"⋯"按钮打开菜单时移动的是先前选中的另一个 MOD。
+                current = (current is FrameworkElement f && f.Parent != null
+                        ? f.Parent
+                        : LogicalTreeHelper.GetParent(current))
+                    ?? ItemsControl.ItemsControlFromItemContainer(current);
             }
 
             return _vm.ModList.SelectedMod;
@@ -1811,8 +1896,8 @@ namespace UEModManager
                 var count = _vm.ModList.SelectedCount;
                 if (count <= 0) return;
 
-                var r = CyberMessageBox.Show(this, UiText.Interpolate($"确认卸载选中的 {count} 个 MOD？\n此操作会从当前方案、包仓库和已部署文件中移除这些 MOD。"), UiText.Get("批量卸载"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                    yesText: "全部卸载", noText: "保留", danger: true);
+                var r = CyberMessageBox.Show(this, UiText.Interpolate($"永久删除选中的 {count} 个 MOD？\n会从游戏里移除，并删除管理器里保存的文件，之后需要重新导入才能找回。\n只想暂时不用的话，请改用「禁用」。"), UiText.Get("批量删除"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    yesText: "全部删除", noText: "保留", danger: true);
                 if (r != MessageBoxResult.Yes) return;
 
                 await _vm.ModList.DeleteSelectedAsync();

@@ -454,7 +454,9 @@ namespace UEModManager.ViewModels
                             Categories = ModCategoryAssignment.DisplayCategoriesFor(package.Tags),
                             IsEnabled = entry?.IsEnabled ?? false,
                             IsPlugin = package.Kind == PackageKind.Plugin,
-                            PluginTargetPath = package.PluginTargetPath ?? string.Empty,
+                            Kind = package.Kind,
+                            // 插件与配置都装在游戏目录下的 TargetRootPath（Package.PluginTargetPath 是它的别名）
+                            PluginTargetPath = package.Kind == PackageKind.Mod ? string.Empty : package.TargetRootPath ?? string.Empty,
                             PreviewImagePath = package.PreviewImagePath ?? string.Empty,
                             FileSize = package.TotalSize,
                             InstallDate = package.ImportedAt
@@ -676,13 +678,27 @@ namespace UEModManager.ViewModels
         /// 通过部署层切换 MOD 启用/禁用状态。
         /// 生成精简部署计划并执行。
         /// </summary>
+        /// <summary>
+        /// 要移除的文件已被游戏更新改过时，问玩家是否"交给游戏"（参数：这些文件的绝对路径）。
+        /// 由主窗口注入；未注入或玩家取消时操作照常失败，什么都不动。
+        /// </summary>
+        public Func<IReadOnlyList<string>, bool>? ConfirmReleaseModifiedFiles { get; set; }
+
         public async Task<OperationResult> DeployToggleAsync(string packageKey, bool enable)
         {
             using var loading = BeginLoading(enable ? UiText.Get("启用中...") : UiText.Get("禁用中..."));
             try
             {
-
-                var plan = await _deploymentPlanner.CreateTogglePlanAsync(packageKey, enable);
+                DeploymentPlan plan;
+                try
+                {
+                    plan = await _deploymentPlanner.CreateTogglePlanAsync(packageKey, enable);
+                }
+                catch (ExternallyModifiedFilesException ex) when (ConfirmReleaseModifiedFiles?.Invoke(ex.Paths) == true)
+                {
+                    // 以前这里只抛"请先保留或处理该文件"，玩家既不懂也没有任何按钮能处理，MOD 禁用不了也删不掉
+                    plan = await _deploymentPlanner.CreateTogglePlanAsync(packageKey, enable, releaseExternallyModified: true);
+                }
                 if (!plan.HasChanges)
                 {
                     await _profileService.SetPackageEnabledFlagAsync(packageKey, enable);

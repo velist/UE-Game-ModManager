@@ -11,6 +11,7 @@
   }
   if (redirectLegacySection()) return;
   window.addEventListener('hashchange', redirectLegacySection);
+
   // Content and navigation remain usable with JavaScript disabled.
   if (!('IntersectionObserver' in window)) return;
   const links = [...document.querySelectorAll('.lp-nav a[href^="#"], .lp-help-nav a[href^="#"]')];

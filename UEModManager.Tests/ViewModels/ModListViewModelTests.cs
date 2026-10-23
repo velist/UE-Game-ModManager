@@ -96,4 +96,85 @@ public sealed class ModListViewModelTests
         list.SetSource(new System.Collections.ObjectModel.ObservableCollection<ModInfo>(mods));
         return list;
     }
+
+    // ─── 类型筛选（全部 / MOD / 插件 / 配置）───
+
+    private static ModListViewModel NewMixedList()
+    {
+        var mods = new[]
+        {
+            new ModInfo { Name = "皮肤", RealName = "skin", Kind = PackageKind.Mod },
+            new ModInfo { Name = "材质", RealName = "tex", Kind = PackageKind.Mod },
+            new ModInfo { Name = "UE4SS 脚本", RealName = "lua-mod", Kind = PackageKind.Plugin, IsPlugin = true },
+            new ModInfo { Name = "画质配置", RealName = "EngineTweaks", Kind = PackageKind.Config },
+        };
+        var list = new ModListViewModel(NullLogger.Instance);
+        list.SetSource(new System.Collections.ObjectModel.ObservableCollection<ModInfo>(mods));
+        return list;
+    }
+
+    [Fact]
+    public void 类型计数按当前范围统计()
+    {
+        var list = NewMixedList();
+
+        Assert.Equal(4, list.AllKindCount);
+        Assert.Equal(2, list.ModKindCount);
+        Assert.Equal(1, list.PluginKindCount);
+        Assert.Equal(1, list.ConfigKindCount);
+        Assert.True(list.ShowKindFilter);
+    }
+
+    [Fact]
+    public void 选插件只剩插件_计数不随筛选变化()
+    {
+        var list = NewMixedList();
+
+        list.SetKindFilterCommand.Execute("Plugin");
+
+        Assert.Equal("lua-mod", Assert.Single(list.Mods).RealName);
+        // 按钮上的数字反映"点进去能看到几个"，不能因为当前筛了插件就把 MOD 计数清零
+        Assert.Equal(2, list.ModKindCount);
+    }
+
+    [Fact]
+    public void 类型筛选与搜索叠加()
+    {
+        var list = NewMixedList();
+        list.SetKindFilterCommand.Execute("Mod");
+
+        list.SearchText = "材质";
+
+        Assert.Equal("tex", Assert.Single(list.Mods).RealName);
+        Assert.Equal(1, list.AllKindCount);
+    }
+
+    [Fact]
+    public void 未知类型参数回到全部()
+    {
+        var list = NewMixedList();
+        list.SetKindFilterCommand.Execute("Plugin");
+
+        list.SetKindFilterCommand.Execute("胡写");
+
+        Assert.Equal(ModListViewModel.KindAll, list.KindFilter);
+        Assert.Equal(4, list.Mods.Count);
+    }
+
+    [Fact]
+    public void 只有MOD时隐藏类型切换()
+    {
+        var list = NewListWith(3);
+
+        Assert.False(list.ShowKindFilter);
+    }
+
+    [Fact]
+    public void 配置包的类型取自Kind而不是包名扩展名()
+    {
+        // 目录导入的配置包名没有扩展名，以前按 RealName 猜出来一律是 MOD
+        var mod = new ModInfo { RealName = "EngineTweaks", Kind = PackageKind.Config };
+
+        Assert.Equal(PackageKind.Config, mod.DetectedKind);
+    }
 }

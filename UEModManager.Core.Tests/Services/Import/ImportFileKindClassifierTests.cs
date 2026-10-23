@@ -64,4 +64,18 @@ public class ImportFileKindClassifierTests
         Assert.Throws<ArgumentNullException>(() =>
             ImportFileKindClassifier.Classify("foo.pak", null!));
     }
+
+    [Theory]
+    [InlineData("readme.txt")]
+    [InlineData("README")]
+    [InlineData("说明与事项.docx")]
+    [InlineData("下载地址.url")]
+    [InlineData("preview.png")]
+    [InlineData("安装教程.mp4")]
+    public void Classify_明显不是MOD的文件被跳过(string path)
+        => Assert.Equal(ImportFileKind.NotAMod, ImportFileKindClassifier.Classify(path, UeDirectImport));
+
+    [Fact]
+    public void Classify_引擎认的格式优先于跳过规则()
+        => Assert.Equal(ImportFileKind.DirectImport, ImportFileKindClassifier.Classify("t_hero.png", new[] { ".png" }));
 }

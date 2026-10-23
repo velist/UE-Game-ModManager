@@ -1,3 +1,4 @@
+using System.Linq;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
 
@@ -20,6 +21,8 @@ public class PackageKindDetectorTests
     [InlineData("plug.dll")]
     [InlineData("PLUG.EXE")]
     [InlineData("lib.so")]
+    [InlineData("dinput8.asi")]      // ASI 加载器插件
+    [InlineData("main.LUA")]         // UE4SS / REFramework 脚本
     public void DetectByExtension_Plugin(string path)
         => Assert.Equal(PackageKind.Plugin, PackageKindDetector.DetectByExtension(path));
 
@@ -101,4 +104,47 @@ public class PackageKindDetectorTests
     [InlineData(PackageKind.Config, ArtifactType.ConfigFile)]
     public void KindToArtifactType_KnownKinds(PackageKind kind, ArtifactType expected)
         => Assert.Equal(expected, PackageKindDetector.KindToArtifactType(kind));
+
+    // ─── ClassifyPayload：非 MOD 载荷是插件还是配置 ───
+
+    [Fact]
+    public void ClassifyPayload_纯Lua脚本是插件而不是配置()
+    {
+        // UE4SS 脚本 MOD 通常只有 Scripts/main.lua + enabled.txt，没有 DLL。
+        // 以前"没 DLL 就算配置"，玩家看到的类型是"配置"。
+        var kind = PackageKindDetector.ClassifyPayload(new[] { "ue4ss/Mods/MyMod/Scripts/main.lua", "ue4ss/Mods/MyMod/enabled.txt" });
+        Assert.Equal(PackageKind.Plugin, kind);
+    }
+
+    [Fact]
+    public void ClassifyPayload_含DLL是插件()
+        => Assert.Equal(PackageKind.Plugin, PackageKindDetector.ClassifyPayload(new[] { "dwmapi.dll", "UE4SS-settings.ini" }));
+
+    [Fact]
+    public void ClassifyPayload_只有配置文件是配置()
+        => Assert.Equal(PackageKind.Config, PackageKindDetector.ClassifyPayload(new[] { "Engine.ini", "notes.txt" }));
+
+    [Fact]
+    public void ClassifyPayload_拒绝null()
+        => Assert.Throws<System.ArgumentNullException>(() => PackageKindDetector.ClassifyPayload(null!));
+
+    // ─── PackageKindText：三处界面共用的叫法 ───
+
+    [Theory]
+    [InlineData(PackageKind.Mod, "MOD", "MOD 详情")]
+    [InlineData(PackageKind.Plugin, "插件", "插件详情")]
+    [InlineData(PackageKind.Config, "配置", "配置详情")]
+    public void PackageKindText_标签与标题(PackageKind kind, string label, string title)
+    {
+        Assert.Equal(label, PackageKindText.Label(kind));
+        Assert.Equal(title, PackageKindText.DetailTitle(kind));
+        Assert.False(string.IsNullOrWhiteSpace(PackageKindText.Explain(kind)));
+    }
+
+    [Fact]
+    public void PackageKindText_三类解释互不相同()
+    {
+        var all = new[] { PackageKind.Mod, PackageKind.Plugin, PackageKind.Config }.Select(PackageKindText.Explain).ToList();
+        Assert.Equal(3, all.Distinct().Count());
+    }
 }
