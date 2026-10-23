@@ -7,6 +7,8 @@ namespace UEModManager.Tests.Themes;
 ///
 /// 2026-09-28 有意变更：Text500/600/700 提亮到 #8b8b94 / #7e7e87 / #76767f，
 /// 使辅助文字在 Bg/Surface 底色上的对比度从 1.9~4.3:1 提到 4.3~6.1:1（原值低于 WCAG 4.5:1）。
+///
+/// 2026-10-23 有意变更：五种按钮样式各加一个 infra:MotionAssist.Press setter（按压回弹），颜色与尺寸不变。
 /// </summary>
 public static partial class ThemeSnapshot
 {
@@ -187,11 +189,11 @@ public static partial class ThemeSnapshot
         ["CyberCloseButton"] = "Style<Button> setters=6 triggers=0",
         ["CyberComboBox"] = "Style<ComboBox> setters=11 triggers=0",
         ["CyberComboBoxToggleButton"] = "Style<ToggleButton> setters=5 triggers=0",
-        ["CyberCompactButton"] = "Style<Button> setters=9 triggers=0",
+        ["CyberCompactButton"] = "Style<Button> setters=10 triggers=0",
         ["CyberContextMenu"] = "Style<ContextMenu> setters=10 triggers=0",
-        ["CyberDangerButton"] = "Style<Button> setters=10 triggers=0",
+        ["CyberDangerButton"] = "Style<Button> setters=11 triggers=0",
         ["CyberDarkWindow"] = "Style<Window> setters=10 triggers=0",
-        ["CyberGhostButton"] = "Style<Button> setters=8 triggers=0",
+        ["CyberGhostButton"] = "Style<Button> setters=9 triggers=0",
         ["CyberHorizontalScrollBar"] = "Style<ScrollBar> setters=4 triggers=0",
         ["CyberLabel"] = "Style<TextBlock> setters=4 triggers=0",
         ["CyberListBoxItem"] = "Style<ListBoxItem> setters=7 triggers=0",
@@ -202,12 +204,12 @@ public static partial class ThemeSnapshot
         ["CyberMenuSeparator"] = "Style<Separator> setters=3 triggers=0",
         ["CyberModalWindow"] = "Style<Window> setters=10 triggers=0",
         ["CyberNavItem"] = "Style<RadioButton> setters=6 triggers=0",
-        ["CyberPrimaryButton"] = "Style<Button> setters=10 triggers=0",
+        ["CyberPrimaryButton"] = "Style<Button> setters=11 triggers=0",
         ["CyberProgressBar"] = "Style<ProgressBar> setters=4 triggers=0",
         ["CyberScrollBarHorizontalThumb"] = "Style<Thumb> setters=1 triggers=0",
         ["CyberScrollBarThumb"] = "Style<Thumb> setters=1 triggers=0",
         ["CyberScrollViewer"] = "Style<ScrollViewer> setters=1 triggers=0",
-        ["CyberSecondaryButton"] = "Style<Button> setters=9 triggers=0",
+        ["CyberSecondaryButton"] = "Style<Button> setters=10 triggers=0",
         ["CyberSlider"] = "Style<Slider> setters=4 triggers=0",
         ["CyberTextBox"] = "Style<TextBox> setters=12 triggers=0",
         ["CyberToggleSwitch"] = "Style<CheckBox> setters=2 triggers=0",

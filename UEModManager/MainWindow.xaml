@@ -5,6 +5,7 @@
         xmlns:converters="clr-namespace:UEModManager.Converters"
         xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
         xmlns:views="clr-namespace:UEModManager.Views"
+        xmlns:infra="clr-namespace:UEModManager.Infrastructure"
         Title="{loc:Text &#x27;爱酱MOD管理器&#x27;}"
         Icon="mnlogo.ico"
         Height="900" Width="1440"
@@ -34,8 +35,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Chip" CornerRadius="8" Padding="11,5" Background="#80181818"
-                                BorderBrush="Transparent" BorderThickness="1">
+                        <Border x:Name="Chip" CornerRadius="8" Padding="11,5" BorderThickness="1">
+                            <Border.Background><SolidColorBrush Color="#80181818"/></Border.Background>
+                            <Border.BorderBrush><SolidColorBrush Color="Transparent"/></Border.BorderBrush>
                             <ContentPresenter VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -43,12 +45,27 @@
                                 <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Text500Brush}"/>
+                                <Setter TargetName="Chip" Property="BorderThickness" Value="1.5"/>
                             </Trigger>
+                            <!-- 选中态颜色渐变 180ms，以前是瞬间切换 -->
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Chip" Property="Background" Value="#1F06B6D4"/>
-                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource Text100Brush}"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Chip" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#1F06B6D4" Duration="0:0:0.18"/>
+                                            <ColorAnimation Storyboard.TargetName="Chip" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" To="{StaticResource PrimaryColor}" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Chip" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#80181818" Duration="0:0:0.18"/>
+                                            <ColorAnimation Storyboard.TargetName="Chip" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" To="Transparent" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -134,7 +151,7 @@
                                 </StackPanel>
 
                                 <!-- 设置图标 (齿轮) -->
-                                <Border Grid.Column="2" VerticalAlignment="Center" Cursor="Hand"
+                                <Border infra:MotionAssist.Press="True" Grid.Column="2" VerticalAlignment="Center" Cursor="Hand"
                                         MouseLeftButtonDown="SettingsIcon_Click">
                                     <Viewbox Width="16" Height="16">
                                         <Path Fill="{StaticResource Text600Brush}"
@@ -147,7 +164,7 @@
 
                     <!-- 使用说明书按钮 (底部固定，在 DonateArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,4,16,4">
-                        <Border x:Name="HelpDocBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
+                        <Border infra:MotionAssist.Press="True" x:Name="HelpDocBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
                                 Background="Transparent"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 ToolTip="{loc:Text &#x27;打开在线使用说明书（WPS 云文档）&#x27;}"
@@ -170,7 +187,7 @@
 
                     <!-- DonateArea (底部固定，在 UserArea 上方) -->
                     <Border DockPanel.Dock="Bottom" Padding="16,12,16,8">
-                        <Border x:Name="DonateBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
+                        <Border infra:MotionAssist.Press="True" x:Name="DonateBtn" CornerRadius="8" Padding="10,8" Cursor="Hand"
                                 Background="Transparent"
                                 BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="DonateBtn_Click">
@@ -217,7 +234,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="CurrentGameLabel" Text="{loc:Text &#x27;当前游戏&#x27;}" Foreground="{StaticResource Text600Brush}"
                                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                                    <Border x:Name="GameSwitcherBtn" CornerRadius="8" Padding="12,8"
+                                    <Border infra:MotionAssist.Press="True" x:Name="GameSwitcherBtn" CornerRadius="8" Padding="12,8"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
                                             MouseLeftButtonDown="GameSwitcher_Click">
@@ -348,7 +365,7 @@
                                         <TextBlock x:Name="NavCategoriesHeader" Text="{loc:Text &#x27;分 类 目 录&#x27;}" Foreground="{StaticResource Text600Brush}"
                                                    FontSize="11" FontWeight="Bold" VerticalAlignment="Center"
                                                   />
-                                        <Border HorizontalAlignment="Right" Cursor="Hand"
+                                        <Border infra:MotionAssist.Press="True" HorizontalAlignment="Right" Cursor="Hand"
                                                 MouseLeftButtonDown="AddCategory_Click">
                                             <TextBlock Text="＋" FontSize="14" Foreground="{StaticResource Text600Brush}"/>
                                         </Border>
@@ -440,7 +457,7 @@
                                 <StackPanel Margin="0,16,0,0">
                                     <TextBlock Text="{loc:Text &#x27;MOD 配置方案&#x27;}" Foreground="{StaticResource Text600Brush}"
                                                FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                    <Border x:Name="ProfileSelectorBtn" CornerRadius="8" Padding="12,10"
+                                    <Border infra:MotionAssist.Press="True" x:Name="ProfileSelectorBtn" CornerRadius="8" Padding="12,10"
                                             Background="{StaticResource SurfaceBrush}" Cursor="Hand"
                                             BorderBrush="#27272A99" BorderThickness="1"
                                             MouseLeftButtonDown="ProfileSelector_Click">
@@ -538,7 +555,7 @@
                                     Padding="4" Margin="0,0,8,0"
                                     BorderBrush="#27272A99" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border x:Name="GridViewBtn" Width="28" Height="28" CornerRadius="8"
+                                    <Border infra:MotionAssist.Press="True" x:Name="GridViewBtn" Width="28" Height="28" CornerRadius="8"
                                             Background="{StaticResource CyberBorderBrush}" Cursor="Hand"
                                             MouseLeftButtonDown="CardViewBtn_Click">
                                         <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -549,7 +566,7 @@
                                             </Canvas>
                                         </Viewbox>
                                     </Border>
-                                    <Border x:Name="ListViewBtnBorder" Width="28" Height="28" CornerRadius="8"
+                                    <Border infra:MotionAssist.Press="True" x:Name="ListViewBtnBorder" Width="28" Height="28" CornerRadius="8"
                                             Background="Transparent" Cursor="Hand"
                                             MouseLeftButtonDown="ListViewBtn_Click">
                                         <Viewbox Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -564,7 +581,7 @@
                             </Border>
 
                             <!-- 冲突检测 -->
-                            <Border CornerRadius="8" Padding="12,8" Cursor="Hand" Margin="0,0,8,0"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="12,8" Cursor="Hand" Margin="0,0,8,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="ConflictCheck_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -584,7 +601,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,8,0"/>
 
                             <!-- 导入 -->
-                            <Border CornerRadius="8" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,8,0"
                                     MouseLeftButtonDown="ImportMod_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -604,7 +621,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,8,0"/>
 
                             <!-- 管理中心 -->
-                            <Border CornerRadius="8" Background="{StaticResource SurfaceBrush}" Padding="16,10"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Background="{StaticResource SurfaceBrush}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,8,0"
                                     BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1"
                                     MouseLeftButtonDown="ManagementCenter_Click">
@@ -623,7 +640,7 @@
                             </Border>
 
                             <!-- 启动游戏 -->
-                            <Border CornerRadius="8" Padding="16,10"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="16,10"
                                     Cursor="Hand" MouseLeftButtonDown="LaunchGame_Click">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -714,7 +731,7 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- 全选 -->
-                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="8,6" Cursor="Hand" Margin="0,0,20,0"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SelectAll_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -737,15 +754,15 @@
                                     <TextBlock Text="{loc:Value {Binding ModList.SelectedCount}, Format='已选 {0}'}"
                                                Foreground="{StaticResource Text300Brush}" FontSize="12"
                                                VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#2238D996" MouseLeftButtonDown="BatchEnable_Click">
                                         <TextBlock x:Name="BatchEnableText" Text="{loc:Text &#x27;启用&#x27;}" Foreground="{StaticResource StatusGreenBrush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
+                                    <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="9,4" Cursor="Hand" Margin="0,0,6,0"
                                             Background="#22A1A1AA" MouseLeftButtonDown="BatchDisable_Click">
                                         <TextBlock x:Name="BatchDisableText" Text="{loc:Text &#x27;禁用&#x27;}" Foreground="{StaticResource Text300Brush}" FontSize="12"/>
                                     </Border>
-                                    <Border CornerRadius="8" Padding="9,4" Cursor="Hand"
+                                    <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="9,4" Cursor="Hand"
                                             Background="#33EF4444" MouseLeftButtonDown="BatchDelete_Click">
                                         <TextBlock x:Name="BatchDeleteText" Text="{loc:Text &#x27;删除&#x27;}" Foreground="{StaticResource DangerBrush}" FontSize="12"/>
                                     </Border>
@@ -753,7 +770,7 @@
                             </Border>
 
                             <!-- 排序 -->
-                            <Border CornerRadius="8" Padding="8,6" Cursor="Hand"
+                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="8,6" Cursor="Hand"
                                     Background="#80181818"
                                     MouseLeftButtonDown="SortButton_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -831,10 +848,8 @@
                                             BorderThickness="1" Width="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}" Height="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                             Cursor="Hand" MouseDown="ModCard_MouseDown"
-                                            MouseEnter="ModCard_MouseEnter" MouseLeave="ModCard_MouseLeave">
-                                        <Border.BorderBrush>
-                                            <SolidColorBrush Color="#27272A" Opacity="0.6"/>
-                                        </Border.BorderBrush>
+                                            MouseEnter="ModCard_MouseEnter" MouseLeave="ModCard_MouseLeave"
+                                            infra:MotionAssist.Enter="True" infra:MotionAssist.Lift="3">
                                         <Border.ContextMenu>
                                             <ContextMenu Style="{StaticResource CyberContextMenu}">
                                                 <MenuItem Header="{loc:Text &#x27;启用MOD&#x27;}" Click="EnableModMenuItem_Click" Style="{StaticResource CyberMenuItem}"/>
@@ -852,6 +867,9 @@
                                         </Border.ContextMenu>
                                         <Border.Style>
                                             <Style TargetType="Border">
+                                                <!-- 默认边框必须放在样式里：写成 Border.BorderBrush 本地值时优先级高于下面的触发器，
+                                                     悬停 / 选中时边框永远不变色，只有阴影生效 -->
+                                                <Setter Property="BorderBrush" Value="#9927272A"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                         <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
@@ -908,7 +926,7 @@
                                                     </Border>
 
                                                     <!-- 悬停遮罩 + 操作按钮 -->
-                                                    <Border x:Name="HoverOverlay" Background="#00000099" Opacity="0"
+                                                    <Border x:Name="HoverOverlay" Background="#80000000" Opacity="0"
                                                             IsHitTestVisible="False">
                                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                                     Orientation="Horizontal">

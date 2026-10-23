@@ -102,6 +102,12 @@ namespace UEModManager
                 _vm = sp.GetRequiredService<MainViewModel>();
                 DataContext = _vm;
                 _vm.ConfirmReleaseModifiedFiles = ConfirmReleaseModifiedFiles;
+                // 列表整体重建（刷新、换分类 / 类型 / 搜索）时让卡片逐张入场；普通增删不触发
+                _vm.ModList.Mods.CollectionChanged += (_, e) =>
+                {
+                    if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+                        Infrastructure.MotionAssist.ArmEntrance();
+                };
 
                 // 仓库一刷新，左栏计数 / 顶部数量 / 空状态就重算。
                 // 这三样是手工算的，不靠绑定；此前只在各个点击处理器里零散调用，
@@ -1176,23 +1182,23 @@ namespace UEModManager
 
         private void UpdateNavHighlight()
         {
-            // 全部
-            NavAllMods.Background = _activeNavTag == "全部"
-                ? FindResource("SurfaceHoverBrush") as Brush : Brushes.Transparent;
+            // 选中背景平滑过渡（以前是瞬间替换画刷）
+            var active = (Color)FindResource("SurfaceHoverColor");
+            Infrastructure.MotionAssist.AnimateBackground(NavAllMods, _activeNavTag == "全部" ? active : Colors.Transparent);
+            Infrastructure.MotionAssist.AnimateBackground(NavEnabled, _activeNavTag == "已启用" ? active : Colors.Transparent);
+            Infrastructure.MotionAssist.AnimateBackground(NavDisabled, _activeNavTag == "已禁用" ? active : Colors.Transparent);
             NavAllMods.BorderThickness = _activeNavTag == "全部" ? new Thickness(1) : new Thickness(0);
 
-            // 已启用
-            NavEnabled.Background = _activeNavTag == "已启用"
-                ? FindResource("SurfaceHoverBrush") as Brush : Brushes.Transparent;
-
-            // 已禁用
-            NavDisabled.Background = _activeNavTag == "已禁用"
-                ? FindResource("SurfaceHoverBrush") as Brush : Brushes.Transparent;
+            // "全部 MOD"的文字与计数以前写死成高亮色，切到别的分类后看起来像两项同时选中
+            var allActive = _activeNavTag == "全部";
+            NavAllModsText.Foreground = (Brush)FindResource(allActive ? "PrimaryLightBrush" : "Text300Brush");
+            NavAllCount.Foreground = (Brush)FindResource(allActive ? "PrimaryBrush" : "Text500Brush");
         }
 
         private void UpdateNavCounts()
         {
-            var mods = _vm.ModList.Mods;
+            // 按全部 MOD 计数，不是按当前筛选后的列表：否则切到"已启用"后会显示"全部 = 启用数、已禁用 = 0"
+            var mods = _vm.AllMods;
             NavAllCount.Text = mods.Count.ToString();
             NavEnabledCount.Text = mods.Count(m => m.IsEnabled).ToString();
             NavDisabledCount.Text = mods.Count(m => !m.IsEnabled).ToString();
