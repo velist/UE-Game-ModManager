@@ -10,6 +10,8 @@ public class GameOriginalFileDetectorTests
     [InlineData("pakchunk12optional-Windows.utoc")]
     [InlineData("global.utoc")]
     [InlineData("re_chunk_000.pak")]
+    [InlineData("pakchunk26-Windows_P.pak")]                 // 黑神话官方补丁，带 _P 但是平台名
+    [InlineData("pakchunk23-Windows-WinStoreSteam.sig")]
     public void 游戏本体容器被识别(string name) => Assert.True(GameOriginalFileDetector.LooksLikeGameOriginal(name));
 
     [Theory]

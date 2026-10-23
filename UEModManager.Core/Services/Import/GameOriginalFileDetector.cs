@@ -21,6 +21,14 @@ public static class GameOriginalFileDetector
         @"^pakchunk\d+(?:optional)?(?:-[A-Za-z0-9]+)?\.(?:pak|ucas|utoc|sig)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    /// <summary>
+    /// 官方补丁容器：平台名 + 可选 _P，例如黑神话的 <c>pakchunk26-Windows_P.pak</c>。
+    /// 不能被"带 _P 就是 MOD"的规则放过——MOD 惯例是自己的名字加 _P（<c>pakchunk99-Mods_P</c>），不用平台名。
+    /// </summary>
+    private static readonly Regex UePlatformPatch = new(
+        @"^pakchunk\d+(?:optional)?-(?:Windows|WindowsNoEditor|WinGDK|Windows-WinStoreSteam|WinStoreSteam)(?:_P)?\.(?:pak|ucas|utoc|sig)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly Regex ReChunk = new(
         @"^re_chunk_\d+\.pak$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -29,6 +37,8 @@ public static class GameOriginalFileDetector
     {
         var name = Path.GetFileName(filePath ?? string.Empty);
         if (string.IsNullOrEmpty(name)) return false;
+
+        if (UePlatformPatch.IsMatch(name)) return true;
 
         if (Path.GetFileNameWithoutExtension(name).EndsWith("_p", StringComparison.OrdinalIgnoreCase))
             return false;
