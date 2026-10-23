@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
@@ -42,6 +43,15 @@ public sealed class AssetIndexService
     private string _currentGame = string.Empty;
     private bool _cacheLoaded;
 
+    /// <summary>
+    /// 串行化所有读写上面两张表与缓存文件的入口。
+    ///
+    /// 导入后的 <see cref="WarmUpAsync"/> 是不等待的后台任务，连续导入几个包、或预热时
+    /// 恰好打开冲突面板，就会有多个调用同时改 <see cref="_indexCache"/>——Dictionary 并发写会把
+    /// 内部状态写坏，序列化时还会撞上同一个缓存文件。
+    /// </summary>
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
     public AssetIndexService(ILogger<AssetIndexService> logger, ObjectStore objectStore)
         : this(logger, objectStore, AppPaths.DataDirectory)
     {
@@ -64,11 +74,19 @@ public sealed class AssetIndexService
     /// </summary>
     public async Task SetCurrentGameAsync(string gameName)
     {
-        _currentGame = gameName ?? string.Empty;
-        _fingerprints.Clear();
-        _indexCache.Clear();
-        _cacheLoaded = false;
-        await LoadContainerCacheAsync();
+        await _gate.WaitAsync();
+        try
+        {
+            _currentGame = gameName ?? string.Empty;
+            _fingerprints.Clear();
+            _indexCache.Clear();
+            _cacheLoaded = false;
+            await LoadContainerCacheAsync();
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     /// <summary>
@@ -77,6 +95,20 @@ public sealed class AssetIndexService
     public async Task<ModAssetIndex> GetIndexAsync(Package package, ConflictStrategy strategy)
     {
         ArgumentNullException.ThrowIfNull(package);
+
+        await _gate.WaitAsync();
+        try
+        {
+            return await GetIndexCoreAsync(package, strategy);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<ModAssetIndex> GetIndexCoreAsync(Package package, ConflictStrategy strategy)
+    {
 
         // 非 UE 引擎、以及所有非 MOD 包：没有容器可读，退化到文件路径。
         if (strategy != ConflictStrategy.ContainerAssets || package.Kind != PackageKind.Mod)
@@ -142,6 +174,20 @@ public sealed class AssetIndexService
     {
         ArgumentNullException.ThrowIfNull(overlaps);
 
+        await _gate.WaitAsync();
+        try
+        {
+            await FillFingerprintsCoreAsync(overlaps);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task FillFingerprintsCoreAsync(
+        IReadOnlyList<(string AssetKey, IReadOnlyList<(string PackageKey, AssetEntry Entry)> Entries)> overlaps)
+    {
         foreach (var (_, owners) in overlaps)
         {
             var shapeDiffers = owners

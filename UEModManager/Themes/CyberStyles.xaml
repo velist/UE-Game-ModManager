@@ -1244,25 +1244,46 @@
 
     <!-- ── Slider (音量/透明度等) ── -->
     <Style x:Key="CyberSlider" TargetType="{x:Type Slider}">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <!-- 轨道用 BorderLight 而不是 Surface：Surface 与窗口底色几乎同色，轨道整条"隐身"，只剩一个圆点 -->
+        <Setter Property="Background" Value="{StaticResource BorderLightBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="Height" Value="20"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="IsMoveToPointEnabled" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Slider}">
                     <Grid VerticalAlignment="Center">
-                        <Border Height="4" Background="{TemplateBinding Background}" CornerRadius="2"/>
+                        <Border Height="6" Background="{TemplateBinding Background}" CornerRadius="3"/>
                         <Track x:Name="PART_Track">
+                            <!-- 已选部分：从左端到滑块填充品牌青，一眼看出当前比例 -->
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Focusable="False" IsTabStop="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Height="6" CornerRadius="3,0,0,3" Background="{StaticResource PrimaryBrush}"/>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Focusable="False" IsTabStop="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
                             <Track.Thumb>
-                                <Thumb Width="16" Height="16" Cursor="Hand">
+                                <Thumb Width="18" Height="18" Cursor="Hand">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="{x:Type Thumb}">
-                                            <Ellipse x:Name="thumbEllipse" Width="16" Height="16"
-                                                     Fill="{StaticResource PrimaryBrush}"
-                                                     Stroke="{StaticResource BgBaseBrush}" StrokeThickness="2"/>
+                                            <Ellipse x:Name="thumbEllipse" Width="18" Height="18"
+                                                     Fill="{StaticResource Text100Brush}"
+                                                     Stroke="{StaticResource PrimaryBrush}" StrokeThickness="3"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="thumbEllipse" Property="Fill"
+                                                    <Setter TargetName="thumbEllipse" Property="Stroke"
                                                             Value="{StaticResource PrimaryLightBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>

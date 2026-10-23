@@ -724,7 +724,8 @@ namespace UEModManager.Views
             // 落点换算与首次运行引导共用同一份判据：选中的目录里已经有别的东西时，
             // 落点自动退到它下面的 UEModManager\Repository，免得把用户自己的文件夹变成仓库根。
             var hasContent = DirectoryHasContent(selected);
-            var resolved = RepositoryLocationValidator.ResolveRepositoryPath(selected, hasContent);
+            // 选的就是当前仓库时不套子目录——否则改个背景图点保存都会触发"搬进自己子目录"并弹错
+            var resolved = RepositoryLocationValidator.ResolveForSettings(selected, hasContent, _objectStore.RepositoryRoot);
 
             var plan = relocation.Plan(resolved);
 

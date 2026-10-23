@@ -109,6 +109,10 @@ namespace UEModManager.Views
             // 用户主动取消不算失败，不打扰
             if (ex is OperationCanceledException && ex.InnerException is not TimeoutException) return;
 
+            // 弹窗前先把完整异常写进日志（console.log）：以前只弹窗不留痕，
+            // 用户反馈"看不懂的错误"时日志里查不到任何线索
+            Console.WriteLine($"[Error] {operation} 失败: {ex}");
+
             var error = UserFacingErrors.Describe(ex);
             var (title, message) = DescribeError(operation, error);
 

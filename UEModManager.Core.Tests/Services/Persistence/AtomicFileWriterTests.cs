@@ -20,7 +20,7 @@ public sealed class AtomicFileWriterTests : IDisposable
         await AtomicFileWriter.WriteAllTextAsync(path, """{"value":1}""");
 
         Assert.Equal("""{"value":1}""", await File.ReadAllTextAsync(path));
-        Assert.False(File.Exists(path + ".tmp"));
+        AssertNoTempLeft(path);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class AtomicFileWriterTests : IDisposable
         await AtomicFileWriter.WriteAllTextAsync(path, "new");
 
         Assert.Equal("new", await File.ReadAllTextAsync(path));
-        Assert.False(File.Exists(path + ".tmp"));
+        AssertNoTempLeft(path);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class AtomicFileWriterTests : IDisposable
         }
 
         Assert.Equal("old", await File.ReadAllTextAsync(path));
-        Assert.False(File.Exists(path + ".tmp"));
+        AssertNoTempLeft(path);
     }
 
     [Fact]
@@ -59,8 +59,30 @@ public sealed class AtomicFileWriterTests : IDisposable
         AtomicFileWriter.WriteAllText(path, "new");
 
         Assert.Equal("new", File.ReadAllText(path));
-        Assert.False(File.Exists(path + ".tmp"));
+        AssertNoTempLeft(path);
     }
+
+    [Fact]
+    public async Task WriteAllTextAsync_并发写同一文件_不互相踩临时文件()
+    {
+        var path = Path.Combine(_tempDir, "cache.json");
+        var contents = Enumerable.Range(0, 16).Select(i => new string((char)('a' + i), 4096)).ToList();
+
+        // 同一目标的并发写本该由调用方串行化；这里只兜底两件事：
+        // 撞上的写入者可以失败，但目标文件始终是某一次完整的内容，且不留临时文件
+        var tasks = contents.Select(c => Task.Run(async () =>
+        {
+            try { await AtomicFileWriter.WriteAllTextAsync(path, c); }
+            catch (IOException) { }
+        }));
+        await Task.WhenAll(tasks);
+
+        Assert.Contains(await File.ReadAllTextAsync(path), contents);
+        AssertNoTempLeft(path);
+    }
+
+    private static void AssertNoTempLeft(string path)
+        => Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, "*.tmp"));
 
     public void Dispose()
     {

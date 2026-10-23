@@ -167,6 +167,32 @@ public static class RepositoryLocationValidator
             : trimmed;
     }
 
+    /// <summary>
+    /// 设置页用的落点换算：选中的就是<b>当前仓库本身</b>时原样返回，不再套子目录。
+    ///
+    /// <para>
+    /// 设置页的输入框默认填的就是当前仓库路径，而当前仓库里装着 MOD、必然"非空"。
+    /// 直接走 <see cref="ResolveRepositoryPath"/> 会算出 <c>当前仓库\UEModManager\Repository</c>，
+    /// 于是用户只是改了背景图、点保存，就触发一次"把仓库搬进它自己的子目录"，必然失败并弹错。
+    /// </para>
+    /// </summary>
+    public static string ResolveForSettings(string selectedPath, bool directoryHasContent, string? currentRepositoryRoot)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+            throw new ArgumentException("选中路径不能为空", nameof(selectedPath));
+
+        if (!string.IsNullOrWhiteSpace(currentRepositoryRoot) && SamePath(selectedPath, currentRepositoryRoot))
+            return currentRepositoryRoot.Trim();
+
+        return ResolveRepositoryPath(selectedPath, directoryHasContent);
+    }
+
+    private static bool SamePath(string a, string b)
+    {
+        static string Norm(string p) => p.Trim().Replace('/', '\\').TrimEnd('\\');
+        return string.Equals(Norm(a), Norm(b), StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>判定。</summary>
     public static RepositoryLocationVerdict Validate(RepositoryLocationProbe probe)
     {

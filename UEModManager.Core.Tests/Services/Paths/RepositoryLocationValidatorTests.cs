@@ -281,4 +281,23 @@ public class RepositoryLocationValidatorTests
             RepositoryLocationValidator.ResolveRepositoryPath(@"D:\Games", true),
             verdict.ResolvedPath);
     }
+
+    // ─── 设置页：选中的就是当前仓库 ───
+
+    [Theory]
+    [InlineData(@"D:\UEModManager\Repository")]
+    [InlineData(@"d:\uemodmanager\repository\")]
+    [InlineData(@"D:/UEModManager/Repository")]
+    public void 设置页选中当前仓库时不套子目录(string selected)
+    {
+        // 当前仓库装着 MOD、必然非空；以前会算成 当前仓库\UEModManager\Repository，触发"搬进自己子目录"
+        var resolved = RepositoryLocationValidator.ResolveForSettings(selected, directoryHasContent: true, @"D:\UEModManager\Repository");
+
+        Assert.Equal(@"D:\UEModManager\Repository", resolved);
+    }
+
+    [Fact]
+    public void 设置页选了别的非空目录照常套子目录()
+        => Assert.Equal(@"E:\Games\UEModManager\Repository",
+            RepositoryLocationValidator.ResolveForSettings(@"E:\Games", directoryHasContent: true, @"D:\UEModManager\Repository"));
 }

@@ -20,7 +20,7 @@
         </Path>
 
         <!-- 聚光灯描边：青色发光框，跟着洞走 -->
-        <Border x:Name="HoleRing" BorderBrush="{StaticResource PrimaryLightBrush}" BorderThickness="2"
+        <Border x:Name="HoleRing" BorderBrush="{DynamicResource PrimaryLightBrush}" BorderThickness="2"
                 CornerRadius="12" IsHitTestVisible="False">
             <Border.Effect>
                 <DropShadowEffect ShadowDepth="0" BlurRadius="18" Opacity="0.8" Color="#22d3ee"/>
@@ -29,28 +29,28 @@
 
         <!-- 说明卡 -->
         <Border x:Name="Card" Width="340" Padding="20,18" CornerRadius="14"
-                Background="#F50F0F11" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+                Background="#F50F0F11" BorderBrush="{DynamicResource BorderLightBrush}" BorderThickness="1">
             <Border.Effect>
                 <DropShadowEffect ShadowDepth="0" BlurRadius="28" Opacity="0.6" Color="Black"/>
             </Border.Effect>
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
-                    <Border Width="26" Height="26" CornerRadius="13" Background="{StaticResource PrimaryBrush}">
+                    <Border Width="26" Height="26" CornerRadius="13" Background="{DynamicResource PrimaryBrush}">
                         <TextBlock x:Name="StepNumber" Text="1" Foreground="#04130A" FontWeight="Bold" FontSize="13"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <TextBlock x:Name="StepCounter" Margin="10,0,0,0" VerticalAlignment="Center"
-                               Foreground="{StaticResource Text500Brush}" FontSize="12"/>
+                               Foreground="{DynamicResource Text500Brush}" FontSize="12"/>
                 </StackPanel>
-                <TextBlock x:Name="StepTitle" Margin="0,12,0,0" Foreground="{StaticResource Text100Brush}"
+                <TextBlock x:Name="StepTitle" Margin="0,12,0,0" Foreground="{DynamicResource Text100Brush}"
                            FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
-                <TextBlock x:Name="StepBody" Margin="0,6,0,0" Foreground="{StaticResource Text300Brush}"
+                <TextBlock x:Name="StepBody" Margin="0,6,0,0" Foreground="{DynamicResource Text300Brush}"
                            FontSize="13" LineHeight="20" TextWrapping="Wrap"/>
                 <Grid Margin="0,18,0,0">
                     <Button x:Name="SkipButton" Content="{loc:Text '跳过引导'}" HorizontalAlignment="Left"
-                            Style="{StaticResource CyberGhostButton}" Height="34" Padding="10,0" Click="Skip_Click"/>
+                            Style="{DynamicResource CyberGhostButton}" Height="34" Padding="10,0" Click="Skip_Click"/>
                     <Button x:Name="NextButton" HorizontalAlignment="Right"
-                            Style="{StaticResource CyberPrimaryButton}" Height="34" Padding="18,0" Click="Next_Click"/>
+                            Style="{DynamicResource CyberPrimaryButton}" Height="34" Padding="18,0" Click="Next_Click"/>
                 </Grid>
             </StackPanel>
         </Border>

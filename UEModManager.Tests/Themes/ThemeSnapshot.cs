@@ -9,6 +9,7 @@ namespace UEModManager.Tests.Themes;
 /// 使辅助文字在 Bg/Surface 底色上的对比度从 1.9~4.3:1 提到 4.3~6.1:1（原值低于 WCAG 4.5:1）。
 ///
 /// 2026-10-23 有意变更：五种按钮样式各加一个 infra:MotionAssist.Press setter（按压回弹），颜色与尺寸不变。
+/// 2026-10-23 有意变更：CyberSlider 加 IsMoveToPointEnabled（点轨道直接跳到该位置），轨道改用 BorderLight 色。
 /// </summary>
 public static partial class ThemeSnapshot
 {
@@ -210,7 +211,7 @@ public static partial class ThemeSnapshot
         ["CyberScrollBarThumb"] = "Style<Thumb> setters=1 triggers=0",
         ["CyberScrollViewer"] = "Style<ScrollViewer> setters=1 triggers=0",
         ["CyberSecondaryButton"] = "Style<Button> setters=10 triggers=0",
-        ["CyberSlider"] = "Style<Slider> setters=4 triggers=0",
+        ["CyberSlider"] = "Style<Slider> setters=5 triggers=0",
         ["CyberTextBox"] = "Style<TextBox> setters=12 triggers=0",
         ["CyberToggleSwitch"] = "Style<CheckBox> setters=2 triggers=0",
         ["CyberToolTip"] = "Style<ToolTip> setters=8 triggers=0",

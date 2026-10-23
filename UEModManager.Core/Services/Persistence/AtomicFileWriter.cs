@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -14,10 +15,16 @@ public static class AtomicFileWriter
             Directory.CreateDirectory(dir);
         }
 
-        var tmp = path + ".tmp";
+        var tmp = TempPathFor(path);
         try
         {
-            await File.WriteAllTextAsync(tmp, content);
+            await using (var stream = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+            await using (var writer = new StreamWriter(stream))
+            {
+                await writer.WriteAsync(content);
+                await writer.FlushAsync();
+                stream.Flush(flushToDisk: true);
+            }
             ReplaceOrMove(tmp, path);
         }
         finally
@@ -35,10 +42,16 @@ public static class AtomicFileWriter
             Directory.CreateDirectory(dir);
         }
 
-        var tmp = path + ".tmp";
+        var tmp = TempPathFor(path);
         try
         {
-            File.WriteAllText(tmp, content);
+            using (var stream = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(content);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
             ReplaceOrMove(tmp, path);
         }
         finally
@@ -46,6 +59,12 @@ public static class AtomicFileWriter
             DeleteTempBestEffort(tmp);
         }
     }
+
+    /// <summary>
+    /// 每次写入用独立的临时文件名：固定的 <c>path + ".tmp"</c> 在两个写入者并发时会互相覆盖、
+    /// 互删对方的临时文件，表现为"文件正由另一进程使用"或 File.Replace 找不到源文件。
+    /// </summary>
+    private static string TempPathFor(string path) => $"{path}.{Guid.NewGuid():N}.tmp";
 
     private static void ReplaceOrMove(string tmp, string path)
     {
