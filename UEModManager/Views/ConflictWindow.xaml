@@ -5,13 +5,14 @@
         Title="{loc:Text '冲突检测'}"
         Width="720" Height="640"
         WindowStartupLocation="CenterOwner"
+        xmlns:infra="clr-namespace:UEModManager.Infrastructure"
         Style="{StaticResource CyberModalWindow}">
 
     <Window.Resources>
         <!-- 冲突组卡片。标题用单行 TextTrimming 而不是水平 StackPanel：
              成员名长度不可控，StackPanel 会把卡片撑出面板宽度。 -->
         <DataTemplate x:Key="ConflictGroupTemplate">
-            <Border Background="{StaticResource SurfaceBrush}"
+            <Border infra:MotionAssist.Enter="True" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                     CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
                 <StackPanel>
@@ -54,7 +55,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="DuplicateTemplate">
-            <Border Background="{StaticResource SurfaceBrush}"
+            <Border infra:MotionAssist.Enter="True" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource CyberBorderBrush}" BorderThickness="1"
                     CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
                 <StackPanel>
@@ -110,7 +111,7 @@
         </Grid.RowDefinitions>
 
         <!-- ═══ 标题与统计 ═══ -->
-        <Border Grid.Row="0" Padding="24,20,24,12">
+        <Border infra:MotionAssist.Enter="True" Grid.Row="0" Padding="24,20,24,12">
             <StackPanel>
                 <TextBlock Text="{loc:Text '冲突检测'}" FontSize="17" FontWeight="SemiBold"
                            Foreground="{StaticResource Text100Brush}"/>

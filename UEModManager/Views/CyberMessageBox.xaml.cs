@@ -91,6 +91,8 @@ namespace UEModManager.Views
             var defaultButton = danger ? safe : confirm;
             defaultButton.IsDefault = true;
             dlg.Loaded += (_, _) => defaultButton.Focus();
+            if (icon == MessageBoxImage.Error)
+                dlg.Loaded += (_, _) => { if (dlg.Content is UIElement content) Infrastructure.MotionAssist.Shake(content, 240); };
 
             dlg.ShowDialog();
             return dlg.Result;
@@ -160,6 +162,8 @@ namespace UEModManager.Views
 
             defaultButton.IsDefault = true;
             dlg.Loaded += (_, _) => defaultButton.Focus();
+            // 失败提示：弹出动画（220ms）结束后轻抖一下，告诉用户"这次没成功"
+            dlg.Loaded += (_, _) => { if (dlg.Content is UIElement content) Infrastructure.MotionAssist.Shake(content, 240); };
             dlg.ShowDialog();
 
             if (dlg.Result == MessageBoxResult.Yes)

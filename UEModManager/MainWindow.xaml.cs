@@ -280,6 +280,44 @@ namespace UEModManager
                     MessageBoxButton.YesNo, MessageBoxImage.Warning, yesText: "交给游戏（推荐）", noText: "取消") == MessageBoxResult.Yes;
             });
 
+        private System.Windows.Threading.DispatcherTimer? _toastTimer;
+
+        /// <summary>右上角轻提示：滑入，停留约 3 秒后淡出。连续调用时以最后一条为准、重新计时。</summary>
+        private void ShowToast(string message)
+        {
+            ToastText.Text = message;
+            ToastBar.Visibility = Visibility.Visible;
+            var motion = Infrastructure.MotionAssist.IsMotionEnabled;
+            var move = Infrastructure.MotionAssist.EnsureTransform<TranslateTransform>(ToastBar);
+            if (motion)
+            {
+                var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+                ToastBar.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
+                move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(24, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+            }
+            else
+            {
+                ToastBar.BeginAnimation(OpacityProperty, null);
+                ToastBar.Opacity = 1;
+            }
+
+            _toastTimer?.Stop();
+            _toastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3.2) };
+            _toastTimer.Tick += (_, _) =>
+            {
+                _toastTimer?.Stop();
+                if (!Infrastructure.MotionAssist.IsMotionEnabled)
+                {
+                    ToastBar.Visibility = Visibility.Collapsed;
+                    return;
+                }
+                var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(260));
+                fade.Completed += (_, _) => { if (ToastBar.Opacity < 0.05) ToastBar.Visibility = Visibility.Collapsed; };
+                ToastBar.BeginAnimation(OpacityProperty, fade);
+            };
+            _toastTimer.Start();
+        }
+
         private const string DownloadPageUrl = "https://www.modmanger.com/#download";
 
         private void ShowUpdateNotice(Services.Telemetry.UpdateInfo info)
@@ -1499,6 +1537,13 @@ namespace UEModManager
                         var deployResult = OperationResult.Aggregate(deployResults);
                         if (!deployResult.Success)
                             ShowOperationFailure(deployResult, UiText.Get("导入后自动部署失败"));
+                        else
+                            ShowToast(UiText.Interpolate($"已导入并启用 {successCount} 个 MOD"));
+                    }
+                    else
+                    {
+                        // 以前导入成功没有任何反馈，玩家不知道导进去没有、去哪找
+                        ShowToast(UiText.Interpolate($"已导入 {successCount} 个 MOD，在列表里打开开关即可启用"));
                     }
 
                     await _vm.RefreshFromRepositoryAsync();

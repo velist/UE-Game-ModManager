@@ -827,5 +827,7 @@
   "文件已被游戏更新": "Files changed by a game update",
   "交给游戏（推荐）": "Hand over to game (recommended)",
   "已有同名 MOD「{0}」，导入后会另存为新名字，不会覆盖": "A mod named \"{0}\" already exists. This one will be saved under a new name; nothing is overwritten.",
-  "{0} 看起来是游戏自带的原版文件，不是 MOD，已默认不导入（导入后启用可能让游戏无法启动）": "{0} looks like one of the game's own files, not a mod, so it's unchecked by default (enabling it could stop the game from starting)."
+  "{0} 看起来是游戏自带的原版文件，不是 MOD，已默认不导入（导入后启用可能让游戏无法启动）": "{0} looks like one of the game's own files, not a mod, so it's unchecked by default (enabling it could stop the game from starting).",
+  "已导入并启用 {0} 个 MOD": "Imported and enabled {0} mod(s)",
+  "已导入 {0} 个 MOD，在列表里打开开关即可启用": "Imported {0} mod(s). Turn them on in the list to enable."
 }

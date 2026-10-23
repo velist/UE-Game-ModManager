@@ -95,7 +95,8 @@ namespace UEModManager.Views
                 ArchiveInfoCard.Visibility = Visibility.Collapsed;
             }
 
-            // 分析每个文件
+            // 分析每个文件（逐行入场，见 AddFileRow）
+            Infrastructure.MotionAssist.ArmEntrance();
             foreach (var path in FilePaths)
             {
                 // 与导入流水线同一套规则，确认框里显示的类型就是导入后的类型
@@ -225,6 +226,7 @@ namespace UEModManager.Views
             Grid.SetColumn(checkbox, 3);
             grid.Children.Add(checkbox);
 
+            Infrastructure.MotionAssist.SetEnter(border, true);
             FileListPanel.Children.Add(border);
         }
 

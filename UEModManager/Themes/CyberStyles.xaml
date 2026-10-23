@@ -153,7 +153,8 @@
                             </Border>
 
                             <!-- 内容区 -->
-                            <ContentPresenter Grid.Row="1"/>
+                            <!-- 对话框内容出现时淡入上浮（Infrastructure/MotionAssist.Appear） -->
+                            <ContentPresenter Grid.Row="1" infra:MotionAssist.Appear="True"/>
                         </Grid>
                     </Border>
 
@@ -235,7 +236,8 @@
                                 </Grid>
                             </Border>
 
-                            <ContentPresenter Grid.Row="1"/>
+                            <!-- 对话框内容出现时淡入上浮（Infrastructure/MotionAssist.Appear） -->
+                            <ContentPresenter Grid.Row="1" infra:MotionAssist.Appear="True"/>
                         </Grid>
                     </Border>
                 </ControlTemplate>

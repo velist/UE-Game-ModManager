@@ -45,6 +45,11 @@ public partial class ConflictWindow : Window
                 MessageBoxButton.YesNo, MessageBoxImage.Warning, yesText: "删除副本", noText: "保留", danger: true) == MessageBoxResult.Yes
         };
         DataContext = _vm;
+        // 每次重新分析（打开、处理一组之后）分组卡片逐张入场
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ConflictViewModel.Groups)) Infrastructure.MotionAssist.ArmEntrance();
+        };
         Loaded += OnLoaded;
     }
 

@@ -1220,6 +1220,24 @@
                                        FontSize="13" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                         </StackPanel>
 
+                        <!-- 操作成功的轻提示（导入完成等）：右上角滑入，几秒后自动淡出，不打断操作 -->
+                        <Border x:Name="ToastBar" Visibility="Collapsed" IsHitTestVisible="False"
+                                VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,4,4,0"
+                                MaxWidth="420" Padding="14,10" CornerRadius="10"
+                                Background="#F20F0F11" BorderBrush="{StaticResource StatusGreenBrush}" BorderThickness="1">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="20" Opacity="0.5" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource StatusGreenBrush}" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="11" Foreground="#04130A"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="ToastText" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Foreground="{StaticResource Text100Brush}" FontSize="13" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- 新版本提示：心跳响应里带回的 latest 比当前版本新时显示（每次会话一次） -->
                         <Border x:Name="UpdateNoticeBar" Visibility="Collapsed"
                                 VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,4,0,0"

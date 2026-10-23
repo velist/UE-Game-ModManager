@@ -175,6 +175,60 @@ namespace UEModManager.Infrastructure
             move.BeginAnimation(TranslateTransform.YProperty, rise);
         }
 
+        // ─── 弹窗出现 ───
+
+        /// <summary>
+        /// 加载时淡入并轻微上浮放大到位（220ms）。挂在窗口外壳模板的内容区上，
+        /// 所有使用 CyberModalWindow / CyberDarkWindow 的对话框都会生效。
+        /// 窗口本身不是透明窗口，没法整体淡入，所以动的是内容。
+        /// </summary>
+        public static readonly DependencyProperty AppearProperty = DependencyProperty.RegisterAttached(
+            "Appear", typeof(bool), typeof(MotionAssist), new PropertyMetadata(false, OnAppearChanged));
+
+        public static bool GetAppear(DependencyObject d) => (bool)d.GetValue(AppearProperty);
+        public static void SetAppear(DependencyObject d, bool value) => d.SetValue(AppearProperty, value);
+
+        private static void OnAppearChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not FrameworkElement fe) return;
+            fe.Loaded -= Appear_Loaded;
+            if ((bool)e.NewValue) fe.Loaded += Appear_Loaded;
+        }
+
+        private static void Appear_Loaded(object sender, RoutedEventArgs e)
+        {
+            var fe = (FrameworkElement)sender;
+            fe.Loaded -= Appear_Loaded;   // 只在第一次显示时播放
+            if (!IsMotionEnabled) return;
+
+            var duration = TimeSpan.FromMilliseconds(220);
+            fe.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(0, 1, duration) { EasingFunction = EaseOut, FillBehavior = FillBehavior.Stop });
+            EnsureTransform<TranslateTransform>(fe).BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(10, 0, duration) { EasingFunction = EaseOut, FillBehavior = FillBehavior.Stop });
+            var scale = EnsureTransform<ScaleTransform>(fe);
+            var grow = new DoubleAnimation(0.985, 1, duration) { EasingFunction = EaseOut, FillBehavior = FillBehavior.Stop };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        }
+
+        // ─── 报错抖动 ───
+
+        /// <summary>左右轻抖两下（320ms），用于失败提示，告诉用户"这次没成功"。</summary>
+        public static void Shake(UIElement element, int delayMs = 0)
+        {
+            if (!IsMotionEnabled) return;
+            var move = EnsureTransform<TranslateTransform>(element);
+            var shake = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = TimeSpan.FromMilliseconds(320), FillBehavior = FillBehavior.Stop,
+                BeginTime = TimeSpan.FromMilliseconds(delayMs)
+            };
+            foreach (var (ms, x) in new[] { (0, 0.0), (60, -7.0), (120, 6.0), (180, -4.0), (240, 2.0), (320, 0.0) })
+                shake.KeyFrames.Add(new EasingDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
+            move.BeginAnimation(TranslateTransform.XProperty, shake);
+        }
+
         // ─── 颜色过渡（给 code-behind 里改背景色的地方用）───
 
         /// <summary>把元素的纯色背景平滑过渡到目标颜色；背景若是冻结的共享画刷会先换成本地实例。</summary>
