@@ -42,16 +42,16 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 /* ── 通用区块标题 ── */
 .lp-section-head { max-width: 680px; margin-bottom: 44px; }
 .lp-section-head h2, .lp-faq h2, .lp-support-band h2 { margin: 0; font-size: clamp(28px, 3.2vw, 40px); font-weight: 700; line-height: 1.3; letter-spacing: -.03em; }
-.lp-section-head > p:last-child { margin: 16px 0 0; color: #a1a1aa; font-size: 15px; line-height: 1.85; }
+.lp-section-head > p:last-child:not(.lp-overline) { margin: 14px 0 0; color: #a1a1aa; font-size: 15px; line-height: 1.85; }
 
 /* ── 五个卖点 ── */
-.lp-features { padding-top: 104px; padding-bottom: 40px; }
-.lp-feature { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: center; gap: 64px; padding-block: 44px; }
+.lp-features { padding-top: 96px; padding-bottom: 32px; }
+.lp-feature { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: center; gap: 72px; padding-block: 36px; }
 .lp-feature + .lp-feature { border-top: 1px solid #ffffff0d; }
 .lp-feature:nth-of-type(even) .lp-feature-text { order: 2; }
 .lp-feature-no { display: inline-block; margin-bottom: 16px; padding: 4px 10px; border: 1px solid #22d3ee40; border-radius: 999px; background: #06b6d414; color: #67e8f9; font-size: 12px; letter-spacing: .08em; }
 .lp-feature h3 { margin: 0 0 14px; font-size: clamp(24px, 2.4vw, 32px); font-weight: 700; line-height: 1.35; letter-spacing: -.02em; }
-.lp-feature p { margin: 0; color: #b4b4bd; font-size: 15px; line-height: 1.9; }
+.lp-feature p { max-width: 24em; margin: 0; color: #b4b4bd; font-size: 16px; line-height: 1.85; }
 .lp-feature ul { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
 .lp-feature li { position: relative; padding-left: 20px; color: #9a9aa4; font-size: 14px; line-height: 1.7; }
 .lp-feature li::before { content: ''; position: absolute; left: 2px; top: .7em; width: 7px; height: 7px; border-radius: 2px; background: var(--lp-cyan); }
@@ -59,7 +59,7 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 .lp-feature-shot { width: 100%; height: auto; border: 1px solid #ffffff17; border-radius: 16px; background: #0f0f11; box-shadow: 0 24px 60px #0009; }
 
 /* ── 游戏墙 ── */
-.lp-games { padding-block: 96px; border-block: 1px solid #ffffff10; background: linear-gradient(180deg, #0f0f1100, #0f0f11 18%, #0f0f11 82%, #0f0f1100); }
+.lp-games { padding-block: 88px; border-block: 1px solid #ffffff10; background: linear-gradient(180deg, #0f0f1100, #0f0f11 18%, #0f0f11 82%, #0f0f1100); }
 .lp-game-wall { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
 .lp-game-wall li { display: grid; justify-items: center; align-content: start; gap: 6px; min-height: 150px; padding: 22px 10px 18px; border: 1px solid var(--lp-line); border-radius: 14px; background: #030303b3; text-align: center; transition: border-color .18s, transform .18s; }
 .lp-game-wall li:hover { border-color: #22d3ee66; transform: translateY(-2px); }
@@ -85,7 +85,7 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 .lp-download-note a { color: #79d2df; text-decoration: underline; text-underline-offset: 4px; }
 
 /* ── 常见问题 ── */
-.lp-faq { display: grid; grid-template-columns: .65fr 1.35fr; gap: 90px; padding-top: 96px; padding-bottom: 80px; }
+.lp-faq { display: grid; grid-template-columns: .65fr 1.35fr; gap: 90px; padding-top: 88px; padding-bottom: 72px; }
 .lp-faq-intro > p:not(.lp-overline) { margin-top: 20px; margin-bottom: 0; color: #9a9aa4; font-size: 14px; line-height: 1.9; }
 .lp-questions { border-top: 1px solid #ffffff20; }
 .lp-questions details { border-bottom: 1px solid #ffffff15; }
@@ -192,7 +192,11 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
   .lp-video-frame { border-radius: 10px; }
   .lp-section-head { margin-bottom: 28px; }
   .lp-features { padding-top: 64px; padding-bottom: 16px; }
-  .lp-feature { padding-block: 32px; }
+  .lp-feature, .lp-feature:nth-of-type(even) { gap: 20px; padding-block: 28px; }
+  .lp-feature h3 { margin-bottom: 8px; font-size: 22px; }
+  .lp-feature p { font-size: 15px; }
+  .lp-feature-no { margin-bottom: 12px; }
+  .lp-section-head > p:last-child:not(.lp-overline) { font-size: 14px; }
   .lp-feature-shot { border-radius: 12px; }
   .lp-games { padding-block: 64px; }
   .lp-game-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -201,7 +205,8 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
   .lp-game-wall strong { font-size: 13px; }
   .lp-game-wall span { font-size: 11px; }
   .lp-home .download-section { padding: 64px 0; }
-  .lp-home .download-card { width: calc(100% - 24px); padding: 28px 18px; border-radius: 18px; }
+  .lp-home .download-card { width: calc(100% - 24px); padding: 28px 16px 24px; border-radius: 18px; }
+  .lp-home .download-meta { gap: 8px; }
   .lp-faq { grid-template-columns: 1fr; gap: 16px; padding-top: 64px; padding-bottom: 48px; }
   .lp-faq-intro > p:not(.lp-overline) { margin-top: 12px; }
   .lp-faq-intro > p br { display: none; }

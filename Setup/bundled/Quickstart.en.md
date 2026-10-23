@@ -3,17 +3,27 @@
 Download updates from [the official website](https://www.modmanger.com/#download).
 
 1. Install the **.NET 8 Desktop Runtime (x64)** if prompted.
-2. Start the manager and choose where to store your mods. A drive with enough
-   free space is recommended. You can switch between English and Chinese in
+2. Start the manager and choose where to store your mods. Pick a drive with
+   enough free space, preferably not the system drive (C:). If you choose
+   **Not now**, an empty default repository is moved to the non-system drive
+   with the most free space. You can switch between English and Chinese in
    this first window or later under **Settings → General → Language**.
+   A short four-step guided tour appears the first time the main window opens.
 3. Select a game from the game list and confirm its installation and mod paths.
    Use **Add a game** for a game that does not have a preset.
 4. Import a ZIP archive, a mod file, or an extracted folder. Extract RAR/7z files
    with 7-Zip or WinRAR before importing.
-5. Enable the mods you want, review any conflict notices, then launch the game.
+5. Each card is labelled **MOD**, **Plugin** or **Config**; use the filter
+   above the list to show one type. Enable the mods you want, review any
+   conflict notices, then launch the game.
 
-Core mod management works without an account. To use an account, sign in with
-the verification code sent to your email address.
+Core mod management works without an account, and no sign-in window appears
+at startup. To use an account, click the account area at the bottom of the
+sidebar and sign in with the verification code sent to your email address.
+
+Update checks and anonymous usage statistics are off by default. Turn them on
+under **Settings → General → Updates & usage statistics** if you want update
+notices.
 
 Use **Settings → Feedback** to export a diagnostic bundle when
 reporting a problem. Review it before sharing. Report issues on

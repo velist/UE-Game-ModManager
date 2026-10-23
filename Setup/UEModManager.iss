@@ -1,7 +1,7 @@
 ﻿; 爱酱 MOD 管理器：Inno Setup 6.7+。使用根目录 Build-Installer.ps1 构建。
 #define MyAppName "爱酱MOD管理器"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.1"
+  #define MyAppVersion "2.1.2"
 #endif
 #ifndef MyAppDisplayVer
   #define MyAppDisplayVer "v" + MyAppVersion
@@ -43,12 +43,12 @@ SetupIconFile=..\UEModManager\mnlogo.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern dark windows11 hidebevels
 WizardSizePercent=130,130
-WizardBackColor=#15171b
+WizardBackColor=#0f0f11
 WizardBackImageFile=wizard-images\installer-background.png
 WizardImageFile=wizard-images\installer-sidebar.png
 WizardSmallImageFile=wizard-images\installer-mark.png
-WizardImageBackColor=#15171b
-WizardSmallImageBackColor=#15171b
+WizardImageBackColor=#0f0f11
+WizardSmallImageBackColor=#0f0f11
 LicenseFile=LICENSE.txt
 Compression=lzma2/max
 SolidCompression=yes
@@ -72,38 +72,38 @@ chs.WelcomeFontName=Microsoft YaHei UI
 en.DialogFontName=Segoe UI
 en.WelcomeFontName=Segoe UI
 DialogFontSize=9
-WelcomeFontSize=22
+WelcomeFontSize=20
 
 [Messages]
-chs.WelcomeLabel1=让 MOD 管理%n简单一点。
-chs.WelcomeLabel2=导入、分类、启用，把时间留给游戏。%n支持多款游戏，核心管理无需登录。
+chs.WelcomeLabel1=欢迎使用%n爱酱 MOD 管理器
+chs.WelcomeLabel2=导入、分类、启用 MOD。%n支持多款游戏，无需登录即可管理。
 chs.ClickNext=
 chs.WizardLicense=使用许可与隐私说明
-chs.LicenseLabel=请阅读以下说明，再继续安装。
-chs.WizardSelectDir=安装到哪里？
-chs.SelectDirDesc=选择程序位置，按你的习惯设置启动方式。
+chs.LicenseLabel=阅读许可与隐私说明后继续。
+chs.WizardSelectDir=选择安装位置
+chs.SelectDirDesc=设置程序位置与启动选项。
 chs.SelectDirLabel3=程序安装位置
-chs.SelectDirBrowseLabel=这里只存放程序。MOD 仓库将在首次启动时单独设置。
+chs.SelectDirBrowseLabel=MOD 仓库将在首次启动时单独设置。
 chs.WizardInstalling=正在安装
-chs.InstallingLabel=正在准备程序和所需文件，请稍候。
-chs.FinishedHeadingLabel=安装完成。%n现在，开始整理 MOD。
-chs.FinishedLabel=首次启动时，选择 MOD 的存储位置，再添加游戏。%n%n升级用户请保留原数据；需要迁移旧版时，可使用开始菜单中的迁移工具。
+chs.InstallingLabel=正在写入程序文件，请稍候。
+chs.FinishedHeadingLabel=安装完成%n准备开始游戏
+chs.FinishedLabel=首次启动：选择 MOD 仓库，添加游戏。%n%n旧版数据迁移工具位于开始菜单。
 chs.ButtonNext=继续(&N)
 chs.ButtonInstall=开始安装(&I)
 chs.ButtonFinish=完成(&F)
-en.WelcomeLabel1=Mods, made%nsimple.
-en.WelcomeLabel2=Import, organize, and enable mods. Save your time for gaming.%nMultiple games supported. Core features work without signing in.
+en.WelcomeLabel1=Welcome to%nAi-chan Mod Manager
+en.WelcomeLabel2=Import, organize, and enable mods.%nManage multiple games without signing in.
 en.ClickNext=
 en.WizardLicense=License and privacy
-en.LicenseLabel=Read the following information before continuing.
-en.WizardSelectDir=Where should the app go?
-en.SelectDirDesc=Choose an installation folder and startup options.
+en.LicenseLabel=Read the license and privacy information to continue.
+en.WizardSelectDir=Choose an installation folder
+en.SelectDirDesc=Set the app folder and startup options.
 en.SelectDirLabel3=Application folder
-en.SelectDirBrowseLabel=Only the app goes here. Choose your mod storage separately on first launch.
+en.SelectDirBrowseLabel=Choose a separate mod repository on first launch.
 en.WizardInstalling=Installing
-en.InstallingLabel=Preparing the app and its files. Please wait.
-en.FinishedHeadingLabel=All set.%nTime to play.
-en.FinishedLabel=On first launch, choose where to store mods, then add a game.%n%nUpgrading? Your existing data is kept. A migration tool for older versions is available in the Start menu.
+en.InstallingLabel=Copying app files. Please wait.
+en.FinishedHeadingLabel=Installation complete%nReady to play
+en.FinishedLabel=On first launch, choose a mod repository and add a game.%n%nFind the legacy data migration tool in the Start menu.
 en.ButtonNext=&Continue
 en.ButtonInstall=&Install
 en.ButtonFinish=&Finish
@@ -117,8 +117,8 @@ chs.DesktopShortcut=创建桌面快捷方式(&D)
 en.DesktopShortcut=Create a &desktop shortcut
 chs.ShortcutGroup=快捷方式：
 en.ShortcutGroup=Shortcuts:
-chs.AutoStart=登录 Windows 时启动管理器(&A)
-en.AutoStart=Start the manager when I sign in to Windows (&A)
+chs.AutoStart=登录 Windows 时启动(&A)
+en.AutoStart=Start with Windows (&A)
 chs.StartupGroup=启动方式：
 en.StartupGroup=Startup:
 chs.Migration=一键迁移老版本数据
@@ -135,22 +135,22 @@ chs.VersionPlatform=%1  /  WINDOWS 64 位
 en.VersionPlatform=%1  /  WINDOWS 64-BIT
 chs.RuntimeReady=.NET 8 桌面运行时  ·  已就绪
 en.RuntimeReady=.NET 8 Desktop Runtime  ·  Ready
-chs.RuntimeMissing=运行程序需要 .NET 8 桌面运行时（x64）。
-en.RuntimeMissing=The app requires .NET 8 Desktop Runtime (x64).
-chs.GetRuntime=获取微软官方桌面运行时
-en.GetRuntime=Get the Microsoft Desktop Runtime
+chs.RuntimeMissing=需要 .NET 8 桌面运行时（x64）
+en.RuntimeMissing=Requires .NET 8 Desktop Runtime (x64)
+chs.GetRuntime=下载 .NET 8 桌面运行时
+en.GetRuntime=Download .NET 8 Desktop Runtime
 chs.RuntimeUrl=https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0
 en.RuntimeUrl=https://dotnet.microsoft.com/en-us/download/dotnet/8.0
-chs.WelcomeNote=升级前请关闭正在运行的管理器。%n安装会保留已有 MOD、配置和备份。
-en.WelcomeNote=Close the manager before upgrading.%nExisting mods, settings, and backups will be kept.
-chs.DataNote=程序与 MOD 分开存放%n首次启动可选择 MOD 仓库。卸载程序会保留用户数据和仓库。
-en.DataNote=Keep the app and mods separate%nChoose a mod repository on first launch. Uninstalling keeps your user data and repository.
+chs.WelcomeNote=升级前请关闭管理器。%n已有 MOD、配置和备份会保留。
+en.WelcomeNote=Close the manager before upgrading.%nYour mods, settings, and backups are kept.
+chs.DataNote=程序与 MOD 分开存放。%n卸载会保留用户数据和 MOD 仓库。
+en.DataNote=The app and mods are stored separately.%nUninstalling keeps user data and the mod repository.
 chs.StartSetup=开始设置(&N)
 en.StartSetup=&Get started
 chs.StartInstall=开始安装(&I)
 en.StartInstall=&Install
-chs.FinishedNeedsRuntime=程序文件已安装。安装 .NET 8 桌面运行时（x64）后即可启动。%n%n首次启动可选择 MOD 仓库；已有用户数据和备份会保留。
-en.FinishedNeedsRuntime=The app files are installed. Install .NET 8 Desktop Runtime (x64) to launch the app.%n%nChoose mod storage on first launch. Existing user data and backups are kept.
+chs.FinishedNeedsRuntime=安装 .NET 8 桌面运行时（x64）后即可启动。%n%n首次启动时选择 MOD 仓库；已有数据和备份会保留。
+en.FinishedNeedsRuntime=Install .NET 8 Desktop Runtime (x64) to launch.%n%nChoose a mod repository on first launch. Existing data and backups are kept.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:ShortcutGroup}"

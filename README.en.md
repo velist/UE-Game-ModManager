@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.1-25cce1?style=flat-square&labelColor=15171b" alt="Version 2.1.1"></a>
+  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.2-25cce1?style=flat-square&labelColor=15171b" alt="Version 2.1.2"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
   <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 Desktop Runtime">
   <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build and tests"></a>
@@ -166,7 +166,7 @@ The bundled legacy migration and full-data-cleanup scripts use Chinese instructi
 
 Accounts support email sign-in. Core mod management also works offline. Account features currently do not sync mod files or profiles between computers.
 
-If you opt into update checks and anonymous statistics, the app sends a random device identifier, app version and Windows version. An email hash may be included when you sign in. These reports do not include your plain-text email address, computer name, file paths, game folder or mod list. You can disable the option in **Settings → General** to stop its update checks and statistics requests.
+Update checks and anonymous statistics are off by default. If you turn them on, the app sends a random device identifier, app version and Windows version. An email hash may be included when you sign in. These reports do not include your plain-text email address, computer name, file paths, game folder or mod list. You can turn the option off in **Settings → General** at any time. While it is off, the app only asks for the latest version number once per launch, without any identifier.
 
 Sign-in, registration and password recovery send the account information needed for those actions. See the [English license and privacy terms](Setup/LICENSE.en.txt) and the [website privacy page (Chinese)](https://www.modmanger.com/help#privacy).
 

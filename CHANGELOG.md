@@ -2,6 +2,54 @@
 
 本文档记录UE Mod Manager的所有版本更新内容。
 
+## v2.1.2 - 2026-10-23
+
+范围：`b42c70e..ddb85c3`（10 个提交）。来源是 2026-10-22 四路审查（`.claude/audit_reports/2026-10-22-four-way-review.md`）的两轮修复，加上同日的动效三批与实测问题修复。
+
+**包类型区分**
+- MOD / 插件 / 配置三类判定收成一套：Core `PackageKindDetector`（`.dll/.exe/.so/.asi/.lua` 为插件，纯 Lua 脚本也归插件）+ `PackageKindText`（标签、白话解释、详情标题）。卡片与列表一律绑 `ModInfo.DetectedKind`（来自 `Package.Kind`），不再按扩展名猜。
+- 主界面加类型切换（`ModListViewModel.KindFilter`，仓库里只有 MOD 时 `ShowKindFilter` 隐藏整排）；详情面板显示类型、解释与安装位置，「路径」改「包名」。
+- 非 UE 游戏压缩包按引擎识别 MOD 本体：`EngineProfile.BinaryModExtensions`（.pck / .mpq 等），修复装错位置。
+
+**更新检查（发布前补修）**
+- `UpdateCheck.Parse` 只认扁平 `{latest}`，而 Worker 实际返回 `{code,data:{latest}}`——更新提示自上线起从未生效；单测当时用的是手写扁平样例。现兼容两种格式，新增实抓响应用例。
+- 统计关闭时每次会话发一次不带标识的 `GET /app/update`（服务端该路径不落库），统计默认关闭后新用户也能收到更新提示；`MainWindow.StartTelemetry` 无条件启动循环，"未同意不上报"的守卫移到 `TelemetryService.SendAsync`。
+- 「MOD 存储设置」窗口文案改为"建议选择空间充足的非系统盘"，不再写"优先游戏所在磁盘"（与不落系统盘规则矛盾）。
+
+**行为变更**
+- 切换方案即部署，失败留在原方案并回滚游戏文件（新 `ProfileSwitchService`，方案管理与整合包导入共用）。
+- 启动无会话直接进主窗口，不再弹登录窗口；恢复会话不做必然失败的云端校验（修"联网被登出"）；联网探测改探自家 API，去掉 baidu。
+- 新版本提示：Core `UpdateCheck` 解析心跳响应，主窗口顶部 `UpdateNoticeBar`。统计关闭时 `TelemetryService` 每次会话改走一次不带标识的 `GET /app/update`（服务端不落库），新用户也能收到提示。
+- 游戏更新改写已部署文件：规划器抛 `ExternallyModifiedFilesException`，禁用/删除时提供「交给游戏（推荐）」。
+- 批量「卸载」改「删除」并改写确认文案；冲突面板删除重复项加危险确认；插件导入不再自动打「插件」分类。
+- 导入：单独导入说明/图片/网页文件跳过（`ImportFileKind.NotAMod`）；Core `GameOriginalFileDetector` 识别原版容器（UE pakchunkN-平台名、global.ucas/utoc，RE re_chunk），确认框默认不勾选；8e7839c 补上官方补丁容器 `pakchunkN-Windows_P`（平台名 + `_P`，自定义名 + `_P` 仍视为 MOD）。同名提示改为如实的"另存为新名字"。
+- 仓库默认不落系统盘：`RepositoryDriveAdvisor` 不推荐系统盘；引导被跳过（含更新前就跳过的老用户，启动时 `EnsureDefaultOffSystemDrive`）且默认仓库为空时，自动改到推荐的非系统盘 `盘根\UEModManager\Repository`。用户亲自指定的位置不动，只在生产环境执行。
+- 统计：去掉首次启动底部告知条（用户决定），新用户默认不上报；设置页开关显示实际是否上报，只有拨动过才写入（`TelemetryConsent.SettingsToggleValue`，修设置页保存绕过同意）；告知文案按 README 四项清单改写。
+- 游戏 / MOD / 备份路径保存与加载时盘符大写（`VolumePaths.UppercaseDriveLetter`），部署状态键比较本就不区分大小写。
+
+**安全与数据一致性**
+- `CopyBackend` 改为临时文件 + `File.Move` 替换，复制部署不再穿透硬链接改写仓库源文件。
+- 新增与系统语言无关、与顺序无关的 `PackageFingerprint`，重复分组、冲突索引、lock 比对改用它；lock 增加可选 `fingerprint` 字段，旧 lock 退回比 ContentHash（ContentHash 本身未改、未迁移）。
+- `AtomicFileWriter` 每次写用独立临时文件名并刷盘（原固定 `.tmp` 并发互踩）。
+- `AssetIndexService` 串行化入口，修导入后后台预热与冲突检测并发改 Dictionary。
+- 设置页保存误触发仓库自迁移：新增 `RepositoryLocationValidator.ResolveForSettings`，选中即当前仓库时原样返回。
+- `CyberMessageBox.ShowError` 弹窗前先写日志。
+
+**UI 与动效**
+- 新增 `Infrastructure/MotionAssist`（`Press` / `Lift` / `Enter` / `Appear` / `Shake` / `CountUp` / `AnimateBackground`），尊重 Windows「显示动画」。覆盖：开关滑动、五种按钮按压回弹、卡片悬停上浮与列表入场、导航/类型切换渐变、对话框弹出、错误轻抖、导入确认与冲突分组逐项入场、管理中心数字滚动。
+- 导入成功右上角轻提示（此前无任何反馈）。
+- 首次使用引导 `Views/OnboardingOverlay`：四步聚光灯，只出现一次（`UiPreferences.OnboardingGuideShown`），修首次定位尺寸为 0 的 ∞ 坐标异常。放弃 Mica 材质。
+- 卡片内容圆角裁剪 `Infrastructure/RoundedClip`；卡片信息区上下分区，分类标签 / 冲突角标 / 大小固定贴底（原先被裁掉）。
+- 冲突窗口在分析与处理期间显示 `LoadingOverlay`（`IsBusy` / `BusyText`）。
+- `CyberSlider` 重做：轨道 BorderLight 色、已拖部分填主色、点轨道直接跳转。
+- 修复：卡片边框本地值压住触发器、悬停遮罩 alpha 写反；左栏计数按筛选后列表计算；「⋯」菜单移动分类作用到错误 MOD；非左键误触部署 / 打开详情。
+
+**其他**
+- Worker 开发依赖 undici / sharp 升级修复已知漏洞（只影响本地 wrangler 链路，不进生产）。
+- 官网改版（首屏宣传片、五个卖点、游戏墙）。
+
+验收：324fc06 时 Core 1487 / 主程序 733 全部通过；后续提交各自补了测试（盘符大写、系统盘排序、`ResolveForSettings`、原子写并发等），发布前以 CI 结果为准。
+
 ## 右侧 MOD 详情面板 - 2026-10-14
 
 本批随 v2.1.1 发布，与上一批「窗口边界、错误白话化与英文界面补齐」一起构成 2.1.1 的更新内容。

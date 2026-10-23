@@ -74,8 +74,22 @@ public class MainWindowSourceGuardTests
 
         Assert.True(start >= 0 && next > start, "找不到 StartTelemetry 方法边界");
         var method = view[start..next];
-        Assert.Matches(@"if\s*\(decision\.ShouldReport\)\s*telemetry\.StartHeartbeat\(\)", method);
         Assert.DoesNotContain("CyberMessageBox.Show", method);
+
+        // 循环无条件启动（统计关闭时也要查新版本），"未同意不上报"由服务自己守：
+        // 带标识的上报入口第一件事就是重新判定同意；关闭时只走不带任何标识的 GET。
+        var service = ReadMainWindow(Path.Combine("Services", "TelemetryService.cs"));
+        var send = service.IndexOf("private async Task<bool> SendAsync(", StringComparison.Ordinal);
+        Assert.True(send >= 0, "找不到 SendAsync");
+        var sendHead = service.Substring(send, 400);
+        Assert.Matches(@"var decision = CurrentConsent\(\);\s*if \(!decision\.ShouldReport\)", sendHead);
+
+        var anon = service.IndexOf("private async Task CheckUpdateAnonymouslyAsync(", StringComparison.Ordinal);
+        Assert.True(anon >= 0, "找不到 CheckUpdateAnonymouslyAsync");
+        var anonBody = service.Substring(anon, service.IndexOf("private bool NoteFailure", anon, StringComparison.Ordinal) - anon);
+        Assert.Contains("GetAsync(\"app/update\"", anonBody);
+        Assert.DoesNotContain("DeviceId", anonBody);
+        Assert.DoesNotContain("TelemetryReport", anonBody);
     }
 
     [Fact]

@@ -29,6 +29,12 @@ public static class UpdateCheck
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
+            // Worker 的统一响应是 {"code":200,"data":{...}}，版本信息在 data 里；扁平格式也照收
+            if (root.TryGetProperty("data", out var data))
+            {
+                if (data.ValueKind != JsonValueKind.Object) return null;
+                root = data;
+            }
             if (!root.TryGetProperty("latest", out var latest) || latest.ValueKind != JsonValueKind.String) return null;
             var version = latest.GetString()!.Trim();
             if (!TryParseVersion(version, out _)) return null;

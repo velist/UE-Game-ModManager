@@ -217,7 +217,7 @@
             <ScrollViewer x:Name="BodyScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <StackPanel Margin="28,24,28,22">
                     <TextBlock Text="{loc:Text &#x27;给 MOD 找个合适的位置&#x27;}" FontSize="26" FontWeight="SemiBold" LineHeight="36" />
-                    <TextBlock Text="{loc:Text &#x27;优先选择游戏所在的磁盘，并预留足够的空间。&#x27;}" Foreground="{DynamicResource SetupSecondaryBrush}" FontSize="14" Margin="0,6,0,0" LineHeight="22" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Text &#x27;建议选择空间充足的非系统盘，不要放在 C 盘。&#x27;}" Foreground="{DynamicResource SetupSecondaryBrush}" FontSize="14" Margin="0,6,0,0" LineHeight="22" TextWrapping="Wrap" />
                     <Grid Margin="0,22,0,10">
                         <TextBlock Text="{loc:Text &#x27;选择磁盘&#x27;}" FontSize="13" FontWeight="SemiBold" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"><Border Width="12" Height="3" CornerRadius="2" Background="{DynamicResource SetupMeterBrush}" Margin="0,0,6,0" /><TextBlock Text="{loc:Text &#x27;进度条为已用空间&#x27;}" FontSize="11" Foreground="{DynamicResource SetupMutedBrush}" /></StackPanel>

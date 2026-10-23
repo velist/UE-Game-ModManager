@@ -385,14 +385,13 @@ namespace UEModManager
                 var telemetry = ((App)Application.Current).ServiceProvider?.GetService<TelemetryService>();
                 if (telemetry == null) return;
 
-                // 先订阅：用户稍后在告知条上点"参与"时心跳才启动，那次的更新信息也要接得住
                 telemetry.UpdateAvailable += info => Dispatcher.BeginInvoke(() => ShowUpdateNotice(info));
 
                 var decision = TelemetryService.CurrentConsent();
                 Console.WriteLine($"[Telemetry] {decision}");
 
-                if (decision.ShouldReport)
-                    telemetry.StartHeartbeat();
+                // 无论统计开没开都启动：循环每轮自己判断，关着时只做一次不带标识的更新检查
+                telemetry.StartHeartbeat();
             }
             catch (Exception ex)
             {

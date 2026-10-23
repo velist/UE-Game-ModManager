@@ -1,14 +1,14 @@
-Ai-chan Mod Manager v2.1 — Software License Agreement
+Ai-chan Mod Manager — Software License Agreement
 
 Publisher: Ai-chan Studio
 Contact: mr.xzuo@foxmail.com
 Official website: https://www.modmanger.com
-Version: v2.1.1
+Version: v2.1.2
 
 1. About this software
 
-This software is a mod management tool for single-player Unreal Engine
-games. Features include importing mods, enabling and disabling them,
+This software is a mod management tool for single-player games built on
+Unreal, Unity, and other engines. Features include importing mods, enabling and disabling them,
 merging configurations, checking conflicts, backup and restore, and
 migrating data from older versions.
 
@@ -46,9 +46,11 @@ folder at Fonts\SourceHanSans-OFL.txt.
   your email address may be included when you sign in. A hashed email
   is a processed identifier; it is not necessarily unlinkable to an account.
 - These statistics do not upload your plain-text email address, computer
-  name, file paths, game folder, or mod list. You can disable them under
-  Settings > General > Updates and anonymous statistics. No such reports
-  are sent before you opt in.
+  name, file paths, game folder, or mod list. They are off by default
+  and are only sent after you turn on Settings > General > Updates and
+  anonymous statistics. You can turn them off at any time. While they
+  are off, the app only asks for the latest version number once per
+  launch, without any identifier.
 - Account actions such as signing in, registration, and password recovery
   require an internet connection and send the account information needed
   for that action, independently of the statistics preference.

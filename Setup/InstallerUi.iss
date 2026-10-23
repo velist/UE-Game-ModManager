@@ -1,6 +1,14 @@
-﻿var
+﻿{ 与客户端一致的文字层级；TColor 使用 BGR 顺序。 }
+const
+  Text100 = $00F5F4F4;
+  Text300 = $00D8D4D4;
+  Text500 = $00948B8B;
+  AccentCyan = $00EED322;
+
+var
   RuntimeReady: Boolean;
   RuntimeStatus, WelcomeNote, VersionLabel, FooterVersion, DataNote: TNewStaticText;
+  ProgressTrack, ProgressFill: TPanel;
   HelpButton, RuntimeButton: TNewButton;
   DesktopShortcut, AutoStart: TNewCheckBox;
 
@@ -29,7 +37,7 @@ function IsDotNet8Available(): Boolean;
 var
   InstallRoot: String;
 begin
-  { Use the x64 host explicitly; a dotnet on PATH could be x86. }
+  { 显式使用 x64 主机，避免 PATH 指向 x86 运行时。 }
   Result := HasDesktopRuntimeAt(ExpandConstant('{commonpf64}\dotnet\dotnet.exe'));
   if Result then Exit;
   if RegQueryStringValue(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64',
@@ -72,7 +80,10 @@ begin
   Result.AutoSize := False;
   Result.WordWrap := True;
   Result.SetBounds(Left, Top, Width, Height);
+  Result.Font.Name := WizardForm.Font.Name;
   Result.Font.Size := FontSize;
+  Result.StyleElements := [seClient, seBorder];
+  Result.Font.Color := Text500;
   Result.Caption := Caption;
 end;
 
@@ -81,33 +92,85 @@ var
   ContentLeft, ContentWidth, NoteTop: Integer;
 begin
   RuntimeReady := IsDotNet8Available();
+  { 正文与辅助信息分层，保留系统暗色主题的按钮和焦点反馈。 }
+  WizardForm.StyleElements := [seClient, seBorder];
+  WizardForm.Font.Color := Text300;
+  WizardForm.WelcomeLabel1.Font.Size := 20;
+  WizardForm.WelcomeLabel1.StyleElements := [seClient, seBorder];
+  WizardForm.WelcomeLabel1.Font.Color := Text100;
+  WizardForm.WelcomeLabel2.Font.Size := 10;
+  WizardForm.WelcomeLabel2.StyleElements := [seClient, seBorder];
+  WizardForm.WelcomeLabel2.Font.Color := Text300;
+  WizardForm.PageNameLabel.Font.Size := 14;
+  WizardForm.PageNameLabel.Height := ScaleY(24);
+  WizardForm.PageDescriptionLabel.Top := WizardForm.PageNameLabel.Top + ScaleY(28);
+  WizardForm.PageNameLabel.StyleElements := [seClient, seBorder];
+  WizardForm.PageNameLabel.Font.Color := Text100;
+  WizardForm.PageDescriptionLabel.StyleElements := [seClient, seBorder];
+  WizardForm.PageDescriptionLabel.Font.Color := Text500;
+  WizardForm.SelectDirLabel.StyleElements := [seClient, seBorder];
+  WizardForm.SelectDirLabel.Font.Color := Text100;
+  WizardForm.SelectDirBrowseLabel.StyleElements := [seClient, seBorder];
+  WizardForm.SelectDirBrowseLabel.Font.Color := Text300;
+  WizardForm.DiskSpaceLabel.StyleElements := [seClient, seBorder];
+  WizardForm.DiskSpaceLabel.Font.Color := Text500;
+  WizardForm.StatusLabel.StyleElements := [seClient, seBorder];
+  WizardForm.StatusLabel.Font.Color := Text300;
+  WizardForm.FilenameLabel.StyleElements := [seClient, seBorder];
+  WizardForm.FilenameLabel.Font.Color := Text500;
+  WizardForm.FinishedHeadingLabel.StyleElements := [seClient, seBorder];
+  WizardForm.FinishedHeadingLabel.Font.Color := Text100;
+  WizardForm.FinishedLabel.Font.Size := 10;
+  WizardForm.FinishedLabel.StyleElements := [seClient, seBorder];
+  WizardForm.FinishedLabel.Font.Color := Text300;
+  WizardForm.RunList.StyleElements := [seClient, seBorder];
+  WizardForm.RunList.Font.Color := Text300;
+  { 原生进度值与安装逻辑不变，以细青色进度条呈现。 }
+  ProgressTrack := TPanel.Create(WizardForm);
+  ProgressTrack.Parent := WizardForm.ProgressGauge.Parent;
+  ProgressTrack.StyleElements := [];
+  ProgressTrack.BevelOuter := bvNone;
+  ProgressTrack.Color := $002A2727;
+  ProgressTrack.SetBounds(WizardForm.ProgressGauge.Left,
+    WizardForm.ProgressGauge.Top, WizardForm.ProgressGauge.Width, ScaleY(8));
+  ProgressFill := TPanel.Create(WizardForm);
+  ProgressFill.Parent := ProgressTrack;
+  ProgressFill.StyleElements := [];
+  ProgressFill.BevelOuter := bvNone;
+  ProgressFill.Color := $00D4B606;
+  ProgressFill.SetBounds(0, 0, 0, ProgressTrack.Height);
+  WizardForm.ProgressGauge.Visible := False;
   ContentLeft := WizardForm.WelcomeLabel1.Left;
   ContentWidth := WizardForm.WelcomeLabel1.Width;
   VersionLabel := AddText(WizardForm.WelcomeLabel1.Parent,
     FmtMessage(CustomMessage('VersionPlatform'), ['{#MyAppDisplayVer}']), ContentLeft, ScaleY(26),
     ContentWidth, ScaleY(24), 9);
+  VersionLabel.StyleElements := [seClient, seBorder];
+  VersionLabel.Font.Color := AccentCyan;
   WizardForm.WelcomeLabel1.Top := ScaleY(66);
   WizardForm.WelcomeLabel1.Height := ScaleY(84);
   WizardForm.WelcomeLabel2.Top := ScaleY(166);
   WizardForm.WelcomeLabel2.Height := ScaleY(60);
-  NoteTop := ScaleY(246);
+  NoteTop := ScaleY(242);
   RuntimeStatus := AddText(WizardForm.WelcomeLabel1.Parent, '', ContentLeft,
     NoteTop, ContentWidth, ScaleY(38), 9);
   if RuntimeReady then
     RuntimeStatus.Caption := CustomMessage('RuntimeReady')
   else
     RuntimeStatus.Caption := CustomMessage('RuntimeMissing');
+  RuntimeStatus.StyleElements := [seClient, seBorder];
+  RuntimeStatus.Font.Color := AccentCyan;
   RuntimeButton := TNewButton.Create(WizardForm);
   RuntimeButton.Parent := WizardForm.WelcomeLabel1.Parent;
-  RuntimeButton.SetBounds(ContentLeft, NoteTop + ScaleY(31), ScaleX(268), ScaleY(28));
+  RuntimeButton.SetBounds(ContentLeft, NoteTop + ScaleY(44), ScaleX(268), ScaleY(30));
   RuntimeButton.Caption := CustomMessage('GetRuntime');
   RuntimeButton.OnClick := @RuntimeButtonClick;
   RuntimeButton.Visible := not RuntimeReady;
   WelcomeNote := AddText(WizardForm.WelcomeLabel1.Parent,
     CustomMessage('WelcomeNote'),
-    ContentLeft, NoteTop + ScaleY(76), ContentWidth, ScaleY(58), 9);
+    ContentLeft, NoteTop + ScaleY(90), ContentWidth, ScaleY(58), 9);
 
-  { Keep the destination and optional shortcuts together on one page. }
+  { 安装目录与快捷方式选项放在同一页。 }
   WizardForm.SelectDirLabel.Top := ScaleY(8);
   WizardForm.SelectDirLabel.Font.Style := [fsBold];
   WizardForm.SelectDirBrowseLabel.Top := ScaleY(38);
@@ -118,16 +181,22 @@ begin
   DesktopShortcut := TNewCheckBox.Create(WizardForm);
   DesktopShortcut.Parent := WizardForm.DirEdit.Parent;
   DesktopShortcut.SetBounds(0, ScaleY(182), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(24));
+  DesktopShortcut.StyleElements := [seClient, seBorder];
+  DesktopShortcut.Font.Color := Text300;
+  DesktopShortcut.Font.Size := 10;
   DesktopShortcut.Caption := CustomMessage('DesktopShortcut');
   DesktopShortcut.Checked := GetPreviousData('DesktopShortcut', '1') = '1';
   AutoStart := TNewCheckBox.Create(WizardForm);
   AutoStart.Parent := WizardForm.DirEdit.Parent;
-  AutoStart.SetBounds(0, ScaleY(214), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(24));
+  AutoStart.SetBounds(0, ScaleY(218), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(24));
+  AutoStart.StyleElements := [seClient, seBorder];
+  AutoStart.Font.Color := Text300;
+  AutoStart.Font.Size := 10;
   AutoStart.Caption := CustomMessage('AutoStart');
   AutoStart.Checked := GetPreviousData('AutoStart', '0') = '1';
   DataNote := AddText(WizardForm.DirEdit.Parent,
     CustomMessage('DataNote'),
-    0, ScaleY(270), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(58), 9);
+    0, ScaleY(274), WizardForm.DirEdit.Parent.ClientWidth, ScaleY(58), 9);
   HelpButton := TNewButton.Create(WizardForm);
   HelpButton.Parent := WizardForm;
   HelpButton.SetBounds(ScaleX(24), WizardForm.CancelButton.Top, ScaleX(78), WizardForm.CancelButton.Height);
@@ -140,8 +209,7 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := PageID = wpSelectTasks;
-  { Inno fills TasksList after the directory page. Synchronize here, after it
-    has applied its defaults, so a skipped tasks page cannot reset the choices. }
+  { 默认任务初始化后再同步选项，避免跳过任务页时覆盖用户选择。 }
   if Result and not WizardSilent then
   begin
     if DesktopShortcut.Checked then WizardSelectTasks('desktopicon')
@@ -194,4 +262,11 @@ begin
   if WizardIsTaskSelected('autostart') then
     SetPreviousData(PreviousDataKey, 'AutoStart', '1')
   else SetPreviousData(PreviousDataKey, 'AutoStart', '0');
+end;
+
+{ 仅更新进度条显示，不参与文件安装或运行时检测。 }
+procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);
+begin
+  if MaxProgress > 0 then
+    ProgressFill.Width := Round((CurProgress * 1.0 / MaxProgress) * ProgressTrack.Width);
 end;

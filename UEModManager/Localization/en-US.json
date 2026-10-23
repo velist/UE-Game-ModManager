@@ -212,7 +212,7 @@
   "关闭（Esc）": "Close (Esc)",
   "关闭窗口": "Close window",
   "给 MOD 找个合适的位置": "Choose a home for your MODs",
-  "优先选择游戏所在的磁盘，并预留足够的空间。": "Choose a drive with enough free space, preferably the game drive.",
+  "建议选择空间充足的非系统盘，不要放在 C 盘。": "Choose a non-system drive with enough free space, not drive C.",
   "选择磁盘": "Choose a drive",
   "进度条为已用空间": "Bars show used space",
   "暂未找到可用磁盘，可以选择其他文件夹。": "No drives found. You can choose another folder.",

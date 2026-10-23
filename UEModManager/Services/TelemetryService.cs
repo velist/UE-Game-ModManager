@@ -162,6 +162,11 @@ namespace UEModManager.Services
                         // 只有"连续失败够多次"才真正退出——网络不通时每 15 分钟空转一次没有意义。
                         if (!await SendAsync(PendingAccountHash(), token)) return;
                     }
+                    else if (!_anonymousCheckDone)
+                    {
+                        _anonymousCheckDone = true;
+                        await CheckUpdateAnonymouslyAsync(token);
+                    }
 
                     await Task.Delay(HeartbeatInterval, token);
                 }
@@ -253,6 +258,35 @@ namespace UEModManager.Services
             catch (Exception ex)
             {
                 return NoteFailure(ex.Message);
+            }
+        }
+
+        /// <summary>本次会话是否已做过不带标识的更新检查（统计关闭时每次会话只查一次）。</summary>
+        private bool _anonymousCheckDone;
+
+        /// <summary>
+        /// 统计关闭时的更新检查：GET 一次，不带设备标识、版本号以外的任何东西，服务端也不落库。
+        ///
+        /// <para>
+        /// 统计默认关闭之后，如果更新提示只搭心跳的车，新用户就永远收不到新版本通知。
+        /// 查"最新版本号"不是统计，不需要同意；失败一律静默。
+        /// </para>
+        /// </summary>
+        private async Task CheckUpdateAnonymouslyAsync(CancellationToken token)
+        {
+            try
+            {
+                using var response = await _http.GetAsync("app/update", token);
+                if (response.IsSuccessStatusCode)
+                    await NotifyIfUpdateAvailableAsync(response, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "[Update] 匿名更新检查失败");
             }
         }
 

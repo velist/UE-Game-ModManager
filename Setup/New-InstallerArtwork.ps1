@@ -1,10 +1,9 @@
-# Rebuild the checked-in wizard PNGs using Windows' built-in drawing library.
-# No Python, web service, or additional graphics package is required.
+﻿# 使用 Windows 自带 GDI+ 生成安装向导图片，无需额外依赖。
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSEdition -eq 'Core') {
-    # GDI+ is part of .NET Framework on Windows; use that runtime consistently.
+    # 固定使用 Windows .NET Framework 中的 GDI+。
     & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath
-    if ($LASTEXITCODE -ne 0) { throw "Artwork generation failed (exit $LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) { throw "安装图片生成失败（退出码 $LASTEXITCODE）。" }
     return
 }
 Add-Type -AssemblyName System.Drawing
@@ -30,16 +29,20 @@ public static class InstallerArtwork
         return g;
     }
 
-    static GraphicsPath Rounded(float x, float y, float w, float h, float radius)
+    // 青色仅作为低透明度的局部径向光晕。
+    static void Surface(Graphics g, int width, int height, int opacity)
     {
-        var p = new GraphicsPath();
-        float d = radius * 2;
-        p.AddArc(x, y, d, d, 180, 90);
-        p.AddArc(x + w - d, y, d, d, 270, 90);
-        p.AddArc(x + w - d, y + h - d, d, d, 0, 90);
-        p.AddArc(x, y + h - d, d, d, 90, 90);
-        p.CloseFigure();
-        return p;
+        g.Clear(Hex("#0f0f11"));
+        using (var path = new GraphicsPath())
+        {
+            path.AddEllipse(-width * 0.45f, -height * 0.3f, width * 1.2f, height * 0.9f);
+            using (var glow = new PathGradientBrush(path))
+            {
+                glow.CenterColor = Color.FromArgb(opacity, 6, 182, 212);
+                glow.SurroundColors = new Color[] { Color.FromArgb(0, 6, 182, 212) };
+                g.FillPath(glow, path);
+            }
+        }
     }
 
     static void Text(Graphics g, string text, float size, Color color,
@@ -69,67 +72,28 @@ public static class InstallerArtwork
         Directory.CreateDirectory(outputDirectory);
         using (var brand = Image.FromFile(brandPath))
         {
-            // Inno Setup preserves a 497:360 aspect ratio for full backgrounds.
+            // 保持 Inno Setup 的图片比例，三倍分辨率适配高 DPI。
             using (var bitmap = new Bitmap(1491, 1080, PixelFormat.Format32bppArgb))
             using (var g = Canvas(bitmap))
-            using (var fill = new LinearGradientBrush(new Rectangle(0, 0, 1491, 1080),
-                Hex("#1a1e24"), Hex("#15171b"), 40f))
             {
-                g.FillRectangle(fill, 0, 0, bitmap.Width, bitmap.Height);
+                Surface(g, bitmap.Width, bitmap.Height, 5);
                 bitmap.Save(Path.Combine(outputDirectory, "installer-background.png"), ImageFormat.Png);
             }
 
-            // The welcome/completion illustration uses Inno's fixed 164:314 ratio.
+            // 保持 Inno Setup 的图片比例，三倍分辨率适配高 DPI。
             using (var bitmap = new Bitmap(492, 942, PixelFormat.Format32bppArgb))
             using (var g = Canvas(bitmap))
-            using (var fill = new LinearGradientBrush(new Rectangle(0, 0, 492, 942),
-                Hex("#122a34"), Hex("#101a21"), 90f))
             {
-                g.FillRectangle(fill, 0, 0, bitmap.Width, bitmap.Height);
-                using (var line = new Pen(Color.FromArgb(32, 67, 170, 197), 1.5f))
-                {
-                    g.DrawLines(line, new PointF[] {
-                        new PointF(255, -50), new PointF(530, 220), new PointF(530, 460)
-                    });
-                    g.DrawLines(line, new PointF[] {
-                        new PointF(300, -50), new PointF(530, 177), new PointF(530, 460)
-                    });
-                    g.DrawLines(line, new PointF[] {
-                        new PointF(-60, 660), new PointF(226, 942), new PointF(420, 942)
-                    });
-                }
-                using (var accent = new SolidBrush(Hex("#46d0e7")))
-                    g.FillRectangle(accent, 54, 54, 46, 5);
-                Text(g, "A I C H A N", 20, Hex("#91b7c3"),
-                    new RectangleF(54, 80, 384, 32), false, false);
-
-                using (var halo = new GraphicsPath())
-                {
-                    halo.AddEllipse(32, 206, 428, 428);
-                    using (var glow = new PathGradientBrush(halo))
-                    {
-                        glow.CenterColor = Color.FromArgb(35, 0, 192, 230);
-                        glow.SurroundColors = new Color[] { Color.FromArgb(0, 0, 192, 230) };
-                        g.FillPath(glow, halo);
-                    }
-                }
-                using (var back = Rounded(110, 293, 248, 248, 34))
-                using (var backPen = new Pen(Color.FromArgb(80, 65, 132, 151), 2f))
-                    g.DrawPath(backPen, back);
-                using (var plate = Rounded(128, 311, 248, 248, 34))
-                using (var plateBrush = new SolidBrush(Hex("#142831")))
-                using (var platePen = new Pen(Color.FromArgb(100, 73, 155, 177), 2f))
-                {
-                    g.FillPath(plateBrush, plate);
-                    g.DrawPath(platePen, plate);
-                }
-                FitImage(g, brand, new RectangleF(158, 342, 184, 184));
-                Text(g, "\u7231\u9171", 43, Hex("#e7f6fa"),
-                    new RectangleF(48, 603, 396, 62), true, true);
-                Text(g, "MOD MANAGER", 22, Hex("#91b7c3"),
-                    new RectangleF(48, 674, 396, 36), true, false);
-                Text(g, "modmanger.com", 22, Hex("#6f94a1"),
-                    new RectangleF(48, 853, 396, 40), true, false);
+                Surface(g, bitmap.Width, bitmap.Height, 9);
+                FitImage(g, brand, new RectangleF(54, 78, 114, 114));
+                Text(g, "爱酱 MOD 管理器", 30, Hex("#f4f4f5"),
+                    new RectangleF(54, 222, 390, 54), false, true);
+                using (var accent = new SolidBrush(Hex("#06b6d4")))
+                    g.FillRectangle(accent, 54, 309, 48, 3);
+                using (var line = new Pen(Hex("#27272a"), 3f))
+                    g.DrawLine(line, 54, 813, 438, 813);
+                Text(g, "modmanger.com", 27, Hex("#8b8b94"),
+                    new RectangleF(54, 843, 384, 42), false, false);
                 bitmap.Save(Path.Combine(outputDirectory, "installer-sidebar.png"), ImageFormat.Png);
             }
 
@@ -137,7 +101,7 @@ public static class InstallerArtwork
             using (var g = Canvas(bitmap))
             {
                 g.Clear(Color.Transparent);
-                FitImage(g, brand, new RectangleF(14, 14, 116, 116));
+                FitImage(g, brand, new RectangleF(27, 27, 90, 90));
                 bitmap.Save(Path.Combine(outputDirectory, "installer-mark.png"), ImageFormat.Png);
             }
         }
@@ -145,7 +109,7 @@ public static class InstallerArtwork
 }
 '@
 
-$brandPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'website\assets\brand.png'
+$brandPath = Join-Path $PSScriptRoot 'wizard-images\aichan-logo.png'
 $artworkOutput = Join-Path $PSScriptRoot 'wizard-images'
 [InstallerArtwork]::Generate($brandPath, $artworkOutput)
 Get-ChildItem -LiteralPath $artworkOutput -Filter 'installer-*.png' | Select-Object Name, Length

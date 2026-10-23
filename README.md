@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.1-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.1"></a>
+  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.2-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.2"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
   <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 桌面运行时">
   <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="构建与测试"></a>
@@ -163,7 +163,7 @@ RAR / 7z 请先使用 WinRAR 或 7-Zip 解压，再导入解压后的文件夹�
 
 支持通过邮箱登录账号，核心 MOD 管理也可离线使用。账号功能目前不提供 MOD 文件或方案的跨设备云同步。
 
-同意参与“检查更新与匿名统计”后，程序发送随机设备编号、软件版本与 Windows 版本；登录时可能附带邮箱哈希。统计不上传邮箱明文、电脑名、文件路径、游戏目录或 MOD 清单。可在“设置 → 常规参数”中关闭，关闭后停止对应的更新检查和统计请求。
+“检查更新与匿名统计”默认关闭。主动打开后，程序发送随机设备编号、软件版本与 Windows 版本；登录时可能附带邮箱哈希。统计不上传邮箱明文、电脑名、文件路径、游戏目录或 MOD 清单。可在“设置 → 常规参数”中随时关闭。关闭时程序只在启动后查询一次最新版本号，不带任何标识。
 
 登录、注册、找回密码等账号操作会分别发送其所需的账号信息。完整说明见[官网隐私说明](https://www.modmanger.com/help#privacy)及[使用许可](Setup/LICENSE.txt)。
 
