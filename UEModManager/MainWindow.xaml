@@ -892,7 +892,8 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <Grid>
+                                        <!-- 内容按圆角裁剪（外框 14 - 边框 1）：否则直角的预览图区域盖住外框四角，悬停亮边时露出缺角 -->
+                                        <Grid infra:RoundedClip.Radius="13">
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="6*"/>
                                                 <RowDefinition Height="4*"/>
