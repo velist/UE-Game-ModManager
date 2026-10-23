@@ -35,6 +35,18 @@ public static class VolumePaths
     /// 相对路径是同一条理由。
     /// </para>
     /// </summary>
+    /// <summary>
+    /// 把 Windows 盘符改成大写（<c>d:\Games</c> → <c>D:\Games</c>），其余部分原样保留。
+    /// 自动检测出的游戏路径常是小写盘符（来自 Steam 的 libraryfolders.vdf），界面上显示很别扭。
+    /// 路径比较与部署状态键本来就不区分大小写，改写不影响已有记录。
+    /// </summary>
+    public static string? UppercaseDriveLetter(string? path)
+    {
+        if (string.IsNullOrEmpty(path) || path.Length < 2 || path[1] != ':' || !char.IsAsciiLetterLower(path[0]))
+            return path;
+        return char.ToUpperInvariant(path[0]) + path[1..];
+    }
+
     public static string? TryGetVolumeRoot(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;

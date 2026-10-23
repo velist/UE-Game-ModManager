@@ -51,6 +51,17 @@ public sealed partial class ConflictViewModel : ObservableObject
     [ObservableProperty]
     private string _statusText = string.Empty;
 
+    /// <summary>
+    /// 动作执行中（禁用 / 只保留 / 一键处理 → 重新部署 → 重新分析）。窗口据此盖上加载遮罩：
+    /// 以前只有背后主窗口的遮罩在动，冲突窗口本身毫无变化，用户不知道是否在处理。
+    /// </summary>
+    [ObservableProperty]
+    private bool _isBusy;
+
+    /// <summary>加载遮罩上的说明（未翻译时由 UiText 处理）。</summary>
+    [ObservableProperty]
+    private string _busyText = string.Empty;
+
     /// <summary>没有任何组 / 重复 / 无法分析时显示大字空状态。</summary>
     [ObservableProperty]
     private bool _isEmpty = true;
@@ -100,6 +111,20 @@ public sealed partial class ConflictViewModel : ObservableObject
     /// 失败时也要写 StatusText：面板动作没有对话框，静默失败会被当成"点了没反应"。
     /// </summary>
     private async Task<OperationResult> RunActionAsync(string successText, Func<Task<OperationResult>> action)
+    {
+        BusyText = UiText.Get("正在处理冲突并重新部署…");
+        IsBusy = true;
+        try
+        {
+            return await RunActionCoreAsync(successText, action);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task<OperationResult> RunActionCoreAsync(string successText, Func<Task<OperationResult>> action)
     {
         OperationResult result;
         try

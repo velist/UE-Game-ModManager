@@ -70,7 +70,10 @@ public partial class ConflictWindow : Window
     /// </summary>
     private async Task LoadAndFocusAsync()
     {
-        await _vm.LoadAsync();
+        _vm.BusyText = UiText.Get("正在分析冲突…");
+        _vm.IsBusy = true;
+        try { await _vm.LoadAsync(); }
+        finally { _vm.IsBusy = false; }
         if (FocusPackageKey is not { Length: > 0 } focusKey) return;
 
         var index = _vm.Groups

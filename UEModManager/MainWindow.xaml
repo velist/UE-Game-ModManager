@@ -1006,11 +1006,18 @@
                                                 </Grid>
                                             </Border>
 
-                                            <!-- 卡片信息 -->
-                                            <StackPanel Grid.Row="1" Margin="16" VerticalAlignment="Top">
-                                                <TextBlock Text="{Binding Name}" FontWeight="Bold"
+                                            <!-- 卡片信息：名称 / 包名在上，分类·角标·大小固定贴底。
+                                                 以前是一列 StackPanel 往下堆，信息区只有约 60px 高，最后一行"大小 + 分类"被挤出去裁掉了。 -->
+                                            <Grid Grid.Row="1" Margin="14,10,14,10">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Text="{Binding Name}" FontWeight="Bold"
                                                            FontSize="14" TextTrimming="CharacterEllipsis"
-                                                           Margin="0,0,0,8">
+                                                           ToolTip="{Binding Name}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{StaticResource Text200Brush}"/>
@@ -1022,41 +1029,43 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <TextBlock Text="{Binding RealName}" FontSize="11"
+                                                <TextBlock Grid.Row="1" Text="{Binding RealName}" FontSize="11" Margin="0,3,0,0"
                                                            Foreground="{StaticResource Text600Brush}"
-                                                           TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
-                                                <!-- 冲突角标：红色数字 = 与几个已启用 MOD 冲突；灰色"重复"标签。
-                                                     两个标签各自按属性显隐，都没有时不占位。 -->
-                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,6,0"
-                                                            Background="#3F1D1D"
-                                                            ToolTip="{loc:Text '查看冲突'}"
-                                                            Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                        <TextBlock Text="{Binding ConflictCount}" FontSize="11"
-                                                                   FontWeight="Bold" Foreground="#F87171"/>
-                                                    </Border>
-                                                    <Border CornerRadius="6" Padding="6,2" Background="#27272A"
-                                                            Visibility="{Binding IsDuplicate, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                        <TextBlock Text="{loc:Text '重复'}" FontSize="11"
-                                                                   Foreground="{StaticResource Text400Brush}"/>
-                                                    </Border>
-                                                </StackPanel>
-                                                <!-- 底部：大小 + 分类 -->
-                                                <Grid>
+                                                           TextTrimming="CharacterEllipsis"/>
+
+                                                <!-- 底部一行：左下角分类标签 · 冲突/重复角标 · 右侧大小 -->
+                                                <Grid Grid.Row="3" Margin="0,6,0,0">
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding FormattedSize}" FontSize="12"
+                                                    <Border Grid.Column="0" CornerRadius="6" Padding="7,2" MaxWidth="120"
+                                                            Background="#1A1A1D" BorderBrush="#27272A" BorderThickness="1"
+                                                            ToolTip="{loc:Value {Binding PrimaryCategory}, CategoryName=True}">
+                                                        <TextBlock Text="{loc:Value {Binding PrimaryCategory}, CategoryName=True}" FontSize="11"
+                                                                   Foreground="{StaticResource Text300Brush}" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                    <!-- 冲突角标：红色数字 = 与几个已启用 MOD 冲突；灰色"重复"标签。没有时不占位。 -->
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                        <Border CornerRadius="6" Padding="6,2" Margin="0,0,6,0"
+                                                                Background="#3F1D1D"
+                                                                ToolTip="{loc:Text '查看冲突'}"
+                                                                Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                            <TextBlock Text="{Binding ConflictCount}" FontSize="11"
+                                                                       FontWeight="Bold" Foreground="#F87171"/>
+                                                        </Border>
+                                                        <Border CornerRadius="6" Padding="6,2" Background="#27272A"
+                                                                Visibility="{Binding IsDuplicate, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                            <TextBlock Text="{loc:Text '重复'}" FontSize="11"
+                                                                       Foreground="{StaticResource Text400Brush}"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Text="{Binding FormattedSize}" FontSize="11"
                                                                Foreground="{StaticResource Text500Brush}"
-                                                               HorizontalAlignment="Left"/>
-                                                    <TextBlock Grid.Column="1" Text="{loc:Value {Binding PrimaryCategory}, CategoryName=True}" FontSize="12"
-                                                               Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
-                                                               ToolTip="{loc:Value {Binding PrimaryCategory}, CategoryName=True}"
-                                                               Foreground="{StaticResource Text500Brush}"
-                                                               HorizontalAlignment="Right"/>
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
-                                            </StackPanel>
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>

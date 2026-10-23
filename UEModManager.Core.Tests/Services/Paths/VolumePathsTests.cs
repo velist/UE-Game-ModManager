@@ -143,4 +143,15 @@ public class VolumePathsTests
         // 让后续真实的 IO 去失败并给出真正的原因
         Assert.False(VolumePaths.IsSameOrInside(parent, candidate));
     }
+
+    [Theory]
+    [InlineData(@"d:\s\steam\steamapps\common\BlackMythWukong", @"D:\s\steam\steamapps\common\BlackMythWukong")]
+    [InlineData(@"D:\Games", @"D:\Games")]
+    [InlineData(@"c:", @"C:")]
+    [InlineData(@"\server\share\x", @"\server\share\x")]
+    [InlineData(@"relative\path", @"relative\path")]
+    [InlineData("", "")]
+    [InlineData(null, null)]
+    public void 盘符改为大写_其余不变(string? input, string? expected)
+        => Assert.Equal(expected, VolumePaths.UppercaseDriveLetter(input));
 }

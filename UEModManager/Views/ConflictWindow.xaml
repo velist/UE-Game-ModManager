@@ -6,6 +6,7 @@
         Width="720" Height="640"
         WindowStartupLocation="CenterOwner"
         xmlns:infra="clr-namespace:UEModManager.Infrastructure"
+        xmlns:views="clr-namespace:UEModManager.Views"
         Style="{StaticResource CyberModalWindow}">
 
     <Window.Resources>
@@ -180,5 +181,9 @@
                         Click="Close_Click"/>
             </StackPanel>
         </Border>
+        <!-- 处理中遮罩：覆盖整个面板，处理期间按钮不可点 -->
+        <views:LoadingOverlay Grid.RowSpan="20" Panel.ZIndex="50"
+                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}"
+                              Message="{Binding BusyText}"/>
     </Grid>
 </Window>

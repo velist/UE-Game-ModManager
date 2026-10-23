@@ -66,7 +66,7 @@ namespace UEModManager.Views
                 if (!_backupPathIsCustom)
                 {
                     BackupPath = ResolveBackupPath(GameName, value);
-                    BackupPathTextBox.Text = BackupPath;
+                    BackupPathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(BackupPath);
                 }
             }
         }
@@ -331,7 +331,7 @@ namespace UEModManager.Views
             if (!string.IsNullOrEmpty(result.GamePath))
             {
                 GamePath = result.GamePath;
-                GamePathTextBox.Text = result.GamePath;
+                GamePathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(result.GamePath);
             }
 
             if (!string.IsNullOrEmpty(result.ExecutableName))
@@ -342,13 +342,13 @@ namespace UEModManager.Views
             if (!string.IsNullOrEmpty(result.ModPath))
             {
                 ModPath = result.ModPath;
-                ModPathTextBox.Text = result.ModPath;
+                ModPathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(result.ModPath);
             }
 
             if (!string.IsNullOrEmpty(result.BackupPath))
             {
                 BackupPath = result.BackupPath;
-                BackupPathTextBox.Text = result.BackupPath;
+                BackupPathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(result.BackupPath);
             }
 
             SearchStatusText.Text = result.StatusText;
@@ -1054,7 +1054,7 @@ namespace UEModManager.Views
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 GamePath = dialog.SelectedPath;
-                GamePathTextBox.Text = dialog.SelectedPath;
+                GamePathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(dialog.SelectedPath);
             }
         }
 
@@ -1070,7 +1070,7 @@ namespace UEModManager.Views
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 ModPath = dialog.SelectedPath;
-                ModPathTextBox.Text = dialog.SelectedPath;
+                ModPathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(dialog.SelectedPath);
             }
         }
 
@@ -1098,7 +1098,7 @@ namespace UEModManager.Views
             {
                 _backupPathIsCustom = true;
                 BackupPath = dialog.SelectedPath;
-                BackupPathTextBox.Text = dialog.SelectedPath;
+                BackupPathTextBox.Text = Services.Paths.VolumePaths.UppercaseDriveLetter(dialog.SelectedPath);
             }
         }
 

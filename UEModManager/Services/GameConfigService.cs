@@ -1,3 +1,4 @@
+using UEModManager.Services.Paths;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -192,6 +193,18 @@ namespace UEModManager.Services
                     }
                 }
 
+                // 老配置里的小写盘符顺手改成大写（只影响显示；路径比较与部署状态键不区分大小写）
+                var fixedGame = VolumePaths.UppercaseDriveLetter(Config.GamePath);
+                var fixedMod = VolumePaths.UppercaseDriveLetter(Config.ModPath);
+                var fixedBackup = VolumePaths.UppercaseDriveLetter(Config.BackupPath);
+                if (fixedGame != Config.GamePath || fixedMod != Config.ModPath || fixedBackup != Config.BackupPath)
+                {
+                    Config.GamePath = fixedGame;
+                    Config.ModPath = fixedMod;
+                    Config.BackupPath = fixedBackup;
+                    TrySaveConfigQuietly("盘符改为大写");
+                }
+
                 // 修复旧版本备份路径
                 if (!string.IsNullOrEmpty(Config.BackupPath) && Config.BackupPath.Contains("net6.0-windows"))
                 {
@@ -301,9 +314,10 @@ namespace UEModManager.Services
             try
             {
                 Config.GameName = safeGameName;
-                Config.GamePath = gamePath?.Trim();
-                Config.ModPath = modPath?.Trim();
-                Config.BackupPath = backupPath?.Trim();
+                // 盘符统一大写（自动检测常给出 d:\...）
+                Config.GamePath = VolumePaths.UppercaseDriveLetter(gamePath?.Trim());
+                Config.ModPath = VolumePaths.UppercaseDriveLetter(modPath?.Trim());
+                Config.BackupPath = VolumePaths.UppercaseDriveLetter(backupPath?.Trim());
                 Config.ExecutableName = null; // 重置，让自动检测重新查找
 
                 // 确保备份目录存在
