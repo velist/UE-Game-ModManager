@@ -601,7 +601,7 @@
                             <Border Width="1" Height="24" Background="{StaticResource CyberBorderBrush}" Margin="0,0,8,0"/>
 
                             <!-- 导入 -->
-                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
+                            <Border x:Name="ImportModBtn" infra:MotionAssist.Press="True" CornerRadius="8" Background="{StaticResource ImportButtonGradient}" Padding="16,10"
                                     Cursor="Hand" Margin="0,0,8,0"
                                     MouseLeftButtonDown="ImportMod_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -640,7 +640,7 @@
                             </Border>
 
                             <!-- 启动游戏 -->
-                            <Border infra:MotionAssist.Press="True" CornerRadius="8" Padding="16,10"
+                            <Border x:Name="LaunchGameBtn" infra:MotionAssist.Press="True" CornerRadius="8" Padding="16,10"
                                     Cursor="Hand" MouseLeftButtonDown="LaunchGame_Click">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -1490,6 +1490,9 @@
         <views:LoadingOverlay
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                 Message="{Binding LoadingMessage}"/>
+
+        <!-- 首次使用引导（只出现一次），盖在整个窗口最上层 -->
+        <views:OnboardingOverlay x:Name="Onboarding" Panel.ZIndex="100"/>
     </Grid>
 
 </Window>

@@ -128,12 +128,12 @@ public sealed class ButtonTextFitTests
     }
 
     /// <summary>
-    /// 扫描 Views 下的窗口与主窗口。排除 <see cref="UEModManager.Views.LoadingOverlay"/>：
-    /// 它是 UserControl 不是 Window，由宿主窗口提供资源，不单独作为窗口加载。
+    /// 扫描 Views 下的窗口与主窗口。排除 <see cref="UEModManager.Views.LoadingOverlay"/> 与 <see cref="UEModManager.Views.OnboardingOverlay"/>：
+    /// 它们是 UserControl 不是 Window，由宿主窗口提供资源，不单独作为窗口加载。
     /// </summary>
     private static IEnumerable<string> WindowPaths()
         => Directory.GetFiles(Path.Combine(AppSource, "Views"), "*.xaml")
-            .Where(path => Path.GetFileNameWithoutExtension(path) != "LoadingOverlay")
+            .Where(path => Path.GetFileNameWithoutExtension(path) is not ("LoadingOverlay" or "OnboardingOverlay"))
             .Select(path => "Views/" + Path.GetFileName(path))
             .Prepend("MainWindow.xaml")
             .OrderBy(path => path, StringComparer.Ordinal);

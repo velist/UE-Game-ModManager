@@ -1,0 +1,58 @@
+<UserControl x:Class="UEModManager.Views.OnboardingOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:UEModManager.Localization"
+             Visibility="Collapsed" Focusable="True">
+    <!-- 首次使用引导：压暗整窗，聚光灯圈出当前步骤的控件，旁边一张说明卡。
+         遮罩是"整窗矩形 减去 圆角洞"的组合几何，洞的位置由 code-behind 按目标控件计算并动画过去。 -->
+    <Canvas x:Name="Root" Background="Transparent">
+        <Path x:Name="Mask" Fill="#C0000000" IsHitTestVisible="True">
+            <Path.Data>
+                <CombinedGeometry GeometryCombineMode="Exclude">
+                    <CombinedGeometry.Geometry1>
+                        <RectangleGeometry x:Name="FullRect"/>
+                    </CombinedGeometry.Geometry1>
+                    <CombinedGeometry.Geometry2>
+                        <RectangleGeometry x:Name="Hole" RadiusX="12" RadiusY="12"/>
+                    </CombinedGeometry.Geometry2>
+                </CombinedGeometry>
+            </Path.Data>
+        </Path>
+
+        <!-- 聚光灯描边：青色发光框，跟着洞走 -->
+        <Border x:Name="HoleRing" BorderBrush="{StaticResource PrimaryLightBrush}" BorderThickness="2"
+                CornerRadius="12" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect ShadowDepth="0" BlurRadius="18" Opacity="0.8" Color="#22d3ee"/>
+            </Border.Effect>
+        </Border>
+
+        <!-- 说明卡 -->
+        <Border x:Name="Card" Width="340" Padding="20,18" CornerRadius="14"
+                Background="#F50F0F11" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect ShadowDepth="0" BlurRadius="28" Opacity="0.6" Color="Black"/>
+            </Border.Effect>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="26" Height="26" CornerRadius="13" Background="{StaticResource PrimaryBrush}">
+                        <TextBlock x:Name="StepNumber" Text="1" Foreground="#04130A" FontWeight="Bold" FontSize="13"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="StepCounter" Margin="10,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource Text500Brush}" FontSize="12"/>
+                </StackPanel>
+                <TextBlock x:Name="StepTitle" Margin="0,12,0,0" Foreground="{StaticResource Text100Brush}"
+                           FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
+                <TextBlock x:Name="StepBody" Margin="0,6,0,0" Foreground="{StaticResource Text300Brush}"
+                           FontSize="13" LineHeight="20" TextWrapping="Wrap"/>
+                <Grid Margin="0,18,0,0">
+                    <Button x:Name="SkipButton" Content="{loc:Text '跳过引导'}" HorizontalAlignment="Left"
+                            Style="{StaticResource CyberGhostButton}" Height="34" Padding="10,0" Click="Skip_Click"/>
+                    <Button x:Name="NextButton" HorizontalAlignment="Right"
+                            Style="{StaticResource CyberPrimaryButton}" Height="34" Padding="18,0" Click="Next_Click"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Canvas>
+</UserControl>

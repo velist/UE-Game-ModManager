@@ -229,6 +229,38 @@ namespace UEModManager.Infrastructure
             move.BeginAnimation(TranslateTransform.XProperty, shake);
         }
 
+        // ─── 数字滚动 ───
+
+        private static readonly DependencyProperty CountValueProperty = DependencyProperty.RegisterAttached(
+            "CountValue", typeof(double), typeof(MotionAssist), new PropertyMetadata(0.0, OnCountValueChanged));
+
+        private static readonly DependencyProperty CountFormatProperty = DependencyProperty.RegisterAttached(
+            "CountFormat", typeof(Func<long, string>), typeof(MotionAssist));
+
+        private static void OnCountValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is System.Windows.Controls.TextBlock tb && tb.GetValue(CountFormatProperty) is Func<long, string> format)
+                tb.Text = format((long)Math.Round((double)e.NewValue));
+        }
+
+        /// <summary>
+        /// 数字从 0 滚动到目标值（约 600ms，先快后慢）；系统关闭动画时直接显示终值。
+        /// <paramref name="format"/> 决定显示形式，例如字节数格式化成"2.4 GB"。
+        /// </summary>
+        public static void CountUp(System.Windows.Controls.TextBlock target, long value, Func<long, string>? format = null, int ms = 600)
+        {
+            format ??= v => v.ToString();
+            target.SetValue(CountFormatProperty, format);
+            if (!IsMotionEnabled || value == 0)
+            {
+                target.BeginAnimation(CountValueProperty, null);
+                target.Text = format(value);
+                return;
+            }
+            target.BeginAnimation(CountValueProperty,
+                new DoubleAnimation(0, value, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut } });
+        }
+
         // ─── 颜色过渡（给 code-behind 里改背景色的地方用）───
 
         /// <summary>把元素的纯色背景平滑过渡到目标颜色；背景若是冻结的共享画刷会先换成本地实例。</summary>

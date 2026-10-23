@@ -104,10 +104,11 @@ namespace UEModManager.Views
                 var orphans = _packageRepo.GetOrphanPackages(referencedKeys);
                 var dupGroups = _packageRepo.GetDuplicateGroups();
 
-                RepoTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_packageRepo.GetTotalSize());
-                RepoTotalCount.Text = _packageRepo.GetTotalCount().ToString();
-                RepoUnrefCount.Text = orphans.Count.ToString();
-                RepoDupCount.Text = dupGroups.Count.ToString();
+                // 统计数字滚动到位（Infrastructure/MotionAssist.CountUp）
+                MotionAssist.CountUp(RepoTotalSize, _packageRepo.GetTotalSize(), UEModManager.Core.Utils.FileSizeFormatter.Format);
+                MotionAssist.CountUp(RepoTotalCount, _packageRepo.GetTotalCount());
+                MotionAssist.CountUp(RepoUnrefCount, orphans.Count);
+                MotionAssist.CountUp(RepoDupCount, dupGroups.Count);
 
                 RepoPackageList.ItemsSource = packages
                     .Select(pkg => RepoPackageRow.Create(
@@ -294,9 +295,9 @@ namespace UEModManager.Views
                 int active = _overwriteStore.ActiveCount;
                 int stale = artifacts.Count(a => a.Status == GeneratedArtifactStatus.Stale);
 
-                GenActiveCount.Text = active.ToString();
-                GenExpiredCount.Text = stale.ToString();
-                GenTotalSize.Text = UEModManager.Core.Utils.FileSizeFormatter.Format(_overwriteStore.TotalSize);
+                MotionAssist.CountUp(GenActiveCount, active);
+                MotionAssist.CountUp(GenExpiredCount, stale);
+                MotionAssist.CountUp(GenTotalSize, _overwriteStore.TotalSize, UEModManager.Core.Utils.FileSizeFormatter.Format);
 
                 GenFileList.ItemsSource = artifacts
                     .Select(a => GenFileRow.Create(a, ResolveBrush))

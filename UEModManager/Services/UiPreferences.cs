@@ -53,6 +53,9 @@ namespace UEModManager.Services
             public int DeployBackendType { get; set; } = 0;
             public bool AutoDeploy { get; set; } = true;
 
+            /// <summary>首次使用引导是否已经看过（看完或跳过都算），只出现一次。</summary>
+            public bool OnboardingGuideShown { get; set; }
+
             /// <summary>
             /// 已经就"这次没能按你选的方式部署"告知过用户的情形签名
             /// （见 <c>DeploymentDegradationNotice.BuildSignature</c>）。
@@ -519,6 +522,12 @@ namespace UEModManager.Services
         {
             Write(cfg => cfg.AutoDeploy = auto, "保存自动部署设置");
         }
+
+        public static bool LoadOnboardingGuideShown()
+            => Read(cfg => cfg.OnboardingGuideShown, false, "读取新手引导状态");
+
+        public static void SaveOnboardingGuideShown(bool shown)
+            => Write(cfg => cfg.OnboardingGuideShown = shown, "保存新手引导状态");
 
         /// <summary>读取"已经告知过的部署降级情形签名"；从没告知过返回 <c>null</c>。</summary>
         public static string? LoadDeployDegradationNotice()

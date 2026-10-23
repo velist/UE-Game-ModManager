@@ -254,6 +254,9 @@ namespace UEModManager
                 // 排在最后一位是有意的——崩溃恢复和数据搬迁是用户真的需要处理的事，
                 // 统计是我们的需求，不该抢在它们前面占用户的注意力。
                 StartTelemetry();
+
+                // 首次使用引导排在所有启动检查之后，等列表渲染完再开始
+                _ = Dispatcher.BeginInvoke(StartOnboardingIfNeeded, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             }
             catch (Exception ex)
             {
@@ -316,6 +319,28 @@ namespace UEModManager
                 ToastBar.BeginAnimation(OpacityProperty, fade);
             };
             _toastTimer.Start();
+        }
+
+        /// <summary>第一次打开时带用户走一遍：选游戏 → 导入 → 启用 → 启动。看完或跳过都只出现一次。</summary>
+        private void StartOnboardingIfNeeded()
+        {
+            if (UiPreferences.LoadOnboardingGuideShown()) return;
+            Onboarding.Finished += completed =>
+            {
+                UiPreferences.SaveOnboardingGuideShown(true);
+                _logger?.LogInformation("新手引导结束：{Result}", completed ? "看完" : "跳过");
+            };
+            Onboarding.Start(new[]
+            {
+                new Views.GuideStep(GameSwitcherBtn, "先选游戏",
+                    "在这里选择要装 MOD 的游戏。列表里没有的游戏，也能自己添加。"),
+                new Views.GuideStep(ImportModBtn, "导入 MOD",
+                    "点这里，或者直接把压缩包、文件夹、.pak 文件拖进窗口，软件会自动识别。"),
+                new Views.GuideStep(ModContentArea, "启用和管理",
+                    "导入的 MOD 都在这里。鼠标移到卡片上可以一键启用或禁用，点卡片查看详情。"),
+                new Views.GuideStep(LaunchGameBtn, "开始游戏",
+                    "MOD 准备好后，从这里启动游戏，启动前会自动检查冲突。"),
+            });
         }
 
         private const string DownloadPageUrl = "https://www.modmanger.com/#download";

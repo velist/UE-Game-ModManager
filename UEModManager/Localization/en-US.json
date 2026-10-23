@@ -829,5 +829,16 @@
   "已有同名 MOD「{0}」，导入后会另存为新名字，不会覆盖": "A mod named \"{0}\" already exists. This one will be saved under a new name; nothing is overwritten.",
   "{0} 看起来是游戏自带的原版文件，不是 MOD，已默认不导入（导入后启用可能让游戏无法启动）": "{0} looks like one of the game's own files, not a mod, so it's unchecked by default (enabling it could stop the game from starting).",
   "已导入并启用 {0} 个 MOD": "Imported and enabled {0} mod(s)",
-  "已导入 {0} 个 MOD，在列表里打开开关即可启用": "Imported {0} mod(s). Turn them on in the list to enable."
+  "已导入 {0} 个 MOD，在列表里打开开关即可启用": "Imported {0} mod(s). Turn them on in the list to enable.",
+  "跳过引导": "Skip tour",
+  "下一步": "Next",
+  "开始使用": "Get started",
+  "第 {0} 步，共 {1} 步": "Step {0} of {1}",
+  "先选游戏": "Pick your game",
+  "在这里选择要装 MOD 的游戏。列表里没有的游戏，也能自己添加。": "Choose the game you want to mod here. Games not in the list can be added yourself.",
+  "点这里，或者直接把压缩包、文件夹、.pak 文件拖进窗口，软件会自动识别。": "Click here, or just drag archives, folders or .pak files into the window. They're recognized automatically.",
+  "启用和管理": "Enable and manage",
+  "导入的 MOD 都在这里。鼠标移到卡片上可以一键启用或禁用，点卡片查看详情。": "Your imported mods live here. Hover a card to enable or disable it in one click; click a card for details.",
+  "开始游戏": "Play",
+  "MOD 准备好后，从这里启动游戏，启动前会自动检查冲突。": "When your mods are ready, launch the game here. Conflicts are checked automatically first."
 }
