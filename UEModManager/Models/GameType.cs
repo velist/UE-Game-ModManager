@@ -14,6 +14,7 @@ namespace UEModManager.Models
         WuchangFallenFeathers,
         Borderlands4,
         SlayTheSpire2,
-        DeathStranding2
+        DeathStranding2,
+        PhantomBladeZero
     }
 }

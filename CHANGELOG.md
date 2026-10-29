@@ -2,6 +2,16 @@
 
 本文档记录UE Mod Manager的所有版本更新内容。
 
+## v2.1.3 - 2026-10-29
+
+影之刃零首发适配版。
+
+**新增内置游戏：影之刃零（Phantom Blade Zero，UE5，Steam App 4115450）**
+- 内置游戏列表、英文显示名、`GameType.PhantomBladeZero`、内置图标（Steam 客户端图标）。
+- 路径按 Steam 实装（buildid 26266538）核对：根目录 `PBZ`，启动壳 `steam\PBZ.exe`，本体 `platform\steam\PBZ.exe`（无 `*-Win64-Shipping.exe`），UE 工程目录 `ProjectPBZ`，MOD 目录 `ProjectPBZ\Content\Paks\~mods`，pak 无签名。
+- `GameConfigService.MatchPhantomBladeZero`：两个同名 `PBZ.exe` 优先启动壳，缺失时退回本体；`GamePathDialog` 的 exe 选择复用同一规则，找游戏根目录时认 `ProjectPBZ` 子目录（兼顾 WeGame / TapTap 等非 Steam 版目录名）。
+- README、官网游戏列表与图标来源表同步。
+
 ## v2.1.2 - 2026-10-23
 
 范围：`b42c70e..ddb85c3`（10 个提交）。来源是 2026-10-22 四路审查（`.claude/audit_reports/2026-10-22-four-way-review.md`）的两轮修复，加上同日的动效三批与实测问题修复。

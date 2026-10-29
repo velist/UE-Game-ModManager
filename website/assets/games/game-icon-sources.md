@@ -16,5 +16,6 @@
 | 无主之地4 | `borderlands-4.webp` | [1285190](https://store.steampowered.com/app/1285190/) | [原图](https://shared.fastly.steamstatic.com/community_assets/images/apps/1285190/43f15f98a067ff354039f98626622a30353c2ac2.ico) |
 | 死亡搁浅2 | `death-stranding-2.webp` | [3280350](https://store.steampowered.com/app/3280350/) | [原图](https://shared.fastly.steamstatic.com/community_assets/images/apps/3280350/d3d279eef0742abbfb318492123a454466c7e004.ico) |
 | 杀戮尖塔2 | `slay-the-spire-2.webp` | [2868840](https://store.steampowered.com/app/2868840/) | [原图](https://shared.fastly.steamstatic.com/community_assets/images/apps/2868840/5aad412d01a9b91ba0379f0b35f4eb0b69d9db08.ico) |
+| 影之刃零 | `phantom-blade-zero.webp` | [4115450](https://store.steampowered.com/app/4115450/) | [原图](https://shared.fastly.steamstatic.com/community_assets/images/apps/4115450/ce420dc458dd3d7af276f48fbaa44a05876760dc.ico) |
 
 游戏名称、图标与商标归各游戏权利人所有，仅用于标识对应游戏。

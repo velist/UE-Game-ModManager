@@ -476,6 +476,9 @@ namespace UEModManager.Views
                 "明末·渊虚之羽" => validExes.FirstOrDefault(exe => Path.GetFileName(exe).ToLower().Contains("project_plague-win64-shipping")) ??
                                 validExes.FirstOrDefault(exe => Path.GetFileName(exe).ToLower().Contains("project_plague")) ??
                                 validExes.FirstOrDefault(exe => Path.GetFileName(exe).ToLower().Contains("wuchang")),
+
+                // 两个同名 PBZ.exe（启动壳 / 本体），规则与启动游戏共用
+                "影之刃零" => GameConfigService.SelectExecutable(validExes, coreGameName, allowLargestFallback: false),
                 
                 _ => validExes.FirstOrDefault(exe => 
                      {
@@ -671,6 +674,14 @@ namespace UEModManager.Views
                         "Project_Plague\\Content\\Paks\\Mods",
                         "Project_Plague\\Content\\Paks"
                     },
+                    // 影之刃零（2026-10-29 Steam 实装核对）：根目录 PBZ，启动壳 steam\PBZ.exe，
+                    // 本体 platform\steam\PBZ.exe，UE 工程目录 ProjectPBZ，无 pak 签名
+                    ["影之刃零"] = new List<string>
+                    {
+                        "ProjectPBZ\\Content\\Paks\\~mods",
+                        "ProjectPBZ\\Content\\Paks\\Mods",
+                        "ProjectPBZ\\Content\\Paks"
+                    },
                     ["无主之地4"] = new List<string>
                     {
                         "OakGame\\Content\\Paks\\~mods",
@@ -774,14 +785,17 @@ namespace UEModManager.Views
                     // 如果是Steam游戏目录或其他游戏分发平台的特征
                     var parentDirName = Path.GetFileName(Path.GetDirectoryName(currentDir)) ?? "";
                     
-                    if (parentDirName.Equals("steamapps", StringComparison.OrdinalIgnoreCase) ||
+                    // 影之刃零的 exe 不在工程目录下，非 Steam 版的根目录名也未必是 PBZ
+                    if (Directory.Exists(Path.Combine(currentDir, "ProjectPBZ")) ||
+                        parentDirName.Equals("steamapps", StringComparison.OrdinalIgnoreCase) ||
                         parentDirName.Equals("common", StringComparison.OrdinalIgnoreCase) ||
                         dirName.Contains("StellarBlade") ||
                         dirName.Contains("BlackMythWukong") ||
                         dirName.Contains("Wukong") ||
                         dirName.Contains("Wuchang") ||
                         dirName.Contains("Fallen Feathers") ||
-                        dirName.Contains("Borderlands"))
+                        dirName.Contains("Borderlands") ||
+                        dirName.Contains("Phantom Blade"))
                     {
                         return currentDir;
                     }
@@ -844,6 +858,7 @@ namespace UEModManager.Views
                 "赛博朋克2077" => new[] { "Cyberpunk 2077", "Cyberpunk2077", "赛博朋克" },
                 "巫师3" => new[] { "The Witcher 3 Wild Hunt", "Witcher3", "巫师3" },
                 "无主之地4" => new[] { "Borderlands 4", "Borderlands4", "BorderLands 4", "BorderLands4", "无主之地4", "无主之地 4" },
+                "影之刃零" => new[] { "PBZ", "Phantom Blade Zero", "PhantomBladeZero", "影之刃零" },
                 _ => new[] { gameName, gameName.Replace(" ", ""), gameName.Replace(" ", "_") }
             };
 
@@ -995,6 +1010,8 @@ namespace UEModManager.Views
                 "黑神话·悟空" => new[] { "Black Myth Wukong", "BlackMythWukong", "Black Myth- Wukong", "b1-win64-shipping" },
                 "明末·渊虚之羽" => new[] { "Wuchang Fallen Feathers", "WuchangFallenFeathers", "Wuchang", "Project_Plague" },
                 "光与影：33号远征队" => new[] { "Expedition33Steam-Win64-Shipping", "Expedition33", "Sandfall-Win64-Shipping", "Sandfall" },
+                // Steam 库里按目录名精确拼接，PBZ 是 Steam installdir
+                "影之刃零" => new[] { "PBZ", "Phantom Blade Zero", "PhantomBladeZero" },
                 "艾尔登法环" => new[] { "Elden Ring", "EldenRing" },
                 "赛博朋克2077" => new[] { "Cyberpunk 2077", "Cyberpunk2077" },
                 "巫师3" => new[] { "The Witcher 3 Wild Hunt", "Witcher3" },

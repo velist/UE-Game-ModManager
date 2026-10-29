@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.2-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.2"></a>
+  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.3-25cce1?style=flat-square&labelColor=15171b" alt="版本 2.1.3"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
   <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 桌面运行时">
   <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="构建与测试"></a>
@@ -105,6 +105,13 @@
       <strong>杀戮尖塔2</strong><br>
       <sub>Slay the Spire 2 · Godot</sub>
     </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/phantom-blade-zero.png" width="52" height="52" alt=""><br>
+      <strong>影之刃零</strong><br>
+      <sub>Phantom Blade Zero · Unreal Engine</sub>
+    </td>
+  </tr>
+  <tr>
     <td align="center">
       <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/brand.png" width="52" height="52" alt=""><br>
       <strong>添加你的游戏</strong><br>

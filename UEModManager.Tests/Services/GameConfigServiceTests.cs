@@ -245,6 +245,64 @@ public sealed class GameConfigServiceTests : IDisposable
     }
 
     [Fact]
+    public void SelectExecutable_PhantomBladeZero_PrefersSteamLauncherOverPlatformBinary()
+    {
+        // Steam 实装目录：两个同名 PBZ.exe，steam\ 下是 Steam 配置的启动壳，platform\steam\ 下是本体
+        var candidates = new[]
+        {
+            @"C:\Game\PBZ\Engine\Binaries\Win64\EpicWebHelper.exe",
+            @"C:\Game\PBZ\platform\steam\PBZ.exe",
+            @"C:\Game\PBZ\ProjectPBZ\Binaries\Win64\8za_v2.exe",
+            @"C:\Game\PBZ\ProjectPBZ\Binaries\Win64\CheckEnv.exe",
+            @"C:\Game\PBZ\ProjectPBZ\Binaries\Win64\crashpad_handler.exe",
+            @"C:\Game\PBZ\steam\PBZ.exe"
+        };
+
+        Assert.Equal(@"C:\Game\PBZ\steam\PBZ.exe",
+            GameConfigService.SelectExecutable(candidates, "影之刃零", allowLargestFallback: false));
+
+        // 没有启动壳时退回本体
+        Assert.Equal(@"C:\Game\PBZ\platform\steam\PBZ.exe",
+            GameConfigService.SelectExecutable(
+                candidates.Where(c => !c.EndsWith(@"PBZ\steam\PBZ.exe")).ToArray(),
+                "影之刃零", allowLargestFallback: false));
+    }
+
+    [Fact]
+    public void AutoDetectExecutable_PhantomBladeZeroRoot_FindsSteamLauncher()
+    {
+        foreach (var rel in new[]
+                 {
+                     @"Engine\Binaries\Win64\EpicWebHelper.exe",
+                     @"ProjectPBZ\Binaries\Win64\CheckEnv.exe",
+                     @"ProjectPBZ\Binaries\Win64\crashpad_handler.exe",
+                     @"platform\steam\PBZ.exe",
+                     @"steam\PBZ.exe"
+                 })
+        {
+            var full = Path.Combine(_gameRoot, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllText(full, string.Empty);
+        }
+
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance);
+
+        Assert.Equal(Path.Combine(_gameRoot, "steam", "PBZ.exe"),
+            service.AutoDetectExecutablePath(_gameRoot, "影之刃零"));
+    }
+
+    [Fact]
+    public void PhantomBladeZero_IsBuiltInUnrealGame()
+    {
+        var service = new GameConfigService(NullLogger<GameConfigService>.Instance, Path.Combine(_gameRoot, "config.json"));
+
+        Assert.Contains("影之刃零", service.GetAvailableGames());
+        Assert.True(GameConfigService.IsBuiltInGameName("影之刃零"));
+        Assert.Equal(UEModManager.Models.EngineType.UnrealEngine, service.GetEngineType("影之刃零"));
+        Assert.Equal(UEModManager.Models.GameType.PhantomBladeZero, GameConfigService.DetermineGameType("影之刃零"));
+    }
+
+    [Fact]
     public void SelectExecutable_Expedition33_DoesNotPickUnrelatedRootExecutable()
     {
         var candidates = new[]

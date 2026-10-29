@@ -13,6 +13,7 @@ public static class GameDisplayNames
         ["剑星 (CNS)"] = "Stellar Blade (CNS)",
         ["光与影：33号远征队"] = "Clair Obscur: Expedition 33",
         ["明末·渊虚之羽"] = "WUCHANG: Fallen Feathers",
+        ["影之刃零"] = "Phantom Blade Zero",
         ["暗黑破坏神4"] = "Diablo IV",
         ["生化危机9"] = "Resident Evil Requiem",
         ["识质存在"] = "PRAGMATA",

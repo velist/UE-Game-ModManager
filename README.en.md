@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.2-25cce1?style=flat-square&labelColor=15171b" alt="Version 2.1.2"></a>
+  <a href="https://www.modmanger.com/#download"><img src="https://img.shields.io/badge/Release-2.1.3-25cce1?style=flat-square&labelColor=15171b" alt="Version 2.1.3"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011%20%C2%B7%20x64-94b5c0?style=flat-square&labelColor=15171b" alt="Windows 10 / 11 x64">
   <img src="https://img.shields.io/badge/.NET-8%20Desktop-94b5c0?style=flat-square&labelColor=15171b" alt=".NET 8 Desktop Runtime">
   <a href="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml"><img src="https://github.com/velist/UE-Game-ModManager/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build and tests"></a>
@@ -106,6 +106,13 @@ Built-in presets cover **10 games across 11 entries**, including a separate CNS 
       <strong>Slay the Spire 2</strong><br>
       <sub>Godot</sub>
     </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/UEModManager/Assets/GameIcons/phantom-blade-zero.png" width="52" height="52" alt=""><br>
+      <strong>Phantom Blade Zero</strong><br>
+      <sub>Unreal Engine</sub>
+    </td>
+  </tr>
+  <tr>
     <td align="center">
       <img src="https://raw.githubusercontent.com/velist/UE-Game-ModManager/main/website/assets/brand.png" width="52" height="52" alt=""><br>
       <strong>Add your game</strong><br>

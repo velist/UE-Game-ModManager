@@ -60,6 +60,7 @@ namespace UEModManager.Services
                 "剑星" or "剑星 (CNS)" or "剑星(CNS)" or "剑星(CNS模式)" => "stellar-blade.png",
                 "光与影:33号远征队" => "clair-obscur-expedition-33.png",
                 "明末渊虚之羽" => "wuchang-fallen-feathers.png",
+                "影之刃零" => "phantom-blade-zero.png",
                 "暗黑破坏神4" => "diablo-iv.png",
                 "生化危机9" => "resident-evil-requiem.png",
                 "识质存在" => "pragmata.png",
@@ -355,6 +356,7 @@ namespace UEModManager.Services
                 "剑星 (CNS)",
                 "光与影：33号远征队",
                 "明末·渊虚之羽",
+                "影之刃零",
                 "暗黑破坏神4",
                 "生化危机9",
                 "识质存在",
@@ -649,6 +651,11 @@ namespace UEModManager.Services
                 && (gameName.Contains("无主之地")
                     || gameName.Contains("Borderlands", StringComparison.OrdinalIgnoreCase));
 
+        private static bool IsPhantomBladeZero(string? gameName)
+            => gameName != null
+                && (gameName.Contains("影之刃")
+                    || gameName.Contains("Phantom Blade", StringComparison.OrdinalIgnoreCase));
+
         /// <summary>按已知游戏的可执行文件命名规则匹配，token 按优先级排列。</summary>
         private static string? MatchByKnownGame(IReadOnlyList<string> validExes, string? gameName)
         {
@@ -670,7 +677,29 @@ namespace UEModManager.Services
             if (IsBorderlands(gameName))
                 return FindByFileNameToken(validExes, "borderlands");
 
+            if (IsPhantomBladeZero(gameName))
+                return MatchPhantomBladeZero(validExes);
+
             return null;
+        }
+
+        /// <summary>
+        /// 影之刃零没有 *-Win64-Shipping.exe，有两个同名 PBZ.exe：
+        /// `steam\PBZ.exe`（约 1 MB，Steam 配置的启动项）与 `platform\steam\PBZ.exe`（游戏本体）。
+        /// 跟 Steam 一样走启动壳，本体只在找不到启动壳时兜底。
+        /// </summary>
+        private static string? MatchPhantomBladeZero(IReadOnlyList<string> validExes)
+        {
+            var named = validExes
+                .Where(e => string.Equals(Path.GetFileName(e), "PBZ.exe", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            return named.FirstOrDefault(e => !IsUnderPlatformDirectory(e)) ?? named.FirstOrDefault();
+
+            static bool IsUnderPlatformDirectory(string exe)
+            {
+                var grandParent = Path.GetDirectoryName(Path.GetDirectoryName(exe));
+                return string.Equals(Path.GetFileName(grandParent), "platform", StringComparison.OrdinalIgnoreCase);
+            }
         }
 
         private static string? FindByFileNameToken(IReadOnlyList<string> validExes, params string[] tokens)
@@ -709,7 +738,7 @@ namespace UEModManager.Services
         /// </summary>
         private static readonly HashSet<string> BuiltInGames = new()
         {
-            "黑神话·悟空", "剑星", "剑星 (CNS)", "光与影：33号远征队", "明末·渊虚之羽",
+            "黑神话·悟空", "剑星", "剑星 (CNS)", "光与影：33号远征队", "明末·渊虚之羽", "影之刃零",
             "暗黑破坏神4", "生化危机9", "识质存在", "无主之地4", "死亡搁浅2", "杀戮尖塔2"
         };
 
@@ -824,6 +853,7 @@ namespace UEModManager.Services
             }
             if (gameName.Contains("明末") || gameName.Contains("渊虚之羽")) return GameType.WuchangFallenFeathers;
             if (gameName.Contains("无主之地") || gameName.Contains("Borderlands")) return GameType.Borderlands4;
+            if (IsPhantomBladeZero(gameName)) return GameType.PhantomBladeZero;
             return GameType.Other;
         }
 
