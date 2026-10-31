@@ -39,6 +39,22 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 .lp-video-frame { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid #22d3ee40; border-radius: 14px; background: #000; box-shadow: 0 30px 80px #000c, 0 0 0 6px #06b6d40d, 0 0 90px #06b6d42e; }
 .lp-video video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
 
+/* ── 首屏公告横幅（2026-10-31：影之刃零） ── */
+.lp-notice-wrap { padding-top: 28px; }
+.lp-notice-wrap + .lp-hero-inner { padding-top: 48px; }
+.lp-notice { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 18px; padding: 16px 18px 16px 20px; border: 1px solid #22d3ee4d; border-radius: 14px; background: #0f0f11; box-shadow: 0 18px 50px #0008, 0 0 50px #06b6d41a; transition: border-color .18s; }
+.lp-notice:hover { border-color: #22d3ee99; }
+.lp-notice-bg { position: absolute; top: 0; right: 0; bottom: 0; z-index: -2; width: 48%; height: 100%; object-fit: cover; object-position: 50% 32%; opacity: .8; -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%); mask-image: linear-gradient(90deg, transparent, #000 45%); }
+.lp-notice::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #06b6d42e 0%, transparent 45%, #03030359 80%, #030303b3 100%); }
+.lp-notice-icon { flex-shrink: 0; width: 48px; height: 48px; border-radius: 11px; box-shadow: 0 0 0 1px #ffffff1f, 0 6px 18px #0009; }
+.lp-notice-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; margin: 0; }
+.lp-notice-tag { display: inline-flex; align-items: center; align-self: center; gap: 7px; padding: 3px 10px; border: 1px solid #22d3ee59; border-radius: 999px; background: #06b6d41f; color: #67e8f9; font-size: 12px; letter-spacing: .06em; white-space: nowrap; }
+.lp-notice-tag > span { width: 6px; height: 6px; border-radius: 50%; background: var(--lp-cyan-2); box-shadow: 0 0 10px var(--lp-cyan-2); animation: lp-notice-pulse 2.4s ease-in-out infinite; }
+.lp-notice-text strong { color: var(--lp-text); font-size: 18px; font-weight: 700; letter-spacing: .01em; }
+.lp-notice-sub { color: #c3ccd2; font-size: 14px; line-height: 1.7; text-shadow: 0 1px 8px #000; }
+.lp-notice-button { flex-shrink: 0; margin-left: auto; }
+@keyframes lp-notice-pulse { 50% { opacity: .35; box-shadow: 0 0 4px var(--lp-cyan-2); } }
+
 /* ── 通用区块标题 ── */
 .lp-section-head { max-width: 680px; margin-bottom: 44px; }
 .lp-section-head h2, .lp-faq h2, .lp-support-band h2 { margin: 0; font-size: clamp(28px, 3.2vw, 40px); font-weight: 700; line-height: 1.3; letter-spacing: -.03em; }
@@ -184,6 +200,16 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
   .lp-nav::-webkit-scrollbar { display: none; }
   .lp-nav a { padding-block: 12px; }
   .lp-hero-inner { padding-top: 40px; padding-bottom: 32px; gap: 32px; }
+  .lp-notice-wrap { padding-top: 18px; }
+  .lp-notice-wrap + .lp-hero-inner { padding-top: 32px; }
+  .lp-notice { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: start; gap: 12px 14px; padding: 16px; }
+  .lp-notice-bg { width: 100%; object-position: 32% 30%; opacity: .45; -webkit-mask-image: none; mask-image: none; }
+  .lp-notice::before { background: linear-gradient(180deg, #030303cc, #030303e6); }
+  .lp-notice-icon { width: 40px; height: 40px; border-radius: 9px; }
+  .lp-notice-text { gap: 6px 10px; }
+  .lp-notice-text strong { flex-basis: 100%; font-size: 17px; }
+  .lp-notice-sub { font-size: 13px; }
+  .lp-notice-button { grid-column: 1 / -1; width: 100%; margin-left: 0; }
   .lp-kicker { margin-bottom: 18px; font-size: 12px; }
   .lp-hero h1 { font-size: clamp(38px, 11vw, 52px); margin-bottom: 18px; }
   .lp-lead { font-size: 16px; line-height: 1.85; }
@@ -237,6 +263,7 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .lp-button, .lp-questions summary > span, .lp-game-wall li { transition: none; }
+  .lp-button, .lp-questions summary > span, .lp-game-wall li, .lp-notice { transition: none; }
+  .lp-notice-tag > span { animation: none; }
   .lp-button:hover, .lp-game-wall li:hover { transform: none; }
 }

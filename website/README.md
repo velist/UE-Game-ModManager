@@ -20,6 +20,7 @@
 - `assets/video/promo-v5b-poster.webp`：播放器封面（1600 × 900）。
 - v5b：修复导入段进度条重叠与冲突段序号（2026-10-22）。
 - `assets/hero-hub-800.webp` / `hero-hub-1600.webp`、`assets/download-stage.webp`：来自 `tools/promo/v5/assets/gen/` 的 AI 主视觉。
+- `assets/pbz-banner.webp`（1200 × 400，约 55 KB）：首屏影之刃零公告横幅背景，Steam 商店截图裁切压缩。
 - `assets/features/feature-01..05.webp`：宣传片五个功能段的界面截帧（1020 × 790），图中 MOD 名称为演示内容。
 
 播放器使用 `preload="none"`，用户点击前不下载视频，也不自动播放。`_headers` 对 `/assets/video/*` 设置一年 `immutable` 缓存，**更换视频时必须换文件名**（如 `promo-v6-*.mp4`），否则老访客会一直看到旧片。Cloudflare Pages 单文件上限 25 MiB，`check.mjs` 会检查。
@@ -39,6 +40,8 @@ ffmpeg -i 成片.mp4 -vf scale=1920:1080:flags=lanczos -c:v libx264 -preset slow
 2026-10-29 同步 v2.1.3：首屏/下载区版本号与更新日期改为 v2.1.3 / 2026-10-29；游戏列表（首页、帮助页）加影之刃零；帮助页"这一版"加影之刃零一条。
 
 2026-10-23 同步 v2.1.2：首屏/下载区版本号改为 v2.1.2，下载区加更新日期；卖点与 FAQ 改成玩家口吻短句；游戏区补一句多引擎说明（UE、Unity、RE Engine、Godot、Decima）；帮助页“这一版”改为 v2.1.2 要点，帮助页导航与首页一致（去掉「宣传片」「下载」）；隐私说明写明统计默认不上报。
+
+2026-10-31 首屏加「全面支持《影之刃零》」公告横幅（导航下方、标题上方，纯 CSS 无脚本）：v2.1.3 新增标签 + 一句话（自动识别游戏路径，PAK MOD 一键导入、启用、禁用）+ 跳 `#download` 的按钮；背景 `assets/pbz-banner.webp` 取自影之刃零 Steam 商店截图（来源见 `assets/games/game-icon-sources.md`）。下个版本上线时替换或删掉该横幅（`index.html` 的 `.lp-notice-wrap`）。
 
 旧首页的 `#migration`、`#privacy`、`#v2`、`#thanks`、`#support` 会转到帮助页的对应位置；无 JavaScript 时仍可通过页脚同名链接访问。`#download` 和 `#faq` 保留在首页。
 

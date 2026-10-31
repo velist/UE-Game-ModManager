@@ -19,3 +19,7 @@
 | 影之刃零 | `phantom-blade-zero.webp` | [4115450](https://store.steampowered.com/app/4115450/) | [原图](https://shared.fastly.steamstatic.com/community_assets/images/apps/4115450/ce420dc458dd3d7af276f48fbaa44a05876760dc.ico) |
 
 游戏名称、图标与商标归各游戏权利人所有，仅用于标识对应游戏。
+
+## 首页公告横幅背景
+
+`../pbz-banner.webp`（2026-10-31）：影之刃零 Steam 商店页（[4115450](https://store.steampowered.com/app/4115450/)）第 7 张截图（雨中长桥），[原图](https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/c6399f479abbecfd9d691705adc7c262f8b5bb86/ss_c6399f479abbecfd9d691705adc7c262f8b5bb86.1920x1080.jpg) 1920 × 1080，裁取纵向 280–920 像素后缩为 1200 × 400 WebP（质量 72）。版权归游戏权利人所有，仅用于宣传本软件对该游戏的支持。
