@@ -52,7 +52,8 @@ body { background: radial-gradient(circle at 15% 0, #06b6d41f, transparent 38rem
 .lp-notice-tag > span { width: 6px; height: 6px; border-radius: 50%; background: var(--lp-cyan-2); box-shadow: 0 0 10px var(--lp-cyan-2); animation: lp-notice-pulse 2.4s ease-in-out infinite; }
 .lp-notice-text strong { color: var(--lp-text); font-size: 18px; font-weight: 700; letter-spacing: .01em; }
 .lp-notice-sub { color: #c3ccd2; font-size: 14px; line-height: 1.7; text-shadow: 0 1px 8px #000; }
-.lp-notice-button { flex-shrink: 0; margin-left: auto; }
+.lp-notice-button { flex-shrink: 0; margin-left: auto; border-color: #22d3ee99; background: #030303cc; color: #67e8f9; }
+.lp-notice-button:hover { border-color: var(--lp-cyan-2); background: var(--lp-cyan-2); color: #04232a; }
 @keyframes lp-notice-pulse { 50% { opacity: .35; box-shadow: 0 0 4px var(--lp-cyan-2); } }
 
 /* ── 通用区块标题 ── */
