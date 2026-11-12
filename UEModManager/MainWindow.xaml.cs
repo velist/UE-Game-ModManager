@@ -335,7 +335,9 @@ namespace UEModManager
                 new Views.GuideStep(GameSwitcherBtn, "先选游戏",
                     "在这里选择要装 MOD 的游戏。列表里没有的游戏，也能自己添加。"),
                 new Views.GuideStep(ImportModBtn, "导入 MOD",
-                    "点这里，或者直接把压缩包、文件夹、.pak 文件拖进窗口，软件会自动识别。"),
+                    // 不写具体扩展名：这条引导对所有引擎都显示，写死 .pak 会让
+                    // Godot（.pck）、暗黑4（.mpq）的玩家以为自己的 MOD 拖不进去。
+                    UiText.Get("点这里，或者直接把压缩包、文件夹或 MOD 文件拖进窗口，软件会自动识别。")),
                 new Views.GuideStep(ModContentArea, "启用和管理",
                     "导入的 MOD 都在这里。鼠标移到卡片上可以一键启用或禁用，点卡片查看详情。"),
                 new Views.GuideStep(LaunchGameBtn, "开始游戏",
@@ -1043,16 +1045,24 @@ namespace UEModManager
                             return;
                         }
 
-                        // 先把游戏名写入 CustomGames。此前这里只保存引擎类型，
-                        // 导致新游戏本次能配置、重启后却从游戏列表消失。
-                        var gameName = await _gameConfig.AddCustomGameAsync(dialog.GameName);
-
-                        // 保存自定义游戏的引擎类型
+                        // 引擎类型必须在写入游戏名**之前**定下来：识别不出引擎时不能再默认 UE
+                        // （默认 UE 会让 Unity/Godot 游戏全程按 pak 与 Content/Paks/~mods 走），
+                        // 也不能先把游戏名写进去再退出 —— 那会留下一个半配好的游戏。
                         var engineType = dialog.IsAutoDetect
                             ? GameConfigService.AutoDetectEngine(dialog.GamePathTextBox.Text)
                             : dialog.SelectedEngineType;
                         if (engineType == Models.EngineType.Unknown)
-                            engineType = Models.EngineType.UnrealEngine; // 无法识别时默认 UE
+                        {
+                            CyberMessageBox.Show(this,
+                                UiText.Get("未能自动识别引擎，请手动选择"),
+                                UiText.Get("无法添加"),
+                                MessageBoxButton.OK, MessageBoxImage.Information);
+                            return;
+                        }
+
+                        // 先把游戏名写入 CustomGames。此前这里只保存引擎类型，
+                        // 导致新游戏本次能配置、重启后却从游戏列表消失。
+                        var gameName = await _gameConfig.AddCustomGameAsync(dialog.GameName);
                         await _gameConfig.SetGameEngineAsync(gameName, engineType);
 
                         ShowGamePathDialog(gameName);
@@ -1492,7 +1502,11 @@ namespace UEModManager
             else
             {
                 // Step 1: 打开导入向导
-                var importDlg = new Views.ImportDialog { Owner = this };
+                var importDlg = new Views.ImportDialog
+                {
+                    Owner = this,
+                    FileFilter = _gameConfig.CurrentEngineProfile.FileDialogFilter
+                };
                 if (importDlg.ShowDialog() != true || importDlg.SelectedFiles.Count == 0)
                     return;
                 filesToImport = importDlg.SelectedFiles.ToArray();

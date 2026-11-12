@@ -50,10 +50,20 @@ public sealed class ConflictModuleService
         _profileService.ProfileChanged += _ => LastReport = null;
     }
 
+    /// <summary>当前生效的比对策略（由引擎决定）。</summary>
+    internal ConflictStrategy CurrentStrategy => _strategy;
+
     /// <summary>游戏切换后清空快照，并按新引擎的策略重置。</summary>
     public async Task SetCurrentGameAsync(string gameName)
     {
-        var profile = EngineProfile.Get(_gameConfigService.CurrentEngineType);
+        // 引擎按**入参这个游戏**判定，而不是读"当前引擎"：调用方可能刚切完游戏配置，
+        // 也可能还没切（初始化与设置窗口两条切换路径的顺序并不一致）。读当前状态时，
+        // UE 与其它引擎之间来回切会让比对策略慢一拍 —— 策略决定"按容器资产比还是按文件路径比"，
+        // 慢一拍就等于拿上一个游戏的语义去分析这一个游戏的 MOD。
+        var engine = string.IsNullOrEmpty(gameName)
+            ? _gameConfigService.CurrentEngineType
+            : _gameConfigService.GetEngineType(gameName);
+        var profile = EngineProfile.Get(engine);
         _strategy = profile.ConflictStrategy;
         _rules = profile.SharedComponentRules;
         LastReport = null;

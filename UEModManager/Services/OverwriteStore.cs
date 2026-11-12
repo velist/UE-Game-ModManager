@@ -105,10 +105,6 @@ namespace UEModManager.Services
         /// <summary>获取所有生成物。</summary>
         public IReadOnlyList<GeneratedArtifact> GetAll() => _artifacts.AsReadOnly();
 
-        /// <summary>按类型筛选。</summary>
-        public IReadOnlyList<GeneratedArtifact> GetByType(GeneratedArtifactType type)
-            => _artifacts.Where(a => a.Type == type).ToList();
-
         /// <summary>按状态筛选。</summary>
         public IReadOnlyList<GeneratedArtifact> GetByStatus(GeneratedArtifactStatus status)
             => _artifacts.Where(a => a.Status == status).ToList();
@@ -130,11 +126,6 @@ namespace UEModManager.Services
 
         /// <summary>获取总占用空间。</summary>
         public long TotalSize => _artifacts.Sum(a => a.FileSize);
-
-        /// <summary>获取过期生成物占用空间。</summary>
-        public long StaleSize => _artifacts
-            .Where(a => a.Status == GeneratedArtifactStatus.Stale)
-            .Sum(a => a.FileSize);
 
         // ─── 注册生成物 ───
 
@@ -300,32 +291,6 @@ namespace UEModManager.Services
             ArtifactsChanged?.Invoke();
         }
 
-        /// <summary>清理某个 Profile 的所有生成物。</summary>
-        public async Task CleanupByProfileAsync(Guid profileId)
-        {
-            bool changed;
-
-            await _gate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var toRemove = _artifacts.Where(a => a.SourceProfileId == profileId).ToList();
-                changed = toRemove.Count > 0;
-                if (!changed) return;
-
-                foreach (var artifact in toRemove)
-                {
-                    var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
-                    if (File.Exists(fullPath)) File.Delete(fullPath);
-                }
-
-                _artifacts = _artifacts.Where(a => a.SourceProfileId != profileId).ToList();
-                await SaveIndexLockedAsync().ConfigureAwait(false);
-            }
-            finally { _gate.Release(); }
-
-            ArtifactsChanged?.Invoke();
-        }
-
         // ─── 晋升为正式 Package ───
 
         /// <summary>
@@ -387,53 +352,6 @@ namespace UEModManager.Services
         }
 
         // ─── 状态管理 ───
-
-        /// <summary>将生成物标记为过期。</summary>
-        public async Task MarkStaleAsync(Guid artifactId)
-        {
-            bool changed;
-
-            await _gate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var artifact = _artifacts.FirstOrDefault(a => a.Id == artifactId);
-                if (artifact == null) return;
-
-                artifact.Status = GeneratedArtifactStatus.Stale;
-                artifact.LastModified = DateTime.Now;
-                await SaveIndexLockedAsync().ConfigureAwait(false);
-                changed = true;
-            }
-            finally { _gate.Release(); }
-
-            if (changed) ArtifactsChanged?.Invoke();
-        }
-
-        /// <summary>将某个部署事务的所有生成物标记为过期。</summary>
-        public async Task MarkTransactionStaleAsync(Guid transactionId)
-        {
-            bool changed;
-
-            await _gate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var affected = _artifacts
-                    .Where(a => a.SourceTransactionId == transactionId && a.Status == GeneratedArtifactStatus.Active)
-                    .ToList();
-                changed = affected.Count > 0;
-                if (!changed) return;
-
-                foreach (var a in affected)
-                {
-                    a.Status = GeneratedArtifactStatus.Stale;
-                    a.LastModified = DateTime.Now;
-                }
-                await SaveIndexLockedAsync().ConfigureAwait(false);
-            }
-            finally { _gate.Release(); }
-
-            ArtifactsChanged?.Invoke();
-        }
 
         // ─── 持久化 ───
 

@@ -61,14 +61,6 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="捐赠.png" />
-    <Resource Include="黑神话悟空MOD-百度网盘.png" />
-    <Resource Include="黑神话悟空MOD-迅雷云盘.png" />
-    <Resource Include="剑星MOD-百度网盘.png" />
-    <Resource Include="剑星MOD-迅雷云盘.png" />
-    <Resource Include="光与影百度网盘mod.png" />
-    <Resource Include="光与影迅雷云盘mod.png" />
-    <Resource Include="明末MOD-百度网盘.png" />
-    <Resource Include="明末MOD-迅雷云盘.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\Community\qq-group-147223127.png" />

@@ -134,7 +134,7 @@ UE4SS / CSharpLoader 找不到文件。判据见 `DeploymentTargetPathBuilder.Co
 游戏根通常已经是 `.../b1/Binaries/Win64`，所以 `pluginTargetPath` 对 UE4SS 类载荷应为空。
 
 唯一权威实现：`UEModManager.Core/Services/DeploymentPlanning/DeploymentTargetPathBuilder.ComputeTargetPath`
-（`DeploymentPlanner` 与 `TogglePlanBuilder` 都调它）。
+（`DeploymentPlanner` 调它；启动部署与单包开关走的是同一条规划路径）。
 裸文件名的包都自带一层 `{packageKey}` 子目录隔离，因此外部工具生成 `relativeTargetPath` 时
 不应自己加包名前缀。所有拼接段都会过 `PathSanitizer.SanitizeRelative`，写绝对路径或 `../` 无效。
 

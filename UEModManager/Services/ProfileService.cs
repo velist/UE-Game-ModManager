@@ -528,14 +528,6 @@ namespace UEModManager.Services
             ProfileChanged?.Invoke(current);
         }
 
-        /// <summary>
-        /// [已废弃] 旧名 — 转发到 <see cref="SetPackageEnabledFlagAsync"/>。
-        /// 保留供二进制兼容；新代码请用新名。
-        /// </summary>
-        [Obsolete("方法已重命名为 SetPackageEnabledFlagAsync 以明确仅元数据不部署的语义。请改用 DeployToggleAsync 或 SetPackageEnabledFlagAsync。")]
-        public Task SetPackageEnabledAsync(string packageKey, bool enabled)
-            => SetPackageEnabledFlagAsync(packageKey, enabled);
-
         // ─── 数据迁移 ───
 
         /// <summary>只修改指定方案的覆盖规则；写入失败恢复内存，避免显示已保存的假象。</summary>

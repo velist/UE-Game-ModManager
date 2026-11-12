@@ -65,7 +65,8 @@ public class IoStoreTocReaderTests
             texture.DisplayPath);
         Assert.Equal("sb/content/art/character/pc/ch_p_eve_16/textures/tex_shoes_0775_n",
             texture.AssetKey);
-        Assert.Equal(Convert.ToHexString(Hash(0x11)), texture.Fingerprint);
+        // 指纹只保留哈希的前 20 字节（v8 的 SHA1 是 32 字节，索引里存得下也只比前 20 字节）。
+        Assert.Equal(Convert.ToHexString(Hash(0x11).AsSpan(0, 20)), texture.Fingerprint);
         Assert.Equal(FingerprintKind.ContentHash, texture.FingerprintKind);
         // utoc 不读 .ucas，所以没有数据区信息。
         Assert.Equal(-1, texture.DataOffset);
@@ -121,14 +122,33 @@ public class IoStoreTocReaderTests
         Assert.All(result.Entries, e => Assert.Equal(FingerprintKind.ContentHash, e.FingerprintKind));
     }
 
+    [Theory]
+    [InlineData(2)]   // 实测样本：剑星
+    [InlineData(5)]
+    [InlineData(6)]   // 元数据里多了按需数据，但那在条目哈希之后，不影响本模块
+    [InlineData(7)]
+    [InlineData(8)]   // 实测样本：影之刃零（元数据哈希变 32 字节全量 SHA1）
+    public void 各受支持版本都能读回路径与指纹(int version)
+    {
+        var result = Read(Build(MountPoint, Sample, version: version));
+
+        Assert.Equal(IndexStatus.Complete, result.Status);
+        Assert.Equal(version, result.FormatVersion);
+        Assert.Equal(5, result.Entries.Count);
+        Assert.All(result.Entries, e => Assert.Equal(FingerprintKind.ContentHash, e.FingerprintKind));
+
+        var shoes = Assert.Single(result.Entries, e => e.AssetKey.EndsWith("tex_shoes_0775_d"));
+        Assert.Equal(Convert.ToHexString(Hash(0x22).AsSpan(0, 20)), shoes.Fingerprint);
+    }
+
     [Fact]
     public void 不支持的版本返回Unsupported()
     {
-        var result = Read(Build(MountPoint, Sample, version: 1));
+        var result = Read(Build(MountPoint, Sample, version: 11));
 
         Assert.Equal(IndexStatus.Unsupported, result.Status);
         Assert.Empty(result.Entries);
-        Assert.Equal(1, result.FormatVersion);
+        Assert.Equal(11, result.FormatVersion);
     }
 
     [Fact]
@@ -158,7 +178,7 @@ public class IoStoreTocReaderTests
     /// 文件不在时直接通过（不把仓库内容当成测试前提）。
     /// </summary>
     [Fact]
-    public void 真实utoc样本读出14个文件条目()
+    public void 真实utoc样本读出14个文件条目_剑星v2()
     {
         var bytes = TryGetSampleUtoc();
         if (bytes is null) return;
@@ -179,5 +199,40 @@ public class IoStoreTocReaderTests
     {
         var path = Path.Combine(Path.GetTempPath(), "sample.utoc");
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
+    }
+
+    /// <summary>本机真实仓库里影之刃零的 utoc（v8 空壳 pak + utoc 那一对）。</summary>
+    private static byte[]? TryGetPhantomBladeUtoc()
+    {
+        var path = Path.Combine(
+            @"D:\UEModManager\Repository\PBZ_DeflectWindow_1_Harder_50_P\files",
+            "PBZ_DeflectWindow_1_Harder_50_P.utoc");
+        return File.Exists(path) ? File.ReadAllBytes(path) : null;
+    }
+
+    /// <summary>
+    /// 真实样本 smoke：IoStore 版本 8。仓库里不在时直接通过（仓库内容不是测试前提）。
+    /// </summary>
+    [Fact]
+    public void 真实utoc样本读出文件条目_影之刃零v8()
+    {
+        var bytes = TryGetPhantomBladeUtoc();
+        if (bytes is null) return;
+
+        var result = Read(bytes);
+
+        Assert.Equal(8, result.FormatVersion);
+        Assert.Equal(IndexStatus.Complete, result.Status);
+        Assert.NotEmpty(result.Entries);
+
+        // 目录索引里挂的是游戏资产路径（ProjectPBZ/...），不是 MOD 名。
+        Assert.Contains(result.Entries, e => e.DisplayPath.Contains("ProjectPBZ", StringComparison.OrdinalIgnoreCase));
+
+        // 指纹取自 v8 的 32 字节 SHA1 前 20 字节。
+        Assert.All(result.Entries, e =>
+        {
+            Assert.Equal(FingerprintKind.ContentHash, e.FingerprintKind);
+            Assert.Equal(40, e.Fingerprint!.Length);
+        });
     }
 }

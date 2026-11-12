@@ -26,17 +26,32 @@ namespace UEModManager.Services.Conflict.Indexing;
 /// </summary>
 public sealed class IoStoreTocReader : IContainerIndexReader
 {
-    /// <summary>支持的 IoStore 版本。实测样本为 v2。</summary>
+    /// <summary>支持的 IoStore 版本。实测样本为 v2（剑星）与 v8（影之刃零）。</summary>
     private const int MinSupportedVersion = 2;
-    private const int MaxSupportedVersion = 5;
+    private const int MaxSupportedVersion = 8;
+
+    /// <summary>条目元数据里的哈希从这一版起换了类型（EIoStoreTocVersion 的 ReplaceIoChunkHashWithIoHash）。</summary>
+    private const int FullHashMetaVersion = 8;
+
+    /// <summary>条目元数据间隔的合理上限：超过它说明尾部还挂着别的东西，不是元数据。</summary>
+    private const int MaxMetaSize = 64;
 
     /// <summary>固定头长度，也是 TocHeaderSize 的常规取值。</summary>
     private const int FixedHeaderSize = 144;
 
     private const int ChunkIdSize = 12;
     private const int OffsetAndLengthSize = 10;
-    private const int ChunkHashSize = 32;
-    private const int ChunkMetaSize = ChunkHashSize + 1;
+
+    /// <summary>索引的指纹里保留的哈希字节数：两种布局里哈希都在记录开头，前 20 字节即内容哈希。</summary>
+    private const int ChunkHashSize = 20;
+
+    /// <summary>v8 之前的条目元数据间隔：32 字节哈希 + 标志。</summary>
+    private const int LegacyMetaSize = 33;
+
+    /// <summary>v8 起的条目元数据间隔：20 字节哈希 + 标志 + 3 字节对齐。</summary>
+    private const int FullHashMetaSize = 24;
+
+    private const int MetaFlagsSize = 1;
 
     /// <summary>压缩方法名槽位长度的默认值（头里的 CompressionMethodNameLength）。</summary>
     private const int DefaultCompressionMethodNameLength = 32;
@@ -50,7 +65,8 @@ public sealed class IoStoreTocReader : IContainerIndexReader
     // EIoContainerFlags 的位数按 UE 的 1 起编号：bit1 = 1&lt;&lt;0，依次类推。
     private const byte FlagEncrypted = 1 << 1;
     private const byte FlagSigned = 1 << 2;
-    private const byte FlagIndexed = 1 << 3;
+    // Indexed（1<<3）这一位不读：目录索引在不在由 DirectoryIndexSize 直接给出，
+    // 两个样本（v2 与 v8）里该位与大小始终一致，按大小判定已经够用。
 
     public ContainerIndexResult ReadIndex(Stream stream, string sourceFile)
     {
@@ -139,10 +155,15 @@ public sealed class IoStoreTocReader : IContainerIndexReader
         // ── 目录索引与条目哈希 ──
         var directoryIndex = reader.ReadBytes(
             (int)CheckedBlock(directoryIndexSize, 1, reader, "DirectoryIndex"));
-        var chunkMetas = reader.ReadBytes(
-            (int)CheckedBlock(tocEntryCount, ChunkMetaSize, reader, "ChunkMetas"));
 
-        var chunkHashes = ReadChunkHashes(chunkMetas, (int)tocEntryCount);
+        // 元数据间隔由文件自己说出来：目录索引之后剩下的字节按条目数均分。
+        // 除不尽（尾部还挂着别的东西）才按版本回退。
+        var trailing = reader.Length - reader.Position;
+        var metaSize = ResolveMetaSize(version, trailing, tocEntryCount);
+        var metaCount = Math.Min((int)Math.Max(trailing / metaSize, 0), (int)tocEntryCount);
+        var chunkMetas = reader.ReadBytes(metaCount * metaSize);
+
+        var chunkHashes = ReadChunkHashes(chunkMetas, (int)tocEntryCount, metaSize);
 
         if (directoryIndex.Length == 0)
         {
@@ -159,13 +180,35 @@ public sealed class IoStoreTocReader : IContainerIndexReader
             version);
     }
 
-    /// <summary>每个 TOC 条目的 ChunkHash（32 字节 → 十六进制）；元数据不足的条目为 null。</summary>
-    private static string?[] ReadChunkHashes(byte[] chunkMetas, int entryCount)
+    /// <summary>
+    /// 每条条目元数据的间隔（相邻两条哈希之间的距离）。
+    ///
+    /// 实测两份 IoStore v8 样本（影之刃零的两个 MOD）都是 24 字节 = 20 字节哈希 + 标志 + 对齐，
+    /// 更早版本的样本与夹具是 33 字节 = 32 字节哈希 + 标志。两种布局里哈希都在记录开头，
+    /// 因此指纹取前 20 字节都对；但间隔读错会让每条哈希都错位 —— 同一批资产被算成互不相同，
+    /// 冲突检测直接漏报，所以间隔优先按文件尾部的实际剩余字节数推断。
+    /// </summary>
+    private static int ResolveMetaSize(int version, long trailing, uint entryCount)
+    {
+        if (entryCount > 0 && trailing > 0 && trailing % entryCount == 0)
+        {
+            var stride = trailing / entryCount;
+            if (stride >= ChunkHashSize + MetaFlagsSize && stride <= MaxMetaSize)
+                return (int)stride;
+        }
+
+        return version >= FullHashMetaVersion ? FullHashMetaSize : LegacyMetaSize;
+    }
+
+    /// <summary>
+    /// 每个 TOC 条目的 ChunkHash（十六进制），按条目下标给出；元数据不足的条目为 null。
+    /// </summary>
+    private static string?[] ReadChunkHashes(byte[] chunkMetas, int entryCount, int metaSize)
     {
         var hashes = new string?[entryCount];
-        var available = chunkMetas.Length / ChunkMetaSize;
+        var available = metaSize <= 0 ? 0 : chunkMetas.Length / metaSize;
         for (var i = 0; i < entryCount && i < available; i++)
-            hashes[i] = Convert.ToHexString(chunkMetas.AsSpan(i * ChunkMetaSize, ChunkHashSize));
+            hashes[i] = Convert.ToHexString(chunkMetas.AsSpan(i * metaSize, ChunkHashSize));
         return hashes;
     }
 

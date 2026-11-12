@@ -126,9 +126,32 @@ namespace UEModManager.Views
             if (!hasNonMod || !string.IsNullOrWhiteSpace(TargetPathTextBox.Text))
                 return;
 
-            TargetPathTextBox.Text = _fileEntries.Any(f => f.Kind == PackageKind.Plugin)
-                ? "Binaries/Win64"
-                : "Saved/Config/WindowsNoEditor";
+            // 引擎为某个扩展名声明了固定安装根时优先按它填：RE 的 .lua 只能落
+            // reframework/autorun/，按 UE 的 Binaries/Win64 填就是装了个没人读的文件。
+            var looseRoot = FirstLoosePayloadRoot();
+            TargetPathTextBox.Text = looseRoot
+                ?? (_fileEntries.Any(f => f.Kind == PackageKind.Plugin)
+                    ? "Binaries/Win64"
+                    : "Saved/Config/WindowsNoEditor");
+        }
+
+        /// <summary>
+        /// 本次待导入文件里第一个"引擎声明了固定安装根"的载荷的位置；没有则 null。
+        /// </summary>
+        private string? FirstLoosePayloadRoot()
+        {
+            var roots = _gameConfig.CurrentEngineProfile.LoosePayloadRoots;
+            if (roots.Count == 0) return null;
+
+            foreach (var entry in _fileEntries)
+            {
+                if (!entry.ShouldImport) continue;
+                var ext = Path.GetExtension(entry.FilePath).ToLowerInvariant();
+                if (roots.TryGetValue(ext, out var root) && !string.IsNullOrWhiteSpace(root))
+                    return root;
+            }
+
+            return null;
         }
 
         private void AddFileRow(FileEntry entry)

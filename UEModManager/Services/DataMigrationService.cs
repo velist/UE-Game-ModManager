@@ -72,24 +72,6 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查所有游戏是否需要迁移。
-        /// </summary>
-        public List<string> GetGamesNeedingMigration()
-        {
-            var games = new List<string>();
-            if (!Directory.Exists(_dataDirectory)) return games;
-
-            foreach (var file in Directory.GetFiles(_dataDirectory, "*_mods.json"))
-            {
-                var gameName = Path.GetFileNameWithoutExtension(file).Replace("_mods", "");
-                if (NeedsMigration(gameName))
-                    games.Add(gameName);
-            }
-
-            return games;
-        }
-
-        /// <summary>
         /// 执行完整数据迁移。
         /// 步骤：
         /// 1. 扫描旧数据
@@ -260,9 +242,6 @@ namespace UEModManager.Services
                 return new List<ModInfo>();
             }
         }
-
-        private static ArtifactType DetectArtifactType(string filePath, bool isPlugin)
-            => ArtifactTypeDetector.DetectForMigration(filePath, isPlugin);
 
         /// <summary>
         /// 存预览图，失败只记 Warning 并返回 null。

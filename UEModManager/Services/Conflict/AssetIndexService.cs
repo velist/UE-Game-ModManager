@@ -215,15 +215,26 @@ public sealed class AssetIndexService
         }
     }
 
+    /// <summary>测试用：已经建过索引的容器数。</summary>
+    internal int CachedContainerCount => _indexCache.Count;
+
     /// <summary>
     /// 导入后预热：后台把新包的索引建出来，用户打开冲突面板时就不必等。
     /// 任何异常都只记日志 —— 预热失败不该影响导入结果。
     /// </summary>
-    public async Task WarmUpAsync(Package package)
+    /// <param name="strategy">
+    /// 当前引擎的比对策略。只有按容器资产比对（UE）才值得预热：那要真的打开 .pak/.utoc
+    /// 读索引，是重活。其余引擎按文件路径比对，索引从包清单里现成就有 —— 以前这里
+    /// 写死按容器预热，于是 RE / Decima 的 MOD（.pak 也是它们的载荷）被整包读一遍，
+    /// 算出来的索引却没人用，大 pak 上是可感知的 IO 浪费。
+    /// </param>
+    public async Task WarmUpAsync(Package package, ConflictStrategy strategy)
     {
+        if (strategy != ConflictStrategy.ContainerAssets) return;
+
         try
         {
-            await GetIndexAsync(package, ConflictStrategy.ContainerAssets);
+            await GetIndexAsync(package, strategy);
         }
         catch (Exception ex)
         {

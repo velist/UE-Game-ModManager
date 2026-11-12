@@ -565,7 +565,9 @@ namespace UEModManager.Views
                         if (!string.IsNullOrEmpty(gameProjectDir))
                         {
                         // 根据游戏类型选择不同的MOD路径模式
-                        if (gameName.Contains("CNS模式"))
+                        // 内置名的写法是「剑星 (CNS)」（GameConfigService.BuiltInGames），
+                        // 这里以前只认「CNS模式」，于是这一整套 CNS 专用路径从来没生效过。
+                        if (gameName.Contains("CNS", StringComparison.OrdinalIgnoreCase))
                         {
                             // CNS模式专用路径
                             modPathPatterns.AddRange(new[]
@@ -623,6 +625,16 @@ namespace UEModManager.Views
                 }
 
                 // 特定游戏的MOD路径规则
+                // CNS 模式的路径单独一份：内置名是「剑星 (CNS)」，玩家自建的游戏名可能
+                // 还写着「剑星（CNS模式）」，两种写法都给同一个列表。
+                var cnsModPaths = new List<string>
+                {
+                    "SB\\Content\\Paks\\~mods\\CustomNanosuitSystem",
+                    "StellarBlade\\SB\\Content\\Paks\\~mods\\CustomNanosuitSystem",
+                    "SB\\Content\\Paks\\Mods\\CustomNanosuitSystem",
+                    "SB\\Content\\Paks\\CustomNanosuitSystem"
+                };
+
                 var gameSpecificModPaths = new Dictionary<string, List<string>>
                 {
                     ["剑星"] = new List<string>
@@ -632,13 +644,8 @@ namespace UEModManager.Views
                         "SB\\Content\\Paks\\Mods",
                         "SB\\Content\\Paks"
                     },
-                    ["剑星（CNS模式）"] = new List<string>
-                    {
-                        "SB\\Content\\Paks\\~mods\\CustomNanosuitSystem",
-                        "StellarBlade\\SB\\Content\\Paks\\~mods\\CustomNanosuitSystem",
-                        "SB\\Content\\Paks\\Mods\\CustomNanosuitSystem",
-                        "SB\\Content\\Paks\\CustomNanosuitSystem"
-                    },
+                    ["剑星 (CNS)"] = cnsModPaths,
+                    ["剑星（CNS模式）"] = cnsModPaths,
                     ["Stellar Blade"] = new List<string>
                     {
                         "SB\\Content\\Paks\\~mods",
@@ -701,13 +708,17 @@ namespace UEModManager.Views
                 // 提取游戏名称的核心部分（去掉括号内容）
                 var coreGameName = gameName.Split('(')[0].Trim();
                 
-                // 添加特定游戏的路径模式
-                if (gameSpecificModPaths.ContainsKey(coreGameName) || gameSpecificModPaths.ContainsKey(gameName))
+                // 添加特定游戏的路径模式。
+                // 先认**完整游戏名**再退到核心名：CNS 变体（「剑星 (CNS)」）的专用目录
+                // 挂在完整名上，而它的核心名「剑星」也有条目 —— 以前先取核心名，
+                // CNS 那一份因此永远取不到。
+                if (gameSpecificModPaths.TryGetValue(gameName, out var exactPaths)
+                    || gameSpecificModPaths.TryGetValue(coreGameName, out exactPaths))
                 {
                     var gameRootDir = FindGameRootDirectory(exePath);
                     if (!string.IsNullOrEmpty(gameRootDir))
                     {
-                        foreach (var relativePath in gameSpecificModPaths[coreGameName] ?? gameSpecificModPaths[gameName])
+                        foreach (var relativePath in exactPaths)
                         {
                             var fullPath = Path.Combine(gameRootDir, relativePath);
                             modPathPatterns.Add(fullPath);
@@ -735,7 +746,8 @@ namespace UEModManager.Views
                         if (Directory.Exists(parentDir))
                         {
                             // 对于CNS模式，检查~mods目录是否存在
-                            if (gameName.Contains("CNS模式") && normalizedPath.Contains("CustomNanosuitSystem"))
+                            if (gameName.Contains("CNS", StringComparison.OrdinalIgnoreCase)
+                                && normalizedPath.Contains("CustomNanosuitSystem"))
                             {
                                 // parentDir 应该是 ~mods 目录
                                 if (parentDir.EndsWith("~mods", StringComparison.OrdinalIgnoreCase) ||
@@ -757,6 +769,25 @@ namespace UEModManager.Views
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[DEBUG] 测试路径 {modPath} 时出错: {ex.Message}");
+                    }
+                }
+
+                // 非 UE 引擎：exe 通常直接躺在游戏根，没有 Binaries\Win64 那套结构可依，
+                // 上面那批 UE 形状的候选必然全部落空。这时按引擎档案里的默认 MOD 目录规则
+                // 给一个候选（RE 的 natives、Godot 的 mods、暗黑4 的 mods/WTF …），
+                // 让玩家在此基础上改；丢一个空路径回去只会把人挡在确认按钮外面。
+                var engineType = GetConfiguredEngineType();
+                if (engineType != EngineType.UnrealEngine)
+                {
+                    var engineRoot = FindGameRootDirectory(exePath) ?? Path.GetDirectoryName(exePath);
+                    if (!string.IsNullOrEmpty(engineRoot))
+                    {
+                        var candidate = ResolveCommonModPath(engineRoot, engineType);
+                        if (!string.IsNullOrEmpty(candidate))
+                        {
+                            Console.WriteLine($"[SUCCESS] 按 {engineType} 的默认 MOD 目录推导: {candidate}");
+                            return candidate;
+                        }
                     }
                 }
 

@@ -25,10 +25,16 @@ namespace UEModManager.Services.Detection
             ".ini", ".cfg", ".toml", ".yaml", ".yml",
         };
 
-        /// <summary>常见插件二进制扩展名。</summary>
+        /// <summary>
+        /// 常见插件载荷扩展名：二进制（DLL/EXE/SO）与"由加载器跑起来的脚本"（.lua）。
+        ///
+        /// .lua 与 <c>PackageKindDetector.PluginExtensions</c> 保持一致：两套判定对同一个文件
+        /// 给出不同类型时，制品类型会随导入入口变化（直接拖入走前者、压缩包走后者），
+        /// 部署位置与冲突语义也跟着变。REFramework / UE4SS 的脚本都属这一类。
+        /// </summary>
         private static readonly HashSet<string> PluginExtensions = new(System.StringComparer.OrdinalIgnoreCase)
         {
-            ".dll", ".exe", ".so",
+            ".dll", ".exe", ".so", ".lua",
         };
 
         /// <summary>
@@ -79,6 +85,9 @@ namespace UEModManager.Services.Detection
             if (ImageExtensions.Contains(ext)) return ArtifactType.PreviewImage;
             if (PluginExtensions.Contains(ext)) return ArtifactType.PluginFile;
             if (ConfigExtensions.Contains(ext)) return ArtifactType.ConfigFile;
+            // 注意 .json 不在这里：压缩包分支刻意不把 .json 当配置，交由包级
+            // PackageKindDetector（含 IsModJsonFile 的 CNS 判据）决定它是配置还是 MOD 元数据，
+            // 见 ArtifactTypeDetectorTests.Import_JsonNotInConfigList_BecomesOther_NotConfig。
             if (modExtensions.Contains(ext)) return ArtifactType.ModFile;
             return ArtifactType.Other;
         }

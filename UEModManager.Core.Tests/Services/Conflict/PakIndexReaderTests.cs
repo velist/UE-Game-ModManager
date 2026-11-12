@@ -74,12 +74,72 @@ public class PakIndexReaderTests
     }
 
     [Fact]
-    public void 版本7返回Unsupported()
+    public void 版本2返回Unsupported()
     {
-        var result = Read(Build(MountPoint, Sample, version: 7));
+        // v1/v2 的 FPakEntry 带时间戳、没有加密与块大小字段，没有样本，不读。
+        var result = Read(BuildLegacy(MountPoint, Sample, version: 2));
 
         Assert.Equal(IndexStatus.Unsupported, result.Status);
-        Assert.Contains("7", result.Detail);
+        Assert.Contains("2", result.Detail);
+    }
+
+    [Theory]
+    [InlineData(3)]   // 页脚里 Magic 之前什么都没有
+    [InlineData(4)]   // 多了 bEncryptedIndex
+    [InlineData(7)]   // 再多 EncryptionKeyGuid
+    [InlineData(8)]   // Magic 之后开始带压缩方法名
+    [InlineData(9)]
+    public void 旧版内联布局读回全部路径与大小(int version)
+    {
+        var result = Read(BuildLegacy(MountPoint, Sample, version));
+
+        Assert.Equal(IndexStatus.Complete, result.Status);
+        Assert.Equal(version, result.FormatVersion);
+        Assert.Equal(3, result.Entries.Count);
+
+        var texture = Assert.Single(result.Entries, e => e.DisplayPath.EndsWith(".uasset")
+                                                         && e.AssetKey.EndsWith("t_wukong_born_cloth_ring_d"));
+        Assert.Equal("b1/content/00mainhz/characters/wukong/textures/equip/born/t_wukong_born_cloth_ring_d.uasset",
+            texture.DisplayPath);
+        Assert.Equal(4, texture.Size);
+        Assert.Contains(result.Entries, e => e.AssetKey.EndsWith("sk_wukong_body_dashengtao") && e.Size == 3);
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(7)]
+    [InlineData(9)]
+    public void 旧版索引加密时返回Encrypted(int version)
+    {
+        var result = Read(BuildLegacy(MountPoint, Sample, version, encryptedIndex: 1));
+
+        Assert.Equal(IndexStatus.Encrypted, result.Status);
+        Assert.Empty(result.Entries);
+    }
+
+    [Fact]
+    public void 版本3没有加密标志_索引末字节非零不算加密()
+    {
+        // v3 的页脚从 Magic 开始，Magic 前一个字节是索引的最后一个字节
+        // （最后一个条目的 CompressionBlockSize 高位）。把它当成 bEncryptedIndex 读，
+        // 这个 pak 就会被误报成"索引已加密"。
+        var result = Read(BuildLegacy(MountPoint, Sample, version: 3, compressionBlockSize: 0xFF00_0000));
+
+        Assert.Equal(IndexStatus.Complete, result.Status);
+        Assert.Equal(3, result.Entries.Count);
+    }
+
+    [Fact]
+    public void 空壳pak索引偏移为零时读作Complete且没有条目()
+    {
+        // IoStore MOD（retoc 等工具产出）的 .pak 只是个空壳：内容全在同名 .utoc/.ucas 里，
+        // 没有数据区，索引从文件头开始。它必须读作 Complete —— 判成"布局无法识别"
+        // 会把整个 MOD 拖进"无法分析"，连读得出来的 .utoc 也被掩盖。
+        var result = Read(Build("../../../", []));
+
+        Assert.Equal(IndexStatus.Complete, result.Status);
+        Assert.Equal(11, result.FormatVersion);
+        Assert.Empty(result.Entries);
     }
 
     [Fact]
@@ -121,15 +181,5 @@ public class PakIndexReaderTests
 
         var entry = Assert.Single(result.Entries);
         Assert.Equal("b1/content/00mainhz/characters/wukong/textures/t_wukong_born_cloth_ring_d", entry.AssetKey);
-    }
-
-    [Fact]
-    public void 版本8用内联条目布局()
-    {
-        // v8 的主索引是 "文件名 + FPakEntry"，与本夹具的其他用例不同布局 ——
-        // 这里只断言版本号被识别、不会误报 Unsupported。
-        var result = Read(Build(MountPoint, Sample, version: 8));
-
-        Assert.NotEqual(IndexStatus.Unsupported, result.Status);
     }
 }

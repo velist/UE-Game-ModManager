@@ -373,48 +373,7 @@ namespace UEModManager.ViewModels
             }
         }
 
-        /// <summary>
-        /// 刷新 MOD 列表。v2.0 的主数据源是 PackageRepository/Profile，不再用目录扫描覆盖方案状态。
-        /// </summary>
-        [RelayCommand]
-        public Task RefreshModsAsync() => RefreshFromRepositoryAsync();
-
         // ─── 游戏操作 ───
-
-        /// <summary>
-        /// 切换游戏。
-        /// </summary>
-        [RelayCommand]
-        public async Task SwitchGameAsync(string gameName)
-        {
-            CurrentGameName = gameName;
-
-            // 切换游戏时清空图片缓存
-            AsyncImageConverter.ClearCache();
-
-            // 加载目标游戏的 Profile
-            await _profileService.SetCurrentGameAsync(gameName);
-            OnProfileListChanged();
-
-            // v2.0: 加载包仓库
-            await _packageRepository.SetCurrentGameAsync(gameName);
-
-            // v2.0: 冲突分析器
-            await _conflictModule.SetCurrentGameAsync(gameName);
-            await _overwriteStore.SetCurrentGameAsync(gameName);
-
-            // 分类同样按游戏名分片，和上面几个服务一起切，别再落下
-            await _categoryService.SetCurrentGameAsync(gameName);
-
-            // v2.0: 数据迁移（如需要）
-            if (_dataMigrationService.NeedsMigration(gameName))
-            {
-                _logger.LogInformation("切换游戏时检测到需要数据迁移: {Game}", gameName);
-                await _dataMigrationService.MigrateAsync(gameName);
-            }
-
-            await RefreshFromRepositoryAsync();
-        }
 
         public async Task RefreshFromRepositoryAsync()
         {
@@ -595,37 +554,6 @@ namespace UEModManager.ViewModels
         }
 
         // ─── MOD 操作 ───
-
-        /// <summary>
-        /// 导入 MOD。
-        ///
-        /// 失败以异常形式上抛，由调用它的 SafeEvent.Run 弹出——命令方法不能返回
-        /// OperationResult（[RelayCommand] 只认 Task），而把失败静静咽下去正是要修的问题。
-        /// </summary>
-        [RelayCommand]
-        public async Task ImportModAsync()
-        {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = UiText.Get(_gameConfig.CurrentEngineProfile.FileDialogFilter),
-                Multiselect = true
-            };
-
-            if (dialog.ShowDialog() != true) return;
-
-            var result = await ImportModsAsync(dialog.FileNames);
-            if (!result.Success && !result.IsCancelled)
-                throw new InvalidOperationException(result.Error ?? OperationResult.DefaultError);
-        }
-
-        /// <summary>
-        /// 切换详情面板。
-        /// </summary>
-        [RelayCommand]
-        public void ToggleDetailPanel()
-        {
-            IsDetailPanelOpen = !IsDetailPanelOpen;
-        }
 
         /// <summary>
         /// 通过文件路径导入 MOD。
@@ -866,10 +794,6 @@ namespace UEModManager.ViewModels
             await RefreshFromRepositoryAsync();
             return OperationResult.Aggregate(results);
         }
-
-        /// <summary>冲突面板"禁用 X"的单包入口，语义同 <see cref="DisableManyAsync"/>。</summary>
-        public Task<OperationResult> DisableManyAsyncForOne(string packageKey)
-            => DisableManyAsync([packageKey]);
 
         /// <summary>
         /// 只写元数据、不触发部署的单包禁用 —— 给 <see cref="DisableManyAsync"/>

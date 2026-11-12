@@ -272,71 +272,6 @@ namespace UEModManager.Services
             }
         }
 
-        /// <summary>
-        /// 更改密码
-        /// </summary>
-        public async Task<LocalAuthResult> ChangePasswordAsync(string currentPassword, string newPassword)
-        {
-            try
-            {
-                if (_currentUser == null)
-                    return LocalAuthResult.Failed("用户未登录");
-
-                if (!VerifyPassword(currentPassword, _currentUser.PasswordHash))
-                    return LocalAuthResult.Failed("当前密码错误");
-
-                var passwordValidation = ValidatePasswordStrength(newPassword);
-                if (!passwordValidation.IsValid)
-                    return LocalAuthResult.Failed($"新密码不符合安全要求: {passwordValidation.Message}");
-
-                _currentUser.PasswordHash = HashPassword(newPassword);
-                await _dbContext.SaveChangesAsync();
-
-                _logger.LogInformation($"用户密码修改成功: {_currentUser.Email}");
-                return LocalAuthResult.Success("密码修改成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "修改密码失败");
-                return LocalAuthResult.Failed($"修改密码失败: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// 获取用户偏好设置
-        /// </summary>
-        public async Task<UserPreferences?> GetUserPreferencesAsync()
-        {
-            if (_currentUser == null) return null;
-
-            return await _dbContext.UserPreferences
-                .FirstOrDefaultAsync(p => p.UserId == _currentUser.Id);
-        }
-
-        /// <summary>
-        /// 更新用户偏好设置
-        /// </summary>
-        public async Task<bool> UpdateUserPreferencesAsync(UserPreferences preferences)
-        {
-            try
-            {
-                if (_currentUser == null) return false;
-
-                preferences.UserId = _currentUser.Id;
-                preferences.UpdatedAt = DateTime.Now;
-
-                _dbContext.UserPreferences.Update(preferences);
-                await _dbContext.SaveChangesAsync();
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "更新用户偏好设置失败");
-                return false;
-            }
-        }
-
         #region 私有方法
 
         private static string HashPassword(string password)
@@ -552,30 +487,6 @@ namespace UEModManager.Services
             catch
             {
                 return Environment.MachineName;
-            }
-        }
-
-        /// <summary>
-        /// 清理过期的失败登录记录
-        /// </summary>
-        public async Task CleanupExpiredFailedAttemptsAsync()
-        {
-            try
-            {
-                var expiredAttempts = await _dbContext.FailedLoginAttempts
-                    .Where(a => a.AttemptTime < DateTime.Now.AddDays(-7)) // 保留7天记录
-                    .ToListAsync();
-
-                if (expiredAttempts.Any())
-                {
-                    _dbContext.FailedLoginAttempts.RemoveRange(expiredAttempts);
-                    await _dbContext.SaveChangesAsync();
-                    _logger.LogInformation($"清理了 {expiredAttempts.Count} 条过期的失败登录记录");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "清理过期失败登录记录时发生错误");
             }
         }
 
@@ -933,23 +844,6 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 检查用户是否存在（用于智能登录/注册判断）
-        /// </summary>
-        public async Task<bool> UserExistsAsync(string email)
-        {
-            try
-            {
-                return await _dbContext.Users
-                    .AnyAsync(u => u.Email.ToLower() == email.ToLower());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"检查用户是否存在失败: {email}");
-                return false;
-            }
-        }
-
-        /// <summary>
         /// 更新用户信息
         /// </summary>
         public async Task<bool> UpdateUserAsync(LocalUser user)
@@ -1079,14 +973,6 @@ namespace UEModManager.Services
                 _logger.LogError(ex, "创建默认管理员账户失败");
                 return false;
             }
-        }
-
-        /// <summary>
-        /// 检查当前用户是否为管理员
-        /// </summary>
-        public bool IsCurrentUserAdmin()
-        {
-            return _currentUser?.IsAdmin == true;
         }
 
         /// <summary>

@@ -171,36 +171,6 @@ namespace UEModManager.Services
             return result;
         }
 
-        /// <summary>
-        /// 批量注册包（数据迁移用）。
-        /// </summary>
-        public async Task RegisterPackagesAsync(IEnumerable<Package> packages)
-        {
-            var incoming = packages.ToList();
-
-            await _gate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var appended = new List<Package>();
-                var known = new HashSet<string>(
-                    _packages.Select(p => p.PackageKey), StringComparer.OrdinalIgnoreCase);
-
-                foreach (var pkg in incoming)
-                {
-                    if (known.Add(pkg.PackageKey))
-                        appended.Add(pkg);
-                }
-
-                if (appended.Count > 0)
-                    _packages = [.. _packages, .. appended];
-
-                await SaveIndexAsync().ConfigureAwait(false);
-            }
-            finally { _gate.Release(); }
-
-            PackagesChanged?.Invoke();
-        }
-
         // ─── 更新 ───
 
         /// <summary>

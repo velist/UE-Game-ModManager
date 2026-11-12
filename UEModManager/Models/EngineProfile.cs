@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UEModManager.Services.Conflict;
 
@@ -44,6 +45,31 @@ namespace UEModManager.Models
         /// 插件或配置也会用到的扩展名，否则 UE4SS 的 mods.json 之类会被误当成 MOD。
         /// </summary>
         public HashSet<string> BinaryModExtensions { get; init; } = new();
+
+        /// <summary>
+        /// 本引擎额外的"安装锚点目录"名：这些名字本身就是文件该待的地方，
+        /// 既不能被当成压缩包的包装目录剥掉，也不能当成"这里面装了多个 MOD"的切分依据。
+        ///
+        /// 通用锚点表（ue4ss / Binaries / Content / b1 / Mods …）在 Core 的
+        /// <c>ArchiveTargetPathResolver</c> 里，这里只补引擎自己的：RE 引擎的 natives（松散资源由
+        /// LooseFileLoader 按游戏内路径读取）、reframework（脚本与插件）、pak_mods（REFramework 挂载的 pak）、
+        /// Unity 的 BepInEx、暗黑4 的 WTF。
+        ///
+        /// 缺了它们的后果是实打实的：<c>natives/stm/x.tex</c> 会被判成"natives 是包装目录"，
+        /// 包名变成 natives、natives/ 那一层被剥掉，文件落到游戏根而不是 natives/ 下 ——
+        /// 游戏永远读不到，界面还显示导入成功。
+        /// </summary>
+        public HashSet<string> InstallAnchors { get; init; } = new();
+
+        /// <summary>
+        /// 松散载荷的固定安装根（扩展名 → 相对游戏根的目录）。
+        ///
+        /// 单文件导入没有方位信息，按这里给出的位置落盘，而不是扔进 MOD 目录或玩家填的目标目录：
+        /// RE 引擎的 <c>.lua</c> 是 REFramework 脚本，只在 <c>reframework/autorun/</c> 下才会被加载
+        /// （见 <c>ReEngineModLayout</c> 的约定）。其它引擎没有这类固定根，留空即可。
+        /// </summary>
+        public IReadOnlyDictionary<string, string> LoosePayloadRoots { get; init; }
+            = new Dictionary<string, string>();
 
         /// <summary>文件选择对话框过滤器字符串。</summary>
         public string FileDialogFilter { get; init; } = string.Empty;
@@ -109,6 +135,8 @@ namespace UEModManager.Models
                 BinaryModExtensions = new HashSet<string> { ".unity3d", ".assets", ".bundle", ".assetbundle" },
                 DirectImportExtensions = new HashSet<string> { ".dll", ".unity3d", ".assets", ".bundle", ".assetbundle" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.dll;*.unity3d;*.assets;*.bundle|所有文件|*.*",
+                // BepInEx 的插件目录：压缩包少打这一层时不能当包装目录剥掉。
+                InstallAnchors = new HashSet<string> { "bepinex" },
                 DefaultModPathPatterns = new[] { "BepInEx/plugins", "Mods" },
                 ConflictStrategy = ConflictStrategy.FilePath,
                 GroupPriorityExtensions = new[] { ".dll", ".unity3d", ".assets" }
@@ -117,10 +145,21 @@ namespace UEModManager.Models
             [EngineType.REEngine] = new EngineProfile
             {
                 DisplayName = "RE Engine",
-                ModFileExtensions = new HashSet<string> { ".pak", ".tex", ".mesh", ".lua" },
+                // .lua 不在这里：REFramework 脚本是"由加载器跑起来的载荷"，
+                // 与 UE4SS 的 lua 同类，制品类型一律算插件（见 ArtifactTypeDetector.PluginExtensions）。
+                // 以前两边各写一份（这里算 MOD、那边算插件），同一个 .lua 直接拖入与放进压缩包
+                // 会得到两种身份，部署位置与冲突语义随入口变化。
+                ModFileExtensions = new HashSet<string> { ".pak", ".tex", ".mesh" },
                 BinaryModExtensions = new HashSet<string> { ".pak" },
                 DirectImportExtensions = new HashSet<string> { ".pak", ".tex", ".mesh", ".lua" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.pak;*.tex;*.mesh;*.lua|所有文件|*.*",
+                // RE 的松散资源由 REFramework 的 LooseFileLoader 按游戏内路径读取，
+                // natives/ 与 reframework/ 必须原样保留；pak 交给 REFramework 的 pak_mods/。
+                InstallAnchors = new HashSet<string> { "natives", "reframework", "pak_mods" },
+                LoosePayloadRoots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [".lua"] = "reframework/autorun",
+                },
                 DefaultModPathPatterns = new[] { "natives", "Mods" },
                 ConflictStrategy = ConflictStrategy.FilePath,
                 GroupPriorityExtensions = new[] { ".pak", ".tex", ".mesh" }
@@ -160,6 +199,7 @@ namespace UEModManager.Models
                 DirectImportExtensions = new HashSet<string> { ".mpq", ".json", ".xml", ".stl", ".meta", ".d4a", ".dds", ".wtf" },
                 FileDialogFilter = "MOD文件|*.zip;*.rar;*.7z;*.mpq;*.json;*.xml;*.stl;*.meta;*.d4a;*.dds;*.wtf|所有文件|*.*",
                 // mods/ 是 D4ModManager 等加载器约定目录；WTF/ 用于反和谐 Config.wtf。
+                InstallAnchors = new HashSet<string> { "wtf" },
                 DefaultModPathPatterns = new[] { "mods", "WTF" },
                 ConflictStrategy = ConflictStrategy.FilePath,
                 GroupPriorityExtensions = new[] { ".mpq", ".json", ".stl" }

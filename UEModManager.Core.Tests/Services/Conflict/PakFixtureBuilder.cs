@@ -7,7 +7,8 @@ using System.Text;
 namespace UEModManager.Core.Tests.Services.Conflict;
 
 /// <summary>
-/// 在内存里生成 v11 pak 字节，供 <c>PakIndexReader</c> 读回。
+/// 在内存里生成 pak 字节，供 <c>PakIndexReader</c> 读回：
+/// <see cref="Build"/> 是 v10/v11 的编码条目布局，<see cref="BuildLegacy"/> 是 v3–v9 的内联条目布局。
 ///
 /// 这个 builder 本身就是格式理解的第二份实现：它按 §2.1 的定义**写出**索引，
 /// 读取器按同一份定义**读回**。两边对格式的理解只要有一处不一致，
@@ -129,10 +130,72 @@ internal static class PakFixtureBuilder
     }
 
     /// <summary>
+    /// 生成一个旧版（v3–v9）pak：主索引是 "文件名 + FPakEntry" 的内联数组，没有目录索引。
+    ///
+    /// 页脚里 Magic 之前的字段按版本增减 —— v4 起有 bEncryptedIndex，v7 起有 EncryptionKeyGuid；
+    /// Magic 之后 v8 起才带压缩方法名。u4pak 与早期 UnrealPak 产出的就是这种 pak，
+    /// UE5 游戏照样加载。
+    /// </summary>
+    /// <param name="mountPoint">挂载点。</param>
+    /// <param name="entries">条目列表，内容一律未压缩。</param>
+    /// <param name="version">pak 版本（3–9）。</param>
+    /// <param name="encryptedIndex">bEncryptedIndex 的取值；v3 没有这个字段，传了也不写。</param>
+    /// <param name="compressionBlockSize">
+    /// 索引里 FPakEntry 的 CompressionBlockSize。它是条目的最后一个字段，
+    /// 在 v3 里高位字节正好落在 Magic 前一个字节上，用来验证读取器不把它错当成加密标志。
+    /// </param>
+    internal static byte[] BuildLegacy(
+        string mountPoint,
+        IReadOnlyList<FixtureEntry> entries,
+        int version,
+        byte encryptedIndex = 0,
+        uint compressionBlockSize = 0)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+
+        // ── ① 数据区 ──
+        var placed = new List<(FixtureEntry Entry, long Offset, long Size)>();
+        foreach (var entry in entries)
+        {
+            var offset = stream.Position;
+            WriteEntryHeaderCopy(writer, offset, entry.Data.Length);
+            writer.Write(entry.Data);
+            placed.Add((entry, offset, entry.Data.Length));
+        }
+
+        // ── ② 主索引：MountPoint + 条目数 + (文件名 + FPakEntry)* ──
+        var indexOffset = stream.Position;
+        writer.Write(EncodeFString(mountPoint));
+        writer.Write(placed.Count);
+        foreach (var (entry, offset, size) in placed)
+        {
+            writer.Write(EncodeFString(entry.Directory + entry.FileName));
+            WriteEntryHeaderCopy(writer, offset, size, compressionBlockSize);
+        }
+        var indexSize = stream.Position - indexOffset;
+
+        // ── ③ 页脚：Magic 前后的字段都随版本增减 ──
+        if (version >= 7) writer.Write(new byte[16]);        // EncryptionKeyGuid
+        if (version >= 4) writer.Write(encryptedIndex);      // bEncryptedIndex
+        writer.Write(Magic);                                 // Magic
+        writer.Write(version);                               // Version
+        writer.Write(indexOffset);                           // IndexOffset
+        writer.Write(indexSize);                             // IndexSize
+        writer.Write(new byte[20]);                          // IndexHash
+        if (version == 9) writer.Write((byte)0);             // bIndexFrozen（只有 v9 有）
+        if (version >= 8) writer.Write(new byte[CompressionMethodNamesSize]);
+
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    /// <summary>
     /// 写条目头副本。字段顺序与 FPakEntry 一致：
     /// Offset / Size / UncompressedSize / Method / Hash / Encrypted / CompressionBlockSize。
     /// </summary>
-    private static void WriteEntryHeaderCopy(BinaryWriter writer, long offset, long size)
+    private static void WriteEntryHeaderCopy(
+        BinaryWriter writer, long offset, long size, uint compressionBlockSize = 0)
     {
         writer.Write(offset);
         writer.Write(size);
@@ -140,7 +203,7 @@ internal static class PakFixtureBuilder
         writer.Write(0);             // CompressionMethodIndex = 0
         writer.Write(new byte[20]);  // Hash
         writer.Write((byte)0);       // bEncrypted
-        writer.Write(0u);            // CompressionBlockSize
+        writer.Write(compressionBlockSize);
         // 校验：写出的长度必须与 EntryHeaderSize 一致，否则读取器跳头时会错位。
         if (EntryHeaderSize != 8 + 8 + 8 + 4 + 20 + 1 + 4)
             throw new InvalidOperationException("条目头长度定义与写入不一致");

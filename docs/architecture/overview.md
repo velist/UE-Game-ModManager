@@ -54,7 +54,7 @@
 - `Services/Recovery/` 崩溃恢复扫描分类器
 - `Services/Lock/` Profile lock 构造 + 对比
 - `Services/ResolvedViews/` ResolvedViewLayerBuilder（Layer 1+2+3 全部纯函数）
-- `Services/DeploymentPlanning/` DeploymentDiffComputer + TargetPathBuilder + TogglePlanBuilder
+- `Services/DeploymentPlanning/` DeploymentDiffComputer + TargetPathBuilder
 - `Services/Deployment/` RollbackActionPlanner + DeploymentResultBuilder
 - `Services/Launch/` LaunchPipelineBuilder + LaunchStepEvaluator
 - `Services/Detection/` PackageKindDetector + ArtifactTypeDetector + ModCategoryClassifier + GameNameNormalizer + EngineDetector

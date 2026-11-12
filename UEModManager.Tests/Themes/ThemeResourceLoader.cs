@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace UEModManager.Tests.Themes;
 
@@ -92,23 +93,32 @@ public static class ThemeResourceLoader
     /// <summary>在专用 STA 线程上执行，把结果（纯数据）带回。</summary>
     internal static T RunOnSta<T>(Func<T> work)
     {
+        ArgumentNullException.ThrowIfNull(work);
+
         T result = default!;
         Exception? failure = null;
 
         var thread = new Thread(() =>
         {
-            try
-            {
-                // pack:// URI 需要 ResourceAssembly 已确定
-                if (Application.ResourceAssembly == null)
-                    Application.ResourceAssembly = typeof(UEModManager.App).Assembly;
+            // pack:// URI 需要 ResourceAssembly 已确定
+            if (Application.ResourceAssembly == null)
+                Application.ResourceAssembly = typeof(UEModManager.App).Assembly;
 
-                result = work();
-            }
-            catch (Exception ex)
+            var dispatcher = Dispatcher.CurrentDispatcher;
+
+            // 工作项必须在**真的跑起来的消息循环里**执行，不能用"线程体里直接调用"。
+            // HwndSource / Window 会创建真的 HWND，关闭时会有 WM_* 消息要处理；
+            // 没有消息循环时这些消息只能等线程退出时才被处理，而那时
+            // HwndSubclass 的钩子已经摘掉，于是进程直接崩在 SubclassWndProc 里
+            // —— 表现为"整套测试报通过，其实少跑了几十个用例"（本仓库实测每 6 次约 5 次）。
+            dispatcher.BeginInvoke(new Action(() =>
             {
-                failure = ex;
-            }
+                try { result = work(); }
+                catch (Exception ex) { failure = ex; }
+                finally { dispatcher.InvokeShutdown(); }
+            }));
+
+            Dispatcher.Run();
         });
 
         thread.SetApartmentState(ApartmentState.STA);

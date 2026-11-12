@@ -837,6 +837,7 @@
   "先选游戏": "Pick your game",
   "在这里选择要装 MOD 的游戏。列表里没有的游戏，也能自己添加。": "Choose the game you want to mod here. Games not in the list can be added yourself.",
   "点这里，或者直接把压缩包、文件夹、.pak 文件拖进窗口，软件会自动识别。": "Click here, or just drag archives, folders or .pak files into the window. They're recognized automatically.",
+  "点这里，或者直接把压缩包、文件夹或 MOD 文件拖进窗口，软件会自动识别。": "Click here, or just drag archives, folders or mod files into the window. They're recognized automatically.",
   "启用和管理": "Enable and manage",
   "导入的 MOD 都在这里。鼠标移到卡片上可以一键启用或禁用，点卡片查看详情。": "Your imported mods live here. Hover a card to enable or disable it in one click; click a card for details.",
   "开始游戏": "Play",

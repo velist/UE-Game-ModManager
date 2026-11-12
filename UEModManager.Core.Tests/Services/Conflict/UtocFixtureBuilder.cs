@@ -24,7 +24,14 @@ internal static class UtocFixtureBuilder
 
     private const int HeaderSize = 144;
     private const int ChunkIdSize = 12;
-    private const int ChunkMetaSize = 33;
+    /// <summary>
+    /// 条目元数据的两种实测布局，都是"20 字节哈希 + 标志 + 补齐"：
+    /// v2 是 33 字节（影之刃零之外的另一份 v2 样本：20 + 标志 + 12 字节零），
+    /// v8 是 24 字节（影之刃零的两个 MOD：20 + 标志 + 3 字节零）。
+    /// </summary>
+    private const int FullHashMetaVersion = 8;
+    private const int FullHashMetaSize = 24;
+    private const int LegacyMetaSize = 33;
     private const uint InvalidIndex = uint.MaxValue;
 
     /// <summary>一个待写入的条目：目录（相对挂载点，可为空）、文件名、ChunkHash、包 ID。</summary>
@@ -69,8 +76,10 @@ internal static class UtocFixtureBuilder
             {
                 if (chunk.ChunkHash.Length != 32)
                     throw new InvalidOperationException("ChunkHash 必须是 32 字节");
-                metaWriter.Write(chunk.ChunkHash);
-                metaWriter.Write((byte)1);              // Flags
+                var metaSize = version >= FullHashMetaVersion ? FullHashMetaSize : LegacyMetaSize;
+                metaWriter.Write(chunk.ChunkHash, 0, 20);             // 记录里只存哈希前 20 字节
+                metaWriter.Write((byte)1);                            // Flags
+                metaWriter.Write(new byte[metaSize - 21]);            // 补齐到 metaSize
             }
         }
 

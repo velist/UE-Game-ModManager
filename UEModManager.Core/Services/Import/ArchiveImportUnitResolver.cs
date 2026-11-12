@@ -112,10 +112,16 @@ namespace UEModManager.Services.Import
         /// 判据只认锚点名，不改动切分本身：调用方据此把整个输入退回单单元路径，
         /// 用压缩包名 / 文件夹名给包命名。
         /// </summary>
-        public static bool LooksLikeSingleModLayout(IReadOnlyList<ArchiveImportUnit> units)
+        /// <param name="extraAnchors">
+        /// 引擎自己的安装锚点名（见 <c>EngineProfile.InstallAnchors</c>）。
+        /// RE 引擎的压缩包顶层就是 <c>natives/</c> 时，那是安装位置而不是包装目录：
+        /// 认不出它就会切出一个名叫 natives 的包，并把 natives/ 那一层从目标路径里削掉。
+        /// </param>
+        public static bool LooksLikeSingleModLayout(
+            IReadOnlyList<ArchiveImportUnit> units, IReadOnlySet<string>? extraAnchors = null)
         {
             if (units == null) throw new ArgumentNullException(nameof(units));
-            return units.Any(u => ArchiveTargetPathResolver.IsInstallAnchor(u.Name));
+            return units.Any(u => ArchiveTargetPathResolver.IsInstallAnchor(u.Name, extraAnchors));
         }
     }
 }

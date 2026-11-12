@@ -191,7 +191,12 @@ namespace UEModManager.Services.Import
         /// 这类层级本身就是文件的安装位置，剥掉后插件同样不生效。
         /// 因此当共有前缀的第一段是已知安装目录时，直接返回空串（不剥）。
         /// </summary>
-        public static string StripCommonPrefix(IReadOnlyList<string> relativePaths)
+        /// <param name="extraAnchors">
+        /// 引擎自己的安装锚点名（见 <c>EngineProfile.InstallAnchors</c>）：RE 的 natives/reframework、
+        /// Unity 的 BepInEx、暗黑4 的 WTF。通用表认不出它们，缺了就会把安装位置当包装目录剥掉。
+        /// </param>
+        public static string StripCommonPrefix(
+            IReadOnlyList<string> relativePaths, IReadOnlySet<string>? extraAnchors = null)
         {
             if (relativePaths == null) throw new ArgumentNullException(nameof(relativePaths));
             if (relativePaths.Count == 0) return string.Empty;
@@ -204,7 +209,7 @@ namespace UEModManager.Services.Import
 
             // 第一段是安装锚点时，前缀很可能就是"全部目录层"（例如所有文件都在 ue4ss/Mods/ 下），
             // 剥掉会连安装位置一起丢掉。这种情况一律不剥。
-            if (IsInstallAnchor(split[0][0])) return string.Empty;
+            if (IsInstallAnchor(split[0][0], extraAnchors)) return string.Empty;
 
             // 只剥到"最短路径的目录层数 - 1"为止，保证每个文件都还剩文件名
             var maxDepth = split.Min(parts => parts.Length) - 1;
@@ -236,9 +241,13 @@ namespace UEModManager.Services.Import
             "saved", "config", "engine", "plugins", "mods", "mod",
         };
 
-        /// <summary>该目录名是否为安装锚点（不可作为包装目录剥离）。</summary>
-        public static bool IsInstallAnchor(string? directoryName)
-            => !string.IsNullOrEmpty(directoryName) && InstallAnchors.Contains(directoryName);
+        /// <summary>
+        /// 该目录名是否为安装锚点（不可作为包装目录剥离）。
+        /// <paramref name="extraAnchors"/> 是引擎自己的锚点（见 <c>EngineProfile.InstallAnchors</c>）。
+        /// </summary>
+        public static bool IsInstallAnchor(string? directoryName, IReadOnlySet<string>? extraAnchors = null)
+            => !string.IsNullOrEmpty(directoryName)
+               && (InstallAnchors.Contains(directoryName) || extraAnchors?.Contains(directoryName) == true);
 
         private static string[] Split(string path)
             => path.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);

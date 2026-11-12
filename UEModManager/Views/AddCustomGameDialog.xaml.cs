@@ -14,6 +14,13 @@ namespace UEModManager.Views
         private string _gameName = "";
         private string _validationMessage = "";
 
+        /// <summary>
+        /// 自动检测过、但没识别出引擎。此时不能再默默按 Unreal Engine 处理 ——
+        /// 那样 Unity/Godot 游戏会全程按 pak 与 Content/Paks/~mods 走，玩家看到"添加成功"、
+        /// 接着每一个 MOD 都装不上，而且没有任何地方提示过原因。
+        /// </summary>
+        private bool _autoDetectFailed;
+
         public string GameName
         {
             get => _gameName;
@@ -41,22 +48,30 @@ namespace UEModManager.Views
         }
 
         /// <summary>
-        /// 用户选择的引擎类型。
+        /// 下拉框里"引擎"项的顺序（索引 0 是"自动检测"）。
+        ///
+        /// 这里**只有一份**表：以前"索引 → 引擎"与"引擎 → 索引"各写一个 switch，
+        /// 加一个引擎要改两处，漏一处就静默错位（选 Godot 得到 Decima 那种）。
+        /// XAML 里的 <c>ComboBoxItem</c> 必须与本表同序，由
+        /// <c>AddCustomGameDialogSourceGuardTests</c> 钉住项数。
         /// </summary>
+        internal static readonly EngineType[] EngineChoices =
+        [
+            EngineType.UnrealEngine,
+            EngineType.Unity,
+            EngineType.REEngine,
+            EngineType.Godot,
+            EngineType.Decima,
+            EngineType.Diablo4Engine,
+        ];
+
+        /// <summary>用户选择的引擎类型（"自动检测"时由调用方处理）。</summary>
         public EngineType SelectedEngineType
         {
             get
             {
-                return EngineTypeComboBox.SelectedIndex switch
-                {
-                    1 => EngineType.UnrealEngine,
-                    2 => EngineType.Unity,
-                    3 => EngineType.REEngine,
-                    4 => EngineType.Godot,
-                    5 => EngineType.Decima,
-                    6 => EngineType.Diablo4Engine,
-                    _ => EngineType.Unknown // 自动检测时由调用方处理
-                };
+                var index = EngineTypeComboBox.SelectedIndex - 1;
+                return index >= 0 && index < EngineChoices.Length ? EngineChoices[index] : EngineType.Unknown;
             }
         }
 
@@ -111,6 +126,13 @@ namespace UEModManager.Views
                     return;
                 }
 
+                // 提示过"请手动选择"就必须真的让玩家选：直接放行等于把这句话变成空话。
+                if (IsAutoDetect && _autoDetectFailed)
+                {
+                    ShowValidation(UiText.Get("未能自动识别引擎，请手动选择"));
+                    return;
+                }
+
                 GameName = safeName;
                 DialogResult = true;
             }
@@ -147,21 +169,14 @@ namespace UEModManager.Views
                     var detected = GameConfigService.AutoDetectEngine(dialog.SelectedPath);
                     if (detected != EngineType.Unknown)
                     {
-                        EngineTypeComboBox.SelectedIndex = detected switch
-                        {
-                            EngineType.UnrealEngine => 1,
-                            EngineType.Unity => 2,
-                            EngineType.REEngine => 3,
-                            EngineType.Godot => 4,
-                            EngineType.Decima => 5,
-                            EngineType.Diablo4Engine => 6,
-                            _ => 0
-                        };
+                        var choice = Array.IndexOf(EngineChoices, detected);
+                        EngineTypeComboBox.SelectedIndex = choice >= 0 ? choice + 1 : 0;
                         EngineDetectionHint.Text = UiText.Interpolate($"已自动识别为 {EngineProfile.Get(detected).DisplayName} 引擎");
                         EngineDetectionHint.Visibility = Visibility.Visible;
                     }
                     else
                     {
+                        _autoDetectFailed = true;
                         EngineDetectionHint.Text = UiText.Get("未能自动识别引擎，请手动选择");
                         EngineDetectionHint.Visibility = Visibility.Visible;
                     }

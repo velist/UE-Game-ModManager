@@ -17,6 +17,29 @@ namespace UEModManager.Views
         /// <summary>用户选择的文件路径列表（对话框结果）。</summary>
         public List<string> SelectedFiles { get; } = [];
 
+        /// <summary>
+        /// 当前游戏的引擎文件过滤器（<see cref="Models.EngineProfile.FileDialogFilter"/>）。
+        ///
+        /// 不传时退回下面那份通用名单：过滤器按引擎分化是刻意的 ——
+        /// Godot 的 .pck、暗黑4 的 .mpq、RE 引擎的 .tex/.mesh 都不在 UE 那份名单里，
+        /// 写死 UE 名单会让非 UE 玩家在自己的 MOD 文件上只能切"所有文件"。
+        /// </summary>
+        public string? FileFilter { get; init; }
+
+        /// <summary>引擎未知时的兜底过滤器：通用压缩包 + UE 三件套 + 常见插件/配置。</summary>
+        private const string FallbackFileFilter =
+            "支持的文件|*.zip;*.rar;*.7z;*.pak;*.utoc;*.ucas;*.dll;*.ini;*.json;*.cfg|所有文件|*.*";
+
+        /// <summary>文件选择器实际使用的过滤器（已按语言翻译）。</summary>
+        internal string ResolvedFileFilter => ResolveFileFilter(FileFilter);
+
+        /// <summary>
+        /// 过滤器解析：拿不到引擎名单时退回通用名单。抽成纯函数是为了能直接测 ——
+        /// 构造一个真的窗口需要整套应用资源，测这一行不值得拉上那些。
+        /// </summary>
+        internal static string ResolveFileFilter(string? engineFilter)
+            => UiText.Get(string.IsNullOrWhiteSpace(engineFilter) ? FallbackFileFilter : engineFilter);
+
         public ImportDialog()
         {
             InitializeComponent();
@@ -71,7 +94,7 @@ namespace UEModManager.Views
             var dlg = new OpenFileDialog
             {
                 Title = UiText.Get("选择要导入的文件"),
-                Filter = UiText.Get("支持的文件|*.zip;*.rar;*.7z;*.pak;*.utoc;*.ucas;*.dll;*.ini;*.json;*.cfg|所有文件|*.*"),
+                Filter = ResolvedFileFilter,
                 Multiselect = true
             };
 

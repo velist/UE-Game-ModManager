@@ -48,7 +48,18 @@ public class RealPakSmokeTests
 
             Assert.True(result.Status == IndexStatus.Complete,
                 $"{Path.GetFileName(pak)}: 期望 Complete，实际 {result.Status} ({result.Detail})");
-            Assert.True(result.Entries.Count > 0, $"{Path.GetFileName(pak)}: 读出 0 个条目");
+
+            // IoStore MOD 的 .pak 只是空壳，内容全在同名 .utoc/.ucas 里：读出 0 条是对的，
+            // 但这时 .utoc 必须读得出东西，否则这个 MOD 等于没被索引。
+            if (result.Entries.Count > 0) continue;
+
+            var utoc = Path.ChangeExtension(pak, ".utoc");
+            Assert.True(File.Exists(utoc), $"{Path.GetFileName(pak)}: 读出 0 个条目，旁边也没有 .utoc");
+
+            using var utocStream = File.OpenRead(utoc);
+            var tocResult = new IoStoreTocReader().ReadIndex(utocStream, utoc);
+            Assert.True(tocResult.Entries.Count > 0,
+                $"{Path.GetFileName(utoc)}: 空壳 pak 的内容应在 .utoc 里，实际 {tocResult.Status} ({tocResult.Detail})");
         }
     }
 
@@ -83,6 +94,50 @@ public class RealPakSmokeTests
             var common = assetsA.Intersect(assetsB, StringComparer.OrdinalIgnoreCase).ToList();
             Assert.True(common.Count > 0, $"期望 {a} 与 {b} 有共同资产，实际 0 个");
         }
+    }
+
+    /// <summary>
+    /// 影之刃零的 MOD 必须真的能被冲突分析读到东西。
+    ///
+    /// 事故现场：这款游戏的 MOD 是"空壳 .pak（索引偏移 0）+ IoStore v8 的 .utoc"，
+    /// 读取器两样都判 Unsupported，于是冲突面板对它们显示"无法分析"——
+    /// 玩家侧的观感就是"冲突检测没生效"。
+    /// </summary>
+    [Fact]
+    public void 影之刃零的真实MOD读出资产且两个MOD不重叠()
+    {
+        if (!Directory.Exists(RepositoryPath)) return;
+
+        var perMod = new List<HashSet<string>>();
+        foreach (var name in new[] { "PBZ_DeflectWindow_1_Harder_50_P", "zFreeMapTeleport_999_P" })
+        {
+            var directory = Path.Combine(RepositoryPath, name);
+            if (!Directory.Exists(directory)) return;   // 没有样本就跳过
+
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pattern in new[] { "*.pak", "*.utoc" })
+            {
+                foreach (var file in Directory.GetFiles(directory, pattern, SearchOption.AllDirectories))
+                {
+                    using var stream = File.OpenRead(file);
+                    var result = pattern == "*.pak"
+                        ? new PakIndexReader().ReadIndex(stream, file)
+                        : new IoStoreTocReader().ReadIndex(stream, file);
+
+                    // 空壳 pak 也是 Complete（内容在 .utoc 里），关键是别判成"无法分析"。
+                    Assert.True(result.Status == IndexStatus.Complete,
+                        $"{Path.GetFileName(file)}: 期望 Complete，实际 {result.Status} ({result.Detail})");
+
+                    foreach (var entry in result.Entries) keys.Add(entry.AssetKey);
+                }
+            }
+
+            Assert.NotEmpty(keys);
+            perMod.Add(keys);
+        }
+
+        // 两个 MOD 改的是不同资产：读得出，而且不能误报成冲突。
+        Assert.Empty(perMod[0].Intersect(perMod[1], StringComparer.OrdinalIgnoreCase));
     }
 
     [Fact]

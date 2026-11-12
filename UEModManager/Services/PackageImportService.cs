@@ -110,7 +110,7 @@ namespace UEModManager.Services
             foreach (var package in results.Where(r => r.Success && r.Package is not null)
                          .Select(r => r.Package!))
             {
-                _ = _assetIndexService.WarmUpAsync(package);
+                _ = _assetIndexService.WarmUpAsync(package, EngineConfig.ConflictStrategy);
             }
         }
 
@@ -120,6 +120,7 @@ namespace UEModManager.Services
         /// </summary>
         public async Task<List<PackageImportResult>> ImportAsync(string[] filePaths, string? targetRootPath = null)
         {
+            filePaths = CoalesceLooseContainerSets(filePaths);
             var results = new List<PackageImportResult>();
             foreach (var filePath in filePaths)
             {
@@ -300,12 +301,21 @@ namespace UEModManager.Services
 
         private Task<PackageImportResult> ImportDirectFileAsync(string filePath, string? targetRootPath = null)
         {
+            var containerSet = ResolveLooseContainerSet(filePath);
+            if (containerSet.Count > 1)
+                return ImportLooseContainerSetAsync(containerSet, filePath, targetRootPath);
+
             var fileName = EnsureUniquePackageKey(IOPath.GetFileNameWithoutExtension(filePath));
 
             return ImportWithCompensationAsync(fileName, async () =>
             {
                 var gameName = _gameConfig.CurrentGameName ?? "Unknown";
                 var kind = DetectPackageKind(filePath);
+
+                // 引擎为这个扩展名声明了固定安装根时（RE 的 .lua → reframework/autorun），
+                // 位置由引擎决定，不看玩家填的目标目录：REFramework 只从 reframework/autorun/
+                // 加载脚本，按默认的 Binaries/Win64 填等于装了个没人读的文件。
+                var looseRoot = LoosePayloadRootFor(filePath);
                 var package = new Package
                 {
                     PackageKey = fileName,
@@ -314,7 +324,11 @@ namespace UEModManager.Services
                     Tags = new List<string> { DetectCategory(fileName) },
                     HostGameName = gameName,
                     ImportSourcePath = filePath,
-                    TargetRootPath = kind == PackageKind.Mod ? null : NormalizeTargetRootPath(targetRootPath),
+                    TargetRootPath = kind == PackageKind.Mod || looseRoot != null
+                        ? null
+                        : NormalizeTargetRootPath(targetRootPath),
+                    // 固定安装根的载荷自带方位，部署时不能再套包目录。
+                    PreservesInstallLayout = looseRoot != null,
                 };
 
                 var (relPath, hash, size) = await _objectStore.StoreFileAsync(fileName, filePath);
@@ -325,7 +339,9 @@ namespace UEModManager.Services
                 {
                     PackageId = package.Id,
                     RelativeSourcePath = relPath,
-                    RelativeTargetPath = IOPath.GetFileName(filePath),
+                    RelativeTargetPath = looseRoot is null
+                        ? IOPath.GetFileName(filePath)
+                        : IOPath.Combine(looseRoot, IOPath.GetFileName(filePath)),
                     FileName = IOPath.GetFileName(filePath),
                     FileSize = size,
                     FileHash = hash,
@@ -361,6 +377,57 @@ namespace UEModManager.Services
 
                 return new PackageImportResult { Success = true, Package = package };
             });
+        }
+
+        // ─── 散装容器组（.pak + .utoc + .ucas 这类同名分片） ───
+
+        /// <summary>
+        /// 同一组分片被一起选中时只留一个代表，整组由 <see cref="ImportDirectFileAsync"/> 一并带上。
+        /// 不做这一步，三件套会被逐个导入成 <c>X</c>、<c>X_2</c>、<c>X_3</c> 三个包。
+        /// </summary>
+        private string[] CoalesceLooseContainerSets(string[] filePaths)
+        {
+            var coalesced = LooseContainerSet.Coalesce(filePaths, EngineConfig.BinaryModExtensions);
+            if (coalesced.Count != filePaths.Length)
+                _logger.LogInformation("导入: {Selected} 个文件里有同名分片，合并为 {Count} 项", filePaths.Length, coalesced.Count);
+            return [.. coalesced];
+        }
+
+        /// <summary>
+        /// <paramref name="filePath"/> 所在的容器组；不是主载荷、或目录读不了时只有它自己。
+        /// </summary>
+        private IReadOnlyList<string> ResolveLooseContainerSet(string filePath)
+        {
+            var directory = IOPath.GetDirectoryName(filePath);
+            if (string.IsNullOrEmpty(directory)) return [filePath];
+
+            try
+            {
+                return LooseContainerSet.Members(
+                    filePath, Directory.EnumerateFiles(directory), EngineConfig.BinaryModExtensions);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 列不出同目录文件不该让这个文件也导不进来：退回只导它自己。
+                _logger.LogWarning(ex, "无法列出同目录文件，按单文件导入: {Path}", filePath);
+                return [filePath];
+            }
+        }
+
+        /// <summary>
+        /// 把一组同名分片导入成一个 MOD 包，包名取自优先扩展名的那个文件（见
+        /// <see cref="EngineProfile.GroupPriorityExtensions"/>），与压缩包导入的命名一致。
+        /// </summary>
+        private Task<PackageImportResult> ImportLooseContainerSetAsync(
+            IReadOnlyList<string> members, string pickedFile, string? targetRootPath)
+        {
+            var files = members.ToList();
+            var packageName = EnsureUniquePackageKey(
+                DetermineGroupName(files) ?? IOPath.GetFileNameWithoutExtension(pickedFile));
+            var directory = IOPath.GetDirectoryName(pickedFile)!;
+
+            _logger.LogInformation("导入 {Package}: 同目录下 {Count} 个同名分片合成一个包", packageName, files.Count);
+            return ImportFilesAsPackageAsync(packageName, files, directory, pickedFile, targetRootPath);
         }
 
         private async Task<List<PackageImportResult>> ImportCompressedAsync(string filePath, string? targetRootPath = null)
@@ -504,7 +571,7 @@ namespace UEModManager.Services
                     ? files.Select(f => ArchiveTargetPathResolver.ResolveRelativePath(f, tempDir)).ToList()
                     : files.Select(IOPath.GetFileName).ToList();
                 var commonPrefix = keepDirectoryStructure
-                    ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths)
+                    ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths, EngineConfig.InstallAnchors)
                     : string.Empty;
 
                 foreach (var file in files)
@@ -683,7 +750,7 @@ namespace UEModManager.Services
             // 而是"这一个 MOD 自带游戏目录层级"（用户单独拖入解压后的「超级识破」文件夹，
             // 或压缩包内容直接是 b1\Binaries\...）。退回单单元，用压缩包名 / 文件夹名命名，
             // 否则包名会变成 b1，第二个这样的 MOD 变成 b1_2，真名全丢。
-            if (multiUnit && ArchiveImportUnitResolver.LooksLikeSingleModLayout(units))
+            if (multiUnit && ArchiveImportUnitResolver.LooksLikeSingleModLayout(units, EngineConfig.InstallAnchors))
             {
                 _logger.LogWarning(
                     "导入 {Name}: 顶层目录 {Units} 命中安装锚点，按「整个输入就是一个 MOD」处理，" +
@@ -742,7 +809,7 @@ namespace UEModManager.Services
             // 安装锚点名录是现成的判据 —— 与 ArchiveImportUnitResolver 判断
             // "这一层是包装还是安装位置"用的是同一套词汇。
             var wrapped = topLevelDirectories.Count == 1
-                && !ArchiveTargetPathResolver.IsInstallAnchor(topLevelDirectories[0]);
+                && !ArchiveTargetPathResolver.IsInstallAnchor(topLevelDirectories[0], EngineConfig.InstallAnchors);
             var attachments = unitFiles
                 .Where(f => SharedComponentClassifier.IsAttachment(
                     Path.GetRelativePath(rootDirectory, f), wrapped))
@@ -995,15 +1062,27 @@ namespace UEModManager.Services
 
         // ─── 辅助方法 ───
 
-        private bool IsModFile(string filePath)
-            => EngineConfig.ModFileExtensions.Contains(IOPath.GetExtension(filePath).ToLower());
+        /// <summary>
+        /// 当前引擎为这个扩展名声明的松散载荷安装根（相对游戏根）；没有则 null。
+        ///
+        /// 引擎档案里一律用 '/' 写（与文档、压缩包内的路径一致），这里换成本平台分隔符，
+        /// 免得拼出来的目标路径一半 '/' 一半 '\'。
+        /// </summary>
+        private string? LoosePayloadRootFor(string filePath)
+        {
+            var ext = IOPath.GetExtension(filePath).ToLowerInvariant();
+            return EngineConfig.LoosePayloadRoots.TryGetValue(ext, out var root)
+                   && !string.IsNullOrWhiteSpace(root)
+                ? root.Replace(IOPath.AltDirectorySeparatorChar, IOPath.DirectorySeparatorChar)
+                : null;
+        }
 
         /// <summary>
         /// 是否为"主 MOD 载荷"：当前引擎从 MOD 目录加载的容器（见 <see cref="EngineProfile.BinaryModExtensions"/>）。
         ///
         /// 以前写死 .pak/.ucas/.utoc：杀戮尖塔2 的 .pck、暗黑4 的 .mpq 装在压缩包里时被当成
         /// 插件/配置装进游戏根，而同一个文件直接拖进来却按 MOD 进 MOD 目录。
-        /// 刻意不用 <see cref="IsModFile"/>：引擎的 ModFileExtensions 含 <c>.json</c>，
+        /// 刻意不看引擎的 ModFileExtensions：它含 <c>.json</c>，
         /// 用它做分流会把 UE4SS 的 mods.json 当 MOD 处理，并让同包的 .lua/.dll 变成
         /// 无人认领的孤儿文件而被静默丢弃。
         /// </summary>

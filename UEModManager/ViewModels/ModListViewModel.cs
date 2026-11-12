@@ -287,45 +287,6 @@ namespace UEModManager.ViewModels
         }
 
         /// <summary>
-        /// 删除 MOD。
-        /// </summary>
-        [RelayCommand]
-        public async Task DeleteModAsync(ModInfo? mod)
-        {
-            if (mod == null) return;
-            if (_deleteModAsync == null)
-                throw DeploymentServiceNotInitialized(UiText.Get("删除 MOD"));
-
-            var success = await _deleteModAsync(mod);
-
-            if (success)
-            {
-                Mods.Remove(mod);
-                if (SelectedMod == mod)
-                    SelectedMod = null;
-                ModsChanged?.Invoke();
-            }
-        }
-
-        /// <summary>
-        /// 选中 MOD。
-        /// </summary>
-        [RelayCommand]
-        public void SelectMod(ModInfo? mod)
-        {
-            SelectedMod = mod;
-        }
-
-        /// <summary>
-        /// 切换网格/列表视图。
-        /// </summary>
-        [RelayCommand]
-        public void ToggleView()
-        {
-            IsGridView = !IsGridView;
-        }
-
-        /// <summary>
         /// 全选/取消全选。
         /// </summary>
         [RelayCommand]
@@ -361,28 +322,6 @@ namespace UEModManager.ViewModels
             else
             {
                 throw DeploymentServiceNotInitialized(UiText.Get("批量启用 MOD"));
-            }
-            ModsChanged?.Invoke();
-        }
-
-        /// <summary>
-        /// 禁用所有 MOD。
-        /// </summary>
-        [RelayCommand]
-        public async Task DisableAllAsync()
-        {
-            if (_toggleModsAsync != null)
-            {
-                await _toggleModsAsync(Mods.Where(m => m.IsEnabled).ToList(), false);
-            }
-            else if (_toggleModAsync != null)
-            {
-                foreach (var mod in Mods.Where(m => m.IsEnabled).ToList())
-                    await _toggleModAsync(mod, false);
-            }
-            else
-            {
-                throw DeploymentServiceNotInitialized(UiText.Get("批量禁用 MOD"));
             }
             ModsChanged?.Invoke();
         }

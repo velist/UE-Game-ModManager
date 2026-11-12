@@ -12,7 +12,11 @@ namespace UEModManager.Services.Conflict.Indexing;
 /// <c>docs/architecture/overview.md</c> 的容器格式一节）：
 /// 从文件末尾向前 300 字节内找魔数得到页脚起点 <c>M</c>，页脚里依次是
 /// EncryptionKeyGuid(16) + bEncryptedIndex(1) + Magic(4) + Version(4)，
-/// 之后才是 IndexOffset / IndexSize。
+/// 之后才是 IndexOffset / IndexSize。Magic 之前那两个字段是后加的：
+/// v4 才有 bEncryptedIndex，v7 才有 EncryptionKeyGuid（见 <see cref="FooterPrefixSize"/>）。
+///
+/// v3–v7 是旧打包工具（u4pak、早期 UnrealPak）的产物，UE5 游戏照样加载 ——
+/// 影之刃零的脚本类 MOD 就有 v3 的。它们与 v8/v9 共用内联条目布局。
 ///
 /// 黑神话·悟空的 pak 在 Version 之后多 2 字节，IndexOffset 因此要再往后挪 2 字节。
 /// 判定方式是"先按标准布局读、校验越界就换变体"，而不是读某一版特有字段 ——
@@ -21,12 +25,21 @@ namespace UEModManager.Services.Conflict.Indexing;
 /// </summary>
 public sealed class PakIndexReader : IContainerIndexReader
 {
-    /// <summary>支持的 pak 版本。v8/v9 是内联条目布局，v10/v11 是编码条目布局。</summary>
-    private const int MinSupportedVersion = 8;
+    /// <summary>
+    /// 支持的 pak 版本。v3–v9 是内联条目布局，v10/v11 是编码条目布局。
+    /// v1/v2 的 FPakEntry 字段不同（带时间戳、没有加密与块大小字段），没有样本，不读。
+    /// </summary>
+    private const int MinSupportedVersion = 3;
     private const int MaxSupportedVersion = 11;
 
-    /// <summary>页脚里 Magic 之前固定的字节数：EncryptionKeyGuid(16) + bEncryptedIndex(1)。</summary>
-    private const int FooterPrefixSize = 17;
+    /// <summary>bEncryptedIndex 从这一版起才出现在页脚里。</summary>
+    private const int IndexEncryptionVersion = 4;
+
+    /// <summary>EncryptionKeyGuid 从这一版起才出现在页脚里。</summary>
+    private const int EncryptionKeyGuidVersion = 7;
+
+    /// <summary>页脚变体（Version 之后多 2 字节）只在这一版及以后见过。</summary>
+    private const int VariantLayoutVersion = 8;
 
     /// <summary>变体布局在 Version 之后多出的字节数。</summary>
     private const int VariantExtraBytes = 2;
@@ -44,20 +57,24 @@ public sealed class PakIndexReader : IContainerIndexReader
 
             var reader = new ContainerBinaryReader(stream);
 
-            // bEncryptedIndex 紧贴 Magic 之前
-            if (footer < FooterPrefixSize)
-                return Fail("pak 页脚不完整", -1);
-
-            reader.Position = footer - 1;
-            var encryptedIndex = reader.ReadByte();
-            if (encryptedIndex != 0)
-                return new ContainerIndexResult(IndexStatus.Encrypted, "容器索引已加密", [], -1);
-
+            // 先读版本：Magic 之前有哪些字段取决于它。
             reader.Position = footer + 4;
             var version = reader.ReadInt32();
             if (version < MinSupportedVersion || version > MaxSupportedVersion)
                 return new ContainerIndexResult(
                     IndexStatus.Unsupported, $"不支持的 pak 版本 {version}", [], version);
+
+            var footerPrefix = FooterPrefixSize(version);
+            if (footer < footerPrefix)
+                return Fail("pak 页脚不完整", version);
+
+            // bEncryptedIndex 紧贴 Magic 之前；v3 没有这个字段，那个位置是索引的最后一个字节。
+            if (version >= IndexEncryptionVersion)
+            {
+                reader.Position = footer - 1;
+                if (reader.ReadByte() != 0)
+                    return new ContainerIndexResult(IndexStatus.Encrypted, "容器索引已加密", [], version);
+            }
 
             var layout = ResolveIndexLayout(reader, footer, version);
             if (layout is null)
@@ -87,7 +104,10 @@ public sealed class PakIndexReader : IContainerIndexReader
     private static (long Offset, long Size)? ResolveIndexLayout(
         ContainerBinaryReader reader, long footer, int version)
     {
-        foreach (var extra in new[] { 0, VariantExtraBytes })
+        var indexEnd = footer - FooterPrefixSize(version);
+        int[] candidates = version >= VariantLayoutVersion ? [0, VariantExtraBytes] : [0];
+
+        foreach (var extra in candidates)
         {
             var start = footer + 8 + extra;
             if (start + 16 > reader.Length) continue;
@@ -97,14 +117,23 @@ public sealed class PakIndexReader : IContainerIndexReader
             var size = reader.ReadInt64();
 
             // 索引必须真的在文件里、且不能越过页脚：越界说明布局猜错了。
-            if (offset > 0 && size >= 0 && offset + size <= footer - FooterPrefixSize
-                && offset < reader.Length)
+            //
+            // 偏移为 0 是合法的：IoStore MOD 的 .pak 只是个空壳（内容都在 .utoc/.ucas 里），
+            // 没有数据区，索引从文件头开始。早先这里要求 offset > 0，retoc 产出的 MOD
+            // 因此全部被判成"布局无法识别"，连带把读得出来的 .utoc 也拖进"无法分析"。
+            // 放开它不会让变体布局被错认成标准布局：变体按标准布局读，
+            // 偏移的低 2 字节是那份版本号副本，size 则被左移 16 位，必然越界。
+            if (offset >= 0 && size > 0 && offset + size <= indexEnd)
                 return (offset, size);
         }
 
-        _ = version;
         return null;
     }
+
+    /// <summary>页脚里 Magic 之前固定的字节数：EncryptionKeyGuid(16) + bEncryptedIndex(1)，按版本有无。</summary>
+    private static int FooterPrefixSize(int version)
+        => (version >= EncryptionKeyGuidVersion ? 16 : 0)
+           + (version >= IndexEncryptionVersion ? 1 : 0);
 
     /// <summary>v10 / v11：主索引里只有编码条目表 + 目录索引偏移，路径要另去目录索引读。</summary>
     private ContainerIndexResult ReadModernIndex(
@@ -262,7 +291,7 @@ public sealed class PakIndexReader : IContainerIndexReader
         return true;
     }
 
-    /// <summary>v8 / v9：主索引里直接是 "文件名 + FPakEntry" 的内联数组。</summary>
+    /// <summary>v3 – v9：主索引里直接是 "文件名 + FPakEntry" 的内联数组。</summary>
     private ContainerIndexResult ReadLegacyIndex(
         ContainerBinaryReader reader, int version, string mountPoint, string sourceFile)
     {

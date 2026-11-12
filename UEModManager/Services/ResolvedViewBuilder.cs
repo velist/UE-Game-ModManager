@@ -159,9 +159,6 @@ public class ResolvedViewBuilder
         return view;
     }
 
-    public async Task<bool> IsViewStaleAsync(ResolvedView? currentView)
-        => currentView == null || !currentView.IsIdenticalTo(await BuildAsync());
-
     private static async Task<ResolvedEntry> WithContentAsync(ResolvedEntry entry, string source, ResolvedEntrySource sourceType, int priority)
         => new()
         {

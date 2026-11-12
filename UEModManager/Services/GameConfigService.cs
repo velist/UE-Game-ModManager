@@ -810,27 +810,6 @@ namespace UEModManager.Services
                 hasDirectoryMatching: pattern => Directory.GetDirectories(gamePath, pattern, SearchOption.TopDirectoryOnly).Length > 0);
         }
 
-        // ─── 插件路径 ───
-
-        /// <summary>
-        /// 获取指定游戏的默认插件路径。
-        /// </summary>
-        public string GetPluginPath(string gameName)
-        {
-            Config.PluginPaths ??= new Dictionary<string, string>();
-            return Config.PluginPaths.TryGetValue(gameName, out var path) ? path : string.Empty;
-        }
-
-        /// <summary>
-        /// 保存指定游戏的默认插件路径。
-        /// </summary>
-        public async Task SetPluginPathAsync(string gameName, string path)
-        {
-            Config.PluginPaths ??= new Dictionary<string, string>();
-            Config.PluginPaths[gameName] = path;
-            await SaveConfigAsync();
-        }
-
         // ─── 工具方法 ───
 
         /// <summary>
