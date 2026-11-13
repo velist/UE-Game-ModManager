@@ -121,10 +121,50 @@ public sealed class AppDataLayout
     /// <summary>备份根（可自定义）。</summary>
     public string BackupsRoot => Resolve(DataRoot.Backups, Path.Combine(LocalRoot, "Backups"));
 
+    /// <summary>仓库里放部署事务备份的内部目录名。以 '.' 开头，仓库的回收与体检都会跳过它。</summary>
+    public const string RepositoryDeploymentBackupsFolderName = ".deploy-backups";
+
     /// <summary>
-    /// 部署事务备份。崩溃回滚依赖此目录，绝不能随卸载或覆盖安装消失。
+    /// 部署事务备份的出厂位置：<c>{本机根}/Backups/Deployments</c>，也就是系统盘。
+    /// 2.1.5 之前所有人的事务备份都在这里。
     /// </summary>
-    public string DeploymentBackupsDirectory => Path.Combine(BackupsRoot, "Deployments");
+    public string DefaultDeploymentBackupsDirectory => Path.Combine(LocalRoot, "Backups", "Deployments");
+
+    /// <summary>
+    /// 部署事务备份（新事务写到这里）。崩溃回滚依赖此目录，绝不能随卸载或覆盖安装消失。
+    ///
+    /// <para>
+    /// 位置按下面的顺序决定：
+    /// <list type="number">
+    /// <item>用户自定义了备份根 → 备份根下的 <c>Deployments</c>；</item>
+    /// <item>仓库不在出厂位置（首次引导会把它放到非系统盘）→ 跟着仓库走，
+    /// 落在仓库里的 <see cref="RepositoryDeploymentBackupsFolderName"/>；</item>
+    /// <item>否则留在 <see cref="DefaultDeploymentBackupsDirectory"/>。</item>
+    /// </list>
+    /// 第 2 条是为了不再往系统盘上写：每停用或替换一个 MOD 文件，这里就要多一份它的副本，
+    /// 大型 MOD 一次就是几个 GB。仓库所在的盘本来就是用户选来放 MOD 的，空间也最宽裕。
+    /// </para>
+    /// </summary>
+    public string DeploymentBackupsDirectory
+    {
+        get
+        {
+            if (IsOverridden(DataRoot.Backups)) return Path.Combine(BackupsRoot, "Deployments");
+            if (IsOverridden(DataRoot.Repository))
+                return Path.Combine(RepositoryRoot, RepositoryDeploymentBackupsFolderName);
+            return DefaultDeploymentBackupsDirectory;
+        }
+    }
+
+    /// <summary>
+    /// 除 <see cref="DeploymentBackupsDirectory"/> 之外、仍可能留有旧事务的位置。
+    /// <b>只读不写</b>：崩溃恢复、历史记录与定时清理要把这里也扫一遍，
+    /// 否则位置一变，老用户留在系统盘上的事务既回滚不了也没人清。
+    /// </summary>
+    public IReadOnlyList<string> LegacyDeploymentBackupsDirectories
+        => string.Equals(DeploymentBackupsDirectory, DefaultDeploymentBackupsDirectory, StringComparison.OrdinalIgnoreCase)
+            ? Array.Empty<string>()
+            : new[] { DefaultDeploymentBackupsDirectory };
 
     /// <summary>MOD 备份。</summary>
     public string ModBackupsDirectory => Path.Combine(BackupsRoot, "Mods");

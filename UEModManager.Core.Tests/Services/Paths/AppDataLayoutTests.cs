@@ -123,6 +123,59 @@ public class AppDataLayoutTests
         Assert.StartsWith(@"D:\Bak", layout.ModBackupsDirectory);
     }
 
+    // ─── 部署事务备份跟着仓库走，不留在系统盘 ───
+
+    [Fact]
+    public void DeploymentBackups_StayAtFactoryLocation_WhenNothingIsCustomized()
+    {
+        var layout = Layout();
+
+        Assert.Equal(layout.DefaultDeploymentBackupsDirectory, layout.DeploymentBackupsDirectory);
+        Assert.Empty(layout.LegacyDeploymentBackupsDirectories);
+    }
+
+    [Fact]
+    public void DeploymentBackups_FollowRepository_WhenRepositoryIsMovedOffFactoryLocation()
+    {
+        var layout = Layout(new Dictionary<DataRoot, string> { [DataRoot.Repository] = @"D:\UEModManager\Repository" });
+
+        // 每停用/替换一个 MOD 文件这里就多一份副本：仓库都搬去 D 盘了，这份不能还往 C 盘写。
+        Assert.Equal(@"D:\UEModManager\Repository\.deploy-backups", layout.DeploymentBackupsDirectory);
+        Assert.False(layout.DeploymentBackupsDirectory.StartsWith(Local, StringComparison.OrdinalIgnoreCase));
+        // MOD 备份不跟着动：它的位置另由游戏所在盘决定，且老配置里存的是绝对路径。
+        Assert.StartsWith(Local, layout.ModBackupsDirectory);
+    }
+
+    [Fact]
+    public void DeploymentBackups_InsideRepository_UseAnInternalDotFolder()
+    {
+        var layout = Layout(new Dictionary<DataRoot, string> { [DataRoot.Repository] = @"D:\Repo" });
+
+        // 仓库的回收与体检按「以 . 开头」认内部目录；改了名字它就会被当成一个来历不明的包。
+        Assert.StartsWith(".", Path.GetFileName(layout.DeploymentBackupsDirectory));
+    }
+
+    [Fact]
+    public void DeploymentBackups_OldSystemDriveLocation_StaysVisibleAsLegacy()
+    {
+        var layout = Layout(new Dictionary<DataRoot, string> { [DataRoot.Repository] = @"D:\Repo" });
+
+        // 位置变了以后，老用户留在系统盘上的事务仍要能被崩溃恢复和定时清理看见。
+        Assert.Equal([layout.DefaultDeploymentBackupsDirectory], layout.LegacyDeploymentBackupsDirectories);
+    }
+
+    [Fact]
+    public void DeploymentBackups_ExplicitBackupsRoot_WinsOverRepository()
+    {
+        var layout = Layout(new Dictionary<DataRoot, string>
+        {
+            [DataRoot.Repository] = @"D:\Repo",
+            [DataRoot.Backups] = @"E:\Bak",
+        });
+
+        Assert.Equal(@"E:\Bak\Deployments", layout.DeploymentBackupsDirectory);
+    }
+
     [Fact]
     public void GetRoot_MatchesCorrespondingProperty()
     {

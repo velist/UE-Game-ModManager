@@ -73,6 +73,24 @@ public sealed class DeploymentConsistencyTests : IDisposable
     }
 
     [Fact]
+    public async Task CommittedDeployment_DoesNotCopyBackupsIntoOverwriteStore()
+    {
+        // 此前每次提交都把事务备份里的文件再复制一份登记成「部署快照」生成物，且从不清理：
+        // 停用一个 2 GB 的 MOD，生成物目录（默认在系统盘）就永久多 2 GB。
+        await InitializeAsync();
+        await AddEnabledPackageAsync("mod-a", "payload.pak", "AAAA");
+        Assert.Equal(DeploymentStatus.Committed, (await _deployment.ExecuteAsync(await _planner.CreatePlanAsync())).Status);
+
+        await SwitchToEmptyAsync();
+        var removed = await _deployment.ExecuteAsync(await _planner.CreatePlanAsync());
+        Assert.Equal(DeploymentStatus.Committed, removed.Status);
+        Assert.Contains(removed.ExecutedOperations, op => op.BackupPath != null);   // 确实备份过，才谈得上「没再复制」
+
+        Assert.Empty(_overwrites.GetAll());
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "Overwrites"), "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
     public async Task SameSizeDifferentContent_IsReplacedByRepositoryContent()
     {
         await InitializeAsync();

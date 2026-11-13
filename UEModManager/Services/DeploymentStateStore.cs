@@ -22,22 +22,34 @@ public sealed class DeploymentStateStore
 {
     private readonly string _directory;
     private readonly ILogger<DeploymentStateStore> _logger;
-    private readonly string? _legacyTransactionDirectory;
+    /// <summary>
+    /// 部署事务目录的所有位置（当前写入位置 + 旧位置）。部署备份改为跟着仓库走之后，
+    /// 老版本留下的事务还在原处，认领旧文件时两边都要看。
+    /// </summary>
+    private readonly IReadOnlyList<string> _transactionDirectories;
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
 
     public DeploymentStateStore(ILogger<DeploymentStateStore> logger)
         : this(logger, Path.Combine(Infrastructure.AppPaths.DataDirectory, "DeploymentState"),
-            Infrastructure.AppPaths.DeploymentBackupsDirectory) { }
+            Infrastructure.AppPaths.LegacyDeploymentBackupsDirectories
+                .Prepend(Infrastructure.AppPaths.DeploymentBackupsDirectory)) { }
 
     public DeploymentStateStore(ILogger<DeploymentStateStore> logger, string stateDirectory)
-        : this(logger, stateDirectory, null) { }
+        : this(logger, stateDirectory, Array.Empty<string>()) { }
 
     public DeploymentStateStore(ILogger<DeploymentStateStore> logger, string stateDirectory, string? legacyTransactionDirectory)
+        : this(logger, stateDirectory, legacyTransactionDirectory == null ? Array.Empty<string>() : new[] { legacyTransactionDirectory }) { }
+
+    public DeploymentStateStore(ILogger<DeploymentStateStore> logger, string stateDirectory, IEnumerable<string> transactionDirectories)
     {
         _logger = logger;
         _directory = Path.GetFullPath(stateDirectory);
-        _legacyTransactionDirectory = legacyTransactionDirectory == null ? null : Path.GetFullPath(legacyTransactionDirectory);
+        _transactionDirectories = transactionDirectories
+            .Where(directory => !string.IsNullOrWhiteSpace(directory))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<DeploymentState> ReadAsync(string hostGameName, string gameRootPath, string modRootPath)
@@ -106,8 +118,9 @@ public sealed class DeploymentStateStore
 
     internal async Task<string?> PreserveLegacyOriginalAsync(DeploymentState state, string? backupPath)
     {
-        if (_legacyTransactionDirectory == null || backupPath == null
-            || !IsInside(_legacyTransactionDirectory, backupPath) || !File.Exists(backupPath)) return null;
+        if (backupPath == null
+            || !_transactionDirectories.Any(directory => IsInside(directory, backupPath))
+            || !File.Exists(backupPath)) return null;
         return await PreserveFileAsync(state, backupPath);
     }
 
@@ -140,8 +153,11 @@ public sealed class DeploymentStateStore
     internal async Task<List<DeploymentTransaction>> ReadLegacyTransactionsAsync(DeploymentState state)
     {
         var transactions = new List<DeploymentTransaction>();
-        if (_legacyTransactionDirectory == null || !Directory.Exists(_legacyTransactionDirectory)) return transactions;
-        foreach (var directory in Directory.EnumerateDirectories(_legacyTransactionDirectory))
+        var directories = _transactionDirectories
+            .Where(Directory.Exists)
+            .SelectMany(Directory.EnumerateDirectories)
+            .ToList();
+        foreach (var directory in directories)
         {
             if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) continue;
             var path = Path.Combine(directory, "transaction.json");

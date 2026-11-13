@@ -340,6 +340,15 @@ namespace UEModManager
                     services.AddSingleton<DeploymentService>();
                     services.AddSingleton<ProfileSwitchService>();
 
+                    // 临时数据的定时清理（部署备份、旧部署快照、解压临时目录）。
+                    // 依赖按委托给：见 TempCacheJanitor 构造函数的说明。由 MainWindow 启动。
+                    services.AddSingleton(sp => new TempCacheJanitor(
+                        sp.GetRequiredService<ILogger<TempCacheJanitor>>(),
+                        sp.GetRequiredService<DeploymentService>,
+                        sp.GetRequiredService<OverwriteStore>,
+                        sp.GetRequiredService<RepositoryReclaimService>,
+                        sp.GetRequiredService<ObjectStore>));
+
                     // v2.0 Phase 4: 冲突治理
                     // ConflictAnalyzer 已随"冲突检测模块重做"删除：
                     // 它按目标路径裁决胜者/败者，而新模型按资产比对、一个组给一个决策。

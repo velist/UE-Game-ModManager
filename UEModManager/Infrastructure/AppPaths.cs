@@ -110,6 +110,12 @@ namespace UEModManager.Infrastructure
         /// <summary>部署事务备份。崩溃回滚依赖此目录。</summary>
         public static string DeploymentBackupsDirectory => Layout.DeploymentBackupsDirectory;
 
+        /// <summary>
+        /// 仍可能留有旧事务的位置（只读不写）。部署备份改为跟着仓库走之后，
+        /// 老用户系统盘上的那一份靠它被崩溃恢复与定时清理看见。
+        /// </summary>
+        public static IReadOnlyList<string> LegacyDeploymentBackupsDirectories => Layout.LegacyDeploymentBackupsDirectories;
+
         /// <summary>MOD 备份。</summary>
         public static string ModBackupsDirectory => Layout.ModBackupsDirectory;
 

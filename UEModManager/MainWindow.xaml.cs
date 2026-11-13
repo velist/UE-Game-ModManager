@@ -127,6 +127,9 @@ namespace UEModManager
                 _healthCheck = sp.GetService<HealthCheckService>();
                 _deployService = sp.GetService<DeploymentService>();
 
+                // 定时清理临时数据。第一轮在启动一分钟后才跑，不占首屏加载的时间。
+                sp.GetService<TempCacheJanitor>()?.Start();
+
                 // 订阅认证事件
                 if (_localAuthService != null)
                 {

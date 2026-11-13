@@ -24,8 +24,15 @@ namespace UEModManager.Services
 
         private readonly ILogger<DeploymentService> _logger;
         private readonly IReadOnlyDictionary<DeploymentBackendType, IDeploymentBackend> _backends;
-        private readonly OverwriteStore _overwriteStore;
         private readonly string _backupRootPath;
+
+        /// <summary>
+        /// 仍可能留有旧事务的备份根（只读不写）。新事务一律写 <see cref="_backupRootPath"/>；
+        /// 历史记录、崩溃恢复与清理要把这些也扫到。事务日志里的备份路径是绝对路径，
+        /// 所以旧位置上的事务照样能回滚。
+        /// </summary>
+        private readonly IReadOnlyList<string> _legacyBackupRoots;
+        private readonly object _cleanupChainLock = new();
         private readonly DeploymentStateStore _stateStore;
 
         /// <summary>最近一次事务（用于 UI 展示和回滚）。</summary>
@@ -79,15 +86,24 @@ namespace UEModManager.Services
 
         public DeploymentService(ILogger<DeploymentService> logger, IEnumerable<IDeploymentBackend> backends,
             OverwriteStore overwriteStore, DeploymentStateStore stateStore)
-            : this(logger, backends, overwriteStore, stateStore, Infrastructure.AppPaths.DeploymentBackupsDirectory)
+            : this(logger, backends, overwriteStore, stateStore, Infrastructure.AppPaths.DeploymentBackupsDirectory,
+                Infrastructure.AppPaths.LegacyDeploymentBackupsDirectories)
         {
         }
 
+        /// <param name="overwriteStore">
+        /// 已不再使用，保留参数只为不动 DI 与既有调用点的签名。
+        /// 此前每次部署提交后，都会把事务备份里的每个文件再复制一份登记成「生成物」，
+        /// 而那份副本从不清理——停用一个 2 GB 的 MOD，生成物目录（默认在系统盘）就永久多 2 GB。
+        /// 这些副本没有任何读取方，回滚用的是事务备份本身，故整段删除；
+        /// 存量由 <see cref="OverwriteStore"/> 与 <see cref="TempCacheJanitor"/> 清掉。
+        /// </param>
+        /// <param name="legacyBackupRoots">仍可能留有旧事务的备份根，只读不写。</param>
         public DeploymentService(ILogger<DeploymentService> logger, IEnumerable<IDeploymentBackend> backends,
-            OverwriteStore overwriteStore, DeploymentStateStore stateStore, string backupRootPath)
+            OverwriteStore overwriteStore, DeploymentStateStore stateStore, string backupRootPath,
+            IEnumerable<string>? legacyBackupRoots = null)
         {
             _logger = logger;
-            _overwriteStore = overwriteStore;
             _stateStore = stateStore;
 
             // Symlink 后端已下线：普通用户需开发者模式/管理员权限，实际不可用。
@@ -99,6 +115,30 @@ namespace UEModManager.Services
                 _backends.Count, string.Join(", ", _backends.Values.Select(b => b.DisplayName)));
 
             _backupRootPath = Path.GetFullPath(backupRootPath);
+            _legacyBackupRoots = (legacyBackupRoots ?? [])
+                .Where(root => !string.IsNullOrWhiteSpace(root))
+                .Select(Path.GetFullPath)
+                .Where(root => !string.Equals(root, _backupRootPath, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>所有备份根（当前写入根 + 旧位置）下的事务目录。某个根读不了只跳过它，不影响其他根。</summary>
+        private List<string> EnumerateBackupDirectories()
+        {
+            var result = new List<string>();
+            foreach (var root in _legacyBackupRoots.Prepend(_backupRootPath))
+            {
+                try
+                {
+                    if (Directory.Exists(root)) result.AddRange(Directory.GetDirectories(root));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "读取部署备份目录失败: {Root}", root);
+                }
+            }
+            return result;
         }
 
         /// <summary>
@@ -251,28 +291,6 @@ namespace UEModManager.Services
                 transaction.Status = DeploymentStatus.Committed;
                 transaction.CompletedAt = DateTime.Now;
                 _logger.LogInformation("部署成功提交: {Id}", transaction.Id);
-
-                // v2.0 Phase 5: 为备份文件注册生成物
-                foreach (var op in transaction.ExecutedOperations.Where(o => o.BackupPath != null))
-                {
-                    try
-                    {
-                        await _overwriteStore.RegisterAsync(
-                            op.BackupPath!,
-                            GeneratedArtifactType.DeploymentSnapshot,
-                            $"备份: {op.RelativeTargetPath}",
-                            sourcePackageKey: op.PackageKey,
-                            sourceTransactionId: transaction.Id,
-                            sourceDescription: $"部署事务 {transaction.Id.ToString("N")[..8]} 的备份");
-                    }
-                    catch (Exception ex)
-                    {
-                        // 注册失败不影响部署（备份文件本身已经在磁盘上），但不能一声不吭：
-                        // 没登记上的备份不会进生成物索引，将来的清理与回收都看不见它，
-                        // 排查"备份目录越攒越大"时这条日志是唯一的线索。
-                        _logger.LogWarning(ex, "备份文件登记为生成物失败: {Backup}", op.BackupPath);
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -317,7 +335,7 @@ namespace UEModManager.Services
 
                 if (transaction.Status == DeploymentStatus.Committed)
                 {
-                    ScheduleBackupCleanup();
+                    _ = ScheduleBackupCleanup();
                     RaiseDegradationDetected(transaction);
                 }
             }
@@ -512,24 +530,39 @@ namespace UEModManager.Services
         }
 
         /// <summary>
-        /// 清理旧备份目录（保留最近 N 个终态事务）。
+        /// 按默认保留策略清理旧备份，只把保留次数换成 <paramref name="keepCount"/>。
         /// </summary>
-        public void CleanupOldBackups(int keepCount = 10)
+        public void CleanupOldBackups(int keepCount)
+            => CleanupOldBackups(DeploymentBackupRetentionPolicy.Default with { MaxCount = keepCount }, DateTime.UtcNow);
+
+        /// <summary>
+        /// 清理旧备份目录：只动已结束的事务，按次数 / 时间 / 总量三条上限裁剪，
+        /// 规则见 <see cref="DeploymentBackupRetentionPlanner"/>。新旧备份根一起算。
+        /// </summary>
+        /// <returns>删掉的目录数与释放的字节数。</returns>
+        public (int Directories, long Bytes) CleanupOldBackups(
+            DeploymentBackupRetentionPolicy? policy = null, DateTime? nowUtc = null)
         {
-            if (!Directory.Exists(_backupRootPath)) return;
+            var entries = new List<DeploymentBackupEntry>();
+            foreach (var dir in EnumerateBackupDirectories())
+            {
+                var entry = ProbeBackupDirectory(dir);
+                if (entry != null) entries.Add(entry);
+            }
 
-            var dirs = Directory.GetDirectories(_backupRootPath)
-                .Select(LoadBackupTransaction)
-                .Where(x => x.Transaction != null && IsCleanupSafeStatus(x.Transaction.Status))
-                .OrderByDescending(x => x.Transaction!.CompletedAt ?? Directory.GetCreationTime(x.Directory))
-                .Skip(keepCount)
-                .ToList();
+            var sizes = entries.ToDictionary(e => e.Directory, e => e.SizeBytes, StringComparer.OrdinalIgnoreCase);
+            var deletions = DeploymentBackupRetentionPlanner.PlanDeletions(
+                entries, nowUtc ?? DateTime.UtcNow, policy ?? DeploymentBackupRetentionPolicy.Default);
 
-            foreach (var (dir, _) in dirs)
+            var deleted = 0;
+            long freed = 0;
+            foreach (var dir in deletions)
             {
                 try
                 {
                     Directory.Delete(dir, true);
+                    deleted++;
+                    freed += sizes.GetValueOrDefault(dir);
                     _logger.LogDebug("清理旧备份: {Dir}", dir);
                 }
                 catch (Exception ex)
@@ -537,23 +570,64 @@ namespace UEModManager.Services
                     _logger.LogWarning(ex, "清理备份目录失败: {Dir}", dir);
                 }
             }
+
+            if (deleted > 0)
+                _logger.LogInformation("已清理 {Count} 个旧的部署备份，释放 {MB:F1} MB", deleted, freed / 1048576d);
+            return (deleted, freed);
         }
 
-        private void ScheduleBackupCleanup()
+        /// <summary>
+        /// 把一个备份目录量成保留策略要的条目。
+        /// 事务日志<b>存在但读不出来</b>时返回 null（不参与清理）：
+        /// 那可能正是崩溃恢复要用的目录，宁可多占空间也不能删。
+        /// </summary>
+        private DeploymentBackupEntry? ProbeBackupDirectory(string directory)
         {
-            var previous = PendingBackupCleanup;
-            PendingBackupCleanup = Task.Run(async () =>
+            try
             {
-                try
+                var info = new DirectoryInfo(directory);
+                // 目录联接/符号链接不跟进去：递归删除一个联接会删到别处的文件。
+                if ((info.Attributes & FileAttributes.ReparsePoint) != 0) return null;
+
+                var hasLog = File.Exists(Path.Combine(directory, "transaction.json"));
+                var transaction = hasLog ? LoadBackupTransaction(directory).Transaction : null;
+                if (hasLog && transaction == null) return null;
+
+                var lastActivity = transaction?.CompletedAt?.ToUniversalTime() ?? info.CreationTimeUtc;
+                var size = info.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
+                return new DeploymentBackupEntry(directory, transaction?.Status, lastActivity, size,
+                    HasDurableState: transaction?.StateBefore != null || transaction?.StateAfter != null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "跳过无法读取的备份目录: {Dir}", directory);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 在后台排一次旧备份清理，返回这次清理的任务。所有清理都串在同一条链上，
+        /// 部署提交后的那次与 <see cref="TempCacheJanitor"/> 定时触发的那次不会同时删同一个目录。
+        /// </summary>
+        public Task ScheduleBackupCleanup()
+        {
+            lock (_cleanupChainLock)
+            {
+                var previous = PendingBackupCleanup;
+                PendingBackupCleanup = Task.Run(async () =>
                 {
-                    await previous;
-                    CleanupOldBackups();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "部署提交后清理旧备份失败");
-                }
-            });
+                    try
+                    {
+                        await previous;
+                        CleanupOldBackups();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "清理旧的部署备份失败");
+                    }
+                });
+                return PendingBackupCleanup;
+            }
         }
 
         private (string Directory, DeploymentTransaction? Transaction) LoadBackupTransaction(string directory)
@@ -576,11 +650,6 @@ namespace UEModManager.Services
             }
         }
 
-        private static bool IsCleanupSafeStatus(DeploymentStatus status)
-            => status is DeploymentStatus.Committed
-                or DeploymentStatus.RolledBack
-                or DeploymentStatus.Dismissed;
-
         /// <summary>
         /// 扫描 Backups 目录，加载所有事务历史记录。
         /// </summary>
@@ -588,10 +657,7 @@ namespace UEModManager.Services
         {
             var result = new List<DeploymentTransaction>();
 
-            if (!Directory.Exists(_backupRootPath))
-                return result;
-
-            foreach (var dir in Directory.GetDirectories(_backupRootPath))
+            foreach (var dir in EnumerateBackupDirectories())
             {
                 var logPath = Path.Combine(dir, "transaction.json");
                 if (!File.Exists(logPath)) continue;

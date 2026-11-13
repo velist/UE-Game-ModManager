@@ -375,12 +375,107 @@ namespace UEModManager.Services
                 var json = await File.ReadAllTextAsync(path);
                 _artifacts = JsonConvert.DeserializeObject<List<GeneratedArtifact>>(json) ?? [];
                 _logger.LogInformation("Loaded {Count} overwrite artifacts for {Game}", _artifacts.Count, _currentGame);
+                await PurgeDeploymentSnapshotsLockedAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 BackupCorruptIndexFile(path, ex);
                 _artifacts = [];
             }
+        }
+
+        /// <summary>
+        /// 把老版本登记的「部署快照」从索引里摘掉，并删掉对应文件。
+        ///
+        /// <para>
+        /// 2.1.5 之前每次部署提交都会把事务备份里的文件再复制一份登记进来，从不清理，
+        /// 是系统盘被占满的主因。这些副本没有读取方（回滚用的是事务备份本身），
+        /// 新版本已不再产生，这里负责把存量清掉——每个游戏在第一次被切到时清一次。
+        /// </para>
+        /// 失败只留痕：这条路在游戏切换/启动链路上，清理不掉不能挡住主流程。
+        /// </summary>
+        private async Task PurgeDeploymentSnapshotsLockedAsync()
+        {
+            var snapshots = _artifacts.Where(a => a.Type == GeneratedArtifactType.DeploymentSnapshot).ToList();
+            if (snapshots.Count == 0) return;
+
+            try
+            {
+                foreach (var artifact in snapshots)
+                {
+                    var fullPath = Path.Combine(_overwriteRoot, _currentGame, artifact.RelativePath);
+                    try { if (File.Exists(fullPath)) File.Delete(fullPath); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "删除旧的部署快照失败: {Path}", fullPath); }
+                }
+
+                _artifacts = _artifacts.Where(a => a.Type != GeneratedArtifactType.DeploymentSnapshot).ToList();
+                await SaveIndexLockedAsync().ConfigureAwait(false);
+                _logger.LogInformation("已清掉 {Count} 个旧的部署快照（{Game}），释放 {MB:F1} MB",
+                    snapshots.Count, _currentGame, snapshots.Sum(a => a.FileSize) / 1048576d);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理旧的部署快照失败: {Game}", _currentGame);
+            }
+        }
+
+        /// <summary>把当前游戏索引里残留的部署快照条目摘掉（文件已被删掉时索引不该还列着它们）。</summary>
+        public async Task PurgeDeploymentSnapshotsAsync()
+        {
+            bool changed;
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (string.IsNullOrEmpty(_currentGame)) return;
+                var before = _artifacts.Count;
+                await PurgeDeploymentSnapshotsLockedAsync().ConfigureAwait(false);
+                changed = _artifacts.Count != before;
+            }
+            finally { _gate.Release(); }
+
+            if (changed) ArtifactsChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// 删掉所有游戏下的部署快照目录，返回释放的字节数。不依赖索引，也不需要先切到那个游戏——
+        /// 用户可能很久不打开某个游戏，而它的快照一直占着盘。索引里的对应条目由
+        /// <see cref="PurgeDeploymentSnapshotsLockedAsync"/> 在下次加载时摘掉。
+        /// </summary>
+        public long PurgeDeploymentSnapshotFolders()
+        {
+            long freed = 0;
+            try
+            {
+                if (!Directory.Exists(_overwriteRoot)) return 0;
+                var folderName = GeneratedArtifactType.DeploymentSnapshot.ToString().ToLowerInvariant();
+
+                foreach (var gameDir in Directory.GetDirectories(_overwriteRoot))
+                {
+                    var snapshotDir = new DirectoryInfo(Path.Combine(gameDir, folderName));
+                    if (!snapshotDir.Exists) continue;
+                    // 不跟进目录联接：递归删除会删到别处的文件。
+                    if ((snapshotDir.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+
+                    try
+                    {
+                        var size = snapshotDir.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
+                        snapshotDir.Delete(recursive: true);
+                        freed += size;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "删除旧的部署快照目录失败: {Dir}", snapshotDir.FullName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "扫描旧的部署快照失败: {Root}", _overwriteRoot);
+            }
+
+            if (freed > 0)
+                _logger.LogInformation("已删除旧的部署快照目录，释放 {MB:F1} MB", freed / 1048576d);
+            return freed;
         }
 
         private void BackupCorruptIndexFile(string filePath, Exception loadException)
