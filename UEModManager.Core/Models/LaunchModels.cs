@@ -35,6 +35,30 @@ namespace UEModManager.Models
         Warning
     }
 
+    /// <summary>游戏进程是怎么被拉起来的。</summary>
+    public enum GameLaunchMethod
+    {
+        /// <summary>直接运行游戏的可执行文件。</summary>
+        DirectExecutable,
+        /// <summary>交给 Steam 客户端启动（<c>steam://</c> 链接）。</summary>
+        Steam
+    }
+
+    /// <summary>发出启动动作之后，游戏实际怎么样了。</summary>
+    public enum LaunchOutcome
+    {
+        /// <summary>还没走到启动这一步（前面的检查或部署失败）。</summary>
+        NotStarted,
+        /// <summary>看到游戏进程在运行。</summary>
+        Running,
+        /// <summary>游戏程序刚启动就退出，之后也没有游戏进程出现。</summary>
+        ExitedImmediately,
+        /// <summary>已交给 Steam，但在等待时间内没看到游戏进程（Steam 可能在更新、同步或等玩家确认）。</summary>
+        NotConfirmed,
+        /// <summary>启动动作本身失败（文件打不开、Steam 链接没人接）。</summary>
+        Failed
+    }
+
     /// <summary>
     /// 启动流水线中的单个步骤。
     /// </summary>
@@ -128,6 +152,18 @@ namespace UEModManager.Models
 
         /// <summary>流水线步骤列表。</summary>
         public List<LaunchStep> Steps { get; init; } = [];
+
+        /// <summary>这次用的启动方式。</summary>
+        public GameLaunchMethod LaunchMethod { get; set; }
+
+        /// <summary>经 Steam 启动时用的 appid（从 appmanifest 读出）；否则为 0。</summary>
+        public uint SteamAppId { get; set; }
+
+        /// <summary>游戏实际怎么样了。<see cref="Success"/> 只在它是 <see cref="LaunchOutcome.Running"/> 时为 true。</summary>
+        public LaunchOutcome Outcome { get; set; }
+
+        /// <summary>这款游戏能不能经 Steam 启动（界面据此给出切换启动方式的入口）。</summary>
+        public bool CanUseSteam { get; set; }
 
         /// <summary>是否成功启动。</summary>
         public bool Success { get; set; }

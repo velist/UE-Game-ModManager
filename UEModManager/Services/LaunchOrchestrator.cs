@@ -29,6 +29,8 @@ namespace UEModManager.Services
         private readonly DeploymentService _deployService;
         private readonly ConflictModuleService _conflictModule;
         private readonly string _sessionLogDir;
+        private readonly GameProcessLauncher _processLauncher;
+        private int _launching;
 
         /// <summary>启动步骤进度变化事件。</summary>
         public event Action<LaunchStep>? StepChanged;
@@ -62,6 +64,24 @@ namespace UEModManager.Services
             DeploymentService deployService,
             ConflictModuleService conflictModule,
             string sessionLogDirectory)
+            : this(logger, gameConfig, profileService, viewBuilder, deployPlanner,
+                deployService, conflictModule, sessionLogDirectory,
+                new WindowsGameLaunchPlatform(), LaunchWatchTimings.Default)
+        {
+        }
+
+        /// <summary>测试用：替换掉"起进程 / 看进程 / 等待"这些系统接口，不会真的启动任何程序。</summary>
+        public LaunchOrchestrator(
+            ILogger<LaunchOrchestrator> logger,
+            GameConfigService gameConfig,
+            ProfileService profileService,
+            ResolvedViewBuilder viewBuilder,
+            DeploymentPlanner deployPlanner,
+            DeploymentService deployService,
+            ConflictModuleService conflictModule,
+            string sessionLogDirectory,
+            IGameLaunchPlatform launchPlatform,
+            LaunchWatchTimings watchTimings)
         {
             _logger = logger;
             _gameConfig = gameConfig;
@@ -72,6 +92,7 @@ namespace UEModManager.Services
             _conflictModule = conflictModule;
 
             _sessionLogDir = sessionLogDirectory;
+            _processLauncher = new GameProcessLauncher(logger, launchPlatform, watchTimings);
             AppPaths.TryEnsureDirectory(_sessionLogDir);
         }
 
@@ -95,12 +116,52 @@ namespace UEModManager.Services
         }
 
         /// <summary>
+        /// 当前游戏这一次会怎么启动（经 Steam 还是直接运行 exe）。只读清单、不启动任何东西，界面用它显示启动方式。
+        /// </summary>
+        public GameLaunchPlan ResolveLaunchPlan(LaunchContext? context = null)
+        {
+            context ??= BuildContext();
+            return _processLauncher.ResolvePlan(context, _gameConfig.IsDirectLaunchPreferred(context.GameName));
+        }
+
+        /// <summary>
         /// 执行完整启动流水线。
+        ///
+        /// 同一时刻只跑一条：上一次还在部署或还在等游戏出现时再点，直接返回一个"正在启动"的失败会话，
+        /// 不重复部署、也不重复拉起游戏（该会话不进历史、不落盘）。
         /// </summary>
         public async Task<LaunchSession> LaunchAsync(LaunchContext? context = null)
         {
             context ??= BuildContext();
 
+            if (System.Threading.Interlocked.CompareExchange(ref _launching, 1, 0) != 0)
+            {
+                _logger.LogInformation("Launch request ignored: a launch is already in progress");
+                return new LaunchSession
+                {
+                    GameName = context.GameName,
+                    ProfileName = context.ProfileName,
+                    ExecutablePath = context.ExecutablePath,
+                    Success = false,
+                    FailureReason = LaunchInProgressMessage
+                };
+            }
+
+            try
+            {
+                return await RunPipelineAsync(context);
+            }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref _launching, 0);
+            }
+        }
+
+        /// <summary>重复点击启动时返回的说明。</summary>
+        public const string LaunchInProgressMessage = "游戏正在启动中，请稍等片刻。";
+
+        private async Task<LaunchSession> RunPipelineAsync(LaunchContext context)
+        {
             var session = new LaunchSession
             {
                 GameName = context.GameName,
@@ -133,7 +194,8 @@ namespace UEModManager.Services
                         StepChanged?.Invoke(step);
 
                         session.Success = false;
-                        session.FailureReason = $"步骤「{step.DisplayName}」失败: {step.Message}";
+                        // 启动这一步自己写了给玩家看的原因和下一步，不要盖掉
+                        session.FailureReason ??= $"步骤「{step.DisplayName}」失败: {step.Message}";
                         _logger.LogWarning("Launch aborted at step {Step}: {Message}", step.DisplayName, step.Message);
                         break;
                     }
@@ -157,9 +219,11 @@ namespace UEModManager.Services
                 }
             }
 
-            // 如果所有步骤都通过且有 LaunchProcess 步骤已 Passed，标记成功
-            if (!session.Steps.Any(s => s.Status == LaunchStepStatus.Failed))
-                session.Success = true;
+            // 只有确实看到游戏在运行才算成功：进程起来又秒退、交给 Steam 后迟迟不见游戏，都不是成功。
+            session.Success = session.Outcome == LaunchOutcome.Running
+                              && !session.Steps.Any(s => s.Status == LaunchStepStatus.Failed);
+            if (!session.Success && string.IsNullOrEmpty(session.FailureReason))
+                session.FailureReason = "游戏没有启动起来";
 
             // 记录会话
             LastSession = session;
@@ -169,7 +233,10 @@ namespace UEModManager.Services
             await SaveSessionAsync(session);
 
             _logger.LogInformation("Launch session {Id}: {Result}",
-                session.Id, session.Success ? "SUCCESS" : $"FAILED - {session.FailureReason}");
+                session.Id,
+                session.Success ? "SUCCESS"
+                    : session.Outcome == LaunchOutcome.NotConfirmed ? $"UNCONFIRMED - {session.FailureReason}"
+                    : $"FAILED - {session.FailureReason}");
 
             return session;
         }
@@ -195,7 +262,7 @@ namespace UEModManager.Services
                 LaunchStepType.BuildResolvedView => await BuildView(step, context, session, preparation),
                 LaunchStepType.Deploy => await DeployIfNeeded(step, preparation),
                 LaunchStepType.ConflictCheck => await CheckConflicts(step, context),
-                LaunchStepType.LaunchProcess => LaunchProcess(step, context, session),
+                LaunchStepType.LaunchProcess => await LaunchProcessAsync(step, context, session),
                 _ => true
             };
         }
@@ -286,40 +353,49 @@ namespace UEModManager.Services
             return eval.Passed;
         }
 
-        private bool LaunchProcess(LaunchStep step, LaunchContext context, LaunchSession session)
+        /// <summary>
+        /// 拉起游戏并确认它真的在运行。
+        ///
+        /// 此前这里直接 Process.Start 游戏 exe，只要拿到进程对象就记成功。装在 Steam 里的游戏被直接运行时，
+        /// Steam 客户端会接管（弹回 Steam、甚至重启 Steam），那个进程随即退出，游戏并没有出现 ——
+        /// 而管理器仍然显示"启动成功"。现在装在 Steam 库里的游戏默认交给 Steam 启动，并且看到游戏进程才算成功。
+        /// </summary>
+        private async Task<bool> LaunchProcessAsync(LaunchStep step, LaunchContext context, LaunchSession session)
         {
-            try
+            var preferDirect = _gameConfig.IsDirectLaunchPreferred(context.GameName);
+            var result = await _processLauncher.LaunchAsync(context, preferDirect, message =>
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = context.ExecutablePath,
-                    WorkingDirectory = context.WorkingDirectory,
-                    UseShellExecute = true
-                };
+                step.Message = message;
+                StepChanged?.Invoke(step);
+            });
 
-                if (!string.IsNullOrEmpty(context.LaunchArguments))
-                    psi.Arguments = context.LaunchArguments;
+            session.LaunchMethod = result.Plan.Method;
+            session.SteamAppId = result.Plan.Method == GameLaunchMethod.Steam ? result.Plan.SteamAppId : 0;
+            session.CanUseSteam = result.Plan.CanUseSteam;
+            session.Outcome = result.Outcome;
+            session.ProcessId = result.ProcessId;
 
-                foreach (var (key, value) in context.EnvironmentVariables)
-                    psi.Environment[key] = value;
-
-                var process = Process.Start(psi);
-                if (process != null)
-                {
-                    session.ProcessId = process.Id;
-                    step.Message = $"PID {process.Id}";
-                    _logger.LogInformation("Game launched: PID {Pid}, {Path}", process.Id, context.ExecutablePath);
-                    return true;
-                }
-
-                step.Message = "进程启动返回 null";
-                return false;
-            }
-            catch (Exception ex)
+            var text = LaunchOutcomeText.Describe(result.Outcome, result.Plan.Method, result.Plan.CanUseSteam);
+            if (result.Outcome == LaunchOutcome.Running)
             {
-                step.Message = ex.Message;
-                return false;
+                step.Message = result.Plan.Method == GameLaunchMethod.Steam
+                    ? $"Steam AppID {result.Plan.SteamAppId}"
+                    : $"PID {result.ProcessId}";
+                return true;
             }
+
+            step.Message = string.IsNullOrEmpty(result.Error) ? text.Title : result.Error;
+            session.FailureReason = string.IsNullOrEmpty(result.Error)
+                ? $"{text.Title}：{text.Detail}"
+                : $"{text.Title}：{result.Error}";
+
+            // "没确认"不是失败：游戏很可能稍后就出现，步骤标成警告而不是红叉。
+            if (result.Outcome == LaunchOutcome.NotConfirmed)
+            {
+                step.Status = LaunchStepStatus.Warning;
+                return true;
+            }
+            return false;
         }
 
         // ─── 辅助 ───

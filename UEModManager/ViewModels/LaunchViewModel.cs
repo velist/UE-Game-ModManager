@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.Launch;
 
 namespace UEModManager.ViewModels
 {
@@ -71,6 +72,17 @@ namespace UEModManager.ViewModels
         [ObservableProperty]
         private string _conflictPreCheckError = string.Empty;
 
+        /// <summary>这次会怎么启动（"通过 Steam 启动" / "直接运行游戏程序"），给玩家看的一句话。</summary>
+        [ObservableProperty]
+        private string _launchMethodInfo = "";
+
+        /// <summary>切换启动方式的链接文字；这款游戏不能经 Steam 启动时为空串（界面隐藏入口）。</summary>
+        [ObservableProperty]
+        private string _switchLaunchMethodText = "";
+
+        /// <summary>最近一次启动的结论给出的可代办下一步。</summary>
+        public LaunchAdvice LastAdvice { get; private set; } = LaunchAdvice.None;
+
         public LaunchViewModel(
             LaunchOrchestrator launcher,
             ProfileService profileService,
@@ -110,7 +122,7 @@ namespace UEModManager.ViewModels
                     : ago.TotalHours < 24
                         ? UiText.Interpolate($"上次启动 {(int)ago.TotalHours} 小时前")
                         : UiText.Interpolate($"上次启动 {last.LaunchedAt:MM/dd HH:mm}");
-                LastEventInfo = last.Success ? UiText.Get("无异常") : last.FailureReason ?? UiText.Get("启动失败");
+                LastEventInfo = last.Success ? UiText.Get("无异常") : ShortFailure(last);
             }
             else
             {
@@ -118,7 +130,60 @@ namespace UEModManager.ViewModels
             }
 
             BuildPreCheckSteps();
+            RefreshLaunchMethod();
         }
+
+        /// <summary>
+        /// 重新判断这款游戏会怎么启动，并更新界面上的说明与切换入口。
+        /// 只读 Steam 清单，不启动任何东西；读不出来就按"直接运行"显示。
+        /// </summary>
+        public void RefreshLaunchMethod()
+        {
+            try
+            {
+                var plan = _launcher.ResolveLaunchPlan();
+                LaunchMethodInfo = plan.Method == GameLaunchMethod.Steam
+                    ? UiText.Get("启动方式：通过 Steam 启动")
+                    : UiText.Get("启动方式：直接运行游戏程序");
+                SwitchLaunchMethodText = !plan.CanUseSteam
+                    ? ""
+                    : plan.Method == GameLaunchMethod.Steam
+                        ? UiText.Get("改为直接运行游戏程序")
+                        : UiText.Get("改为通过 Steam 启动");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "判断启动方式失败");
+                LaunchMethodInfo = UiText.Get("启动方式：直接运行游戏程序");
+                SwitchLaunchMethodText = "";
+            }
+        }
+
+        /// <summary>在「通过 Steam 启动」与「直接运行游戏程序」之间切换，并记住这款游戏的选择。</summary>
+        public async Task ToggleLaunchMethodAsync()
+        {
+            if (IsLaunching) return;
+            await _gameConfig.SetDirectLaunchPreferredAsync(
+                GameName, !_gameConfig.IsDirectLaunchPreferred(GameName));
+            RefreshLaunchMethod();
+        }
+
+        /// <summary>按建议切换启动方式（失败提示里的"一键改用另一种方式"）。</summary>
+        public async Task ApplyAdviceAsync(LaunchAdvice advice)
+        {
+            if (advice == LaunchAdvice.None) return;
+            await _gameConfig.SetDirectLaunchPreferredAsync(GameName, advice == LaunchAdvice.SwitchToDirect);
+            RefreshLaunchMethod();
+        }
+
+        private static LaunchOutcomeMessage OutcomeMessage(LaunchSession session)
+            => LaunchOutcomeText.Describe(session.Outcome, session.LaunchMethod, session.CanUseSteam);
+
+        /// <summary>底部状态栏放得下的一句失败说明。</summary>
+        private static string ShortFailure(LaunchSession session)
+            => session.Outcome == LaunchOutcome.NotStarted
+                ? session.FailureReason ?? UiText.Get("启动失败")
+                : UiText.Get(OutcomeMessage(session).Title);
 
         private void BuildPreCheckSteps()
         {
@@ -229,7 +294,10 @@ namespace UEModManager.ViewModels
 
             IsLaunching = true;
             CanLaunch = false;
+            LastAdvice = LaunchAdvice.None;
             StatusTitle = UiText.Get("正在启动...");
+            // 上一次失败的说明不要留到这一次
+            StatusSubtitle = "";
 
             try
             {
@@ -241,8 +309,21 @@ namespace UEModManager.ViewModels
                 if (session.Success)
                 {
                     StatusTitle = UiText.Get("启动成功");
-                    StatusSubtitle = $"PID: {session.ProcessId}";
+                    StatusSubtitle = session.LaunchMethod == GameLaunchMethod.Steam
+                        ? UiText.Get("游戏已通过 Steam 启动")
+                        : $"PID: {session.ProcessId}";
                     LastEventInfo = UiText.Get("无异常");
+                }
+                else if (session.Outcome != LaunchOutcome.NotStarted)
+                {
+                    // 走到了"启动游戏"这一步但游戏没起来：给玩家看发生了什么、下一步怎么办
+                    var message = OutcomeMessage(session);
+                    StatusTitle = UiText.Get(message.Title);
+                    StatusSubtitle = session.Outcome == LaunchOutcome.Failed && !string.IsNullOrEmpty(session.FailureReason)
+                        ? session.FailureReason
+                        : UiText.Get(message.Detail);
+                    LastEventInfo = UiText.Get(message.Title);
+                    LastAdvice = message.Advice;
                 }
                 else
                 {
@@ -305,6 +386,11 @@ namespace UEModManager.ViewModels
 
                 if (step.Status == LaunchStepStatus.Running)
                     StatusTitle = UiText.Interpolate($"正在{step.DisplayName}...");
+
+                // 等游戏出现可能要几十秒：把"现在在等什么"写在标题下面，免得玩家以为卡住了又去点
+                if (step.Type == LaunchStepType.LaunchProcess && step.Status == LaunchStepStatus.Running
+                    && !string.IsNullOrEmpty(step.Message))
+                    StatusSubtitle = UiText.Get(step.Message);
             });
         }
     }

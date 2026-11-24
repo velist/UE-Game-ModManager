@@ -508,6 +508,7 @@ namespace UEModManager.Services
             var oldPluginPaths = Config.PluginPaths == null
                 ? null
                 : new Dictionary<string, string>(Config.PluginPaths);
+            var oldDirectLaunch = new List<string>(Config.DirectLaunchGames ?? new List<string>());
 
             try
             {
@@ -516,6 +517,7 @@ namespace UEModManager.Services
                 RemoveGameMetadata(Config.GameIcons, existing);
                 RemoveGameMetadata(Config.GameEngines, existing);
                 RemoveGameMetadata(Config.PluginPaths, existing);
+                Config.DirectLaunchGames?.RemoveAll(game => SameGame(game, existing));
                 await SaveConfigAsync();
                 ConfigChanged?.Invoke();
                 _logger.LogInformation("已移除自定义游戏: {Name}", existing);
@@ -527,9 +529,45 @@ namespace UEModManager.Services
                 Config.GameIcons = oldIcons ?? new Dictionary<string, string>();
                 Config.GameEngines = oldEngines ?? new Dictionary<string, string>();
                 Config.PluginPaths = oldPluginPaths ?? new Dictionary<string, string>();
+                Config.DirectLaunchGames = oldDirectLaunch;
                 throw;
             }
         }
+
+        /// <summary>
+        /// 玩家是否为这款游戏选了「直接运行游戏程序」（不经过 Steam）。
+        /// </summary>
+        public bool IsDirectLaunchPreferred(string gameName)
+            => !string.IsNullOrWhiteSpace(gameName)
+               && Config.DirectLaunchGames != null
+               && Config.DirectLaunchGames.Any(game => SameGame(game, gameName));
+
+        /// <summary>
+        /// 记住这款游戏的启动方式选择并落盘。写盘失败时内存里的选择回滚并上抛。
+        /// </summary>
+        public async Task SetDirectLaunchPreferredAsync(string gameName, bool preferDirect)
+        {
+            if (string.IsNullOrWhiteSpace(gameName)) return;
+            if (IsDirectLaunchPreferred(gameName) == preferDirect) return;
+
+            var old = new List<string>(Config.DirectLaunchGames ?? new List<string>());
+            Config.DirectLaunchGames ??= new List<string>();
+            Config.DirectLaunchGames.RemoveAll(game => SameGame(game, gameName));
+            if (preferDirect) Config.DirectLaunchGames.Add(gameName.Trim());
+
+            try
+            {
+                await SaveConfigAsync();
+            }
+            catch
+            {
+                Config.DirectLaunchGames = old;
+                throw;
+            }
+        }
+
+        private static bool SameGame(string? left, string? right)
+            => string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// 自动检测游戏可执行文件，返回文件名（不含目录）。
