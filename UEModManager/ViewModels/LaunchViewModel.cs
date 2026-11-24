@@ -296,6 +296,8 @@ namespace UEModManager.ViewModels
             CanLaunch = false;
             LastAdvice = LaunchAdvice.None;
             StatusTitle = UiText.Get("正在启动...");
+            // 上一次失败的说明不要留到这一次
+            StatusSubtitle = "";
 
             try
             {

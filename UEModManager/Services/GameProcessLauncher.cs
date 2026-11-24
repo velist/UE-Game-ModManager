@@ -113,8 +113,10 @@ namespace UEModManager.Services
                 if (plan.Method == GameLaunchMethod.DirectExecutable && !starterAlive)
                     starterExitedAt ??= elapsed;
 
-                // 启动的那个进程还活着时不必枚举全部进程
-                var seen = !starterAlive && AnyGameProcess(gameDirectory, executableName, starter?.Id);
+                // 启动的那个进程还活着时不必枚举全部进程；枚举放到后台线程，等待期间界面不卡
+                var starterId = starter?.Id;
+                var seen = !starterAlive
+                           && await Task.Run(() => AnyGameProcess(gameDirectory, executableName, starterId));
 
                 var decision = LaunchWatchPolicy.Decide(
                     new LaunchWatchSnapshot(

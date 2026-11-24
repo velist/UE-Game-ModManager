@@ -183,7 +183,7 @@ namespace UEModManager.Services
                 get
                 {
                     try { return _process.HasExited; }
-                    // 提权的游戏进程：管理器没权限查它的状态，说明它还在（退出的进程不会拒绝访问）
+                    // 提权的游戏进程：管理器没权限查它的状态。按"还在运行"处理，免得把正常启动的游戏报成秒退
                     catch (Exception) { return false; }
                 }
             }
