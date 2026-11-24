@@ -75,4 +75,17 @@ public class EngineAnchorTests
 
         Assert.False(ArchiveImportUnitResolver.LooksLikeSingleModLayout(units, ReAnchors));
     }
+
+    [Theory]
+    [InlineData("bepinex", "BepInEx")]
+    [InlineData("wtf", "WTF")]
+    [InlineData("natives", "Natives")]
+    [InlineData("reframework", "REFramework")]
+    public void 引擎锚点不分大小写_档案登记小写而磁盘目录大小写混用(string registered, string onDisk)
+    {
+        // 默认比较器（区分大小写）的集合，与 EngineProfile.InstallAnchors 的实际形态一致
+        IReadOnlySet<string> anchors = new HashSet<string> { registered };
+
+        Assert.True(ArchiveTargetPathResolver.IsInstallAnchor(onDisk, anchors));
+    }
 }

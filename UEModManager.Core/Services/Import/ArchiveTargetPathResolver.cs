@@ -246,8 +246,19 @@ namespace UEModManager.Services.Import
         /// <paramref name="extraAnchors"/> 是引擎自己的锚点（见 <c>EngineProfile.InstallAnchors</c>）。
         /// </summary>
         public static bool IsInstallAnchor(string? directoryName, IReadOnlySet<string>? extraAnchors = null)
-            => !string.IsNullOrEmpty(directoryName)
-               && (InstallAnchors.Contains(directoryName) || extraAnchors?.Contains(directoryName) == true);
+        {
+            if (string.IsNullOrEmpty(directoryName)) return false;
+            if (InstallAnchors.Contains(directoryName)) return true;
+            if (extraAnchors == null) return false;
+
+            // 引擎锚点一律不分大小写地比，不依赖传进来的集合用的是什么比较器：
+            // 引擎档案里登记的是小写（bepinex、wtf），而磁盘上的目录叫 BepInEx、WTF。
+            foreach (var anchor in extraAnchors)
+            {
+                if (string.Equals(anchor, directoryName, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
 
         private static string[] Split(string path)
             => path.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
