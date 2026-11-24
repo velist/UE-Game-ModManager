@@ -12,6 +12,7 @@ using UEModManager.Models;
 using UEModManager.Services.Conflict;
 using UEModManager.Services.Detection;
 using UEModManager.Services.Import;
+using UEModManager.Services.InstallLayout;
 using UEModManager.Services.Security;
 using UEModManager.Localization;
 using IOPath = System.IO.Path;
@@ -27,6 +28,12 @@ namespace UEModManager.Services
         public Package? Package { get; init; }
         public string? ErrorMessage { get; init; }
         public List<PackageArtifact> Artifacts { get; init; } = [];
+
+        /// <summary>
+        /// 导入成功、但这个包装不到游戏会读取的位置时的说明（可直接展示给玩家）。
+        /// 以前这类包照样显示「导入成功 / 部署成功」，玩家只看到 MOD 不生效。
+        /// </summary>
+        public string? Warning { get; init; }
     }
 
     /// <summary>
@@ -95,6 +102,14 @@ namespace UEModManager.Services
         /// 当前引擎配置。
         /// </summary>
         private EngineProfile EngineConfig => EngineProfile.Get(_gameConfig.CurrentEngineType);
+
+        /// <summary>
+        /// 安装锚点目录名 = 引擎的 + 当前游戏的（影之刃零的 platform、UE 的 ue4ss）。
+        /// 少了游戏那部分，<c>platform/steam/ue4ss/…</c> 的 platform 会被当成包装目录剥掉，
+        /// 文件落到 <c>steam/ue4ss/…</c>，游戏永远读不到。
+        /// </summary>
+        private IReadOnlySet<string> InstallAnchors
+            => _gameConfig.CurrentInstallLayoutRules.AnchorNames(EngineConfig.InstallAnchors);
 
         // ─── 主导入入口 ───
 
@@ -571,15 +586,30 @@ namespace UEModManager.Services
                     ? files.Select(f => ArchiveTargetPathResolver.ResolveRelativePath(f, tempDir)).ToList()
                     : files.Select(IOPath.GetFileName).ToList();
                 var commonPrefix = keepDirectoryStructure
-                    ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths, EngineConfig.InstallAnchors)
+                    ? ArchiveTargetPathResolver.StripCommonPrefix(relativePaths, InstallAnchors)
                     : string.Empty;
+                // 共有的那层目录如果正是脚本 MOD 文件夹本身（X/Scripts/main.lua 的 X），它是 MOD 名而不是包装：
+                // 剥掉后只剩 Scripts/main.lua，再也不知道该装进 ue4ss/Mods 下的哪个文件夹。
+                if (commonPrefix.Length > 0
+                    && InstallLayoutNormalizer.ScriptModFolders(relativePaths, _gameConfig.CurrentInstallLayoutRules)
+                        .Contains(commonPrefix, StringComparer.OrdinalIgnoreCase))
+                    commonPrefix = string.Empty;
 
-                foreach (var file in files)
-                {
-                    var relativePath = keepDirectoryStructure
+                IReadOnlyList<string> targetPaths = files
+                    .Select(file => keepDirectoryStructure
                         ? ArchiveTargetPathResolver.Resolve(file, tempDir, true, commonPrefix)
-                        : IOPath.GetFileName(file);
-                    relativePath = ArchiveTargetPathResolver.NormalizeGameRelativePath(relativePath);
+                        : IOPath.GetFileName(file))
+                    .ToList();
+                // 归位到「相对插件根」的安装位置：剥掉游戏本体目录及之前的层级、ue4ss 之前的包装目录，
+                // 散装的 UE4SS MOD 文件夹收进 ue4ss/Mods/。玩家自己填了安装子目录时位置由玩家定，不动。
+                var layoutRules = _gameConfig.CurrentInstallLayoutRules;
+                if (keepDirectoryStructure && package.TargetRootPath == null)
+                    targetPaths = InstallLayoutNormalizer.Normalize(targetPaths, layoutRules);
+
+                for (var fileIndex = 0; fileIndex < files.Count; fileIndex++)
+                {
+                    var file = files[fileIndex];
+                    var relativePath = ArchiveTargetPathResolver.NormalizeGameRelativePath(targetPaths[fileIndex]);
                     if (string.IsNullOrWhiteSpace(relativePath)) continue;
 
                     var (relPath, hash, size) = await _objectStore.StoreFileAsync(packageName, file, relativePath);
@@ -596,7 +626,9 @@ namespace UEModManager.Services
                         FileName = IOPath.GetFileName(file),
                         FileSize = size,
                         FileHash = hash,
-                        ArtifactType = DetectArtifactType(file),
+                        // 安装树里的图片是 MOD 的资源，不是预览图：记成预览图部署时会被整批跳过。
+                        ArtifactType = InstallLayoutNormalizer.EffectiveArtifactType(
+                            DetectArtifactType(file), relativePath, keepDirectoryStructure),
                     });
                 }
 
@@ -631,7 +663,11 @@ namespace UEModManager.Services
                 await _repository.RegisterPackageAsync(package);
                 PackageImported?.Invoke(package);
 
-                return new PackageImportResult { Success = true, Package = package };
+                return new PackageImportResult
+                {
+                    Success = true, Package = package,
+                    Warning = InstallPlacementText.Describe(InstallPlacementAnalyzer.Analyze(package, layoutRules))
+                };
             });
         }
 
@@ -672,7 +708,11 @@ namespace UEModManager.Services
                 await _repository.RegisterPackageAsync(package);
                 PackageImported?.Invoke(package);
 
-                return new PackageImportResult { Success = true, Package = package };
+                return new PackageImportResult
+                {
+                    Success = true, Package = package,
+                    Warning = InstallPlacementText.Describe(InstallPlacementAnalyzer.Analyze(package, _gameConfig.CurrentInstallLayoutRules))
+                };
             });
         }
 
@@ -750,7 +790,7 @@ namespace UEModManager.Services
             // 而是"这一个 MOD 自带游戏目录层级"（用户单独拖入解压后的「超级识破」文件夹，
             // 或压缩包内容直接是 b1\Binaries\...）。退回单单元，用压缩包名 / 文件夹名命名，
             // 否则包名会变成 b1，第二个这样的 MOD 变成 b1_2，真名全丢。
-            if (multiUnit && ArchiveImportUnitResolver.LooksLikeSingleModLayout(units, EngineConfig.InstallAnchors))
+            if (multiUnit && ArchiveImportUnitResolver.LooksLikeSingleModLayout(units, InstallAnchors))
             {
                 _logger.LogWarning(
                     "导入 {Name}: 顶层目录 {Units} 命中安装锚点，按「整个输入就是一个 MOD」处理，" +
@@ -809,10 +849,15 @@ namespace UEModManager.Services
             // 安装锚点名录是现成的判据 —— 与 ArchiveImportUnitResolver 判断
             // "这一层是包装还是安装位置"用的是同一套词汇。
             var wrapped = topLevelDirectories.Count == 1
-                && !ArchiveTargetPathResolver.IsInstallAnchor(topLevelDirectories[0], EngineConfig.InstallAnchors);
+                && !ArchiveTargetPathResolver.IsInstallAnchor(topLevelDirectories[0], InstallAnchors);
+            // 脚本 MOD 文件夹（X/Scripts/main.lua 的 X）里的 txt 不是说明：enabled.txt 是 UE4SS 的启用标记，
+            // 丢了它 MOD 根本不会被加载；points.txt 这类是 MOD 自己的数据。
+            var scriptModFolders = InstallLayoutNormalizer.ScriptModFolders(
+                unitFiles.Select(f => Path.GetRelativePath(rootDirectory, f)), _gameConfig.CurrentInstallLayoutRules);
             var attachments = unitFiles
                 .Where(f => SharedComponentClassifier.IsAttachment(
                     Path.GetRelativePath(rootDirectory, f), wrapped))
+                .Where(f => !InstallLayoutNormalizer.IsInsideAny(Path.GetRelativePath(rootDirectory, f), scriptModFolders))
                 .ToList();
             if (attachments.Count > 0)
             {

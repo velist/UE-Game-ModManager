@@ -253,6 +253,9 @@ namespace UEModManager
                 // Phase 11: 启动时健康检查（结果写入日志）
                 await LogHealthReportAsync();
 
+                // 老版本把插件装进了游戏不会读取的目录（影之刃零）：发现了就问一句，点一下自动挪到位
+                await OfferInstallPlacementRepairAsync();
+
                 // 匿名统计：先告知（只在从没问过时弹一次），再开始心跳。
                 // 排在最后一位是有意的——崩溃恢复和数据搬迁是用户真的需要处理的事，
                 // 统计是我们的需求，不该抢在它们前面占用户的注意力。
@@ -533,6 +536,48 @@ namespace UEModManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[Health] 健康检查失败");
+            }
+        }
+
+        /// <summary>
+        /// 已装的文件不在游戏会读取的位置时，给玩家一个按钮直接修好。
+        ///
+        /// 修复就是按当前方案重新部署一次：管理器记着自己装过哪些文件，会先把装错位置的那些撤掉
+        /// （内容被改过的不会删），再按正确位置装回去。玩家不需要自己去游戏目录里找文件清理。
+        /// </summary>
+        private async Task OfferInstallPlacementRepairAsync()
+        {
+            if (_healthCheck == null) return;
+            try
+            {
+                var report = await _healthCheck.CheckInstallPlacementAsync();
+                if (!report.Drift.HasDrift) return;
+
+                var names = string.Join("、", report.Drift.PackageKeys.Take(3));
+                if (report.Drift.PackageKeys.Count > 3) names += UiText.Interpolate($" 等 {report.Drift.PackageKeys.Count} 个");
+                var message = UiText.Interpolate($"发现 {report.Drift.Misplaced.Count} 个 MOD 文件装在了游戏不会读取的位置，所以这些 MOD 在游戏里不生效：{names}")
+                    + Environment.NewLine + Environment.NewLine
+                    + UiText.Get("这是旧版本的问题，现在可以自动修好：管理器会把这些文件挪到正确的位置，不需要你重新导入。");
+                if (CyberMessageBox.Show(this, message, UiText.Get("MOD 装错了位置"),
+                        MessageBoxButton.YesNo, MessageBoxImage.Warning, yesText: "立即修复（推荐）", noText: "以后再说")
+                    != MessageBoxResult.Yes)
+                    return;
+
+                var result = await _vm.RedeployCurrentProfileAsync(UiText.Get("正在修复 MOD 位置..."));
+                if (result.Success)
+                {
+                    _logger?.LogInformation("[Health] 已把 {Count} 个装错位置的文件挪到正确位置", report.Drift.Misplaced.Count);
+                    ShowToast(UiText.Get("已修复，重新启动游戏即可生效"));
+                }
+                else if (!result.IsCancelled)
+                {
+                    CyberMessageBox.Show(this, result.Error ?? OperationResult.DefaultError, UiText.Get("修复没有完成"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "[Health] 修复安装位置失败");
             }
         }
 

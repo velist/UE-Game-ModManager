@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.InstallLayout;
 
 namespace UEModManager.Models
 {
@@ -71,6 +72,27 @@ namespace UEModManager.Models
         public IReadOnlyDictionary<string, string> LoosePayloadRoots { get; init; }
             = new Dictionary<string, string>();
 
+        /// <summary>
+        /// 加载器的安装约定（相对「插件根」= 游戏本体所在目录）：UE 的 UE4SS 目录叫什么、
+        /// 脚本 MOD 文件夹放哪、怎么认出一个散装的脚本 MOD 文件夹、哪些配置游戏只读一份。
+        /// 游戏自己的本体目录锚点由 <c>GameConfigService.GetInstallLayout</c> 再补进去。
+        /// </summary>
+        public InstallLayoutRules InstallLayout { get; init; } = InstallLayoutRules.Empty;
+
+        /// <summary>
+        /// UE 游戏的加载器约定。UE4SS（3.x 起的目录结构）整个装在游戏本体旁边：
+        /// 代理 DLL（dwmapi.dll）与 <c>ue4ss/</c> 并列，脚本 MOD 在 <c>ue4ss/Mods/{MOD名}/</c>，
+        /// Lua MOD 的入口是 <c>Scripts/main.lua</c>，C++ MOD 的入口是 <c>dlls/main.dll</c>。
+        /// </summary>
+        public static readonly InstallLayoutRules UnrealInstallLayout = new()
+        {
+            LoaderDirectories = ["ue4ss"],
+            ScriptModsDirectory = @"ue4ss\Mods",
+            ScriptModMarkers = ["Scripts/main.lua", "dlls/main.dll"],
+            LoaderScriptExtensions = [".lua"],
+            SingletonConfigFileNames = ["Engine.ini", "Scalability.ini", "GameUserSettings.ini", "Game.ini", "Input.ini"],
+        };
+
         /// <summary>文件选择对话框过滤器字符串。</summary>
         public string FileDialogFilter { get; init; } = string.Empty;
 
@@ -125,6 +147,7 @@ namespace UEModManager.Models
                 DefaultModPathPatterns = new[] { "Content/Paks/~mods", "Content/Paks/Mods" },
                 ConflictStrategy = ConflictStrategy.ContainerAssets,
                 SharedComponentRules = UnrealSharedComponentRules,
+                InstallLayout = UnrealInstallLayout,
                 GroupPriorityExtensions = new[] { ".pak", ".utoc", ".ucas" }
             },
 

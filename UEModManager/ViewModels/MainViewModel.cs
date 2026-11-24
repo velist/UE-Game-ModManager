@@ -660,12 +660,21 @@ namespace UEModManager.ViewModels
         /// 用户把 A 设为胜者后，B 的文件仍在游戏目录里，光靠单包开关永远清不掉。
         /// 这里用完整视图重算，让败者条目按托管归属被移除、胜者条目被写入。
         /// </summary>
-        public async Task<OperationResult> RedeployCurrentProfileAsync()
+        /// <param name="busyText">进行中的提示文字；默认是冲突面板的「应用冲突选择...」。</param>
+        public async Task<OperationResult> RedeployCurrentProfileAsync(string? busyText = null)
         {
-            using var loading = BeginLoading(UiText.Get("应用冲突选择..."));
+            using var loading = BeginLoading(busyText ?? UiText.Get("应用冲突选择..."));
             try
             {
-                var plan = await _deploymentPlanner.CreatePlanAsync();
+                DeploymentPlan plan;
+                try
+                {
+                    plan = await _deploymentPlanner.CreatePlanAsync();
+                }
+                catch (ExternallyModifiedFilesException ex) when (ConfirmReleaseModifiedFiles?.Invoke(ex.Paths) == true)
+                {
+                    plan = await _deploymentPlanner.CreatePlanAsync(releaseExternallyModified: true);
+                }
                 if (!plan.HasChanges)
                 {
                     _logger.LogInformation("[Conflict] 部署已与当前方案一致，无需变更");

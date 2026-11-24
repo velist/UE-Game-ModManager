@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Models;
 using UEModManager.Services.Config;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.InstallLayout;
 using UEModManager.Services.ResolvedViews;
 using UEModManager.Services.Security;
 
@@ -47,12 +48,28 @@ public class ResolvedViewBuilder
     public async Task<ResolvedView> BuildForProfileAsync(InstanceProfile profile)
     {
         var modPath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentModPath);
-        var gamePath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentGamePath);
+        // 部署清单的身份仍按「游戏路径 + MOD 路径」算（configuredGamePath）；
+        // 插件 / 配置包的落盘基准是游戏本体所在目录（gamePath），两者只在启动壳与本体分开的游戏上不同。
+        var configuredGamePath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentGamePath);
+        var gamePath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentPluginRootPath);
         if (string.IsNullOrEmpty(modPath)) throw new InvalidOperationException("游戏 MOD 路径未配置");
         if (!string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("方案所属游戏与当前游戏不匹配");
 
-        var packages = _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase);
+        // 部署前把包内路径归位一遍（规则与导入时同一套）：老版本入库的包带着
+        // PBZ\platform\steam\ue4ss\… 这类多余层级，不必重新导入也能落到游戏会读的位置。
+        var rules = _gameConfig.CurrentInstallLayoutRules;
+        var packages = InstallLayoutNormalizer.NormalizePackages(
+            _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase), profile, rules);
+        // 装不到有效位置的包（多选一的配置方案）不落盘：铺进游戏目录只会留下一堆游戏不读的文件，
+        // 还让界面显示「部署成功」。原因由体检与导入结果告诉玩家。
+        foreach (var issue in PlacementIssues(profile, packages, rules)
+                     .Where(issue => issue.Kind == PlacementIssueKind.ChoiceVariants))
+        {
+            _logger.LogWarning("包 {Key} 是多选一的配置方案（{Variants}），无法自动判断该装哪一套，本次不部署",
+                issue.PackageKey, string.Join(" / ", issue.Variants));
+            packages[issue.PackageKey] = InstallLayoutNormalizer.WithoutArtifacts(packages[issue.PackageKey]);
+        }
         var overrides = ConflictOverridePaths.Resolve(profile.ConflictOverrides, modPath, gamePath);
         // Candidate collection MUST precede winner selection. Equal logical MOD names still have distinct destinations.
         var candidates = ResolvedViewLayerBuilder.BuildDeploymentCandidates(profile, packages, _packageRepo.Store, modPath, gamePath);
@@ -152,12 +169,56 @@ public class ResolvedViewBuilder
         var view = new ResolvedView
         {
             HostGameName = profile.HostGameName, ProfileId = profile.Id, ProfileName = profile.Name,
-            GameRootPath = gamePath, ModRootPath = modPath, Entries = files,
+            GameRootPath = configuredGamePath, PluginRootPath = gamePath, ModRootPath = modPath, Entries = files,
             ConfigMergeResults = configResults, Conflicts = conflicts, ViewHash = ResolvedView.ComputeViewHash(files)
         };
         _logger.LogInformation("Resolved view: {Files} files, {Merges} configuration merges, hash={Hash}", files.Count, configResults.Count, view.ViewHash);
         return view;
     }
+
+    /// <summary>
+    /// 当前方案的安装落位概况：每个文件按现行规则该装在哪、哪些包装不到有效位置。
+    /// 只算路径，不读也不哈希任何文件（体检在启动时跑，不能为此去读几百 MB 的 pak）。
+    /// </summary>
+    public InstallPlacementSnapshot DescribePlacement()
+    {
+        var profile = _profileService.CurrentProfile;
+        var modPath = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentModPath);
+        var pluginRoot = DeploymentStateStore.NormalizeRoot(_gameConfig.CurrentPluginRootPath);
+        if (profile == null || string.IsNullOrEmpty(modPath) || string.IsNullOrEmpty(pluginRoot)
+            || !string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
+            return new InstallPlacementSnapshot([], []);
+
+        var rules = _gameConfig.CurrentInstallLayoutRules;
+        var packages = InstallLayoutNormalizer.NormalizePackages(
+            _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase), profile, rules);
+        var issues = PlacementIssues(profile, packages, rules);
+        foreach (var issue in issues.Where(issue => issue.Kind == PlacementIssueKind.ChoiceVariants))
+            packages[issue.PackageKey] = InstallLayoutNormalizer.WithoutArtifacts(packages[issue.PackageKey]);
+
+        // 方案里引用了仓库里已经没有的包时，候选构建会抛；体检只描述现状，跳过它们。
+        var known = new InstanceProfile
+        {
+            Id = profile.Id, HostGameName = profile.HostGameName, Name = profile.Name,
+            Packages = profile.Packages.Where(p => packages.ContainsKey(p.PackageKey)).ToList()
+        };
+        var expected = ResolvedViewLayerBuilder
+            .BuildDeploymentCandidates(known, packages, _packageRepo.Store, modPath, pluginRoot)
+            .Select(e => new OwnedTarget(e.TargetAbsolutePath, e.PackageKey ?? string.Empty))
+            .ToList();
+        return new InstallPlacementSnapshot(expected, issues);
+    }
+
+    /// <summary>方案里已启用的包中，装不到游戏会读取的位置的那些（供部署与体检共用）。</summary>
+    public static List<PlacementIssue> PlacementIssues(
+        InstanceProfile profile, IReadOnlyDictionary<string, Package> normalizedPackages, InstallLayoutRules rules)
+        => profile.Packages
+            .Where(entry => entry.IsEnabled && string.IsNullOrWhiteSpace(entry.TargetRootPath))
+            .Select(entry => normalizedPackages.TryGetValue(entry.PackageKey, out var package)
+                ? InstallPlacementAnalyzer.Analyze(package, rules) : null)
+            .Where(issue => issue != null)
+            .Select(issue => issue!)
+            .ToList();
 
     private static async Task<ResolvedEntry> WithContentAsync(ResolvedEntry entry, string source, ResolvedEntrySource sourceType, int priority)
         => new()
@@ -188,3 +249,9 @@ public class ResolvedViewBuilder
         return path;
     }
 }
+
+/// <summary>当前方案的安装落位概况。</summary>
+/// <param name="ExpectedTargets">每个文件按现行规则该装到的位置。</param>
+/// <param name="Issues">装不到游戏会读取的位置的包。</param>
+public sealed record InstallPlacementSnapshot(
+    IReadOnlyList<OwnedTarget> ExpectedTargets, IReadOnlyList<PlacementIssue> Issues);
