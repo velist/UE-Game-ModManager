@@ -15,7 +15,12 @@ Download updates from [the official website](https://www.modmanger.com/#download
    with 7-Zip or WinRAR before importing.
 5. Each card is labelled **MOD**, **Plugin** or **Config**; use the filter
    above the list to show one type. Enable the mods you want, review any
-   conflict notices, then launch the game.
+   conflict notices, then launch the game. Games installed through Steam are
+   launched by Steam; the Launch center shows the launch method and lets you
+   switch to running the game program directly.
+6. If a **Mods installed in the wrong place** notice appears at startup,
+   choose **Fix now (recommended)**. The files are moved for you; nothing
+   needs to be imported again.
 
 Core mod management works without an account, and no sign-in window appears
 at startup. To use an account, click the account area at the bottom of the
