@@ -341,6 +341,7 @@ namespace UEModManager.Views
             // CyberMessageBox 因 owner.IsVisible == false 拿不到 Owner，
             // 提示会落到主窗口后面或屏幕中央（用户看不到，等于没提示）。
             ReportFailedImports(results);
+            ReportPlacementWarnings(results);
             DialogResult = true;   // 赋值即关窗，后面不要再 Close()
         }
 
@@ -366,6 +367,34 @@ namespace UEModManager.Views
                 UiText.Get("导入未全部完成"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
+        /// <summary>
+        /// 插件 / 配置的落盘基准，与部署层同源（<see cref="GameConfigService.CurrentPluginRootPath"/>）：
+        /// 显示的位置必须就是实际装到的位置，否则玩家照着界面去找文件只会找错目录。
+        /// </summary>
+        private string PluginRootForDisplay()
+        {
+            var root = _gameConfig.CurrentPluginRootPath;
+            return string.IsNullOrEmpty(root) ? UiText.Get("游戏根目录") : root;
+        }
+
+        /// <summary>
+        /// 导入成功但装不到有效位置的包（多选一的配置方案、零散脚本）必须当场说清楚，
+        /// 不能让玩家带着「导入成功」的印象进游戏才发现不生效。
+        /// </summary>
+        private void ReportPlacementWarnings(List<PackageImportResult> results)
+        {
+            var warnings = results
+                .Where(r => r.Success && !string.IsNullOrWhiteSpace(r.Warning))
+                .Select(r => r.Warning!)
+                .Distinct()
+                .ToList();
+            if (warnings.Count == 0) return;
+
+            CyberMessageBox.Show(this,
+                string.Join(Environment.NewLine + Environment.NewLine, warnings),
+                UiText.Get("有 MOD 需要你手动处理"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         private void OnCloseWindow(object sender, ExecutedRoutedEventArgs e) => Close();
 
         // ─── 部署路径检测 ───
@@ -377,8 +406,8 @@ namespace UEModManager.Views
 
             var gameName = _gameConfig.CurrentGameName;
             var nonModTargetPath = NormalizeTargetPath(TargetPathTextBox.Text);
-            PluginPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
-            ConfigPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(_gameConfig.CurrentGamePath ?? "游戏根目录", nonModTargetPath);
+            PluginPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(PluginRootForDisplay(), nonModTargetPath);
+            ConfigPathText.Text = string.IsNullOrEmpty(nonModTargetPath) ? UiText.Get("未配置") : Path.Combine(PluginRootForDisplay(), nonModTargetPath);
 
             bool hasMod = _fileEntries.Any(f => f.Kind == PackageKind.Mod && f.ShouldImport);
             bool hasPlugin = _fileEntries.Any(f => f.Kind == PackageKind.Plugin && f.ShouldImport);

@@ -182,7 +182,7 @@ public sealed class ConflictModuleService
         {
             foreach (var (targetPath, winner) in targetPathToWinner)
                 rules[ConflictOverridePaths.ToPortableKey(
-                    targetPath, _gameConfigService.CurrentModPath, _gameConfigService.CurrentGamePath)] = winner;
+                    targetPath, _gameConfigService.CurrentModPath, _gameConfigService.CurrentPluginRootPath)] = winner;
         });
     }
 
@@ -193,7 +193,7 @@ public sealed class ConflictModuleService
 
         var portableKeys = targetPaths
             .Select(p => ConflictOverridePaths.ToPortableKey(
-                p, _gameConfigService.CurrentModPath, _gameConfigService.CurrentGamePath))
+                p, _gameConfigService.CurrentModPath, _gameConfigService.CurrentPluginRootPath))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (portableKeys.Count == 0) return;
@@ -208,7 +208,7 @@ public sealed class ConflictModuleService
     public IReadOnlyDictionary<string, string> GetOverrides()
         => _profileService.CurrentProfile is { } profile
             ? ConflictOverridePaths.Resolve(profile.ConflictOverrides,
-                _gameConfigService.CurrentModPath, _gameConfigService.CurrentGamePath)
+                _gameConfigService.CurrentModPath, _gameConfigService.CurrentPluginRootPath)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -223,7 +223,7 @@ public sealed class ConflictModuleService
         return ConflictOverridePaths.MakePortable(
             profile.ConflictOverrides,
             _gameConfigService.CurrentModPath,
-            _gameConfigService.CurrentGamePath);
+            _gameConfigService.CurrentPluginRootPath);
     }
 
     /// <summary>设定或清除单条覆盖规则（<paramref name="winnerPackageKey"/> 为 null 即清除）。</summary>
@@ -232,7 +232,7 @@ public sealed class ConflictModuleService
         ArgumentException.ThrowIfNullOrWhiteSpace(targetPath);
 
         var portableKey = ConflictOverridePaths.ToPortableKey(
-            targetPath, _gameConfigService.CurrentModPath, _gameConfigService.CurrentGamePath);
+            targetPath, _gameConfigService.CurrentModPath, _gameConfigService.CurrentPluginRootPath);
 
         await MutateOverridesAsync(rules =>
         {
@@ -253,7 +253,7 @@ public sealed class ConflictModuleService
         var profile = _profileService.CurrentProfile
             ?? throw new InvalidOperationException("没有活跃的 Profile");
         var modPath = _gameConfigService.CurrentModPath;
-        var gamePath = _gameConfigService.CurrentGamePath;
+        var gamePath = _gameConfigService.CurrentPluginRootPath;
 
         await _profileService.UpdateConflictOverridesAsync(profile.Id, rules =>
         {

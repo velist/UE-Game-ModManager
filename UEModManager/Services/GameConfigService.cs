@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Detection;
+using UEModManager.Services.InstallLayout;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Security;
 using AppConfig = UEModManager.Models.AppConfig;
@@ -39,6 +40,52 @@ namespace UEModManager.Services
         public string CurrentModPath => Config.ModPath ?? string.Empty;
         public string CurrentBackupPath => Config.BackupPath ?? string.Empty;
         public string CurrentExecutableName => Config.ExecutableName ?? string.Empty;
+
+        /// <summary>
+        /// 插件 / 配置包的落盘基准：游戏本体所在目录。
+        ///
+        /// 多数游戏就是 <see cref="CurrentGamePath"/>（启动 exe 即本体）。影之刃零的游戏路径记的是
+        /// 启动壳目录 <c>PBZ\steam</c>，而 UE4SS 只有装在本体旁边（<c>PBZ\platform\steam</c>）才会被加载；
+        /// 以前一律以游戏路径为基准，插件全装进了游戏不会读的目录，界面还显示成功。
+        /// 部署、冲突检测、导入预览都必须用这个属性，不要再直接拿游戏路径拼插件位置。
+        /// </summary>
+        public string CurrentPluginRootPath => ResolvePluginRoot(CurrentGameName, CurrentGamePath).PluginRoot;
+
+        /// <summary>按游戏的目录约定解析插件根（见 <see cref="GetInstallLayout"/>）。</summary>
+        public static PluginRootResolution ResolvePluginRoot(string? gameName, string? gamePath)
+            => PluginRootResolver.Resolve(gamePath, GetInstallLayout(gameName), Directory.Exists);
+
+        /// <summary>
+        /// 「启动 exe 不在本体旁边」的游戏的目录约定；没有这类约定的游戏返回 null。
+        /// 新接入的游戏如果启动壳与本体分开，在这里加一行数据即可，不要去改部署逻辑。
+        /// </summary>
+        public static GameInstallLayout? GetInstallLayout(string? gameName)
+            // 影之刃零（Steam 实装核对，见 docs/releases/影之刃零-首发接入清单.md）：
+            // 启动壳 steam\PBZ.exe，本体 platform\steam\PBZ.exe。
+            => IsPhantomBladeZero(gameName) ? new GameInstallLayout("steam", @"platform\steam") : null;
+
+        /// <summary>
+        /// 当前游戏的安装归位规则：引擎的加载器约定 + 游戏自己的本体目录锚点。
+        /// </summary>
+        public InstallLayoutRules CurrentInstallLayoutRules => GetInstallLayoutRules(CurrentGameName);
+
+        /// <summary>指定游戏的安装归位规则。</summary>
+        public InstallLayoutRules GetInstallLayoutRules(string? gameName)
+        {
+            var rules = EngineProfile.Get(GetEngineType(gameName ?? string.Empty)).InstallLayout;
+            var layout = GetInstallLayout(gameName);
+            return layout == null
+                ? rules
+                : rules with
+                {
+                    BinaryAnchors =
+                    [
+                        .. rules.BinaryAnchors,
+                        layout.BinaryDirectory.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                            StringSplitOptions.RemoveEmptyEntries)
+                    ]
+                };
+        }
 
         /// <summary>
         /// 获取游戏图标：用户自选图片优先，未设置或文件丢失时使用随程序分发的默认图标。

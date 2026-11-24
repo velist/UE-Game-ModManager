@@ -55,7 +55,11 @@ public class DeploymentPlanner
             || !string.Equals(gamePath, view.GameRootPath, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("游戏目录已变化，请重新构建部署视图。");
 
-        var stored = await _stateStore.ReadAsync(view.HostGameName, gamePath, modPath);
+        var pluginRoot = DeploymentStateStore.NormalizeRoot(_gameConfigService.CurrentPluginRootPath);
+        if (!string.Equals(pluginRoot, view.PluginRootPath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("游戏目录已变化，请重新构建部署视图。");
+
+        var stored = WithPluginRoot(await _stateStore.ReadAsync(view.HostGameName, gamePath, modPath), pluginRoot);
         var known = stored.Files.ToDictionary(f => f.TargetPath, StringComparer.OrdinalIgnoreCase);
         // Upgrade only files with committed transaction provenance. Matching a package path/content is not ownership.
         if (stored.Revision == Guid.Empty)
@@ -178,6 +182,7 @@ public class DeploymentPlanner
             foreach (var operation in transaction.ExecutedOperations.Concat(transaction.PlannedOperations).DistinctBy(o => o.Id))
             {
                 if (!DeploymentStateStore.IsInside(state.GameRootPath, operation.TargetPath)
+                    && !DeploymentStateStore.IsInside(state.PluginRootPath, operation.TargetPath)
                     && !DeploymentStateStore.IsInside(state.ModRootPath, operation.TargetPath)) continue;
                 var target = Path.GetFullPath(operation.TargetPath);
                 candidates.TryGetValue(target, out var previous);
@@ -201,7 +206,7 @@ public class DeploymentPlanner
                     original = await _stateStore.PreserveLegacyOriginalAsync(state, operation.BackupPath);
                     if (original == null) continue; // Cannot safely undo an overwrite whose original was lost.
                 }
-                var root = DeploymentStateStore.IsInside(state.ModRootPath, target) ? state.ModRootPath : state.GameRootPath;
+                var root = DeploymentStateStore.ContainingRoot(state, target);
                 candidates[target] = new ManagedDeploymentFile
                 {
                     TargetPath = target, RelativeTargetPath = Path.GetRelativePath(root, target),
@@ -222,7 +227,18 @@ public class DeploymentPlanner
         => new()
         {
             HostGameName = state.HostGameName, GameRootPath = state.GameRootPath, ModRootPath = state.ModRootPath,
-            Revision = revision, Files = files
+            PluginRootPath = state.PluginRootPath, Revision = revision, Files = files
+        };
+
+    /// <summary>
+    /// 清单落盘时不一定带插件根（老版本写的没有这个字段），一律以当前解析结果为准：
+    /// 老清单里按游戏路径装下的文件仍然合法（游戏路径还是允许的根），新目标落在插件根下也合法。
+    /// </summary>
+    private static DeploymentState WithPluginRoot(DeploymentState state, string pluginRoot)
+        => new()
+        {
+            HostGameName = state.HostGameName, GameRootPath = state.GameRootPath, ModRootPath = state.ModRootPath,
+            PluginRootPath = pluginRoot, Revision = state.Revision, Files = state.Files
         };
 
     private static bool SameFiles(List<ManagedDeploymentFile> before, List<ManagedDeploymentFile> after)

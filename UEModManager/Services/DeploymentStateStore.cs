@@ -196,10 +196,10 @@ public sealed class DeploymentStateStore
 
     internal static void ValidateTarget(DeploymentState state, string path)
     {
-        if (!IsInside(state.GameRootPath, path) && !IsInside(state.ModRootPath, path))
+        if (!IsInside(state.GameRootPath, path) && !IsInside(state.PluginRootPath, path) && !IsInside(state.ModRootPath, path))
             throw new InvalidDataException($"部署目标越出游戏目录: {path}");
         // A junction/symlink below the selected roots would turn a contained lexical path into an outside write.
-        var root = NormalizeRoot(IsInside(state.ModRootPath, path) ? state.ModRootPath : state.GameRootPath);
+        var root = NormalizeRoot(ContainingRoot(state, path));
         for (var current = Path.GetFullPath(path); !string.Equals(current, root, StringComparison.OrdinalIgnoreCase);
             current = Path.GetDirectoryName(current) ?? root)
         {
@@ -208,6 +208,12 @@ public sealed class DeploymentStateStore
                 throw new IOException($"部署目标包含链接或联接目录，已停止以保护外部文件: {current}");
         }
     }
+
+    /// <summary>目标所属的部署根：MOD 目录优先，其次插件根（游戏本体目录），最后是记下的游戏路径。</summary>
+    internal static string ContainingRoot(DeploymentState state, string path)
+        => IsInside(state.ModRootPath, path) ? state.ModRootPath
+            : IsInside(state.PluginRootPath, path) ? state.PluginRootPath
+            : state.GameRootPath;
 
     internal static bool IsInside(string root, string path)
     {
