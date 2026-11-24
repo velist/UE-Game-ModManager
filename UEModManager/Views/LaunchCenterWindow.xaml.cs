@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Services;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.Launch;
 using UEModManager.ViewModels;
 
 namespace UEModManager.Views
@@ -47,8 +48,18 @@ namespace UEModManager.Views
             LastLaunchText.Text = _vm.LastLaunchInfo;
             ModCountText.Text = _vm.ModCountInfo;
             LastEventText.Text = UiText.Interpolate($"上次事件: {_vm.LastEventInfo}");
+            UpdateLaunchMethod();
 
             RebuildCheckList();
+        }
+
+        private void UpdateLaunchMethod()
+        {
+            LaunchMethodText.Text = _vm.LaunchMethodInfo;
+            SwitchLaunchMethodLink.Text = _vm.SwitchLaunchMethodText;
+            SwitchLaunchMethodLink.Visibility = string.IsNullOrEmpty(_vm.SwitchLaunchMethodText)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
 
         private void RebuildCheckList()
@@ -230,6 +241,10 @@ namespace UEModManager.Views
                     case nameof(LaunchViewModel.ConflictGroupCount):
                         RebuildCheckList();
                         break;
+                    case nameof(LaunchViewModel.LaunchMethodInfo):
+                    case nameof(LaunchViewModel.SwitchLaunchMethodText):
+                        UpdateLaunchMethod();
+                        break;
                     // 预检失败同样要重画：失败时 ConflictGroupCount 停在 0 不会触发上面那条，
                     // 清单就会一直显示预置的"无 MOD 冲突"
                     case nameof(LaunchViewModel.ConflictPreCheckError):
@@ -244,24 +259,53 @@ namespace UEModManager.Views
             e.Handled = true;
             SafeEvent.Run(this, async () =>
             {
-                if (_vm.IsLaunching) return;
-
-                ProgressText.Text = UiText.Get("正在启动...");
-                var session = await _vm.LaunchGameAsync();
-
-                if (session != null)
+                // 最多自动换一种启动方式重试一次，免得两种方式都不行时来回弹框
+                for (var attempt = 0; attempt < 2; attempt++)
                 {
+                    if (_vm.IsLaunching) return;
+
+                    ProgressText.Text = UiText.Get("正在启动...");
+                    var session = await _vm.LaunchGameAsync();
+                    if (session == null) return;
+
                     RebuildCheckList();
-                    UpdateUI();
+                    RefreshAfterLaunch();
 
                     if (session.Success)
                     {
                         // 启动成功后短暂显示状态，然后关闭窗口
                         await System.Threading.Tasks.Task.Delay(1500);
                         Close();
+                        return;
                     }
+
+                    // 游戏程序秒退且这款游戏装在 Steam 里：一键改为通过 Steam 启动并重试。
+                    // "已通知 Steam 但还没看到游戏"不弹框 —— 游戏很可能马上就出现，说明留在窗口里即可。
+                    if (attempt > 0 || _vm.LastAdvice != LaunchAdvice.SwitchToSteam) return;
+
+                    var answer = CyberMessageBox.Show(this,
+                        "游戏程序刚打开就自己退出了。这款游戏装在 Steam 里，通常需要由 Steam 来启动。\n\n要改为通过 Steam 启动并再试一次吗？",
+                        "游戏没有启动起来", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                        yesText: "通过 Steam 启动", noText: "暂不");
+                    if (answer != MessageBoxResult.Yes) return;
+
+                    await _vm.ApplyAdviceAsync(LaunchAdvice.SwitchToSteam);
                 }
             }, null, UiText.Get("启动游戏"));
+        }
+
+        /// <summary>启动结束后刷新底部状态与启动方式；标题和说明已由 VM 的属性变更写好，不要用 UpdateUI 重写。</summary>
+        private void RefreshAfterLaunch()
+        {
+            LastEventText.Text = UiText.Interpolate($"上次事件: {_vm.LastEventInfo}");
+            UpdateLaunchMethod();
+        }
+
+        private void SwitchLaunchMethod_Click(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            SafeEvent.Run(this, async () => await _vm.ToggleLaunchMethodAsync(),
+                null, UiText.Get("切换启动方式"));
         }
 
         private void ShowHistory_Click(object sender, MouseButtonEventArgs e)
@@ -283,7 +327,9 @@ namespace UEModManager.Views
             lines.AppendLine(UiText.Get("最近启动记录：\n"));
             foreach (var s in launcher.SessionHistory.Take(10))
             {
-                var status = s.Success ? UiText.Get("成功") : UiText.Get("失败");
+                var status = s.Success ? UiText.Get("成功")
+                    : s.Outcome == UEModManager.Models.LaunchOutcome.NotConfirmed ? UiText.Get("未确认")
+                    : UiText.Get("失败");
                 lines.AppendLine($"  [{s.LaunchedAt:MM/dd HH:mm}] {s.GameName}/{s.ProfileName} — {status}");
                 if (!s.Success && !string.IsNullOrEmpty(s.FailureReason))
                     lines.AppendLine(UiText.Interpolate($"    原因: {s.FailureReason}"));
