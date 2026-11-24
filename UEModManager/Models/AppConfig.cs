@@ -52,5 +52,12 @@ namespace UEModManager.Models
         /// 每个游戏的默认插件路径映射（游戏名称 → 路径）。
         /// </summary>
         public Dictionary<string, string> PluginPaths { get; set; } = new();
+
+        /// <summary>
+        /// 玩家选了「直接运行游戏程序」的游戏名称。
+        /// 不在名单里的游戏按检测结果走：装在 Steam 库里就交给 Steam 启动，否则直接运行。
+        /// 旧配置无此字段时默认空列表。
+        /// </summary>
+        public List<string> DirectLaunchGames { get; set; } = new();
     }
 }
