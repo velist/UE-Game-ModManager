@@ -92,6 +92,9 @@ namespace UEModManager.Models
         public string GameRootPath { get; init; } = "";
         public string ModRootPath { get; init; } = "";
 
+        /// <summary>插件 / 配置包的落盘基准；与 <see cref="GameRootPath"/> 不同的只有启动壳与本体分开的游戏。</summary>
+        public string PluginRootPath { get; init; } = "";
+
         /// <summary>所有生效文件条目。</summary>
         public List<ResolvedEntry> Entries { get; init; } = [];
 
