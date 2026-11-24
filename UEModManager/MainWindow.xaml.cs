@@ -553,7 +553,7 @@ namespace UEModManager
                 var report = await _healthCheck.CheckInstallPlacementAsync();
                 if (!report.Drift.HasDrift) return;
 
-                var names = string.Join("、", report.Drift.PackageKeys.Take(3));
+                var names = string.Join(UiText.Get("、"), report.Drift.PackageKeys.Take(3));
                 if (report.Drift.PackageKeys.Count > 3) names += UiText.Interpolate($" 等 {report.Drift.PackageKeys.Count} 个");
                 var message = UiText.Interpolate($"发现 {report.Drift.Misplaced.Count} 个 MOD 文件装在了游戏不会读取的位置，所以这些 MOD 在游戏里不生效：{names}")
                     + Environment.NewLine + Environment.NewLine

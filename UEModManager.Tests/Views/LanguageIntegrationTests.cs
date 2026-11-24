@@ -341,6 +341,39 @@ public sealed class LanguageIntegrationTests : IDisposable
     }
 
     [Fact]
+    public void InstallPlacementTextsHaveEnglishTranslations()
+    {
+        // 「MOD 装错了位置」弹窗、体检项与导入提示：这些串在代码里拼出来，XAML 扫描测试覆盖不到
+        foreach (var source in new[]
+        {
+            "MOD 装错了位置",
+            "发现 {0} 个 MOD 文件装在了游戏不会读取的位置，所以这些 MOD 在游戏里不生效：{1}",
+            "这是旧版本的问题，现在可以自动修好：管理器会把这些文件挪到正确的位置，不需要你重新导入。",
+            "立即修复（推荐）",
+            "以后再说",
+            "正在修复 MOD 位置...",
+            "已修复，重新启动游戏即可生效",
+            "修复没有完成",
+            "有 MOD 需要你手动处理",
+            "{0} 个文件装在了游戏不会读取的位置（{1}），重新部署即可修复",
+            "{0} 个包装不到游戏会读取的位置，没有部署",
+            "MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径",
+            "游戏根目录",
+            "、",
+        })
+            Assert.True(UiText.HasEnglish(source), $"缺英文译文：{source}");
+
+        LanguageManager.SetEnglish(true);
+        var choice = UEModManager.Services.InstallPlacementText.Describe(new UEModManager.Services.InstallLayout.PlacementIssue(
+            "pkg", "Ultra Config", UEModManager.Services.InstallLayout.PlacementIssueKind.ChoiceVariants, ["Low", "High"]));
+        Assert.StartsWith("\"Ultra Config\" contains 2 alternative configurations", choice);
+        Assert.Contains("(Low, High)", choice);
+        var loose = UEModManager.Services.InstallPlacementText.Describe(new UEModManager.Services.InstallLayout.PlacementIssue(
+            "pkg", "Loose", UEModManager.Services.InstallLayout.PlacementIssueKind.LooseLoaderScripts, []));
+        Assert.StartsWith("\"Loose\" contains only loose script files", loose);
+    }
+
+    [Fact]
     public void AllEnglishTemplatesHaveMatchingFormatArguments()
     {
         using var stream = typeof(UiText).Assembly.GetManifestResourceStream("UEModManager.Localization.en-US.json")!;

@@ -16,7 +16,7 @@ namespace UEModManager.Services
             return issue.Kind switch
             {
                 PlacementIssueKind.ChoiceVariants => UiText.Interpolate(
-                    $"「{issue.DisplayName}」里是 {issue.Variants.Count} 套只能选一套的配置（{string.Join("、", issue.Variants)}），管理器没法替你决定用哪一套，所以没有把它装进游戏。请按 MOD 作者的说明选一套，手动放到游戏读取配置的目录。"),
+                    $"「{issue.DisplayName}」里是 {issue.Variants.Count} 套只能选一套的配置（{string.Join(UiText.Get("、"), issue.Variants)}），管理器没法替你决定用哪一套，所以没有把它装进游戏。请按 MOD 作者的说明选一套，手动放到游戏读取配置的目录。"),
                 PlacementIssueKind.LooseLoaderScripts => UiText.Interpolate(
                     $"「{issue.DisplayName}」里只有零散的脚本文件，缺少 MOD 文件夹，游戏不会加载它。请删除后重新导入 MOD 作者提供的完整压缩包或整个 MOD 文件夹。"),
                 _ => null

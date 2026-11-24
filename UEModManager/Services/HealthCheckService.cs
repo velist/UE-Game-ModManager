@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using UEModManager.Health;
+using UEModManager.Localization;
 using UEModManager.Services.InstallLayout;
 
 namespace UEModManager.Services
@@ -83,13 +84,13 @@ namespace UEModManager.Services
             if (report.Drift.HasDrift)
             {
                 return new(InstallPlacementCheckName, HealthStatus.Warning,
-                    $"{report.Drift.Misplaced.Count} 个文件装在了游戏不会读取的位置（{string.Join("、", report.Drift.PackageKeys)}），重新部署即可修复",
+                    UiText.Interpolate($"{report.Drift.Misplaced.Count} 个文件装在了游戏不会读取的位置（{string.Join(UiText.Get("、"), report.Drift.PackageKeys)}），重新部署即可修复"),
                     report.Drift.Misplaced[0]);
             }
             if (report.Issues.Count > 0)
             {
                 return new(InstallPlacementCheckName, HealthStatus.Warning,
-                    $"{report.Issues.Count} 个包装不到游戏会读取的位置，没有部署",
+                    UiText.Interpolate($"{report.Issues.Count} 个包装不到游戏会读取的位置，没有部署"),
                     string.Join("; ", report.Issues.Select(i => $"{i.PackageKey}: {i.Kind}")));
             }
             return new(InstallPlacementCheckName, HealthStatus.Ok, "OK", _gameConfig.CurrentPluginRootPath);
@@ -146,7 +147,7 @@ namespace UEModManager.Services
             if (path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 .Any(segment => loaders.Contains(segment, StringComparer.OrdinalIgnoreCase)))
                 return new("ModPath", HealthStatus.Warning,
-                    "MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径", path);
+                    UiText.Get("MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径"), path);
             return new("ModPath", HealthStatus.Ok, "OK", path);
         }
 

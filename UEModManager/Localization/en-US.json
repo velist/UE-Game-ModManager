@@ -861,5 +861,20 @@
   "游戏程序刚打开就自己退出了。这款游戏装在 Steam 里，通常需要由 Steam 来启动。可以改为通过 Steam 启动再试。": "The game program closed itself right after opening. This game is installed in Steam and usually has to be launched by Steam. You can launch through Steam instead and try again.",
   "游戏程序刚打开就自己退出了。请先从游戏平台（Steam、Epic 等）手动启动一次，确认游戏本身能正常运行；如果刚装了新的 MOD，试着先禁用它。": "The game program closed itself right after opening. Launch it once from your game platform (Steam, Epic, etc.) to confirm the game itself works; if you just installed a new mod, try disabling it first.",
   "没能把游戏启动起来。请确认游戏路径和游戏程序是否正确。": "The game could not be started. Check that the game path and game program are correct.",
-  "游戏正在启动中，请稍等片刻。": "The game is already starting. Please wait a moment."
+  "游戏正在启动中，请稍等片刻。": "The game is already starting. Please wait a moment.",
+  "MOD 装错了位置": "Mods installed in the wrong place",
+  "发现 {0} 个 MOD 文件装在了游戏不会读取的位置，所以这些 MOD 在游戏里不生效：{1}": "{0} mod files were installed where the game does not read them, so these mods have no effect in the game: {1}",
+  "这是旧版本的问题，现在可以自动修好：管理器会把这些文件挪到正确的位置，不需要你重新导入。": "This was caused by an older version and can now be fixed automatically: the manager will move these files to the right place. You do not need to import anything again.",
+  "立即修复（推荐）": "Fix now (recommended)",
+  "正在修复 MOD 位置...": "Fixing mod locations...",
+  "已修复，重新启动游戏即可生效": "Fixed. Restart the game for it to take effect",
+  "修复没有完成": "The fix did not finish",
+  "有 MOD 需要你手动处理": "Some mods need your attention",
+  "「{0}」里是 {1} 套只能选一套的配置（{2}），管理器没法替你决定用哪一套，所以没有把它装进游戏。请按 MOD 作者的说明选一套，手动放到游戏读取配置的目录。": "\"{0}\" contains {1} alternative configurations of which only one can be used ({2}). The manager cannot choose for you, so it was not installed into the game. Pick one by following the mod author's instructions and place it manually in the folder the game reads its configuration from.",
+  "「{0}」里只有零散的脚本文件，缺少 MOD 文件夹，游戏不会加载它。请删除后重新导入 MOD 作者提供的完整压缩包或整个 MOD 文件夹。": "\"{0}\" contains only loose script files without a mod folder, so the game will not load it. Delete it, then import the complete archive or the whole mod folder provided by the mod author.",
+  "{0} 个文件装在了游戏不会读取的位置（{1}），重新部署即可修复": "{0} files are installed where the game does not read them ({1}). Redeploying will fix this",
+  "{0} 个包装不到游戏会读取的位置，没有部署": "{0} packages cannot be installed where the game reads them and were not deployed",
+  "MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径": "The mod path points into the script loader's folder. Pak mods installed here will not be loaded by the game; run auto-detect for the mod path again in Settings",
+  "游戏目录已变化，请重新构建部署视图。": "The game folder has changed. Please refresh and try again.",
+  "、": ", "
 }
