@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 using UEModManager.Health;
+using UEModManager.Services.InstallLayout;
 
 namespace UEModManager.Services
 {
@@ -25,23 +27,78 @@ namespace UEModManager.Services
         private readonly GameConfigService _gameConfig;
         private readonly ProfileService _profileService;
         private readonly PackageRepository _packageRepo;
+        private readonly ResolvedViewBuilder? _viewBuilder;
+        private readonly DeploymentStateStore? _stateStore;
 
         public HealthCheckService(
             ILogger<HealthCheckService> logger,
             GameConfigService gameConfig,
             ProfileService profileService,
-            PackageRepository packageRepo)
+            PackageRepository packageRepo,
+            ResolvedViewBuilder? viewBuilder = null,
+            DeploymentStateStore? stateStore = null)
         {
             _logger = logger;
             _gameConfig = gameConfig;
             _profileService = profileService;
             _packageRepo = packageRepo;
+            _viewBuilder = viewBuilder;
+            _stateStore = stateStore;
+        }
+
+        /// <summary>体检项名称：已装文件是否都在游戏会读取的位置。</summary>
+        public const string InstallPlacementCheckName = "InstallPlacement";
+
+        /// <summary>
+        /// 检查「已装的 MOD 是否都在游戏会读取的位置」。
+        ///
+        /// 以前的体检只看几个目录存不存在，于是插件全装进了游戏不读的目录也照样全绿。
+        /// 这里比对两样东西：管理器记着自己装了哪些文件、按现行规则它们该在哪。
+        /// 对不上的（<see cref="InstallPlacementReport.Drift"/>）重新部署一次就能挪到位，
+        /// 界面据此给出一键修复；装不到有效位置的包（<see cref="InstallPlacementReport.Issues"/>）说明原因。
+        /// </summary>
+        public async Task<InstallPlacementReport> CheckInstallPlacementAsync()
+        {
+            var empty = new InstallPlacementReport(new DeploymentDrift([], [], []), []);
+            if (_viewBuilder == null || _stateStore == null) return empty;
+            try
+            {
+                var snapshot = _viewBuilder.DescribePlacement();
+                var state = await _stateStore.ReadAsync(
+                    _gameConfig.CurrentGameName, _gameConfig.CurrentGamePath, _gameConfig.CurrentModPath);
+                var drift = DeploymentDriftDetector.Detect(
+                    state.Files.Select(f => new OwnedTarget(f.TargetPath, f.PackageKey)), snapshot.ExpectedTargets);
+                return new InstallPlacementReport(drift, snapshot.Issues);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Health] 安装位置检查失败");
+                return empty;
+            }
+        }
+
+        private async Task<HealthCheck> CheckInstallPlacementItemAsync()
+        {
+            var report = await CheckInstallPlacementAsync();
+            if (report.Drift.HasDrift)
+            {
+                return new(InstallPlacementCheckName, HealthStatus.Warning,
+                    $"{report.Drift.Misplaced.Count} 个文件装在了游戏不会读取的位置（{string.Join("、", report.Drift.PackageKeys)}），重新部署即可修复",
+                    report.Drift.Misplaced[0]);
+            }
+            if (report.Issues.Count > 0)
+            {
+                return new(InstallPlacementCheckName, HealthStatus.Warning,
+                    $"{report.Issues.Count} 个包装不到游戏会读取的位置，没有部署",
+                    string.Join("; ", report.Issues.Select(i => $"{i.PackageKey}: {i.Kind}")));
+            }
+            return new(InstallPlacementCheckName, HealthStatus.Ok, "OK", _gameConfig.CurrentPluginRootPath);
         }
 
         /// <summary>
         /// 收集所有检查项并生成报告。
         /// </summary>
-        public Task<HealthReport> CheckAsync()
+        public async Task<HealthReport> CheckAsync()
         {
             var checks = new List<HealthCheck>
             {
@@ -52,6 +109,7 @@ namespace UEModManager.Services
                 CheckCurrentProfile(),
                 CheckSqliteDb(),
                 CheckBackupsDirectoryWritable(),
+                await CheckInstallPlacementItemAsync(),
             };
 
             var report = new HealthReport { Checks = checks };
@@ -60,7 +118,7 @@ namespace UEModManager.Services
                 "[Health] Overall={Status} Ok={Ok} Warn={Warn} Err={Err}",
                 report.OverallStatus, report.OkCount, report.WarningCount, report.ErrorCount);
 
-            return Task.FromResult(report);
+            return report;
         }
 
         // ─── 单项检查 ───
@@ -82,6 +140,13 @@ namespace UEModManager.Services
                 return new("ModPath", HealthStatus.Warning, "未配置 MOD 路径");
             if (!Directory.Exists(path))
                 return new("ModPath", HealthStatus.Warning, $"路径不存在（部署时会创建）: {path}");
+            // MOD 路径是给 pak 这类资源容器用的。指到加载器目录里（玩家以为这样能让脚本 MOD 生效）
+            // 只会让 pak MOD 装进游戏不读的地方；脚本 MOD 的位置由管理器按规则决定，不看这个设置。
+            var loaders = _gameConfig.CurrentInstallLayoutRules.LoaderDirectories;
+            if (path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => loaders.Contains(segment, StringComparer.OrdinalIgnoreCase)))
+                return new("ModPath", HealthStatus.Warning,
+                    "MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径", path);
             return new("ModPath", HealthStatus.Ok, "OK", path);
         }
 
@@ -152,4 +217,9 @@ namespace UEModManager.Services
             }
         }
     }
+
+    /// <summary>安装位置检查的结果。</summary>
+    /// <param name="Drift">装错位置、重新部署即可修复的文件。</param>
+    /// <param name="Issues">装不到游戏会读取的位置的包。</param>
+    public sealed record InstallPlacementReport(DeploymentDrift Drift, IReadOnlyList<PlacementIssue> Issues);
 }
