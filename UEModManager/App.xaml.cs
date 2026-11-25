@@ -386,6 +386,10 @@ namespace UEModManager
                     // 首次运行时引导用户挑一个包仓库位置（默认在系统盘，而仓库可能几十 GB）
                     services.AddSingleton<RepositorySetupService>();
 
+                    // 主窗口顶部的推广条（每天最多一次，到期自动下线）。不联网、不统计，
+                    // 时钟与活动来源都用默认值；写成工厂是为了不让容器去猜那几个可选的委托参数。
+                    services.AddSingleton(_ => new PromoBarService());
+
                     // 更新检查 + 匿名用量统计（注册数 / 在线数）。
                     //
                     // 取当前登录邮箱做成委托而不是直接注入 LocalAuthService：本服务是单例、

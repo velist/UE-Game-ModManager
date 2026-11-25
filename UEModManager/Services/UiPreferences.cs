@@ -7,6 +7,7 @@ using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Paths;
 using UEModManager.Services.Persistence;
+using UEModManager.Services.Promo;
 using UEModManager.Services.Telemetry;
 
 namespace UEModManager.Services
@@ -57,6 +58,24 @@ namespace UEModManager.Services
 
             /// <summary>首次使用引导是否已经看过（看完或跳过都算），只出现一次。</summary>
             public bool OnboardingGuideShown { get; set; }
+
+            /// <summary>
+            /// 主窗口顶部推广条上一次<b>真正显示出来</b>的本地日期（<c>yyyy-MM-dd</c>），
+            /// 与 <see cref="PromoLastShownCampaignId"/> 一起回答「这条活动今天展示过没有」。
+            ///
+            /// <para>
+            /// <b>存日期而不是存一个"今天看过了"的布尔</b>：布尔没法在第二天自己复位。
+            /// 存成与区域设置无关的字符串（见 <c>PromoSchedule.DateFormat</c>），换语言、换日历都读得回来；
+            /// 认不出来的值一律当作从没展示过。
+            /// </para>
+            /// </summary>
+            public string? PromoLastShownDate { get; set; }
+
+            /// <summary>
+            /// 上一次显示的是哪条推广活动。记标识是为了换活动之后当天能再展示一次——
+            /// 只记日期的话，新活动上线当天已经看过旧活动的玩家要等到第二天才看得到。
+            /// </summary>
+            public string? PromoLastShownCampaignId { get; set; }
 
             /// <summary>
             /// 玩家对「安装 UE4SS」提示选了「我已自行安装，不再提示」的游戏（按游戏名记）。
@@ -536,6 +555,70 @@ namespace UEModManager.Services
 
         public static void SaveOnboardingGuideShown(bool shown)
             => Write(cfg => cfg.OnboardingGuideShown = shown, "保存新手引导状态");
+
+        // ── 推广条的展示记录 ──
+
+        /// <summary>
+        /// 读出推广条上一次显示的记录；从没显示过、或者配置读不出来时返回
+        /// <see cref="PromoDisplayRecord.Never"/>。
+        /// </summary>
+        public static PromoDisplayRecord LoadPromoDisplayRecord()
+        {
+            return Read(cfg => PromoDisplayRecord.Parse(cfg.PromoLastShownDate, cfg.PromoLastShownCampaignId),
+                PromoDisplayRecord.Never, "读取推广条展示记录");
+        }
+
+        /// <summary>
+        /// 记下「<paramref name="campaignId"/> 这条活动在 <paramref name="shownOn"/> 这天展示过」。
+        /// <b>返回 false 表示没记上，调用方此时不应该把推广条显示出来。</b>
+        ///
+        /// <para>
+        /// 这是本类唯一一个用返回值报告失败的写入，两条理由：
+        /// <list type="number">
+        /// <item><b>不抛</b>：它不是用户发起的设置变更，玩家什么都没点，为它弹一个"保存失败"只会让人莫名其妙
+        /// （与 <see cref="SaveDeployDegradationNotice"/> 同类）。</item>
+        /// <item><b>但调用方必须知道结果</b>：对玩家的承诺是"每天最多一次"。记不上账还照样显示，
+        /// 同一天每次启动都会再出现一遍——宁可这一次不出现。</item>
+        /// </list>
+        /// </para>
+        ///
+        /// <para>
+        /// <b>磁盘上的配置这次没读出来时直接放弃。</b>此时内存里是一份默认值，写回去等于拿默认值覆盖
+        /// 一个很可能完好的配置文件（里面有仓库位置，丢了 MOD 就在界面上"消失"）。
+        /// <see cref="SaveConfig"/> 会先备份再覆盖，那是给玩家自己改设置时用的退路；
+        /// 为了记一条广告展示去走这条退路不值得。
+        /// </para>
+        ///
+        /// <para>两个字段在同一次写里落盘：只写上日期没写上活动标识的话，这条记录等于没记。</para>
+        /// </summary>
+        public static bool TrySavePromoDisplayRecord(DateOnly shownOn, string campaignId)
+        {
+            if (string.IsNullOrWhiteSpace(campaignId)) return false;
+
+            lock (Gate)
+            {
+                try
+                {
+                    var current = GetOrLoadConfig();
+                    if (_diskStateUnknown)
+                    {
+                        LogFailure("保存推广条展示记录 已放弃：配置文件这次没读出来，不拿默认值去覆盖它");
+                        return false;
+                    }
+
+                    var draft = current.Clone();
+                    draft.PromoLastShownDate = PromoSchedule.FormatDate(shownOn);
+                    draft.PromoLastShownCampaignId = campaignId.Trim();
+                    SaveConfig(draft);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    LogFailure("保存推广条展示记录 失败，本次不展示推广条", ex);
+                    return false;
+                }
+            }
+        }
 
         /// <summary>这款游戏是否已选「不再提示安装 UE4SS」。</summary>
         public static bool LoadUe4ssPromptSuppressed(string? gameName)
