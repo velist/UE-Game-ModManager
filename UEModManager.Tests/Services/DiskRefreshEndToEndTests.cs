@@ -571,7 +571,7 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
             prompts.AskedKinds);
         var question = prompts.Asked[1];
         Assert.Equal("只从列表移除", question.PrimaryText);
-        Assert.Equal("连游戏里的文件一起删除", question.SecondaryText);
+        Assert.Equal("连文件一起删除", question.SecondaryText);
         Assert.Equal("先不处理", question.DismissText);
         // 默认的那个按钮不删文件
         Assert.False(question.Danger);

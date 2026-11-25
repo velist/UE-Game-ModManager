@@ -144,7 +144,7 @@ public sealed class DiskRefreshTextTests : IDisposable
         // 默认的那个选择永远不删还存在的文件
         var installed = DiskRefreshText.RemoveStillInstalled(enabled);
         Assert.Equal("只从列表移除", installed.PrimaryText);
-        Assert.Equal("连游戏里的文件一起删除", installed.SecondaryText);
+        Assert.Equal("连文件一起删除", installed.SecondaryText);
         Assert.Contains("游戏目录里的文件原样留下，管理器不会删除它们", installed.Message);
 
         // 保留一个启用着的缺文件 MOD 的后果要说在前面

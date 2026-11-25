@@ -12,6 +12,11 @@ namespace UEModManager.ViewModels
     /// 集中在这里，一是让流程（<see cref="MainViewModel.RefreshFromDiskAsync"/>）里只剩判断、没有文案，
     /// 二是这些话都要有英文——写成散落在各处的拼接，漏译了没有任何测试会发现。
     /// 措辞面向普通玩家：说"MOD 库""游戏目录"，不说"仓库""部署清单"。
+    ///
+    /// <para>
+    /// 按钮文字要短：消息框固定 420 宽，三个按钮的提问要在一排里放得下（中英文都是），
+    /// 放不下会折成两排。详细的解释写在正文里，按钮上只留动作本身。
+    /// </para>
     /// </summary>
     public static class DiskRefreshText
     {
@@ -129,10 +134,10 @@ namespace UEModManager.ViewModels
                     UiText.Interpolate($"这 {installed.Count} 个 MOD 在 MOD 库里已经没有文件了，但游戏目录里还留着它们的文件："),
                     Names(installed.Select(f => f.DisplayName)),
                     UiText.Get("只从列表移除：游戏目录里的文件原样留下，管理器不会删除它们，也不再管理它们。"),
-                    UiText.Get("连游戏里的文件一起删除：把游戏目录里的这些文件也删掉，删掉后没法恢复。"),
+                    UiText.Get("连文件一起删除：把游戏目录里的这些文件也删掉，删掉后没法恢复。"),
                     BlockingNote(installed)),
                 PrimaryText: UiText.Get("只从列表移除"),
-                SecondaryText: UiText.Get("连游戏里的文件一起删除"),
+                SecondaryText: UiText.Get("连文件一起删除"),
                 DismissText: UiText.Get("先不处理"));
 
         public static DiskRefreshQuestion RemoveIncomplete(IReadOnlyList<RepositoryFinding> partial)

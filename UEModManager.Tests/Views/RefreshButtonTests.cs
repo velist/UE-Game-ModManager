@@ -181,6 +181,80 @@ public sealed class RefreshButtonTests : IDisposable
     }
 
     // ═══════════════════════════════════════
+    //  对话框
+    // ═══════════════════════════════════════
+
+    /// <summary>
+    /// 每个提问的按钮都要在消息框里一排放得下。
+    ///
+    /// 消息框固定 420 宽，按钮放不下会折成两排——三个选择叠成两排时，
+    /// 玩家很难看出哪个是推荐的、哪个是"什么都不改"。中文放得下而英文放不下是最容易漏掉的情形。
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EveryQuestion_FitsItsButtonsOnOneRowOfTheMessageBox(bool english)
+    {
+        StaApplication.Run(() =>
+        {
+            LanguageManager.SetEnglish(english);
+            var dialog = ViewResourceLoader.Load(AppSource, "Views/CyberMessageBox.xaml");
+            try
+            {
+                // 内容区左右各留 24 的边距（CyberMessageBox.xaml 的 StackPanel Margin）
+                var available = dialog.Width - 48;
+                var lost = new[]
+                {
+                    new UEModManager.Services.Reconciliation.RepositoryFinding(
+                        "a", "Sample", true, 2, [@"a\files\a.pak"], [], [], 0, [], false),
+                };
+                var missing = new[]
+                {
+                    new UEModManager.Services.Reconciliation.DeploymentFinding(
+                        "a", "Sample", true, true, true, 1, [@"G:\Game\a.pak"]),
+                };
+                var questions = new[]
+                {
+                    UEModManager.ViewModels.DiskRefreshText.EverythingMissing(@"D:\Mods", lost),
+                    UEModManager.ViewModels.DiskRefreshText.RemoveLost(lost),
+                    UEModManager.ViewModels.DiskRefreshText.RecoverFromGame(lost),
+                    UEModManager.ViewModels.DiskRefreshText.RemoveStillInstalled(lost),
+                    UEModManager.ViewModels.DiskRefreshText.RemoveIncomplete(lost),
+                    UEModManager.ViewModels.DiskRefreshText.MissingDeployments(missing),
+                };
+
+                foreach (var question in questions)
+                {
+                    // 与 CyberMessageBox.CreateButton 同样的尺寸参数；主按钮在危险操作时用红色样式
+                    var buttons = new List<(string Text, string Style)>
+                    {
+                        (question.DismissText, "CyberSecondaryButton"),
+                        (question.PrimaryText, question.Danger ? "CyberDangerButton" : "CyberPrimaryButton"),
+                    };
+                    if (question.SecondaryText != null) buttons.Add((question.SecondaryText, "CyberSecondaryButton"));
+
+                    var total = buttons.Sum(button =>
+                    {
+                        var element = new Button
+                        {
+                            Content = button.Text, MinWidth = 80, Padding = new Thickness(16, 0, 16, 0), Height = 36,
+                            Margin = new Thickness(4), Style = (Style)dialog.FindResource(button.Style),
+                        };
+                        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        return element.DesiredSize.Width;
+                    });
+
+                    Assert.True(total <= available,
+                        $"{question.Kind} 的按钮（{string.Join(" / ", buttons.Select(b => b.Text))}）共 {total:F0}px，"
+                        + $"消息框一排只放得下 {available:F0}px");
+                }
+                return true;
+            }
+            finally { dialog.Close(); }
+        });
+    }
+
+    // ═══════════════════════════════════════
     //  整窗渲染（也是人工看图的出口）
     // ═══════════════════════════════════════
 
