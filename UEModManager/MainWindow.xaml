@@ -712,10 +712,11 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
+                                    <!-- 角标虽小也要认得出：11px 是 100% 缩放下汉字还能看清的下限 -->
                                     <Border Grid.Column="0" CornerRadius="4" Padding="5,0,5,1" Margin="0,0,8,0"
                                             VerticalAlignment="Center"
                                             BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
-                                        <TextBlock Text="{loc:Text '广告'}" FontSize="10"
+                                        <TextBlock Text="{loc:Text '广告'}" FontSize="11"
                                                    Foreground="{StaticResource Text400Brush}"/>
                                     </Border>
                                     <TextBlock Grid.Column="1" Text="{loc:Value {Binding Subtitle}}" FontSize="12"
