@@ -72,6 +72,112 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ═══ 推广优惠券（主窗口顶部的推广条，见下方 PromoBar）═══
+             暖色只在这张券上出现，色值取自主题里已有的暖色令牌
+             （SetupWarning #FBBF24 / ConfigAmber #F59E0B / StatusOrange #F97316），不另起一套颜色。
+             放在窗口资源而不是主题字典里：这是一张到期就下线的券，不给全局设计系统留下永久的键。 -->
+
+        <!-- 金色：主按钮底色 -->
+        <LinearGradientBrush x:Key="PromoGoldBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="{StaticResource SetupWarningColor}" Offset="0"/>
+            <GradientStop Color="{StaticResource ConfigAmberColor}" Offset="0.6"/>
+            <GradientStop Color="{StaticResource StatusOrangeColor}" Offset="1"/>
+        </LinearGradientBrush>
+        <!-- 金色字：票根上的金额，上浅下深（顶端是 SetupWarning 再提亮一档） -->
+        <LinearGradientBrush x:Key="PromoGoldTextBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFFDE68A" Offset="0"/>
+            <GradientStop Color="{StaticResource SetupWarningColor}" Offset="0.5"/>
+            <GradientStop Color="{StaticResource ConfigAmberColor}" Offset="1"/>
+        </LinearGradientBrush>
+        <!-- 券面：与其它提示条同一档深色（#0F0F11），靠票根一侧带一点暖调 -->
+        <LinearGradientBrush x:Key="PromoFaceBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#F7221808" Offset="0"/>
+            <GradientStop Color="#F7141316" Offset="0.42"/>
+            <GradientStop Color="#F70F0F11" Offset="1"/>
+        </LinearGradientBrush>
+        <!-- 票根：券面上再罩一层半透明的琥珀色 -->
+        <LinearGradientBrush x:Key="PromoStubBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#47F59E0B" Offset="0"/>
+            <GradientStop Color="#24F97316" Offset="1"/>
+        </LinearGradientBrush>
+        <!-- 描边：左边亮、往右淡下去 -->
+        <LinearGradientBrush x:Key="PromoEdgeBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#CCF59E0B" Offset="0"/>
+            <GradientStop Color="#66F59E0B" Offset="1"/>
+        </LinearGradientBrush>
+        <!-- 金色底上的字：深褐，比纯黑柔和 -->
+        <SolidColorBrush x:Key="PromoInkBrush" Color="#FF231300"/>
+        <!-- 券窄到放不下标题时收起「立即领取」用（见 PromoClaimButton） -->
+        <converters:LessThanConverter x:Key="PromoNarrowConverter"/>
+
+        <!-- 「立即领取」：金色主按钮。不能直接套 CyberPrimaryButton 再改底色——
+             它的模板在悬停时会把底色换成青色。 -->
+        <Style x:Key="PromoClaimButtonStyle" TargetType="Button">
+            <Setter Property="infra:MotionAssist.Press" Value="True"/>
+            <Setter Property="Background" Value="{StaticResource PromoGoldBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PromoInkBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="{StaticResource RadiusButton}" Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- 悬停提亮 / 按下压暗：罩一层，不动底下的渐变 -->
+                            <Border x:Name="tint" CornerRadius="{StaticResource RadiusButton}"
+                                    Background="Transparent" IsHitTestVisible="False"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="tint" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="tint" Property="Background" Value="#26000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 关闭「×」：28×28，够点；平时不抢眼，悬停才亮 -->
+        <Style x:Key="PromoCloseButtonStyle" TargetType="Button">
+            <Setter Property="infra:MotionAssist.Press" Value="True"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Text500Brush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="face" Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource RadiusButton}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="face" Property="Background" Value="#1FFFFFFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text100Brush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- "移动到分类"右键项。卡片模式和列表模式各有一份 ContextMenu，
              共用这个样式才不会出现"改了一处、另一处还是老样子"。
 
@@ -519,6 +625,154 @@
                 </Border>
                 <!-- 内容层 -->
             <DockPanel Background="Transparent" LastChildFill="True">
+
+                <!-- ═ 推广条：一张优惠券（每天最多出现一次，到期自动下线；逻辑在 MainWindow.PromoBar.cs）═
+
+                     位置与让位规则：它在内容区最上方自己占一行，出现时把下面的工具栏、列表整体往下推，
+                     不浮在任何东西上面。另外两条提示各有各的位置——加载器状态条（LoaderStatusBar）占列表
+                     正上方的一行，新版本提示条（UpdateNoticeBar）浮在列表区域顶部——所以三条同时出现时
+                     自上而下依次排开，谁也不挡谁；窗口再窄再矮，被压缩的也只是最下面的 MOD 列表。
+
+                     外壳不带 Margin、ClipToBounds：MotionAssist.Reveal 把外壳的高度从 0 展开，
+                     券本身贴底对齐，看起来是从标题栏下面滑出来的。
+                     内容全部来自 DataContext 里那条活动数据（Core 的 PromoCampaign），这里不写死任何文案。
+                     DataContext 先置空：折叠着的时候不去主窗口的视图模型上找这些属性（找不到，白白刷一屏绑定报错）。 -->
+                <Border x:Name="PromoBar" DockPanel.Dock="Top" Visibility="Collapsed" ClipToBounds="True"
+                        DataContext="{x:Null}">
+                    <!-- 整张券都能点。圆角与票根缺口由 RoundedClip 真的裁出来，缺口里透出的是窗口背景。
+                         名字带 Card：它是一张卡片，不是圆角按钮（按钮圆角统一 8px 的检查按名字放行卡片）。 -->
+                    <Grid x:Name="PromoCouponCard" Height="72" MaxWidth="760" Margin="32,16,32,0"
+                          VerticalAlignment="Bottom" Cursor="Hand" Background="Transparent"
+                          infra:RoundedClip.Radius="12"
+                          infra:RoundedClip.NotchOffset="112" infra:RoundedClip.NotchRadius="7"
+                          MouseLeftButtonDown="PromoCoupon_MouseDown"
+                          MouseLeftButtonUp="PromoCoupon_MouseUp"
+                          MouseLeave="PromoCoupon_MouseLeave">
+
+                        <!-- 券面 + 票根底色 -->
+                        <Border Background="{StaticResource PromoFaceBrush}"/>
+                        <Border Width="112" HorizontalAlignment="Left" Background="{StaticResource PromoStubBrush}"/>
+
+                        <!-- 悬停时整张券提亮一点 -->
+                        <Border Background="#0DFFFFFF" IsHitTestVisible="False">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=PromoCouponCard}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
+                        <!-- 打孔线：票根与正文之间的一列圆点，两头接上下缺口 -->
+                        <Line X1="112" Y1="13" X2="112" Y2="59" HorizontalAlignment="Left" VerticalAlignment="Top"
+                              Stroke="#B3F59E0B" StrokeThickness="2.5" StrokeDashArray="0,2.2"
+                              StrokeDashCap="Round" IsHitTestVisible="False"/>
+
+                        <!-- 描边：外框一圈，加上下两个缺口的弧。
+                             缺口的弧是一个 2px 的圆环被裁掉里面一半，剩下紧贴缺口的 1px。 -->
+                        <Border CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource PromoEdgeBrush}"
+                                IsHitTestVisible="False"/>
+                        <Ellipse Width="16" Height="16" Margin="104,-8,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                 Stroke="#CCF59E0B" StrokeThickness="2" IsHitTestVisible="False"/>
+                        <Ellipse Width="16" Height="16" Margin="104,0,0,-8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                 Stroke="#CCF59E0B" StrokeThickness="2" IsHitTestVisible="False"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="112"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 票根：大号金额 + 「立减券」。PromoAmount 是扫光时跟着脉冲的那一块 -->
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <StackPanel x:Name="PromoAmount" Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding CurrencySymbol}" FontSize="17" FontWeight="Bold"
+                                               Foreground="{StaticResource PromoGoldTextBrush}"
+                                               VerticalAlignment="Bottom" Margin="0,0,2,5"/>
+                                    <TextBlock Text="{Binding Amount}" FontSize="34" FontWeight="Bold"
+                                               LineHeight="36" LineStackingStrategy="BlockLineHeight"
+                                               Foreground="{StaticResource PromoGoldTextBrush}"/>
+                                </StackPanel>
+                                <TextBlock Text="{loc:Value {Binding StubCaption}}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource SetupWarningBrush}" Opacity="0.9"
+                                           HorizontalAlignment="Center" Margin="0,-1,0,0"/>
+                            </StackPanel>
+
+                            <!-- 正文：标题一行；「广告」角标 + 副标题一行。
+                                 角标放在副标题前面而不是标题后面：窗口很窄时被省略号截掉的是副标题，角标始终看得到。 -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="22,0,12,0">
+                                <TextBlock Text="{loc:Value {Binding Title}}" FontSize="15" FontWeight="Bold"
+                                           Foreground="{StaticResource Text100Brush}" TextTrimming="CharacterEllipsis"/>
+                                <Grid Margin="0,5,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- 角标虽小也要认得出：11px 是 100% 缩放下汉字还能看清的下限 -->
+                                    <Border Grid.Column="0" CornerRadius="4" Padding="5,0,5,1" Margin="0,0,8,0"
+                                            VerticalAlignment="Center"
+                                            BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1">
+                                        <TextBlock Text="{loc:Text '广告'}" FontSize="11"
+                                                   Foreground="{StaticResource Text400Brush}"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{loc:Value {Binding Subtitle}}" FontSize="12"
+                                               Foreground="{StaticResource Text400Brush}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- 券窄于 440（窗口缩到最小、又开着右侧详情面板）时收起这个按钮，把位置让给标题：
+                                 那时再留着它，标题只剩「GPT 充…」。整张券本来就能点，收起后照样领得到。 -->
+                            <Button x:Name="PromoClaimButton" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,6,0"
+                                    Content="{loc:Value {Binding ActionText}}"
+                                    Click="PromoClaim_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PromoClaimButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ActualWidth, ElementName=PromoCouponCard,
+                                                                   Converter={StaticResource PromoNarrowConverter}, ConverterParameter=440}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <Button x:Name="PromoCloseButton" Grid.Column="3" VerticalAlignment="Center" Margin="0,0,10,0"
+                                    Style="{StaticResource PromoCloseButtonStyle}"
+                                    ToolTip="{loc:Text '关闭'}" AutomationProperties.Name="{loc:Text '关闭'}"
+                                    Click="PromoClose_Click">
+                                <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- 高光：一条斜着的亮带，平时透明；MotionAssist.Shine 让它从左扫到右。
+                             盖在最上面但不接鼠标，被 RoundedClip 裁在券的形状里。
+                             中间一道窄而亮的芯、两侧是很淡的晕：像金属反光一闪，而不是一团雾飘过去。 -->
+                        <Border x:Name="PromoShine" Width="150" HorizontalAlignment="Left" Opacity="0"
+                                IsHitTestVisible="False">
+                            <Border.RenderTransform>
+                                <SkewTransform AngleX="-20"/>
+                            </Border.RenderTransform>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#00FFF3D6" Offset="0"/>
+                                    <GradientStop Color="#12FFF3D6" Offset="0.3"/>
+                                    <GradientStop Color="#5CFFF3D6" Offset="0.5"/>
+                                    <GradientStop Color="#12FFF3D6" Offset="0.7"/>
+                                    <GradientStop Color="#00FFF3D6" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                </Border>
 
                 <!-- Keep the action group together when a narrow window needs a second row. -->
                 <Border DockPanel.Dock="Top" MinHeight="80" Padding="32,16,32,8">

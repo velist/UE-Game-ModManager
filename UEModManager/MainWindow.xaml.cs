@@ -263,6 +263,9 @@ namespace UEModManager
 
                 // 首次使用引导排在所有启动检查之后，等列表渲染完再开始
                 _ = Dispatcher.BeginInvoke(StartOnboardingIfNeeded, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                // 顶部推广条（每天最多一次，到期自动下线）排在最后：见 MainWindow.PromoBar.cs
+                SchedulePromoBar();
             }
             catch (Exception ex)
             {
