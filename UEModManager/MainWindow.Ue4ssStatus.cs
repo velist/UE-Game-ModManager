@@ -31,6 +31,12 @@ namespace UEModManager
         private Ue4ssService? Ue4ssLoaderService
             => ((App)Application.Current).ServiceProvider?.GetService<Ue4ssService>();
 
+        /// <summary>
+        /// 刷新加载器状态条。正式版线只有 UE4SS 一种；名字与 2.2.0 线一致
+        /// （那边还管 RE 引擎的 REFramework），调用处因此两线相同。
+        /// </summary>
+        private void RefreshLoaderStatus() => RefreshUe4ssStatus();
+
         /// <summary>刷新 UE4SS 的状态条。当前游戏不是 UE 游戏（或游戏路径没配好）时返回 false。</summary>
         private bool RefreshUe4ssStatus()
         {

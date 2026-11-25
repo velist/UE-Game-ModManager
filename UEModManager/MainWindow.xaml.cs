@@ -2289,7 +2289,8 @@ namespace UEModManager
                 name = LanguageManager.IsEnglish ? "All MODs" : UiText.Get("全部 MOD");
             ModCountText.Text = name;
             UpdateEmptyState();
-            RefreshUe4ssStatus();
+            // 切游戏、导入、启用禁用之后都会走到这里，顺带刷新加载器状态（只是几次文件探测）
+            RefreshLoaderStatus();
         }
 
         private void UpdateEmptyState()
