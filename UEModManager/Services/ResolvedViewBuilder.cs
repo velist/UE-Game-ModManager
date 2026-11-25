@@ -237,6 +237,28 @@ public class ResolvedViewBuilder
     }
 
     /// <summary>
+    /// 仓库里的全部包，按当前方案归位之后的样子（顺序与仓库一致）——部署认的就是这一份。
+    ///
+    /// 「磁盘核对」拿它判断一个包里哪些源文件是<b>要装进游戏的</b>：老版本把安装树里的图片一律登记成预览图，
+    /// 归位时其中带目录的会被改判成要装的文件（<see cref="InstallLayoutNormalizer.EffectiveArtifactType"/>）。
+    /// 核对如果照着索引里的原始类型看，这类图片丢了它看不见，部署却会因为它失败——
+    /// 玩家被报错叫去点「刷新」，刷新又说没有问题。
+    ///
+    /// 只算路径和类型，不读任何 MOD 文件。没有方案、或方案不是当前游戏的时候不会有部署，原样返回。
+    /// </summary>
+    public IReadOnlyList<Package> PackagesAsDeployed()
+    {
+        var packages = _packageRepo.GetAllPackages();
+        var profile = _profileService.CurrentProfile;
+        if (profile == null
+            || !string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
+            return packages;
+
+        var normalized = NormalizeForProfile(profile).Packages;
+        return packages.Select(p => normalized.TryGetValue(p.PackageKey, out var deployed) ? deployed : p).ToList();
+    }
+
+    /// <summary>
     /// 按方案把全部包归位，并给出这次用的归位规则。
     ///
     /// 规则里的脚本 MOD 目录跟着 UE4SS 的目录结构走。结构先看磁盘，再把「方案里启用了、这次部署才会落盘」的

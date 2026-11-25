@@ -156,12 +156,15 @@ namespace UEModManager.Services
             if (_stateStore == null) return null;
             try
             {
-                var check = await new DiskReconcileService(_logger, _packageRepo, _profileService, _gameConfig, _stateStore)
+                var check = await new DiskReconcileService(
+                        _logger, _packageRepo, _profileService, _gameConfig, _stateStore, _viewBuilder)
                     .CheckAsync();
                 var report = check.Report;
                 var problems = new List<string>();
                 string? detail = null;
 
+                if (report.RecordsUnknown)
+                    problems.Add(UiText.Get("当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件"));
                 if (report.RepositoryRootUnreachable)
                 {
                     problems.Add(UiText.Get("MOD 库的位置访问不到，没法核对 MOD 文件"));
@@ -199,7 +202,9 @@ namespace UEModManager.Services
 
                 if (problems.Count > 0)
                 {
-                    problems.Add(UiText.Get("点 MOD 列表上方的「刷新」（F5）处理"));
+                    // 记录没加载完整时，点刷新也只会得到同一句话，不往那里引
+                    if (!report.RecordsUnknown)
+                        problems.Add(UiText.Get("点 MOD 列表上方的「刷新」（F5）处理"));
                     return new(ModFilesCheckName, HealthStatus.Warning, string.Join(UiText.Get("；"), problems), detail);
                 }
 

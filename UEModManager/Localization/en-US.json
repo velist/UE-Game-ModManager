@@ -986,5 +986,9 @@
   "要把它们从方案里去掉吗？它们装在游戏目录里的文件会原样留下，管理器不会删除。": "Remove them from the profile? Any files they have in the game folder stay exactly as they are; the manager will not delete them.",
   "从方案里去掉": "Remove from profile",
   "已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件": "The record of installed files cannot be read, so mod files in the game folder could not be checked",
-  "方案里启用着 {0} 个找不到记录的 MOD（{1}），启用、禁用和启动都会因此失败": "{0} enabled mod(s) in the profile have no record ({1}); enabling, disabling and launching will fail because of them"
+  "方案里启用着 {0} 个找不到记录的 MOD（{1}），启用、禁用和启动都会因此失败": "{0} enabled mod(s) in the profile have no record ({1}); enabling, disabling and launching will fail because of them",
+  "MOD 的记录没有加载完整": "Mod records were not fully loaded",
+  "管理器这次没能把当前游戏的 MOD 记录加载完整，现在核对出来的结果不可信。": "The manager could not fully load the mod records for the current game this time, so the result of this check cannot be trusted.",
+  "为了安全，这次没有改动任何东西。": "To be safe, nothing was changed this time.",
+  "当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件": "The mod records for the current game were not fully loaded, so mod files could not be checked"
 }

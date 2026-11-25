@@ -53,6 +53,7 @@ public sealed class DiskRefreshTextTests : IDisposable
         yield return DiskRefreshText.RepositoryUnreachable(@"X:\Mods\Repository");
         yield return DiskRefreshText.GameDirectoryUnreachable(@"E:\Games\Sample");
         yield return DiskRefreshText.DeploymentRecordUnknown();
+        yield return DiskRefreshText.RecordsNotLoaded();
         yield return DiskRefreshText.PackageRecordsUnreadable(3);
         yield return DiskRefreshText.StillBlocked(["Beta"]);
         yield return DiskRefreshText.Done(removed: 1, recovered: 2, reinstalled: 3, disabled: 4, forgotten: 5)!;
@@ -134,6 +135,7 @@ public sealed class DiskRefreshTextTests : IDisposable
                      "点 MOD 列表上方的「刷新」（F5）处理",
                      "{0} 个 MOD 的 {1} 个源文件、{2} 个已安装文件都在",
                      "已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件",
+                     "当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件",
                      "方案里启用着 {0} 个找不到记录的 MOD（{1}），启用、禁用和启动都会因此失败",
                      "；",
                  })

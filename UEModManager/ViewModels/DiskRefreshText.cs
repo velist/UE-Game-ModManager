@@ -72,6 +72,18 @@ namespace UEModManager.ViewModels
                     UiText.Get("请关掉管理器再重新打开试试；如果一直这样，请把问题反馈给我们。")),
                 IsToast: false);
 
+        /// <summary>
+        /// 手里的包清单 / 方案不是当前游戏的（加载中途出过错，停在了上一个游戏）：
+        /// 拿它们核对出来的每一条都是错的，所以什么都不动。
+        /// </summary>
+        public static DiskRefreshNotice RecordsNotLoaded()
+            => new(DiskRefreshNoticeKind.RecordsNotLoaded, UiText.Get("MOD 的记录没有加载完整"),
+                Paragraphs(
+                    UiText.Get("管理器这次没能把当前游戏的 MOD 记录加载完整，现在核对出来的结果不可信。"),
+                    UiText.Get("为了安全，这次没有改动任何东西。"),
+                    UiText.Get("请关掉管理器再重新打开试试；如果一直这样，请把问题反馈给我们。")),
+                IsToast: false);
+
         public static DiskRefreshNotice StillBlocked(IReadOnlyList<string> blockerNames)
             => new(DiskRefreshNoticeKind.StillBlocked, UiText.Get("还有 MOD 没处理"),
                 Paragraphs(

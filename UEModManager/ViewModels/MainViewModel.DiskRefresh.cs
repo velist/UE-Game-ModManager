@@ -21,8 +21,9 @@ namespace UEModManager.ViewModels
     ///
     /// <para><b>四条不变式</b></para>
     /// <list type="number">
-    /// <item><b>看不清的时候什么都不动。</b>MOD 库或游戏目录访问不到、已安装文件的记录读不出来，
-    /// 都只说明看不清的是什么，不提任何移除、找回、装回去——移动硬盘没插好不等于 MOD 被删了。</item>
+    /// <item><b>看不清的时候什么都不动。</b>MOD 库或游戏目录访问不到、已安装文件的记录读不出来、
+    /// 手里的记录不是当前游戏的，都只说明看不清的是什么，不提任何移除、找回、装回去——
+    /// 移动硬盘没插好不等于 MOD 被删了。</item>
     /// <item><b>还存在的文件默认不删。</b>MOD 库里的没了、游戏目录里那份还在时，先问要不要找回；
     /// 移除记录默认把游戏里的文件原样留下（先移出部署清单、再删记录，顺序不能反）。</item>
     /// <item><b>玩家关掉对话框 = 什么都不改。</b></item>
@@ -93,6 +94,8 @@ namespace UEModManager.ViewModels
                     if (report.CannotSeeClearly)
                     {
                         // 看不清：只说明看不清的是什么，其余一概不动
+                        if (report.RecordsUnknown)
+                            prompts.Notify(DiskRefreshText.RecordsNotLoaded());
                         if (report.RepositoryRootUnreachable)
                             prompts.Notify(DiskRefreshText.RepositoryUnreachable(check.RepositoryRoot));
                         if (report.GameRootUnreachable)

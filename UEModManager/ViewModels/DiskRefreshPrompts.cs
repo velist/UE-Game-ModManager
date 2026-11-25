@@ -65,6 +65,9 @@ namespace UEModManager.ViewModels
         /// <summary>已安装文件的记录用不了：不知道游戏目录里装着什么。</summary>
         DeploymentRecordUnknown,
 
+        /// <summary>手里的包清单 / 方案不是当前游戏的（加载中途出过错）。</summary>
+        RecordsNotLoaded,
+
         /// <summary>方案里有启用的 MOD，但一条 MOD 记录都读不出来（索引本身没读出来）。</summary>
         PackageRecordsUnreadable,
 

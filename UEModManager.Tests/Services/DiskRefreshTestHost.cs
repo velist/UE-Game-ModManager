@@ -101,7 +101,7 @@ internal sealed class DiskRefreshHost
             Path.Combine(root, "LaunchSessions"), new NoLaunchPlatform(), FastTimings);
 
         var reconcile = new DiskReconcileService(NullLogger<DiskReconcileService>.Instance,
-            repository, profiles, game, states);
+            repository, profiles, game, states, views);
         var health = new HealthCheckService(NullLogger<HealthCheckService>.Instance,
             game, profiles, repository, views, states);
 
@@ -170,6 +170,51 @@ internal sealed class DiskRefreshHost
         return package;
     }
 
+    /// <summary>
+    /// 往仓库里放一个<b>保留安装布局</b>的插件包（文件夹 / 压缩包整体导入的那种：包内路径就是相对游戏根的位置），
+    /// 并加进当前方案（未启用）。
+    ///
+    /// 图片一律登记成预览图——老版本就是这么入库的。部署时其中带目录的会被改判成要装的文件
+    /// （<c>InstallLayoutNormalizer.EffectiveArtifactType</c>），包根上的才是真的预览图。
+    /// </summary>
+    public async Task<Package> AddLayoutPluginAsync(string key, params (string RelativePath, string Content)[] files)
+    {
+        var artifacts = new List<PackageArtifact>();
+        long total = 0;
+        foreach (var (relativePath, content) in files)
+        {
+            var source = Path.Combine(Store.GetPackageFilesDirectory(key), relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+            await File.WriteAllTextAsync(source, content);
+            var size = new FileInfo(source).Length;
+            total += size;
+            artifacts.Add(new PackageArtifact
+            {
+                FileName = Path.GetFileName(relativePath),
+                RelativeSourcePath = Path.Combine(key, "files", relativePath),
+                RelativeTargetPath = relativePath,
+                FileHash = await ObjectStore.ComputeFileHashAsync(source),
+                FileSize = size,
+                ArtifactType = relativePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                    ? ArtifactType.PreviewImage
+                    : ArtifactType.PluginFile,
+            });
+        }
+
+        var package = new Package
+        {
+            PackageKey = key, DisplayName = "插件 " + key, HostGameName = GameName, Kind = PackageKind.Plugin,
+            PreservesInstallLayout = true, Tags = ["未分类"], TotalSize = total, Artifacts = artifacts,
+            ContentHash = string.Join("|", artifacts.Select(a => a.FileHash)),
+        };
+        await Repository.RegisterPackageAsync(package);
+        await Profiles.AddPackagesToCurrentProfileAsync([package]);
+        return package;
+    }
+
+    /// <summary>保留安装布局的插件包部署后的位置：直接相对游戏根，不套包名。</summary>
+    public string PluginFile(string relativePath) => Path.Combine(GamePath, relativePath);
+
     /// <summary>经主视图模型启用（真实部署），与玩家点开关走的是同一条路。</summary>
     public async Task EnableAsync(params string[] keys)
     {
@@ -187,6 +232,26 @@ internal sealed class DiskRefreshHost
     /// 所以"刷新不写任何文件"的用例要先过了这一步再取指纹。
     /// </summary>
     public Task ShowListAsync() => Main.RefreshFromRepositoryAsync();
+
+    /// <summary>
+    /// 让 MOD 库的位置变成"访问不到、也建不出来"：把仓库目录挪走，再用一个同名<b>文件</b>占住原来的位置。
+    ///
+    /// 真实情形是移动硬盘没插、网络盘掉线——那时去建这个目录抛的同样是 <see cref="IOException"/>。
+    /// 用同名文件来模拟，测试不必依赖一个真的不存在的盘符，也不会在临时目录之外留下任何东西。
+    /// </summary>
+    /// <returns>把它恢复原状（"把硬盘接回去"）。</returns>
+    public Action UnplugLibrary()
+    {
+        var root = RepositoryRoot;
+        var elsewhere = root + "-unplugged";
+        Directory.Move(root, elsewhere);
+        File.WriteAllBytes(root, []);
+        return () =>
+        {
+            File.Delete(root);
+            Directory.Move(elsewhere, root);
+        };
+    }
 
     public string RepositoryFile(string key, string relativePath)
         => Path.Combine(Store.GetPackageFilesDirectory(key), relativePath);

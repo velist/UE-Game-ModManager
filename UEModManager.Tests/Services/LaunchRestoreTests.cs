@@ -256,6 +256,36 @@ public sealed class LaunchRestoreTests : IDisposable
         Assert.Contains("已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件", check.Message);
     });
 
+    [Fact]
+    public Task HealthReport_RecordsOfAnotherGame_SaysTheyAreNotLoaded_InsteadOfListingMods() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 切换游戏只换了一半：设置已经是新游戏，包索引和方案还停在上一个。照常核对的话每一条都是错的
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.EnableAsync("a");
+        Directory.Delete(host.Store.GetPackageDirectory("a"), recursive: true);
+        host.Game.Config.GameName = "另一个游戏";
+
+        var check = ModFilesCheck(await host.Health.CheckAsync());
+
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Equal("当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件", check.Message);
+    });
+
+    [Fact]
+    public Task HealthReport_TextureTheGameNeedsIsGone_IsReported() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 体检和刷新用的是同一个核对，口径也得一样：部署会装的贴图丢了，体检里要看得见
+        var host = await OpenAsync();
+        await host.AddLayoutPluginAsync("hud", (@"hud\main.bin", "MAIN"), (@"hud\icons\icon.png", "ICON"));
+        File.Delete(host.RepositoryFile("hud", @"hud\icons\icon.png"));
+
+        var check = ModFilesCheck(await host.Health.CheckAsync());
+
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Contains("1 个 MOD 在 MOD 库里的文件丢失或不完整（hud）", check.Message);
+    });
+
     private static HealthCheck ModFilesCheck(HealthReport report)
         => Assert.Single(report.Checks, check => check.Name == HealthCheckService.ModFilesCheckName);
 }

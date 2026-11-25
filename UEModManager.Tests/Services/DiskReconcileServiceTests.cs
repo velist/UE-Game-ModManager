@@ -143,7 +143,7 @@ public sealed class DiskReconcileServiceTests : IDisposable
         var states = new DeploymentStateStore(NullLogger<DeploymentStateStore>.Instance,
             Path.Combine(host.Root, "DeploymentState"), legacyBackups);
         var reconcile = new DiskReconcileService(NullLogger<DiskReconcileService>.Instance,
-            host.Repository, host.Profiles, host.Game, states);
+            host.Repository, host.Profiles, host.Game, states, host.Views);
 
         var report = (await reconcile.CheckAsync()).Report;
 
@@ -156,6 +156,110 @@ public sealed class DiskReconcileServiceTests : IDisposable
         var plain = (await host.Reconcile.CheckAsync()).Report;
         Assert.False(plain.DeploymentRecordUnknown);
         Assert.False(Assert.Single(plain.LostPackages).DeployedFilesUnknown);
+    });
+
+    // ═══════════════════════════════════════
+    //  哪些文件算"要装进游戏的"：与部署同一个口径
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task Check_ImageInsideAnInstallTree_CountsExactlyWhenDeploymentInstallsIt() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 老版本把安装树里的图片一律登记成预览图。部署时带目录的那些会被当成 MOD 自己的贴图装进游戏，
+        // 包根上的才是给人看的预览图。核对必须跟着同一个口径，否则就是"部署报缺文件、刷新说没问题"。
+        var host = await OpenAsync();
+        await host.AddLayoutPluginAsync("hud",
+            (@"hud\main.bin", "MAIN"), (@"hud\icons\icon.png", "ICON-PIXELS"), ("cover.png", "COVER"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        await host.EnableAsync("hud");
+        // 部署的口径：子目录里的图装进了游戏，包根上的没有
+        Assert.Equal("ICON-PIXELS", await File.ReadAllTextAsync(host.PluginFile(@"hud\icons\icon.png")));
+        Assert.False(File.Exists(host.PluginFile("cover.png")));
+
+        // 包根上的预览图没了：部署用不到它，不算问题
+        File.Delete(host.RepositoryFile("hud", "cover.png"));
+        Assert.False((await host.Reconcile.CheckAsync()).Report.HasFindings);
+        await host.Views.BuildAsync();
+
+        // 子目录里的贴图没了：部署会因为它失败，核对也必须报出来
+        File.Delete(host.RepositoryFile("hud", @"hud\icons\icon.png"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => host.Views.BuildAsync());
+
+        var report = (await host.Reconcile.CheckAsync()).Report;
+
+        var partial = Assert.Single(report.PartialPackages);
+        Assert.Equal("hud", partial.PackageKey);
+        Assert.Equal(2, partial.TotalFiles);
+        Assert.Equal([Path.Combine("hud", "files", "hud", "icons", "icon.png")], partial.MissingFiles);
+        Assert.True(partial.BlocksDeployment);
+        // 游戏里装着的那一份可以拿来找回
+        Assert.True(partial.CanRecoverEverything);
+    });
+
+    // ═══════════════════════════════════════
+    //  手里的记录不是当前游戏的
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task Check_RecordsBelongToAnotherGame_DrawsNoConclusion() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.EnableAsync("a");
+        Directory.Delete(host.Store.GetPackageDirectory("a"), recursive: true);
+        Assert.Single((await host.Reconcile.CheckAsync()).Report.LostPackages);
+
+        // 切换游戏只换了一半（加载中途出错）：设置已经是新游戏，包索引和方案还停在上一个
+        host.Game.Config.GameName = "另一个游戏";
+        var report = (await host.Reconcile.CheckAsync()).Report;
+
+        Assert.True(report.RecordsUnknown);
+        Assert.True(report.CannotSeeClearly);
+        Assert.Empty(report.LostPackages);
+        Assert.Empty(report.UnknownEnabledKeys);
+        Assert.Empty(report.MissingDeployments);
+
+        // 反过来：包索引是当前游戏的，方案却是别的游戏的
+        host.Game.Config.GameName = DiskRefreshHost.GameName;
+        Assert.False((await host.Reconcile.CheckAsync()).Report.RecordsUnknown);
+        await host.Profiles.SetCurrentGameAsync("另一个游戏");
+        Assert.True((await host.Reconcile.CheckAsync()).Report.RecordsUnknown);
+    });
+
+    // ═══════════════════════════════════════
+    //  MOD 库的位置访问不到时，包索引照样要加载
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task SetCurrentGame_LibraryLocationUnreachable_StillLoadsTheIndex() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 以前在这里抛异常，整个启动加载静默中断：列表是空的、没有任何提示
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.AddPackageAsync("b", ("b.bin", "BBBB"));
+        host.UnplugLibrary();
+
+        // 重新打开管理器
+        var store = new ObjectStore(NullLogger<ObjectStore>.Instance, host.RepositoryRoot);
+        Assert.ThrowsAny<IOException>(() => store.EnsureInitialized());
+        var reopened = new PackageRepository(NullLogger<PackageRepository>.Instance, store, host.DataDirectory);
+
+        await reopened.SetCurrentGameAsync(DiskRefreshHost.GameName);
+
+        Assert.Equal(["a", "b"], reopened.GetAllPackages().Select(p => p.PackageKey));
+        Assert.Equal(DiskRefreshHost.GameName, reopened.CurrentGameName);
+        // 没有把那个位置顺手建出来
+        Assert.False(Directory.Exists(host.RepositoryRoot));
+    });
+
+    [Fact]
+    public Task CurrentGameName_IsEmptyUntilAnIndexHasBeenLoaded() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        var fresh = new PackageRepository(NullLogger<PackageRepository>.Instance, host.Store, host.DataDirectory);
+
+        Assert.Equal(string.Empty, fresh.CurrentGameName);
+        Assert.Equal(DiskRefreshHost.GameName, host.Repository.CurrentGameName);
     });
 
     // ═══════════════════════════════════════

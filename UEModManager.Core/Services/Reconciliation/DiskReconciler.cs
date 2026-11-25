@@ -50,7 +50,14 @@ namespace UEModManager.Services.Reconciliation
     /// <summary>一次核对的输入：管理器<b>记着</b>的东西。</summary>
     public sealed record DiskReconcileInput
     {
-        /// <summary>仓库索引里的包（当前游戏）。</summary>
+        /// <summary>
+        /// 仓库索引里的包（当前游戏），<b>按部署的口径归位之后的那一份</b>
+        /// （<c>InstallLayoutNormalizer.NormalizePackages</c> 的结果，主项目经 <c>ResolvedViewBuilder</c> 取得）。
+        ///
+        /// 哪些文件算"要装进游戏的"只看这里的 <see cref="PackageArtifact.ArtifactType"/>，本类不另判一套：
+        /// 老版本把安装树里的图片一律登记成预览图，归位时其中带目录的会被改判成要装的文件。
+        /// 直接把索引里的原始记录传进来的话，这类图片丢了核对看不见，部署却会因为它失败。
+        /// </summary>
         public required IReadOnlyList<Package> Packages { get; init; }
 
         /// <summary>部署状态里的受管文件：管理器装进游戏目录的每一个文件。</summary>
@@ -72,6 +79,13 @@ namespace UEModManager.Services.Reconciliation
         /// false 时游戏侧不下任何结论，仓库侧的每个问题都标成"游戏里的情况不明"。
         /// </summary>
         public bool ManagedFilesKnown { get; init; } = true;
+
+        /// <summary>
+        /// <see cref="Packages"/> 与 <see cref="EnabledPackageKeys"/> 是不是<b>同一个游戏</b>、也就是当前游戏的记录。
+        /// 加载中途出错时（切换游戏只换了一半），手里可能是上一个游戏的包清单配着这个游戏的方案：
+        /// 拿它们互相比，方案里启用的每一个 MOD 都会被说成"找不到记录"。false 时两侧都不下任何结论。
+        /// </summary>
+        public bool RecordsKnown { get; init; } = true;
     }
 
     /// <summary>仓库里缺了、但游戏目录里还装着一份内容相同的文件。</summary>
@@ -151,6 +165,13 @@ namespace UEModManager.Services.Reconciliation
         public bool DeploymentRecordUnknown { get; init; }
 
         /// <summary>
+        /// 手里的包清单和方案不是当前游戏的（<see cref="DiskReconcileInput.RecordsKnown"/> 为 false）。
+        /// 此时报告里只有这一个标志：连"MOD 库的位置在不在"都不提——
+        /// 不知道当前游戏登记了哪些包，也就不知道那个位置上本来该不该有东西。
+        /// </summary>
+        public bool RecordsUnknown { get; init; }
+
+        /// <summary>
         /// 当前方案里启用着、包索引里却没有记录的包键。
         /// 只要它们还留在方案里，最终视图就建不出来（"方案引用的包不存在"），所有部署都会失败。
         /// </summary>
@@ -198,16 +219,16 @@ namespace UEModManager.Services.Reconciliation
 
         /// <summary>有没有需要玩家知道的问题。</summary>
         public bool HasFindings
-            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown
+            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown || RecordsUnknown
                || LostPackages.Count > 0 || PartialPackages.Count > 0 || UnknownEnabledKeys.Count > 0
                || MissingDeployments.Any(d => d.CanReinstall);
 
         /// <summary>
-        /// 有哪一侧看不清（位置访问不到、清单不可信）。看不清的时候什么都不该动：
+        /// 有哪一侧看不清（位置访问不到、清单不可信、记录不是当前游戏的）。看不清的时候什么都不该动：
         /// 界面只说明看不清的是什么，不提任何移除、找回、装回去。
         /// </summary>
         public bool CannotSeeClearly
-            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown;
+            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown || RecordsUnknown;
     }
 
     /// <summary>
@@ -233,6 +254,9 @@ namespace UEModManager.Services.Reconciliation
             if (input == null) throw new ArgumentNullException(nameof(input));
             if (probes == null) throw new ArgumentNullException(nameof(probes));
             if (input.Packages == null) throw new ArgumentException("包清单不能为空引用", nameof(input));
+
+            // 记录不是当前游戏的：拿它们比什么都是错的，一个结论都不下，连磁盘都不去探
+            if (!input.RecordsKnown) return new DiskReconcileReport { RecordsUnknown = true };
 
             var enabled = new HashSet<string>(input.EnabledPackageKeys ?? [], StringComparer.OrdinalIgnoreCase);
             var managedByKey = (input.ManagedFiles ?? [])
@@ -393,7 +417,11 @@ namespace UEModManager.Services.Reconciliation
         ///
         /// 预览图类的产物不算：部署从来不碰它们（见 <c>ResolvedViewLayerBuilder.BuildDeploymentCandidates</c>），
         /// 少了一张图 MOD 照样能装、能用。把它算成"必需的源文件"的话，只丢一张图会被说成"没法正常装进游戏"，
-        /// 整包丢失时又会因为游戏目录里找不到这张图而不提供找回。口径必须和部署一致。
+        /// 整包丢失时又会因为游戏目录里找不到这张图而不提供找回。
+        ///
+        /// <b>口径必须和部署一致，所以这里只认类型、不看路径和扩展名</b>：一张图到底算预览图还是要装的贴图，
+        /// 由归位（<c>InstallLayoutNormalizer.EffectiveArtifactType</c>）说了算，
+        /// 传进来的包已经是归位之后的（见 <see cref="DiskReconcileInput.Packages"/>）。
         /// </summary>
         private static List<PackageArtifact> RegisteredFiles(Package package)
         {

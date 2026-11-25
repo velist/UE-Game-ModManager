@@ -870,6 +870,83 @@ public class DiskReconcilerTests
         Assert.Equal(0, report.RegisteredPackageCount);
     }
 
+    // ─── 手里的记录不是当前游戏的 ───
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    public void Reconcile_RecordsNotKnown_DrawsNoConclusionAndNeverTouchesTheDisk(
+        bool repositoryReachable, bool gameReachable, bool managedKnown)
+    {
+        // 切换游戏只换了一半：包清单是上一个游戏的，方案是这个游戏的。照常比的话，
+        // 方案里启用的每个 MOD 都"找不到记录"，上一个游戏的包又都"在游戏目录里丢了"
+        var packages = new[] { Pkg("old-game-mod", ("o.pak", 10, "h1")) };
+        var managed = new[] { Managed("new-game-mod", "n.pak", 5, "h2") };
+        var disk = new FakeDisk(); // 磁盘上什么都没有：照常比的话全是"丢失"
+
+        var report = DiskReconciler.Reconcile(
+            Input(packages, managed, ["new-game-mod"], repositoryReachable, gameReachable)
+                with { ManagedFilesKnown = managedKnown, RecordsKnown = false },
+            disk.Probes);
+
+        Assert.True(report.RecordsUnknown);
+        Assert.True(report.CannotSeeClearly);
+        Assert.True(report.HasFindings);
+        Assert.Empty(report.LostPackages);
+        Assert.Empty(report.PartialPackages);
+        Assert.Empty(report.MissingDeployments);
+        Assert.Empty(report.UnknownEnabledKeys);
+        Assert.False(report.SuspectedRepositoryLocationProblem);
+        // 只说这一件事：不知道当前游戏登记了哪些包，别的位置在不在都无从谈起
+        Assert.False(report.RepositoryRootUnreachable);
+        Assert.False(report.GameRootUnreachable);
+        Assert.False(report.DeploymentRecordUnknown);
+        Assert.Equal(0, report.CheckedPackageCount);
+        Assert.Equal(0, report.RegisteredPackageCount);
+        // 连探都不去探
+        Assert.Empty(disk.RepositoryProbes);
+        Assert.Empty(disk.GameProbes);
+        Assert.Empty(disk.StrayFileProbes);
+    }
+
+    [Fact]
+    public void Reconcile_RecordsKnownByDefault()
+    {
+        var packages = new[] { Pkg("a", ("a.pak", 10, "h1")) };
+
+        Assert.False(DiskReconciler.Reconcile(Input(packages), IntactDisk(packages).Probes).RecordsUnknown);
+    }
+
+    // ─── 哪些文件算"要装进游戏的"：只认类型，由归位说了算 ───
+
+    [Fact]
+    public void Reconcile_ImageThatDeploymentInstalls_IsCheckedAndRecoveredLikeAnyOtherFile()
+    {
+        // 脚本 MOD 自带的贴图：归位之后它的类型已经不是预览图，部署会装它。
+        // 核对只认类型，不因为它是 .png 就跳过——否则它丢了核对看不见，部署却会因为它失败
+        var package = Pkg("ui", ("main.lua", 10, "h1"));
+        package.Artifacts.Add(new PackageArtifact
+        {
+            FileName = "icon.png", RelativeSourcePath = @"ui\files\icons\icon.png",
+            RelativeTargetPath = @"icons\icon.png", FileSize = 7, FileHash = "img", ArtifactType = ArtifactType.Other,
+        });
+        var managed = new[] { Managed("ui", "main.lua", 10, "h1"), Managed("ui", @"icons\icon.png", 7, "img") };
+        var disk = IntactDisk([package], managed);
+        disk.Repository.Remove(@"ui\files\icons\icon.png");
+
+        var report = DiskReconciler.Reconcile(Input([package], managed, ["ui"]), disk.Probes);
+
+        var partial = Assert.Single(report.PartialPackages);
+        Assert.Equal(2, partial.TotalFiles);
+        Assert.Equal([@"ui\files\icons\icon.png"], partial.MissingFiles);
+        Assert.True(partial.BlocksDeployment);
+        Assert.True(partial.CanRecoverEverything);
+        Assert.Equal(managed[1].TargetPath, Assert.Single(partial.Recoverable).GameFilePath);
+    }
+
     // ─── 入参 ───
 
     [Fact]

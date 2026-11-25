@@ -69,6 +69,12 @@ namespace UEModManager.Services
         /// <summary>ObjectStore 实例。</summary>
         public ObjectStore Store => _objectStore;
 
+        /// <summary>
+        /// 包索引现在是为哪个游戏加载的；还没加载过时为空串。
+        /// 「磁盘核对」据此确认手里的包清单确实是当前游戏的——加载中途出错时，这里会停在上一个游戏。
+        /// </summary>
+        public string CurrentGameName => _currentGame;
+
         // ─── 初始化 ───
 
         /// <summary>
@@ -76,7 +82,19 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
-            _objectStore.EnsureInitialized();
+            try
+            {
+                _objectStore.EnsureInitialized();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                           or NotSupportedException or ArgumentException)
+            {
+                // MOD 库的位置访问不到（移动硬盘没插、网络盘掉线、盘符变了）。包索引不在那里，照样要加载。
+                // 以前在这里把异常抛出去，整个初始化静默中断：列表是空的、没有任何提示，把硬盘接好也得重启
+                // 管理器才看得到 MOD；切换游戏时还会留下"方案是新游戏的、包索引是旧游戏的"这种半截状态。
+                // 现在列表照常显示，"文件访问不到"由「刷新」和部署时的报错如实告诉玩家。
+                _logger.LogWarning(ex, "MOD 库的位置访问不到，仍然加载包索引: {Root}", _objectStore.RepositoryRoot);
+            }
 
             if (!Directory.Exists(_dataDirectory))
                 Directory.CreateDirectory(_dataDirectory);

@@ -232,6 +232,81 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     });
 
     [Fact]
+    public Task ManagerStartedWhileTheLibraryIsUnreachable_StillListsTheMods_AndRefreshNamesTheLocation() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 以前：启动时 MOD 库所在的盘没接上 → 加载在半路中断 → 列表是空的、没有任何提示，
+        // 点刷新还会说"没有发现问题"。现在列表照常显示，刷新如实说找不到 MOD 库的位置。
+        var first = await OpenAsync();
+        await first.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await first.AddPackageAsync("b", ("b.bin", "BBBB"));
+        await first.EnableAsync("a");
+        first.Main.Dispose();
+        var plugBackIn = first.UnplugLibrary();
+
+        // 重新打开管理器
+        var host = await OpenAsync();
+        await host.ShowListAsync();
+        Assert.True(host.IsListed("a") && host.IsListed("b"));
+        Assert.True(host.IsEnabled("a"));
+        var before = host.Fingerprint();
+        var prompts = new ScriptedPrompts();
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.True(result.Report!.RepositoryRootUnreachable);
+        Assert.Empty(prompts.Asked);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.RepositoryUnreachable, notice.Kind);
+        Assert.Contains(host.RepositoryRoot, notice.Message);
+        Assert.Empty(result.Removed);
+        Assert.True(host.IsListed("a") && host.IsListed("b"));
+        Assert.True(host.IsInProfile("a") && host.IsInProfile("b"));
+        Assert.True(host.IsInIndexOnDisk("a") && host.IsInIndexOnDisk("b"));
+        Assert.True(host.IsEnabled("a"));
+        Assert.Equal(before, host.Fingerprint());
+
+        // 把硬盘接回去再点一次刷新：不用重启，一切如常
+        plugBackIn();
+        var after = new ScriptedPrompts();
+        Assert.False((await host.Main.RefreshFromDiskAsync(after)).Report!.HasFindings);
+        Assert.Equal([DiskRefreshNoticeKind.NoProblems], after.NoticeKinds);
+        Assert.Equal("AAAA", await File.ReadAllTextAsync(host.GameFile("a", "a.bin")));
+    });
+
+    [Fact]
+    public Task RecordsStuckOnThePreviousGame_NothingIsOfferedAndNothingChanges() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 切换游戏时加载在半路出了错：方案已经是新游戏的，包索引还停在上一个游戏。
+        // 照常核对的话，新游戏方案里启用的每个 MOD 都"找不到记录"，会被提议从方案里去掉。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("old-game-mod", ("o.bin", "OOOO"));
+        const string newGame = "另一个游戏";
+        await host.Profiles.SetCurrentGameAsync(newGame);
+        var mod = new Package { PackageKey = "new-game-mod", DisplayName = "新游戏的 MOD", HostGameName = newGame };
+        await host.Profiles.AddPackagesToCurrentProfileAsync([mod]);
+        await host.Profiles.SetPackageEnabledFlagAsync("new-game-mod", true);
+        host.Game.Config.GameName = newGame;
+        await host.ShowListAsync();
+        var before = host.Fingerprint();
+        var prompts = new ScriptedPrompts();
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.True(result.Report!.RecordsUnknown);
+        Assert.Empty(result.Report.UnknownEnabledKeys);
+        // 没有任何提问，只有一条说明
+        Assert.Empty(prompts.Asked);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.RecordsNotLoaded, notice.Kind);
+        Assert.False(notice.IsToast);
+        Assert.Equal("MOD 的记录没有加载完整", notice.Title);
+        Assert.Contains("这次没有改动任何东西", notice.Message);
+        Assert.Empty(result.Forgotten);
+        Assert.True(host.IsEnabled("new-game-mod"));
+        Assert.Equal(before, host.Fingerprint());
+    });
+
+    [Fact]
     public Task EveryPackageMissing_IsALocationQuestionFirst_AndDefaultRemovesNothing() => DiskRefreshHost.OnStaAsync(async () =>
     {
         // 仓库根还在，但里面是空的：盘符变了、指到了一个空文件夹
@@ -553,6 +628,32 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
         Assert.Equal(["MOD half"], result.Recovered);
         Assert.Equal("BBBBBB", await File.ReadAllTextAsync(host.RepositoryFile("half", @"sub\b.bin")));
         Assert.Empty(await host.Repository.CheckIntegrityAsync());
+    });
+
+    [Fact]
+    public Task TextureTheGameNeeds_GoneFromTheLibrary_IsFoundAndRecovered_SoInstallingWorksAgain() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 老版本入库的脚本 MOD：自带的贴图被登记成了"预览图"，但部署时会装进游戏。
+        // 它在 MOD 库里丢了以后，任何启用 / 禁用都会报"文件不见了，请点刷新"——刷新必须真的看得见它。
+        var host = await OpenAsync();
+        await host.AddLayoutPluginAsync("hud", (@"hud\main.bin", "MAIN"), (@"hud\icons\icon.png", "ICON-PIXELS"));
+        await host.AddPackageAsync("other", ("o.bin", "OOOO"));
+        await host.EnableAsync("hud");
+        File.Delete(host.RepositoryFile("hud", @"hud\icons\icon.png"));
+        // 别的 MOD 也因此装不了
+        var blocked = await host.Main.DeployToggleAsync("other", true);
+        Assert.False(blocked.Success);
+        Assert.Contains("在 MOD 库里的文件不见了", blocked.Error);
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RecoverFromGame, DiskRefreshAnswer.Primary);
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Equal([DiskRefreshQuestionKind.RecoverFromGame], prompts.AskedKinds);
+        Assert.Equal(["插件 hud"], result.Recovered);
+        Assert.Equal("ICON-PIXELS", await File.ReadAllTextAsync(host.RepositoryFile("hud", @"hud\icons\icon.png")));
+        // 挡路的没了：别的 MOD 现在装得上
+        Assert.True((await host.Main.DeployToggleAsync("other", true)).Success);
+        Assert.Equal("OOOO", await File.ReadAllTextAsync(host.GameFile("other", "o.bin")));
     });
 
     // ═══════════════════════════════════════
