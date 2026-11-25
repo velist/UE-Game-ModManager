@@ -635,8 +635,10 @@
 
                      外壳不带 Margin、ClipToBounds：MotionAssist.Reveal 把外壳的高度从 0 展开，
                      券本身贴底对齐，看起来是从标题栏下面滑出来的。
-                     内容全部来自 DataContext 里那条活动数据（Core 的 PromoCampaign），这里不写死任何文案。 -->
-                <Border x:Name="PromoBar" DockPanel.Dock="Top" Visibility="Collapsed" ClipToBounds="True">
+                     内容全部来自 DataContext 里那条活动数据（Core 的 PromoCampaign），这里不写死任何文案。
+                     DataContext 先置空：折叠着的时候不去主窗口的视图模型上找这些属性（找不到，白白刷一屏绑定报错）。 -->
+                <Border x:Name="PromoBar" DockPanel.Dock="Top" Visibility="Collapsed" ClipToBounds="True"
+                        DataContext="{x:Null}">
                     <!-- 整张券都能点。圆角与票根缺口由 RoundedClip 真的裁出来，缺口里透出的是窗口背景。
                          名字带 Card：它是一张卡片，不是圆角按钮（按钮圆角统一 8px 的检查按名字放行卡片）。 -->
                     <Grid x:Name="PromoCouponCard" Height="72" MaxWidth="760" Margin="32,16,32,0"
