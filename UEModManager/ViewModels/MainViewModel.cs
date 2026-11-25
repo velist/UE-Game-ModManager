@@ -172,8 +172,11 @@ namespace UEModManager.ViewModels
             Services.Config.ConfigMergeEngine configMergeEngine,
             ResolvedViewBuilder resolvedViewBuilder,
             LaunchOrchestrator launchOrchestrator,
-            ILogger<MainViewModel> logger)
+            ILogger<MainViewModel> logger,
+            // 可选：放在最后且带默认值，既有的构造调用（测试宿主）不用跟着改；容器里注册了就会注入
+            DiskReconcileService? diskReconcile = null)
         {
+            _diskReconcile = diskReconcile;
             _gameConfig = gameConfig;
             _categoryService = categoryService;
             _profileService = profileService;

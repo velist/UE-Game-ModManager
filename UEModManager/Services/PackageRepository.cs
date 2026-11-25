@@ -39,6 +39,12 @@ namespace UEModManager.Services
         /// <summary>包索引。**只整体替换，不原地增删**，使无锁读取方的枚举始终安全。</summary>
         private List<Package> _packages = new();
 
+        /// <summary>
+        /// 内存里的索引比磁盘上的新：上一次保存失败了（见 <see cref="SaveIndexAsync"/>，失败时不回滚内存）。
+        /// 受 <see cref="_gate"/> 保护。<see cref="ReloadIndexAsync"/> 据此拒绝用磁盘上的旧内容覆盖内存。
+        /// </summary>
+        private bool _unsavedIndexChanges;
+
         /// <summary>当包列表发生变化时触发。</summary>
         public event Action? PackagesChanged;
 
@@ -79,22 +85,82 @@ namespace UEModManager.Services
             {
                 _currentGame = gameName;
                 var loaded = await LoadIndexAsync().ConfigureAwait(false);
-
-                // 恢复预览图路径
-                foreach (var pkg in loaded)
-                {
-                    if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
-                    {
-                        var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
-                        if (preview != null)
-                            pkg.PreviewImagePath = preview;
-                    }
-                }
+                RestorePreviewImagePaths(loaded);
 
                 _packages = loaded;
+                _unsavedIndexChanges = false;
                 _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
             }
             finally { _gate.Release(); }
+        }
+
+        /// <summary>
+        /// 重新从磁盘读当前游戏的包索引，换掉内存里的那一份。
+        ///
+        /// <para>
+        /// 平时用不着：每次改动都是"改内存 + 立刻落盘"，两边本来就一致。留给「刷新」用——
+        /// 玩家点刷新就是在说"别信你记着的，去看磁盘"，索引文件被别的实例或手工恢复改过时也能跟上。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>读不出来就保持原样</b>，这一点与启动时的 <see cref="LoadIndexAsync"/> 相反：
+        /// 启动时读不出来只能从空列表开始；而这里内存里已经有一份好的，
+        /// 换成空列表等于把所有 MOD 从界面上抹掉，下一次保存还会把空列表写回磁盘。
+        /// 内存里有<b>还没写下去的改动</b>（上一次保存失败）时同样不读——那份改动只存在于内存，
+        /// 读回旧文件会把它丢掉，而仓库里对应的文件已经真实存在了。
+        /// </para>
+        /// </summary>
+        /// <returns>true = 已换成磁盘上的内容；false = 保持内存里的不变。</returns>
+        public async Task<bool> ReloadIndexAsync()
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (string.IsNullOrEmpty(_currentGame)) return false;
+                if (_unsavedIndexChanges)
+                {
+                    _logger.LogWarning("包索引有尚未写入磁盘的改动，本次不重新读取");
+                    return false;
+                }
+
+                var path = GetIndexPath();
+                if (!File.Exists(path)) return false;
+
+                List<Package> loaded;
+                try
+                {
+                    var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+                    loaded = JsonSerializer.Deserialize<List<Package>>(json)
+                        ?? throw new InvalidDataException("包索引内容为空");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+                {
+                    _logger.LogWarning(ex, "重新读取包索引失败，继续使用内存里的索引: {Path}", path);
+                    return false;
+                }
+
+                RestorePreviewImagePaths(loaded);
+                _packages = loaded;
+                _logger.LogInformation("已重新读取 {Game} 的包索引: {Count} 个", _currentGame, loaded.Count);
+            }
+            finally { _gate.Release(); }
+
+            PackagesChanged?.Invoke();
+            return true;
+        }
+
+        /// <summary>索引里记的预览图路径失效时，改指向仓库里实际存在的那一张（只改内存）。</summary>
+        private void RestorePreviewImagePaths(List<Package> packages)
+        {
+            foreach (var pkg in packages)
+            {
+                if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
+                {
+                    var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
+                    if (preview != null)
+                        pkg.PreviewImagePath = preview;
+                }
+            }
         }
 
         // ─── 查询 ───
@@ -225,6 +291,26 @@ namespace UEModManager.Services
                 package.LastModified = DateTime.Now;
                 await SaveIndexAsync().ConfigureAwait(false);
                 return storedPath;
+            }
+            finally { _gate.Release(); }
+        }
+
+        /// <summary>
+        /// 按索引里的记录重写一个包的 manifest.json。包不在索引里时返回 false。
+        ///
+        /// 给「从游戏目录找回」用：玩家把仓库里的包文件夹整个删掉时 manifest 跟着没了，
+        /// 文件找回来之后要把它补上——没有 manifest 的包目录会被完整性检查当成导入残留。
+        /// </summary>
+        public async Task<bool> RewriteManifestAsync(string packageKey)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var package = FindByKey(packageKey);
+                if (package == null) return false;
+
+                await WriteManifestAsync(package).ConfigureAwait(false);
+                return true;
             }
             finally { _gate.Release(); }
         }
@@ -607,9 +693,12 @@ namespace UEModManager.Services
             {
                 var json = JsonSerializer.Serialize(_packages, new JsonSerializerOptions { WriteIndented = true });
                 await AtomicFileWriter.WriteAllTextAsync(path, json);
+                _unsavedIndexChanges = false;
             }
             catch (Exception ex)
             {
+                // 内存不回滚（见上），所以从这一刻起内存比磁盘新
+                _unsavedIndexChanges = true;
                 _logger.LogError(ex, "保存包索引失败: {Path}", path);
                 throw;
             }

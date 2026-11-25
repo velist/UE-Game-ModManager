@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Config;
 using UEModManager.Services.Conflict;
@@ -128,7 +129,15 @@ public class ResolvedViewBuilder
         {
             if (overriddenLosers.Contains(entry.TargetAbsolutePath)) continue;
             if (!File.Exists(entry.SourceAbsolutePath))
-                throw new FileNotFoundException($"仓库源文件不存在: {entry.SourceAbsolutePath}", entry.SourceAbsolutePath);
+            {
+                // 以前只抛一个仓库里的路径，玩家看不懂、也不知道下一步怎么办。
+                // 缺源文件的 MOD 只要还启用着，任何部署都会停在这里，所以要说清是哪一个、点哪里能处理。
+                var modName = entry.PackageDisplayName ?? entry.PackageKey ?? Path.GetFileName(entry.SourceAbsolutePath);
+                _logger.LogWarning("仓库源文件不存在: {Path}（包 {Key}）", entry.SourceAbsolutePath, entry.PackageKey);
+                throw new FileNotFoundException(
+                    UiText.Interpolate($"「{modName}」在 MOD 库里的文件不见了，处理它之前没法往游戏里装或撤任何 MOD。请点 MOD 列表上方的「刷新」（F5），管理器会帮你处理。"),
+                    entry.SourceAbsolutePath);
+            }
             var priority = entry.Priority;
             if (entry.LoadConflictKey != null && effectiveOverrides.TryGetValue(entry.LoadConflictKey, out var winner))
                 priority = string.Equals(winner, entry.PackageKey, StringComparison.OrdinalIgnoreCase)
