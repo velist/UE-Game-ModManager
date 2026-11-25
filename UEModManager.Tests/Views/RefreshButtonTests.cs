@@ -221,6 +221,7 @@ public sealed class RefreshButtonTests : IDisposable
                     UEModManager.ViewModels.DiskRefreshText.RemoveStillInstalled(lost),
                     UEModManager.ViewModels.DiskRefreshText.RemoveIncomplete(lost),
                     UEModManager.ViewModels.DiskRefreshText.MissingDeployments(missing),
+                    UEModManager.ViewModels.DiskRefreshText.ForgetUnknownEntries(["Sample"]),
                 };
 
                 foreach (var question in questions)

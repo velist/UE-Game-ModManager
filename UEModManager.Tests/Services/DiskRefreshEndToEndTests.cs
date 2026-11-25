@@ -314,9 +314,10 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     });
 
     [Fact]
-    public Task GameDirectoryGone_LostModThatWasInstalled_IsLeftAloneForNow() => DiskRefreshHost.OnStaAsync(async () =>
+    public Task GameDirectoryGone_NothingIsOfferedForRemoval_NotEvenAModThatWasNeverInstalled() => DiskRefreshHost.OnStaAsync(async () =>
     {
-        // MOD 库里的丢了，游戏目录又访问不到：不知道游戏里还有没有它的文件，这次不提议移除
+        // 游戏目录访问不到时只提示位置。提示里写着"没有改动任何 MOD 的状态"，
+        // 紧接着再问"要不要移除"就是自相矛盾——哪怕是从没装进过游戏的 MOD，也等游戏目录回来再说。
         var host = await OpenAsync();
         await host.AddPackageAsync("installed", ("i.bin", "IIII"));
         await host.AddPackageAsync("idle", ("d.bin", "DDDD"));
@@ -325,18 +326,61 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
         Directory.Delete(host.Store.GetPackageDirectory("installed"), recursive: true);
         Directory.Delete(host.Store.GetPackageDirectory("idle"), recursive: true);
         Directory.Move(host.GamePath, host.GamePath + "-offline");
-        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Primary);
+        var before = host.Fingerprint();
+        var prompts = new ScriptedPrompts();
 
         var result = await host.Main.RefreshFromDiskAsync(prompts);
 
-        var question = Assert.Single(prompts.Asked);
-        Assert.Equal(DiskRefreshQuestionKind.RemoveLost, question.Kind);
-        Assert.Contains("MOD idle", question.Message);
-        Assert.DoesNotContain("MOD installed", question.Message);
-        Assert.Equal(["MOD idle"], result.Removed);
-        Assert.True(host.IsListed("installed"));
+        Assert.Empty(prompts.Asked);
+        Assert.Equal([DiskRefreshNoticeKind.GameDirectoryUnreachable], prompts.NoticeKinds);
+        Assert.Empty(result.Removed);
+        Assert.True(host.IsListed("installed") && host.IsListed("idle"));
         Assert.True(host.IsEnabled("installed"));
         Assert.Single((await host.ReadStateAsync()).Files);
+        Assert.Equal(before, host.Fingerprint());
+
+        // 游戏目录回来之后再刷新，才开始处理
+        Directory.Move(host.GamePath + "-offline", host.GamePath);
+        var later = new ScriptedPrompts()
+            .Answer(DiskRefreshQuestionKind.RecoverFromGame, DiskRefreshAnswer.Primary)
+            .Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Primary);
+        var second = await host.Main.RefreshFromDiskAsync(later);
+        Assert.Equal(["MOD installed"], second.Recovered);
+        Assert.Equal(["MOD idle"], second.Removed);
+    });
+
+    [Fact]
+    public Task DeploymentRecordUnreadable_NothingIsTouched_BecauseTheGameSideIsUnknown() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 清单读不出来时拿到的是"空清单"。按空清单继续的话，丢了源文件的 MOD 会被当成"游戏里没有它的文件"
+        // 提议移除；等清单恢复可读，游戏里仅剩的那一份就会被下一次部署当成该撤掉的删掉。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("survivor", ("s.bin", "SSSS"));
+        await host.AddPackageAsync("other", ("o.bin", "OOOO"));
+        await host.EnableAsync("survivor");
+        Directory.Delete(host.Store.GetPackageDirectory("survivor"), recursive: true);
+        var stateFile = Assert.Single(Directory.GetFiles(
+            Path.Combine(host.Root, "DeploymentState"), "state.json", SearchOption.AllDirectories));
+        var goodState = await File.ReadAllTextAsync(stateFile);
+        await File.WriteAllTextAsync(stateFile, "{ 读不出来的清单");
+        var before = host.Fingerprint();
+        var prompts = new ScriptedPrompts();
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.True(result.Report!.DeploymentRecordUnknown);
+        Assert.Empty(prompts.Asked);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.DeploymentRecordUnknown, notice.Kind);
+        Assert.Contains("这次没有改动任何东西", notice.Message);
+        Assert.True(host.IsListed("survivor"));
+        Assert.Equal("SSSS", await File.ReadAllTextAsync(host.GameFile("survivor", "s.bin")));
+        Assert.Equal(before, host.Fingerprint());
+
+        // 清单恢复可读之后：游戏里那份还在，先问的是找回
+        await File.WriteAllTextAsync(stateFile, goodState);
+        var later = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RecoverFromGame, DiskRefreshAnswer.Primary);
+        Assert.Equal(["MOD survivor"], (await host.Main.RefreshFromDiskAsync(later)).Recovered);
     });
 
     // ═══════════════════════════════════════
@@ -708,6 +752,188 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
         Assert.Empty(await host.Repository.CheckIntegrityAsync());
         Assert.Equal("已找回 1 个 MOD；已重新装好 1 个 MOD 的文件", Assert.Single(prompts.Notices).Message);
         Assert.False((await host.Main.RefreshFromDiskAsync(new ScriptedPrompts())).Report!.HasFindings);
+    });
+
+    // ═══════════════════════════════════════
+    //  动手前再看一眼 / 一次整理
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task FolderCameBackWhileTheDialogWasOpen_IsNotRemoved() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 对话框开着的时候玩家把文件夹从回收站还原了，然后才点「移除」：
+        // 照着弹框那一刻的结论去删，会把刚还原回来的文件夹连同记录一起删掉
+        var host = await OpenAsync();
+        await host.AddPackageAsync("restored", ("r.bin", "RRRR"));
+        await host.AddPackageAsync("gone", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("kept", ("k.bin", "KKKK"));
+        Directory.Delete(host.Store.GetPackageDirectory("restored"), recursive: true);
+        Directory.Delete(host.Store.GetPackageDirectory("gone"), recursive: true);
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Primary);
+        prompts.WhileDialogIsOpen = _ =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(host.RepositoryFile("restored", "r.bin"))!);
+            File.WriteAllText(host.RepositoryFile("restored", "r.bin"), "RRRR");
+        };
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Contains("这 2 个 MOD", Assert.Single(prompts.Asked).Message);
+        // 仍然不在的那个移除了；回来了的那个原封不动
+        Assert.Equal(["MOD gone"], result.Removed);
+        Assert.True(host.IsListed("restored"));
+        Assert.True(host.IsInIndexOnDisk("restored"));
+        Assert.Equal("RRRR", await File.ReadAllTextAsync(host.RepositoryFile("restored", "r.bin")));
+        Assert.Empty(result.Failures);
+    });
+
+    [Fact]
+    public Task RemovalAlreadyNeedsATidyUp_MissingFilesOfOtherModsAreReinstalledWithoutASecondQuestion() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 前面的选择已经要整理一次游戏目录了，而整理就是按方案对齐——别的 MOD 缺的文件会一并装回去。
+        // 这时再问"要不要装回去"，玩家选"先不处理"也拦不住，所以不问，装完如实说。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("gone", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("victim", ("v.bin", "VVVV"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        await host.EnableAsync("gone", "victim", "fine");
+        Directory.Delete(host.Store.GetPackageDirectory("gone"), recursive: true);
+        Directory.Delete(Path.Combine(host.ModPath, "gone"), recursive: true);
+        Directory.Delete(Path.Combine(host.ModPath, "victim"), recursive: true);
+        // 只准备了「移除」的回答：要是还弹"装回去 / 改为禁用"，用例会直接失败
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Primary);
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Equal([DiskRefreshQuestionKind.RemoveLost], prompts.AskedKinds);
+        Assert.Equal(["MOD gone"], result.Removed);
+        Assert.Equal(["MOD victim"], result.Reinstalled);
+        Assert.Equal("VVVV", await File.ReadAllTextAsync(host.GameFile("victim", "v.bin")));
+        Assert.Equal("已从列表移除 1 个 MOD；已重新装好 1 个 MOD 的文件", Assert.Single(prompts.Notices).Message);
+        Assert.Equal(["fine", "victim"], (await host.ReadStateAsync()).Files.Select(f => f.PackageKey).Order());
+    });
+
+    // ═══════════════════════════════════════
+    //  方案里启用着、却已经没有记录的 MOD
+    // ═══════════════════════════════════════
+
+    /// <summary>像"别的实例删了包 / 手工恢复了旧索引"那样，把一个包从磁盘上的索引里拿掉。</summary>
+    private static void DropFromIndexOnDisk(DiskRefreshHost host, string key)
+    {
+        var path = Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json");
+        var packages = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsArray();
+        var entry = packages.Single(node => (string?)node!["PackageKey"] == key);
+        packages.Remove(entry);
+        File.WriteAllText(path, packages.ToJsonString());
+    }
+
+    [Fact]
+    public Task EnabledEntryWithoutARecord_IsFoundAndCanBeDroppedFromTheProfile_KeepingItsGameFiles() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("ghost", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        await host.EnableAsync("ghost", "fine");
+        DropFromIndexOnDisk(host, "ghost");
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.ForgetUnknownEntries, DiskRefreshAnswer.Primary);
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        // 索引重读之后，方案里那条启用着的引用指向了一个不存在的包：刷新要把它报出来，不能说"没有发现问题"
+        Assert.Equal(["ghost"], result.Report!.UnknownEnabledKeys);
+        var question = Assert.Single(prompts.Asked);
+        Assert.Equal(DiskRefreshQuestionKind.ForgetUnknownEntries, question.Kind);
+        Assert.Contains("• ghost", question.Message);
+        Assert.Contains("它们装在游戏目录里的文件会原样留下", question.Message);
+
+        Assert.Equal(["ghost"], result.Forgotten);
+        Assert.False(host.IsInProfile("ghost"));
+        Assert.False(host.IsListed("ghost"));
+        // 记录都没了，不知道这些文件该不该删：留下，并且不再归管理器管
+        Assert.Equal("GGGG", await File.ReadAllTextAsync(host.GameFile("ghost", "g.bin")));
+        Assert.Equal("fine", Assert.Single((await host.ReadStateAsync()).Files).PackageKey);
+        Assert.Equal("已从方案里去掉 1 个找不到记录的 MOD", Assert.Single(prompts.Notices).Message);
+        // 挡路的没了，部署恢复正常，而且不会把留下的文件删掉
+        Assert.True((await host.Main.DeployToggleAsync("fine", false)).Success);
+        Assert.Equal("GGGG", await File.ReadAllTextAsync(host.GameFile("ghost", "g.bin")));
+    });
+
+    [Fact]
+    public Task EnabledEntryWithoutARecord_LeftInPlace_ExplainsWhyNothingCanBeInstalled() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("ghost", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("victim", ("v.bin", "VVVV"));
+        await host.EnableAsync("ghost", "victim");
+        DropFromIndexOnDisk(host, "ghost");
+        File.Delete(host.GameFile("victim", "v.bin"));
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.ForgetUnknownEntries, DiskRefreshAnswer.Dismiss);
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Empty(result.Forgotten);
+        Assert.True(host.IsInProfile("ghost"));
+        // "要不要装回去"问了也做不到：改成说明是谁挡着
+        Assert.Equal([DiskRefreshQuestionKind.ForgetUnknownEntries], prompts.AskedKinds);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.StillBlocked, notice.Kind);
+        Assert.Contains("• ghost", notice.Message);
+        Assert.False(File.Exists(host.GameFile("victim", "v.bin")));
+    });
+
+    [Fact]
+    public Task NoPackageRecordsAtAllButTheProfileHasMods_IsTreatedAsUnreadableRecords_NotAsDeletedMods() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 索引整个是空的，方案里却有启用的 MOD：是索引没读出来（或被清空了），不是这些 MOD 被一个个删了。
+        // 这时把方案里的引用清掉，等于替一次读盘事故把玩家的方案抹空。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.AddPackageAsync("b", ("b.bin", "BBBB"));
+        await host.EnableAsync("a", "b");
+        await File.WriteAllTextAsync(
+            Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json"), "[]");
+        var before = host.Fingerprint();
+        var prompts = new ScriptedPrompts();
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Empty(prompts.Asked);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.PackageRecordsUnreadable, notice.Kind);
+        Assert.Contains("当前方案里有 2 个启用的 MOD", notice.Message);
+        Assert.Empty(result.Forgotten);
+        Assert.True(host.IsInProfile("a") && host.IsInProfile("b"));
+        Assert.True(host.IsEnabled("a") && host.IsEnabled("b"));
+        Assert.Equal(2, (await host.ReadStateAsync()).Files.Count);
+        Assert.Equal("AAAA", await File.ReadAllTextAsync(host.GameFile("a", "a.bin")));
+        Assert.Equal(before, host.Fingerprint());
+    });
+
+    [Fact]
+    public Task PackageWithAnUnusableKeyInTheIndex_IsSkippedInsteadOfAbortingTheWholeRefresh() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 索引里混进一个包键不合法的条目（手工改坏的、别的版本写的）：它自己查不了，但不能连累别的包
+        var host = await OpenAsync();
+        await host.AddPackageAsync("gone", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        var path = Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json");
+        var packages = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsArray();
+        var broken = System.Text.Json.Nodes.JsonNode.Parse(packages[1]!.ToJsonString())!;
+        broken["PackageKey"] = "bad:key";
+        broken["DisplayName"] = "Broken entry";
+        broken["Artifacts"]![0]!["RelativeSourcePath"] = @"bad:key\files\f.bin";
+        packages.Add(broken);
+        await File.WriteAllTextAsync(path, packages.ToJsonString());
+        Directory.Delete(host.Store.GetPackageDirectory("gone"), recursive: true);
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Primary);
+
+        var result = await host.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(["bad:key"], result.Report!.UncheckedPackageKeys);
+        Assert.Equal(["MOD gone"], result.Removed);
+        Assert.True(host.IsListed("bad:key"));
+        Assert.True(host.IsListed("fine"));
     });
 
     // ═══════════════════════════════════════

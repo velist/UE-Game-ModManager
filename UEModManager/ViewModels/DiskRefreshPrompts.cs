@@ -23,6 +23,9 @@ namespace UEModManager.ViewModels
 
         /// <summary>已启用的 MOD 装在游戏目录里的文件不见了：重新装回去 / 改为禁用 / 不处理。</summary>
         MissingDeployments,
+
+        /// <summary>方案里启用着、却已经没有记录的 MOD：要不要从方案里去掉。</summary>
+        ForgetUnknownEntries,
     }
 
     /// <summary>玩家的回答。关掉对话框、按 Esc 一律是 <see cref="Dismiss"/>，即什么都不改。</summary>
@@ -58,6 +61,12 @@ namespace UEModManager.ViewModels
 
         /// <summary>游戏目录访问不到。</summary>
         GameDirectoryUnreachable,
+
+        /// <summary>已安装文件的记录用不了：不知道游戏目录里装着什么。</summary>
+        DeploymentRecordUnknown,
+
+        /// <summary>方案里有启用的 MOD，但一条 MOD 记录都读不出来（索引本身没读出来）。</summary>
+        PackageRecordsUnreadable,
 
         /// <summary>还有缺文件的 MOD 启用着，装不了也撤不了任何东西。</summary>
         StillBlocked,
@@ -103,6 +112,9 @@ namespace UEModManager.ViewModels
 
         /// <summary>改为禁用的 MOD。</summary>
         public IReadOnlyList<string> Disabled { get; init; } = [];
+
+        /// <summary>从方案里去掉的、找不到记录的包键。</summary>
+        public IReadOnlyList<string> Forgotten { get; init; } = [];
 
         /// <summary>没做成的动作（给玩家看的说明）。</summary>
         public IReadOnlyList<string> Failures { get; init; } = [];

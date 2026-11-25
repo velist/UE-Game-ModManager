@@ -224,6 +224,38 @@ public sealed class LaunchRestoreTests : IDisposable
         Assert.Equal(host.RepositoryRoot, check.Detail);
     });
 
+    [Fact]
+    public Task HealthReport_EnabledEntryWithoutARecord_IsAWarning() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 这种引用会让所有部署失败，而列表里看不到它：体检里要写出来，诊断包才看得出原因
+        var host = await OpenAsync();
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        var ghost = new Package { PackageKey = "ghost", DisplayName = "Ghost", HostGameName = DiskRefreshHost.GameName };
+        await host.Profiles.AddPackagesToCurrentProfileAsync([ghost]);
+        await host.Profiles.SetPackageEnabledFlagAsync("ghost", true);
+
+        var check = ModFilesCheck(await host.Health.CheckAsync());
+
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Contains("方案里启用着 1 个找不到记录的 MOD（ghost），启用、禁用和启动都会因此失败", check.Message);
+    });
+
+    [Fact]
+    public Task HealthReport_DeploymentRecordUnreadable_SaysTheGameFolderCouldNotBeChecked() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.EnableAsync("a");
+        var stateFile = Assert.Single(Directory.GetFiles(
+            Path.Combine(host.Root, "DeploymentState"), "state.json", SearchOption.AllDirectories));
+        await File.WriteAllTextAsync(stateFile, "{ 读不出来的清单");
+
+        var check = ModFilesCheck(await host.Health.CheckAsync());
+
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Contains("已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件", check.Message);
+    });
+
     private static HealthCheck ModFilesCheck(HealthReport report)
         => Assert.Single(report.Checks, check => check.Name == HealthCheckService.ModFilesCheckName);
 }

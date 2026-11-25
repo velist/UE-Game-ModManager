@@ -109,6 +109,55 @@ public sealed class DiskReconcileServiceTests : IDisposable
         Assert.Equal(1, report.CheckedPackageCount);
     });
 
+    [Fact]
+    public Task Check_OnlyOldVersionDeploymentRecordsExist_DoesNotPretendNothingIsInstalled() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 从老版本升级上来、还没部署过：清单是空的，游戏目录里的文件记在旧格式的事务里，
+        // 要到下一次部署才会被认领进清单。这时"清单里没有它的文件"不等于"游戏里没有它"。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("legacy", ("l.bin", "LLLL"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        var legacyBackups = Path.Combine(host.Root, "LegacyBackups");
+        var transactionDirectory = Path.Combine(legacyBackups, "0123456789ab");
+        Directory.CreateDirectory(transactionDirectory);
+        var transaction = new DeploymentTransaction
+        {
+            HostGameName = DiskRefreshHost.GameName, BackupDirectory = transactionDirectory,
+            Status = DeploymentStatus.Committed, TotalOperations = 1, CompletedOperations = 1,
+            ExecutedOperations =
+            [
+                new DeploymentOperation
+                {
+                    Type = DeploymentOperationType.Add, PackageKey = "legacy", PackageDisplayName = "MOD legacy",
+                    SourcePath = host.RepositoryFile("legacy", "l.bin"), TargetPath = host.GameFile("legacy", "l.bin"),
+                    RelativeTargetPath = @"legacy\l.bin", FileHash = "abc", FileSize = 4,
+                },
+            ],
+        };
+        await File.WriteAllTextAsync(Path.Combine(transactionDirectory, "transaction.json"),
+            System.Text.Json.JsonSerializer.Serialize(transaction));
+        Directory.CreateDirectory(Path.GetDirectoryName(host.GameFile("legacy", "l.bin"))!);
+        await File.WriteAllTextAsync(host.GameFile("legacy", "l.bin"), "LLLL");
+        Directory.Delete(host.Store.GetPackageDirectory("legacy"), recursive: true);
+
+        var states = new DeploymentStateStore(NullLogger<DeploymentStateStore>.Instance,
+            Path.Combine(host.Root, "DeploymentState"), legacyBackups);
+        var reconcile = new DiskReconcileService(NullLogger<DiskReconcileService>.Instance,
+            host.Repository, host.Profiles, host.Game, states);
+
+        var report = (await reconcile.CheckAsync()).Report;
+
+        Assert.True(report.DeploymentRecordUnknown);
+        Assert.True(report.CannotSeeClearly);
+        // 丢了源文件的包照样报出来，但带着"游戏里的情况不明"，不会被当成"游戏里没有"来移除
+        Assert.True(Assert.Single(report.LostPackages).DeployedFilesUnknown);
+
+        // 没有旧记录的宿主（清单同样是空的）：空清单就是真的什么都没装
+        var plain = (await host.Reconcile.CheckAsync()).Report;
+        Assert.False(plain.DeploymentRecordUnknown);
+        Assert.False(Assert.Single(plain.LostPackages).DeployedFilesUnknown);
+    });
+
     // ═══════════════════════════════════════
     //  硬链接部署
     // ═══════════════════════════════════════
@@ -308,6 +357,73 @@ public sealed class DiskReconcileServiceTests : IDisposable
         Assert.False(await host.Repository.ReloadIndexAsync());
 
         Assert.NotNull(host.Repository.GetByKey("a"));
+    });
+
+    [Fact]
+    public Task ReloadIndex_RegistrationFailedBeforeTheIndexWasSaved_DoesNotDropThePackageFromMemory() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 注册新包时先改内存、再写 manifest、最后才保存索引。manifest 写失败时还没走到保存索引那一步，
+        // 但内存已经比磁盘新了：这时重读会把这个包从内存里抹掉，仓库里留下一个既没 manifest 也没索引的目录。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        // 包目录的位置上放一个同名文件，manifest 就写不进去
+        await File.WriteAllTextAsync(Path.Combine(host.RepositoryRoot, "blocked"), "not a directory");
+        var package = new Package { PackageKey = "blocked", DisplayName = "Blocked", HostGameName = DiskRefreshHost.GameName };
+
+        await Assert.ThrowsAnyAsync<IOException>(() => host.Repository.RegisterPackageAsync(package));
+        Assert.NotNull(host.Repository.GetByKey("blocked"));
+        Assert.False(host.IsInIndexOnDisk("blocked"));
+
+        Assert.False(await host.Repository.ReloadIndexAsync());
+        Assert.NotNull(host.Repository.GetByKey("blocked"));
+        Assert.NotNull(host.Repository.GetByKey("a"));
+    });
+
+    // ═══════════════════════════════════════
+    //  从游戏目录找回
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task Recover_LeavesNothingBehindButTheRestoredFiles() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("back", ("a.bin", "AAAA"), (@"deep\er\b.bin", "BBBBBB"));
+        await host.AddPackageAsync("other", ("o.bin", "OOOO"));
+        await host.EnableAsync("back");
+        Directory.Delete(host.Store.GetPackageDirectory("back"), recursive: true);
+        var lost = Assert.Single((await host.Reconcile.CheckAsync()).Report.LostPackages);
+
+        var result = await host.Reconcile.RecoverFromGameAsync(lost);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(2, result.FilesRestored);
+        // 包目录里只有 manifest 和 files 下的两个原件：没有残留的临时文件
+        Assert.Equal(
+            ["files\\a.bin", "files\\deep\\er\\b.bin", "manifest.json"],
+            Directory.GetFiles(host.Store.GetPackageDirectory("back"), "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(host.Store.GetPackageDirectory("back"), path))
+                .Order(StringComparer.Ordinal));
+        Assert.Empty(await host.Repository.CheckIntegrityAsync());
+    });
+
+    [Fact]
+    public Task Recover_NeverOverwritesAFileThatIsAlreadyBack() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("back", ("a.bin", "AAAA"));
+        await host.AddPackageAsync("other", ("o.bin", "OOOO"));
+        await host.EnableAsync("back");
+        Directory.Delete(host.Store.GetPackageDirectory("back"), recursive: true);
+        var lost = Assert.Single((await host.Reconcile.CheckAsync()).Report.LostPackages);
+        // 核对之后、找回之前，玩家自己把文件放回去了（内容还不一样）
+        Directory.CreateDirectory(Path.GetDirectoryName(host.RepositoryFile("back", "a.bin"))!);
+        await File.WriteAllTextAsync(host.RepositoryFile("back", "a.bin"), "PLAYER");
+
+        var result = await host.Reconcile.RecoverFromGameAsync(lost);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(0, result.FilesRestored);
+        Assert.Equal("PLAYER", await File.ReadAllTextAsync(host.RepositoryFile("back", "a.bin")));
     });
 
     // ─── 硬链接的真实性 ───

@@ -40,7 +40,8 @@ namespace UEModManager.Services
         private List<Package> _packages = new();
 
         /// <summary>
-        /// 内存里的索引比磁盘上的新：上一次保存失败了（见 <see cref="SaveIndexAsync"/>，失败时不回滚内存）。
+        /// 内存里的索引比磁盘上的新：有改动还没写下去（改了内存之后写 manifest 或保存索引失败——
+        /// 见 <see cref="SaveIndexAsync"/>，失败时不回滚内存）。改内存时置位，索引保存成功才清。
         /// 受 <see cref="_gate"/> 保护。<see cref="ReloadIndexAsync"/> 据此拒绝用磁盘上的旧内容覆盖内存。
         /// </summary>
         private bool _unsavedIndexChanges;
@@ -149,16 +150,26 @@ namespace UEModManager.Services
             return true;
         }
 
-        /// <summary>索引里记的预览图路径失效时，改指向仓库里实际存在的那一张（只改内存）。</summary>
+        /// <summary>
+        /// 索引里记的预览图路径失效时，改指向仓库里实际存在的那一张（只改内存）。
+        /// 某个包的目录列不出来（没权限、包键不合法）只跳过它：一张预览图不值得让整个索引加载失败。
+        /// </summary>
         private void RestorePreviewImagePaths(List<Package> packages)
         {
             foreach (var pkg in packages)
             {
-                if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
+                try
                 {
-                    var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
-                    if (preview != null)
-                        pkg.PreviewImagePath = preview;
+                    if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
+                    {
+                        var preview = _objectStore.GetPreviewImagePath(pkg.PackageKey);
+                        if (preview != null)
+                            pkg.PreviewImagePath = preview;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    _logger.LogWarning(ex, "恢复预览图路径失败，跳过: {Key}", pkg.PackageKey);
                 }
             }
         }
@@ -225,6 +236,8 @@ namespace UEModManager.Services
                 else
                 {
                     _packages = [.. _packages, package];
+                    // 从这一刻起内存比磁盘新：下面写 manifest 就可能失败，不必等到保存索引那一步
+                    _unsavedIndexChanges = true;
                     await WriteManifestAsync(package).ConfigureAwait(false);
                     await SaveIndexAsync().ConfigureAwait(false);
                     _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
@@ -262,6 +275,8 @@ namespace UEModManager.Services
         /// <summary>把 <paramref name="updated"/> 的元数据合并进 <paramref name="existing"/>。调用方必须已持有 <see cref="_gate"/>。</summary>
         private async Task<Package> UpdatePackageLockedAsync(Package existing, Package updated)
         {
+            // 内存先改，manifest 与索引后写：中间任何一步失败，内存都比磁盘新
+            _unsavedIndexChanges = true;
             existing.DisplayName = updated.DisplayName;
             existing.Note = updated.Note;
             existing.Tags = new List<string>(updated.Tags);

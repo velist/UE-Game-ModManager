@@ -270,6 +270,9 @@ internal sealed class ScriptedPrompts : IDiskRefreshPrompts
     public List<DiskRefreshQuestion> Asked { get; } = [];
     public List<DiskRefreshNotice> Notices { get; } = [];
 
+    /// <summary>对话框弹出来、玩家还没点的那一刻要发生的事（比如把文件夹从回收站还原）。</summary>
+    public Action<DiskRefreshQuestion>? WhileDialogIsOpen { get; set; }
+
     public ScriptedPrompts Answer(DiskRefreshQuestionKind kind, DiskRefreshAnswer answer)
     {
         _answers[kind] = answer;
@@ -279,6 +282,7 @@ internal sealed class ScriptedPrompts : IDiskRefreshPrompts
     public DiskRefreshAnswer Ask(DiskRefreshQuestion question)
     {
         Asked.Add(question);
+        WhileDialogIsOpen?.Invoke(question);
         if (_answers.TryGetValue(question.Kind, out var answer)) return answer;
         throw new Xunit.Sdk.XunitException($"没料到会被问：{question.Kind}\n{question.Title}\n{question.Message}");
     }

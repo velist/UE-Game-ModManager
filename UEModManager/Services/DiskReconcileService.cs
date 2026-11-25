@@ -89,16 +89,29 @@ namespace UEModManager.Services
                 .ToList() ?? [];
 
             IReadOnlyList<ManagedDeploymentFile> managed = [];
+            // 清单可不可信。读不出来时拿到的是空清单，而空清单不等于"游戏目录里什么都没装"：
+            // 按空清单继续的话，丢了源文件的 MOD 会被当成"游戏里没有它的文件"提议移除，
+            // 等清单恢复可读，游戏里那一份就会被下一次部署当成该撤掉的删掉。
+            var managedKnown = true;
             if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(gamePath)
                 && !string.IsNullOrWhiteSpace(modPath))
             {
                 try
                 {
-                    managed = (await _stateStore.ReadAsync(gameName, gamePath, modPath).ConfigureAwait(false)).Files;
+                    var state = await _stateStore.ReadAsync(gameName, gamePath, modPath).ConfigureAwait(false);
+                    managed = state.Files;
+                    // 清单还没写过：旧版本留下的部署记录要到下一次部署才会被认领进来
+                    if (state.Revision == Guid.Empty
+                        && await _stateStore.HasUnadoptedLegacyDeploymentsAsync(state).ConfigureAwait(false))
+                    {
+                        managedKnown = false;
+                        _logger.LogWarning("[Reconcile] 有旧版本留下、尚未认领的部署记录，本次不核对游戏目录");
+                    }
                 }
                 catch (InvalidDataException ex)
                 {
-                    // 清单读不出来时部署本身会停下并报错；这里只是少核对一侧，不能连累仓库侧的检查
+                    // 清单读不出来时部署本身会停下并报错；这里按"游戏侧情况不明"处理
+                    managedKnown = false;
                     _logger.LogWarning(ex, "[Reconcile] 部署清单读取失败，本次不核对游戏目录");
                 }
             }
@@ -112,6 +125,7 @@ namespace UEModManager.Services
                 RepositoryRootReachable = session.IsDirectoryReadable(repositoryRoot),
                 // 还没装过任何东西时（清单为空），游戏目录在不在都不影响结论
                 GameRootReachable = managed.Count == 0 || session.IsDirectoryReadable(gamePath),
+                ManagedFilesKnown = managedKnown,
             };
 
             var probes = new DiskProbes(
@@ -166,11 +180,16 @@ namespace UEModManager.Services
                     if (File.Exists(target)) continue;
 
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    // 先写到旁边的临时文件再改名：复制到一半被打断时，仓库里不会留下一个大小不对的"源文件"
-                    var temp = target + ".uemm-recover-" + Guid.NewGuid().ToString("N") + ".tmp";
+                    // 先写成临时文件再改名：复制到一半被打断时，仓库里不会留下一个大小不对的"源文件"。
+                    // 临时文件放在包目录下、files 之外（同一个盘，改名仍是原子的）：
+                    // 进程被杀留下的残余不会被当成这个包"还剩着别的文件"。
+                    var temp = Path.Combine(store.GetPackageDirectory(finding.PackageKey),
+                        ".recover-" + Guid.NewGuid().ToString("N") + ".tmp");
                     try
                     {
                         File.Copy(file.GameFilePath, temp, overwrite: false);
+                        if (new FileInfo(temp).Length != file.FileSize)
+                            throw new IOException($"复制出来的文件大小不对: {file.GameFilePath}");
                         File.Move(temp, target, overwrite: false);
                         restored++;
                     }
@@ -231,10 +250,15 @@ namespace UEModManager.Services
 
             _logger.LogWarning(
                 "[Reconcile] 核对完成: 仓库不可达={RepoDown}（{Repo}），游戏目录不可达={GameDown}（{Game}），"
-                + "疑似位置问题={Suspected}，整包丢失 {Lost}，部分丢失 {Partial}，游戏目录丢失 {Missing}，未能核对 {Unchecked}",
+                + "部署清单不可信={RecordUnknown}，疑似位置问题={Suspected}，整包丢失 {Lost}，部分丢失 {Partial}，"
+                + "游戏目录丢失 {Missing}，未能核对 {Unchecked}，方案里找不到记录的启用项 {UnknownKeys}",
                 report.RepositoryRootUnreachable, repositoryRoot, report.GameRootUnreachable, gamePath,
-                report.SuspectedRepositoryLocationProblem, report.LostPackages.Count, report.PartialPackages.Count,
-                report.MissingDeployments.Count, report.UncheckedPackageKeys.Count);
+                report.DeploymentRecordUnknown, report.SuspectedRepositoryLocationProblem,
+                report.LostPackages.Count, report.PartialPackages.Count,
+                report.MissingDeployments.Count, report.UncheckedPackageKeys.Count, report.UnknownEnabledKeys.Count);
+
+            foreach (var key in report.UnknownEnabledKeys)
+                _logger.LogWarning("[Reconcile] 方案里启用着、索引里没有记录: {Key}", key);
 
             foreach (var finding in report.LostPackages)
                 _logger.LogWarning("[Reconcile] 整包丢失: {Key}（启用={Enabled}，游戏里还有 {Present}/{Managed} 个文件，可找回={Recoverable}）",

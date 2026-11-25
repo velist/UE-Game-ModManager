@@ -51,22 +51,44 @@ namespace UEModManager.ViewModels
                     UiText.Get("为了安全，管理器没有改动任何 MOD 的状态。")),
                 IsToast: false);
 
-        public static DiskRefreshNotice StillBlocked(IReadOnlyList<RepositoryFinding> blockers)
-            => new(DiskRefreshNoticeKind.StillBlocked, UiText.Get("还有 MOD 缺文件"),
+        /// <summary>
+        /// 已安装文件的记录用不了（读不出来，或是旧版本留下、还没整理过的）：
+        /// 不知道游戏目录里装着什么，所以什么都不动。
+        /// </summary>
+        public static DiskRefreshNotice DeploymentRecordUnknown()
+            => new(DiskRefreshNoticeKind.DeploymentRecordUnknown, UiText.Get("读不出已安装文件的记录"),
                 Paragraphs(
-                    UiText.Interpolate($"这 {blockers.Count} 个缺文件的 MOD 还处于启用状态："),
-                    Names(blockers.Select(b => b.DisplayName)),
+                    UiText.Get("管理器记着「游戏目录里装了哪些 MOD 文件」的那份记录现在用不了：可能正被别的程序占用，或者是旧版本留下、还没整理过的。"),
+                    UiText.Get("不知道游戏目录里还有没有这些 MOD 的文件，所以这次没有改动任何东西。"),
+                    UiText.Get("请稍后再点一次「刷新」；如果一直这样，请把问题反馈给我们。")),
+                IsToast: false);
+
+        /// <summary>方案里有启用的 MOD，但一条 MOD 记录都读不出来：是记录没读出来，不是 MOD 被删了。</summary>
+        public static DiskRefreshNotice PackageRecordsUnreadable(int enabledCount)
+            => new(DiskRefreshNoticeKind.PackageRecordsUnreadable, UiText.Get("读不出 MOD 的记录"),
+                Paragraphs(
+                    UiText.Interpolate($"当前方案里有 {enabledCount} 个启用的 MOD，但管理器现在一条 MOD 的记录都读不出来。"),
+                    UiText.Get("可能是记录文件正被别的程序占用，或者已经损坏。为了安全，这次没有改动任何东西。"),
+                    UiText.Get("请关掉管理器再重新打开试试；如果一直这样，请把问题反馈给我们。")),
+                IsToast: false);
+
+        public static DiskRefreshNotice StillBlocked(IReadOnlyList<string> blockerNames)
+            => new(DiskRefreshNoticeKind.StillBlocked, UiText.Get("还有 MOD 没处理"),
+                Paragraphs(
+                    UiText.Interpolate($"这 {blockerNames.Count} 个有问题的 MOD 还留在方案里、处于启用状态："),
+                    Names(blockerNames),
                     UiText.Get("在处理它们之前，管理器没法往游戏目录里装或撤任何 MOD，也没法通过管理器启动游戏。再点一次「刷新」可以重新处理。")),
                 IsToast: false);
 
         /// <summary>处理完之后的一句话总结；什么都没做时返回 null。</summary>
-        public static DiskRefreshNotice? Done(int removed, int recovered, int reinstalled, int disabled)
+        public static DiskRefreshNotice? Done(int removed, int recovered, int reinstalled, int disabled, int forgotten = 0)
         {
             var parts = new List<string>();
             if (removed > 0) parts.Add(UiText.Interpolate($"已从列表移除 {removed} 个 MOD"));
             if (recovered > 0) parts.Add(UiText.Interpolate($"已找回 {recovered} 个 MOD"));
             if (reinstalled > 0) parts.Add(UiText.Interpolate($"已重新装好 {reinstalled} 个 MOD 的文件"));
             if (disabled > 0) parts.Add(UiText.Interpolate($"已把 {disabled} 个 MOD 改为禁用"));
+            if (forgotten > 0) parts.Add(UiText.Interpolate($"已从方案里去掉 {forgotten} 个找不到记录的 MOD"));
             return parts.Count == 0
                 ? null
                 : new(DiskRefreshNoticeKind.Done, string.Empty, string.Join(UiText.Get("；"), parts), IsToast: true);
@@ -133,7 +155,7 @@ namespace UEModManager.ViewModels
                 Paragraphs(
                     UiText.Interpolate($"这 {installed.Count} 个 MOD 在 MOD 库里已经没有文件了，但游戏目录里还留着它们的文件："),
                     Names(installed.Select(f => f.DisplayName)),
-                    UiText.Get("只从列表移除：游戏目录里的文件原样留下，管理器不会删除它们，也不再管理它们。"),
+                    UiText.Get("只从列表移除：游戏目录里的文件原样留下，管理器不会删除它们，也不再管理它们。以后想去掉，需要你自己到游戏目录里删除。"),
                     UiText.Get("连文件一起删除：把游戏目录里的这些文件也删掉，删掉后没法恢复。"),
                     BlockingNote(installed)),
                 PrimaryText: UiText.Get("只从列表移除"),
@@ -165,6 +187,21 @@ namespace UEModManager.ViewModels
                 PrimaryText: UiText.Get("重新装回去（推荐）"),
                 SecondaryText: UiText.Get("改为禁用"),
                 DismissText: UiText.Get("先不处理"));
+
+        /// <summary>
+        /// 方案里启用着、却已经没有记录的 MOD。列的是包名（记录没了，显示名无从知道）。
+        /// 去掉之后它们装在游戏目录里的文件原样留下。
+        /// </summary>
+        public static DiskRefreshQuestion ForgetUnknownEntries(IReadOnlyList<string> packageKeys)
+            => new(DiskRefreshQuestionKind.ForgetUnknownEntries, UiText.Get("方案里有找不到记录的 MOD"),
+                Paragraphs(
+                    UiText.Interpolate($"当前方案里启用着 {packageKeys.Count} 个 MOD，但管理器已经没有它们的记录了："),
+                    Names(packageKeys),
+                    UiText.Get("只要它们还留在方案里，启用、禁用其他 MOD 和通过管理器启动游戏都会失败。"),
+                    UiText.Get("要把它们从方案里去掉吗？它们装在游戏目录里的文件会原样留下，管理器不会删除。")),
+                PrimaryText: UiText.Get("从方案里去掉"),
+                SecondaryText: null,
+                DismissText: UiText.Get("先不动"));
 
         // ─── 拼装 ───
 

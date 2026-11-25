@@ -156,6 +156,24 @@ public sealed class DeploymentStateStore
         return released;
     }
 
+    /// <summary>
+    /// 有没有旧版本留下、还没认领进清单的部署记录。
+    ///
+    /// <para>
+    /// 清单从没写过（修订号为空）时，部署计划会先把旧版本的已提交事务认领进来
+    /// （<c>DeploymentPlanner.AdoptLegacyFilesAsync</c>）。在那之前清单是空的，
+    /// 游戏目录里却可能装着这些事务留下的文件——只看清单会以为"什么都没装"。
+    /// 判据比认领本身宽：只要存在一条旧格式、已提交、往游戏目录里写过东西的事务就算有。
+    /// 宽一点的后果只是核对时少下一些结论，不会误动任何文件。
+    /// </para>
+    /// </summary>
+    internal async Task<bool> HasUnadoptedLegacyDeploymentsAsync(DeploymentState state)
+        => (await ReadLegacyTransactionsAsync(state)).Any(transaction =>
+            transaction.Status == DeploymentStatus.Committed
+            && transaction.StateBefore == null && transaction.StateAfter == null
+            && transaction.ExecutedOperations.Concat(transaction.PlannedOperations)
+                .Any(operation => operation.Type != DeploymentOperationType.Remove));
+
     internal async Task<string> PreserveOriginalAsync(DeploymentState state, string sourcePath)
     {
         ValidateTarget(state, sourcePath);

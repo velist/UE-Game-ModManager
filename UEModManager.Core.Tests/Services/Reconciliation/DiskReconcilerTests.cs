@@ -513,10 +513,10 @@ public class DiskReconcilerTests
     [Fact]
     public void Reconcile_MissingFilesOfAnUnknownOwner_AreReportedButNotReinstallable()
     {
-        // 生成物、用户修复这类条目不属于任何包
+        // 生成物、用户修复这类条目不属于任何包，方案里也没有它们
         var managed = new[] { Managed("generated", "merged.ini", 10, "h1") };
 
-        var report = DiskReconciler.Reconcile(Input([], managed, ["generated"]), new FakeDisk().Probes);
+        var report = DiskReconciler.Reconcile(Input([], managed), new FakeDisk().Probes);
 
         var missing = Assert.Single(report.MissingDeployments);
         Assert.False(missing.IsKnownPackage);
@@ -717,6 +717,157 @@ public class DiskReconcilerTests
         Assert.Equal("a", lost.PackageKey);
         Assert.Empty(lost.Recoverable);
         Assert.False(lost.HasDeployedFiles);
+    }
+
+    // ─── 预览图不算"要装进游戏的文件" ───
+
+    private static Package WithPreview(Package package, string fileName = "preview.png")
+    {
+        package.Artifacts.Add(new PackageArtifact
+        {
+            FileName = fileName, RelativeSourcePath = $@"{package.PackageKey}\files\{fileName}",
+            RelativeTargetPath = fileName, FileSize = 100, FileHash = "img", ArtifactType = ArtifactType.PreviewImage,
+        });
+        return package;
+    }
+
+    [Fact]
+    public void Reconcile_OnlyThePreviewImageIsGone_IsNotAProblem()
+    {
+        // 部署从来不碰预览图：少了一张图，MOD 照样能装、能用
+        var packages = new[] { WithPreview(Pkg("a", ("a.pak", 10, "h1"))) };
+        var disk = new FakeDisk();
+        disk.Repository[@"a\files\a.pak"] = 10;
+
+        var report = DiskReconciler.Reconcile(Input(packages, enabled: ["a"]), disk.Probes);
+
+        Assert.False(report.HasFindings);
+        Assert.Empty(report.PartialPackages);
+        Assert.Equal(1, report.CheckedSourceFileCount);
+        // 连探都不去探它
+        Assert.DoesNotContain(@"a\files\preview.png", disk.RepositoryProbes);
+    }
+
+    [Fact]
+    public void Reconcile_LostPackageWithAPreviewImage_IsStillFullyRecoverableFromTheGame()
+    {
+        // 游戏目录里从来没有那张图：找回看的是要装进游戏的文件，不能因为图找不回来就不让找回
+        var packages = new[] { WithPreview(Pkg("a", ("a.pak", 10, "h1"))), Pkg("ok", ("k.pak", 1, "h")) };
+        var managed = new[] { Managed("a", "a.pak", 10, "h1") };
+        var disk = new FakeDisk();
+        disk.Repository[@"ok\files\k.pak"] = 1;
+        disk.Game[managed[0].TargetPath] = 10;
+
+        var report = DiskReconciler.Reconcile(Input(packages, managed, ["a"]), disk.Probes);
+
+        var lost = Assert.Single(report.LostPackages);
+        Assert.Equal(1, lost.TotalFiles);
+        Assert.Equal([@"a\files\a.pak"], lost.MissingFiles);
+        Assert.True(lost.CanRecoverEverything);
+    }
+
+    [Fact]
+    public void Reconcile_PackageWithNothingButPreviewImages_IsNeverCalledLost()
+    {
+        var onlyImages = WithPreview(new Package { PackageKey = "pics", DisplayName = "pics", HostGameName = "Test" });
+
+        var report = DiskReconciler.Reconcile(Input([onlyImages]), new FakeDisk().Probes);
+
+        Assert.False(report.HasFindings);
+        Assert.Equal(0, report.CheckedPackageCount);
+        Assert.False(report.SuspectedRepositoryLocationProblem);
+    }
+
+    // ─── 部署清单不可信 ───
+
+    [Fact]
+    public void Reconcile_ManagedFilesUnknown_NeverTreatsAnEmptyListAsNothingInstalled()
+    {
+        // 清单读不出来时拿到的是空清单。"清单里没有它的文件"这时什么都说明不了：
+        // 按"游戏里没有"处理的话，移除记录之后等清单恢复可读，游戏里那份就会被当成该撤掉的删掉
+        var packages = new[] { Pkg("a", ("a.pak", 10, "h1")), Pkg("ok", ("k.pak", 1, "h")) };
+        var disk = new FakeDisk();
+        disk.Repository[@"ok\files\k.pak"] = 1;
+
+        var report = DiskReconciler.Reconcile(
+            Input(packages, managed: [], enabled: ["a"]) with { ManagedFilesKnown = false }, disk.Probes);
+
+        Assert.True(report.DeploymentRecordUnknown);
+        Assert.True(report.CannotSeeClearly);
+        Assert.True(report.HasFindings);
+        var lost = Assert.Single(report.LostPackages);
+        Assert.True(lost.DeployedFilesUnknown);
+        Assert.Equal(0, lost.ManagedFileCount);
+        Assert.False(lost.CanRecoverEverything);
+    }
+
+    [Fact]
+    public void Reconcile_ManagedFilesUnknown_DrawsNoConclusionAboutTheGameFolder()
+    {
+        var packages = new[] { Pkg("a", ("a.pak", 10, "h1")) };
+        var managed = new[] { Managed("a", "a.pak", 10, "h1") };
+        var disk = IntactDisk(packages);
+
+        var report = DiskReconciler.Reconcile(
+            Input(packages, managed, ["a"]) with { ManagedFilesKnown = false }, disk.Probes);
+
+        Assert.Empty(report.MissingDeployments);
+        Assert.Empty(disk.GameProbes);
+        Assert.Equal(0, report.CheckedManagedFileCount);
+        Assert.False(report.GameRootUnreachable);
+    }
+
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public void Reconcile_AnySideNotVisible_IsReportedAsCannotSeeClearly(
+        bool repositoryReachable, bool gameReachable, bool managedKnown)
+    {
+        var packages = new[] { Pkg("a", ("a.pak", 10, "h1")) };
+        var managed = new[] { Managed("a", "a.pak", 10, "h1") };
+
+        var report = DiskReconciler.Reconcile(
+            Input(packages, managed, ["a"], repositoryReachable, gameReachable) with { ManagedFilesKnown = managedKnown },
+            IntactDisk(packages, managed).Probes);
+
+        Assert.True(report.CannotSeeClearly);
+        Assert.Empty(report.MissingDeployments);
+    }
+
+    [Fact]
+    public void Reconcile_EverythingVisible_IsNotCannotSeeClearly()
+    {
+        var packages = new[] { Pkg("a", ("a.pak", 10, "h1")) };
+
+        Assert.False(DiskReconciler.Reconcile(Input(packages), IntactDisk(packages).Probes).CannotSeeClearly);
+    }
+
+    // ─── 方案里启用着、索引里却没有记录 ───
+
+    [Fact]
+    public void Reconcile_EnabledKeyWithoutAPackageRecord_IsReported()
+    {
+        // 这种引用会让最终视图建不出来（"方案引用的包不存在"），所有部署都失败；
+        // 而核对只遍历索引里的包，不单独报出来的话，刷新会说"没有发现问题"
+        var packages = new[] { Pkg("known", ("k.pak", 1, "h")) };
+        var disk = IntactDisk(packages);
+
+        var report = DiskReconciler.Reconcile(Input(packages, enabled: ["KNOWN", "ghost-b", "ghost-a"]), disk.Probes);
+
+        Assert.Equal(["ghost-a", "ghost-b"], report.UnknownEnabledKeys);
+        Assert.Equal(1, report.RegisteredPackageCount);
+        Assert.True(report.HasFindings);
+        Assert.False(report.CannotSeeClearly);
+    }
+
+    [Fact]
+    public void Reconcile_NoPackagesAtAllButEnabledKeys_ShowsTheIndexItselfIsMissing()
+    {
+        var report = DiskReconciler.Reconcile(Input([], enabled: ["a", "b"]), new FakeDisk().Probes);
+
+        Assert.Equal(["a", "b"], report.UnknownEnabledKeys);
+        Assert.Equal(0, report.RegisteredPackageCount);
     }
 
     // ─── 入参 ───

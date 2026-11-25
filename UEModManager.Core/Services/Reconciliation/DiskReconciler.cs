@@ -64,6 +64,14 @@ namespace UEModManager.Services.Reconciliation
 
         /// <summary>游戏目录能不能访问到。false 时游戏侧不下任何结论。</summary>
         public bool GameRootReachable { get; init; } = true;
+
+        /// <summary>
+        /// <see cref="ManagedFiles"/> 是不是可信的完整清单。部署清单读不出来（被占用、损坏），
+        /// 或者只有旧版本留下的部署记录、还没换算成清单时为 false：
+        /// 这时<b>不知道游戏目录里装着哪些文件</b>，空清单不等于"什么都没装"。
+        /// false 时游戏侧不下任何结论，仓库侧的每个问题都标成"游戏里的情况不明"。
+        /// </summary>
+        public bool ManagedFilesKnown { get; init; } = true;
     }
 
     /// <summary>仓库里缺了、但游戏目录里还装着一份内容相同的文件。</summary>
@@ -81,8 +89,9 @@ namespace UEModManager.Services.Reconciliation
     /// <param name="ManagedFileCount">管理器记着为它在游戏目录里装了几个文件（不管现在还在不在）。</param>
     /// <param name="DeployedFilesPresent">其中现在确认还在的（绝对路径）。</param>
     /// <param name="DeployedFilesUnknown">
-    /// 它装在游戏目录里的文件有探测不了的（游戏目录访问不到等）。此时不知道游戏里还有没有它的文件，
-    /// 不能按"游戏里没有"来处理。
+    /// 不知道游戏目录里还有没有它的文件：它装在那里的文件有探测不了的（游戏目录访问不到等），
+    /// 或者部署清单本身就不可信（<see cref="DiskReconcileInput.ManagedFilesKnown"/> 为 false）。
+    /// 此时不能按"游戏里没有"来处理。
     /// </param>
     public sealed record RepositoryFinding(
         string PackageKey,
@@ -102,6 +111,9 @@ namespace UEModManager.Services.Reconciliation
         /// <summary>
         /// 这个包启用着、又缺源文件：最终视图构建不出来，
         /// 所有部署（启用 / 禁用任何 MOD、启动游戏）都会因此失败，直到它被处理。
+        ///
+        /// 略偏保守：少数启用着却不参与部署的包（多选一的配置方案、被冲突规则判负的包）缺了源文件其实不挡路，
+        /// 这里一样算进来。算多了的后果只是多提醒一句，算少了则是点了「装回去」才发现装不了。
         /// </summary>
         public bool BlocksDeployment => IsEnabled && MissingFiles.Count > 0;
 
@@ -131,6 +143,24 @@ namespace UEModManager.Services.Reconciliation
 
         /// <summary>游戏目录访问不到。此时游戏侧的清单恒为空。</summary>
         public bool GameRootUnreachable { get; init; }
+
+        /// <summary>
+        /// 部署清单不可信（读不出来，或只有旧版本的部署记录）：不知道游戏目录里装着哪些文件。
+        /// 此时游戏侧的清单恒为空，仓库侧的每个问题都带着 <see cref="RepositoryFinding.DeployedFilesUnknown"/>。
+        /// </summary>
+        public bool DeploymentRecordUnknown { get; init; }
+
+        /// <summary>
+        /// 当前方案里启用着、包索引里却没有记录的包键。
+        /// 只要它们还留在方案里，最终视图就建不出来（"方案引用的包不存在"），所有部署都会失败。
+        /// </summary>
+        public IReadOnlyList<string> UnknownEnabledKeys { get; init; } = [];
+
+        /// <summary>
+        /// 包索引里一共登记了几个包（不管有没有登记文件）。
+        /// 0 而方案里还有启用的包，说明是索引本身没读出来，而不是这些包被一个个删掉了。
+        /// </summary>
+        public int RegisteredPackageCount { get; init; }
 
         /// <summary>
         /// 仓库根在，但登记的包<b>一个都找不到</b>。这更像是位置出了问题（指到了一个空文件夹），
@@ -168,9 +198,16 @@ namespace UEModManager.Services.Reconciliation
 
         /// <summary>有没有需要玩家知道的问题。</summary>
         public bool HasFindings
-            => RepositoryRootUnreachable || GameRootUnreachable
-               || LostPackages.Count > 0 || PartialPackages.Count > 0
+            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown
+               || LostPackages.Count > 0 || PartialPackages.Count > 0 || UnknownEnabledKeys.Count > 0
                || MissingDeployments.Any(d => d.CanReinstall);
+
+        /// <summary>
+        /// 有哪一侧看不清（位置访问不到、清单不可信）。看不清的时候什么都不该动：
+        /// 界面只说明看不清的是什么，不提任何移除、找回、装回去。
+        /// </summary>
+        public bool CannotSeeClearly
+            => RepositoryRootUnreachable || GameRootUnreachable || DeploymentRecordUnknown;
     }
 
     /// <summary>
@@ -202,11 +239,14 @@ namespace UEModManager.Services.Reconciliation
                 .Where(f => !string.IsNullOrEmpty(f.TargetPath))
                 .ToLookup(f => f.PackageKey ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 
+            // 游戏侧看不看得清：目录要访问得到，清单也要可信
+            var gameSideKnown = input.GameRootReachable && input.ManagedFilesKnown;
+
             // 游戏侧的探测结果两处要用（游戏侧的丢失、仓库侧的"能不能找回"），每个文件只探一次。
             var gameProbes = new Dictionary<string, FileProbe>(StringComparer.OrdinalIgnoreCase);
             FileProbe ProbeGame(string targetPath)
             {
-                if (!input.GameRootReachable) return FileProbe.Unknown;
+                if (!gameSideKnown) return FileProbe.Unknown;
                 if (!gameProbes.TryGetValue(targetPath, out var probe))
                     gameProbes[targetPath] = probe = probes.GameFile(targetPath);
                 return probe;
@@ -271,7 +311,9 @@ namespace UEModManager.Services.Reconciliation
                         deployed.Count,
                         deployed.Where(f => ProbeGame(f.TargetPath).State == FileProbeState.Present)
                             .Select(f => f.TargetPath).ToList(),
-                        deployed.Any(f => ProbeGame(f.TargetPath).State == FileProbeState.Unknown));
+                        // 清单不可信时，"清单里没有它的文件"不说明任何问题
+                        !input.ManagedFilesKnown
+                        || deployed.Any(f => ProbeGame(f.TargetPath).State == FileProbeState.Unknown));
 
                     if (missing.Count == 0)
                         modified.Add(finding);
@@ -287,7 +329,7 @@ namespace UEModManager.Services.Reconciliation
 
             var missingDeployments = new List<DeploymentFinding>();
             var checkedManagedFiles = 0;
-            if (input.GameRootReachable)
+            if (gameSideKnown)
             {
                 var known = input.Packages
                     .GroupBy(p => p.PackageKey, StringComparer.OrdinalIgnoreCase)
@@ -327,6 +369,13 @@ namespace UEModManager.Services.Reconciliation
                                             && input.Packages.Any(p => RegisteredFiles(p).Count > 0),
                 // 同理：什么都没装进游戏目录时，游戏目录在不在不影响任何 MOD 的状态
                 GameRootUnreachable = !input.GameRootReachable && managedByKey.Count > 0,
+                DeploymentRecordUnknown = !input.ManagedFilesKnown,
+                UnknownEnabledKeys = enabled
+                    .Where(key => !input.Packages.Any(
+                        p => string.Equals(p.PackageKey, key, StringComparison.OrdinalIgnoreCase)))
+                    .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                RegisteredPackageCount = input.Packages.Count,
                 SuspectedRepositoryLocationProblem = suspected,
                 LostPackages = lost,
                 PartialPackages = partial,
@@ -339,7 +388,13 @@ namespace UEModManager.Services.Reconciliation
             };
         }
 
-        /// <summary>包登记的源文件，同一个路径只算一次（manifest 损坏时可能重复登记）。</summary>
+        /// <summary>
+        /// 包里<b>要装进游戏</b>的源文件，同一个路径只算一次（manifest 损坏时可能重复登记）。
+        ///
+        /// 预览图类的产物不算：部署从来不碰它们（见 <c>ResolvedViewLayerBuilder.BuildDeploymentCandidates</c>），
+        /// 少了一张图 MOD 照样能装、能用。把它算成"必需的源文件"的话，只丢一张图会被说成"没法正常装进游戏"，
+        /// 整包丢失时又会因为游戏目录里找不到这张图而不提供找回。口径必须和部署一致。
+        /// </summary>
         private static List<PackageArtifact> RegisteredFiles(Package package)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -347,6 +402,7 @@ namespace UEModManager.Services.Reconciliation
             foreach (var artifact in package.Artifacts ?? [])
             {
                 if (string.IsNullOrWhiteSpace(artifact?.RelativeSourcePath)) continue;
+                if (artifact.ArtifactType == ArtifactType.PreviewImage) continue;
                 if (seen.Add(artifact.RelativeSourcePath.Replace('\\', '/'))) result.Add(artifact);
             }
             return result;

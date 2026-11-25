@@ -41,6 +41,7 @@ public sealed class DiskRefreshTextTests : IDisposable
         yield return DiskRefreshText.RemoveStillInstalled(findings);
         yield return DiskRefreshText.RemoveIncomplete(findings);
         yield return DiskRefreshText.MissingDeployments([Deployment("Alpha"), Deployment("Beta")]);
+        yield return DiskRefreshText.ForgetUnknownEntries(["Alpha", "Beta"]);
         // 名字多到要折叠的时候
         yield return DiskRefreshText.RemoveLost(
             Enumerable.Range(1, DiskRefreshText.MaxListedNames + 3).Select(i => Finding("Mod" + i)).ToList());
@@ -51,8 +52,10 @@ public sealed class DiskRefreshTextTests : IDisposable
         yield return DiskRefreshText.NoProblems();
         yield return DiskRefreshText.RepositoryUnreachable(@"X:\Mods\Repository");
         yield return DiskRefreshText.GameDirectoryUnreachable(@"E:\Games\Sample");
-        yield return DiskRefreshText.StillBlocked([Finding("Beta", enabled: true)]);
-        yield return DiskRefreshText.Done(removed: 1, recovered: 2, reinstalled: 3, disabled: 4)!;
+        yield return DiskRefreshText.DeploymentRecordUnknown();
+        yield return DiskRefreshText.PackageRecordsUnreadable(3);
+        yield return DiskRefreshText.StillBlocked(["Beta"]);
+        yield return DiskRefreshText.Done(removed: 1, recovered: 2, reinstalled: 3, disabled: 4, forgotten: 5)!;
         yield return DiskRefreshText.Failed(
         [
             DiskRefreshText.RecoverFailed("Alpha", "disk full"),
@@ -130,6 +133,8 @@ public sealed class DiskRefreshTextTests : IDisposable
                      "{0} 个已启用 MOD 的文件在游戏目录里丢失（{1}），它们现在在游戏里不会生效",
                      "点 MOD 列表上方的「刷新」（F5）处理",
                      "{0} 个 MOD 的 {1} 个源文件、{2} 个已安装文件都在",
+                     "已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件",
+                     "方案里启用着 {0} 个找不到记录的 MOD（{1}），启用、禁用和启动都会因此失败",
                      "；",
                  })
             Assert.True(UiText.HasEnglish(source), $"缺英文译文：{source}");

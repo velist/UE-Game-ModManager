@@ -172,6 +172,14 @@ namespace UEModManager.Services
                     problems.Add(UiText.Get("游戏目录访问不到，没法核对已安装的 MOD 文件"));
                     detail ??= check.GamePath;
                 }
+                if (report.DeploymentRecordUnknown)
+                    problems.Add(UiText.Get("已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件"));
+
+                if (report.UnknownEnabledKeys.Count > 0)
+                {
+                    var keys = string.Join(UiText.Get("、"), report.UnknownEnabledKeys);
+                    problems.Add(UiText.Interpolate($"方案里启用着 {report.UnknownEnabledKeys.Count} 个找不到记录的 MOD（{keys}），启用、禁用和启动都会因此失败"));
+                }
 
                 var broken = report.LostPackages.Concat(report.PartialPackages).ToList();
                 if (broken.Count > 0)
