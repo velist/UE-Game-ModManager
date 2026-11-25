@@ -114,13 +114,45 @@ public sealed class PromoBarSourceGuardTests
         Assert.True(onboarding >= 0 && promo > onboarding, "推广条应在 InitializeAsync 里、排在新手引导之后安排");
 
         // 主窗口的主文件只有那一行调用：推广条的控件只由 MainWindow.PromoBar.cs 操作
-        Assert.DoesNotMatch(@"\bPromo(Bar|Shine|Amount|CouponCard|ClaimButton|CloseButton|BarService)\b", Code(view));
+        Assert.DoesNotMatch(@"\bPromo(Bar|Shine|Amount|CouponCard|ClaimButton|CloseButton|BarService|BarSession)\b", Code(view));
 
-        // 新手引导没看过时不出现，这一条由判定守着：安排之前先问过服务
-        Assert.Matches(@"!service\.Evaluate\(\)\.ShouldShow\)\s*return;", CodeBehind);
+        // 新手引导没看过时不出现，这一条由判定守着：安排之前先问过
+        Assert.Matches(@"if \(!session\.ShouldSchedule\) return;", CodeBehind);
         // 显示之前必须经过「判定 + 记账」那一个入口，没有别的路能让它出现
         Assert.Single(Regex.Matches(CodeBehind, @"\bShowPromoBar\(campaign\)"));
-        Assert.Matches(@"TryBeginDisplay\(\);\s*if \(campaign != null\) ShowPromoBar\(campaign\);", CodeBehind);
+        Assert.Matches(@"_promo\?\.Begin\(\);\s*if \(campaign != null\) ShowPromoBar\(campaign\);", CodeBehind);
+        // 窗口最小化着的时候不出现也不记账：先看窗口，再去判定
+        var tick = Regex.Match(CodeBehind, @"private void PromoDelay_Tick\(.*?\n        \}", RegexOptions.Singleline);
+        Assert.True(tick.Success, "找不到 PromoDelay_Tick");
+        var visible = tick.Value.IndexOf("if (WindowState == WindowState.Minimized || !IsVisible) return;", StringComparison.Ordinal);
+        var begin = tick.Value.IndexOf("_promo?.Begin()", StringComparison.Ordinal);
+        Assert.True(visible >= 0 && begin > visible, "到点时应先确认窗口看得见，再判定并记账");
+    }
+
+    [Fact]
+    public void 点击算不算数_code_behind不自己判断_只按会话的回答去动界面()
+    {
+        var code = CodeBehind;
+
+        // 误点保护、正在展示哪条、按下状态——都在 PromoBarSession 里（那里有测试），这里不留第二份
+        foreach (var state in new[] { "TickCount", "ClickGuard", "_promoPressed", "_promoCampaign", "IsExpired(", "TryBeginDisplay", "Evaluate(" })
+            Assert.DoesNotContain(state, code);
+
+        // 四个鼠标 / 按钮入口各自只转一句
+        Assert.Contains("PromoCoupon_MouseDown(object sender, MouseButtonEventArgs e) => _promo?.PointerDown();", code);
+        Assert.Contains("PromoCoupon_MouseLeave(object sender, MouseEventArgs e) => _promo?.PointerLeave();", code);
+        Assert.Contains("if (_promo?.PointerUp() == true) ClaimPromo();", code);
+        Assert.Contains("PromoClaim_Click(object sender, RoutedEventArgs e) => ClaimPromo();", code);
+
+        // 领取 / 关闭 / 到期：先问会话，回答是「不作数」就什么都不动
+        Assert.Contains("var action = _promo?.Claim() ?? PromoBarAction.None;", code);
+        Assert.Contains("if (action == PromoBarAction.None) return Task.CompletedTask;", code);
+        Assert.Contains("if (_promo?.Close() == PromoBarAction.Dismiss) CollapsePromoBar();", code);
+        Assert.Contains("_promo.CheckExpiry() == PromoBarAction.Dismiss", code);
+
+        // 浏览器打不开时才弹提示，把链接给玩家自己复制
+        Assert.Matches(@"if \(action == PromoBarAction\.DismissAndOfferLink && campaign != null\)\s*\{\s*CyberMessageBox\.Show\(", code);
+        Assert.Single(Regex.Matches(code, @"CyberMessageBox\."));
     }
 
     [Fact]
@@ -130,6 +162,7 @@ public sealed class PromoBarSourceGuardTests
         {
             ["MainWindow.PromoBar.cs"] = CodeBehind,
             ["PromoBarService.cs"] = Code(Read("Services", "PromoBarService.cs")),
+            ["PromoBarSession.cs"] = Code(Read("Services", "PromoBarSession.cs")),
             ["PromoCampaign.cs"] = Code(ReadCore("PromoCampaign.cs")),
             ["PromoLink.cs"] = Code(ReadCore("PromoLink.cs")),
             ["PromoSchedule.cs"] = Code(ReadCore("PromoSchedule.cs")),
@@ -152,12 +185,16 @@ public sealed class PromoBarSourceGuardTests
         // 界面这边只在出异常时记一笔调试日志，每一条都带着异常
         Assert.DoesNotMatch(@"LogDebug\((?!ex,)", sources["MainWindow.PromoBar.cs"]);
 
-        // 服务里唯一的一条输出是「打开浏览器失败」
+        // 服务里唯一的一条输出是「打开浏览器失败」；会话里一条都没有
         var service = sources["PromoBarService.cs"];
         Assert.DoesNotContain("ILogger", service);
         var writes = Regex.Matches(service, @"Console\.WriteLine\(([^\n]*)");
         Assert.Single(writes);
         Assert.Contains("打开浏览器失败", writes[0].Value);
+
+        var session = sources["PromoBarSession.cs"];
+        foreach (var trace in new[] { "ILogger", "Console.", "Debug.", "Trace.", "File.", "UiPreferences" })
+            Assert.False(session.Contains(trace, StringComparison.Ordinal), $"PromoBarSession.cs 里出现了 {trace}：点没点、关没关都不该留痕");
     }
 
     [Fact]
@@ -173,10 +210,16 @@ public sealed class PromoBarSourceGuardTests
         var open = service.IndexOf("_openInBrowser(campaign.Url);", StringComparison.Ordinal);
         Assert.True(gate >= 0 && open > gate, "交给浏览器之前必须先过 PromoLink.IsAllowed");
 
-        // 界面不自己开进程，只走服务
-        Assert.DoesNotContain("Process.Start", CodeBehind);
-        Assert.DoesNotContain("ProcessStartInfo", CodeBehind);
-        Assert.Contains("PromoBarService?.Open(campaign)", CodeBehind);
+        // 界面与会话都不自己开进程：界面问会话，会话只走服务那一个入口
+        var session = Code(Read("Services", "PromoBarSession.cs"));
+        foreach (var code in new[] { CodeBehind, session })
+        {
+            Assert.DoesNotContain("Process.Start", code);
+            Assert.DoesNotContain("ProcessStartInfo", code);
+            Assert.DoesNotContain("System.Diagnostics", code);
+        }
+        Assert.DoesNotContain(".Open(", CodeBehind);
+        Assert.Single(Regex.Matches(session, @"_service\.Open\(campaign\)"));
     }
 
     [Fact]

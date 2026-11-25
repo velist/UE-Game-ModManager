@@ -17,8 +17,9 @@ namespace UEModManager
     /// 主窗口顶部的推广条：一张优惠券。
     ///
     /// <para>
-    /// 这里只管<b>什么时候出现、点了之后怎样</b>。要不要展示由 Core 的 <c>PromoSchedule</c> 判定，
-    /// 活动内容来自 Core 的 <c>PromoCampaigns</c>，读写展示记录与打开浏览器在 <see cref="PromoBarService"/>，
+    /// 这个文件只做接线：把计时器和鼠标事件转给 <see cref="PromoBarSession"/>，再按它的回答去动界面。
+    /// 要不要展示由 Core 的 <c>PromoSchedule</c> 判定，活动内容来自 Core 的 <c>PromoCampaigns</c>，
+    /// 读写展示记录与打开浏览器在 <see cref="PromoBarService"/>，点击算不算数在 <see cref="PromoBarSession"/>，
     /// 动效全部走 <see cref="MotionAssist"/>（<c>Reveal</c> / <c>Shine</c> / <c>Conceal</c>），样子在 MainWindow.xaml。
     /// </para>
     ///
@@ -35,13 +36,8 @@ namespace UEModManager
         /// <summary>启动流程走完后，等这么久推广条才出现：先让玩家看清自己的 MOD 列表。</summary>
         internal static readonly TimeSpan PromoBarDelay = TimeSpan.FromSeconds(2);
 
-        /// <summary>
-        /// 推广条出现后这么久之内的点击不作数。
-        ///
-        /// 它出现时会把下面的工具栏往下推：玩家正要点「导入」，手指落下的那一瞬间那个位置换成了广告——
-        /// 没有这段保护，这一下就会替他打开一个网页。宁可少一次点击，也不要一次不是他本意的点击。
-        /// </summary>
-        internal static readonly TimeSpan PromoClickGuard = TimeSpan.FromMilliseconds(800);
+        /// <summary>软件可能一直开到活动下线之后：每隔这么久看一眼，到期了就自己收起。</summary>
+        internal static readonly TimeSpan PromoExpiryCheckInterval = TimeSpan.FromMinutes(1);
 
         /// <summary>开头连扫几次高光；之后降为每隔几秒一次的淡高光（节奏见 <see cref="MotionAssist.Shine"/>）。</summary>
         internal const int PromoShineBursts = 3;
@@ -49,16 +45,11 @@ namespace UEModManager
         /// <summary>高光等入场滑完再开始扫：滑入的时长之外再留 100ms。</summary>
         internal const int PromoShineDelayMs = MotionAssist.RevealMs + 100;
 
+        /// <summary>这次启动的推广条；这次启动用不上时一直是 null。</summary>
+        private PromoBarSession? _promo;
+
         private DispatcherTimer? _promoDelayTimer;
         private DispatcherTimer? _promoExpiryTimer;
-
-        /// <summary>正在展示的那条活动；没在展示时为 null。</summary>
-        private PromoCampaign? _promoCampaign;
-
-        private long _promoShownAtTick;
-
-        /// <summary>鼠标是在券面上按下的。按下与松开都落在券上才算一次点击。</summary>
-        private bool _promoPressed;
 
         private PromoBarService? PromoBarService
             => ((App)Application.Current).ServiceProvider?.GetService<PromoBarService>();
@@ -73,12 +64,14 @@ namespace UEModManager
                 // 一次启动只安排一次（Loaded 理论上可能再触发，那样会多出一个计时器）
                 if (_promoDelayTimer != null) return;
 
-                var service = PromoBarService;
+                if (PromoBarService is not { } service) return;
+                var session = new PromoBarSession(service);
 
                 // 这次启动用不上就什么都不安排——活动下线之后，这里就是一次判定、没有任何后续。
                 // 新手引导的状态也在这一刻定下：第一次打开软件的人，哪怕两秒内就点了「跳过」，这次也不出现。
-                if (service == null || !service.Evaluate().ShouldShow) return;
+                if (!session.ShouldSchedule) return;
 
+                _promo = session;
                 _promoDelayTimer = new DispatcherTimer { Interval = PromoBarDelay };
                 _promoDelayTimer.Tick += PromoDelay_Tick;
                 _promoDelayTimer.Start();
@@ -101,7 +94,7 @@ namespace UEModManager
             try
             {
                 // 重新判定并记下「今天展示过」，两件事在同一刻完成；记不上账就不展示
-                var campaign = PromoBarService?.TryBeginDisplay();
+                var campaign = _promo?.Begin();
                 if (campaign != null) ShowPromoBar(campaign);
             }
             catch (Exception ex)
@@ -112,22 +105,17 @@ namespace UEModManager
 
         private void ShowPromoBar(PromoCampaign campaign)
         {
-            _promoCampaign = campaign;
-            _promoPressed = false;
-            _promoShownAtTick = Environment.TickCount64;
-
             PromoBar.DataContext = campaign;
             MotionAssist.Reveal(PromoBar);
             MotionAssist.Shine(PromoShine, PromoAmount, PromoShineBursts, PromoShineDelayMs);
 
-            // 软件可能一直开到活动下线之后：每分钟看一眼，到期了就自己收起
             _promoExpiryTimer ??= CreatePromoExpiryTimer();
             _promoExpiryTimer.Start();
         }
 
         private DispatcherTimer CreatePromoExpiryTimer()
         {
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+            var timer = new DispatcherTimer { Interval = PromoExpiryCheckInterval };
             timer.Tick += PromoExpiry_Tick;
             return timer;
         }
@@ -136,21 +124,23 @@ namespace UEModManager
         {
             try
             {
-                if (_promoCampaign is not { } campaign || PromoBarService is not { } service || service.IsExpired(campaign))
-                    HidePromoBar();
+                // 已经不在展示了（计时器本该停了），或者活动到期了：收起
+                if (_promo?.Showing == null || _promo.CheckExpiry() == PromoBarAction.Dismiss) CollapsePromoBar();
             }
             catch (Exception ex)
             {
                 _logger?.LogDebug(ex, "[Promo] 检查推广条是否到期失败");
-                HidePromoBar();
+                _promo?.End();
+                CollapsePromoBar();
             }
         }
 
-        /// <summary>收起推广条。「今天展示过」在出现时就记下了，这里不用再记。</summary>
-        private void HidePromoBar()
+        /// <summary>
+        /// 把推广条从界面上收起来。只动界面：这次展示算不算结束由 <see cref="PromoBarSession"/> 说了算，
+        /// 「今天展示过」在出现时就记下了，这里不用再记。
+        /// </summary>
+        private void CollapsePromoBar()
         {
-            _promoCampaign = null;
-            _promoPressed = false;
             _promoExpiryTimer?.Stop();
             MotionAssist.StopShine(PromoShine);
             MotionAssist.Conceal(PromoBar);
@@ -163,21 +153,16 @@ namespace UEModManager
             MotionAssist.StopShine(PromoShine);
         }
 
-        private bool IsWithinPromoClickGuard()
-            => Environment.TickCount64 - _promoShownAtTick < PromoClickGuard.TotalMilliseconds;
-
         // ─── 点击 ───
 
-        private void PromoCoupon_MouseDown(object sender, MouseButtonEventArgs e) => _promoPressed = true;
+        private void PromoCoupon_MouseDown(object sender, MouseButtonEventArgs e) => _promo?.PointerDown();
 
-        private void PromoCoupon_MouseLeave(object sender, MouseEventArgs e) => _promoPressed = false;
+        private void PromoCoupon_MouseLeave(object sender, MouseEventArgs e) => _promo?.PointerLeave();
 
         private void PromoCoupon_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            // 在别处按住、拖到券上才松手的不算：那多半是在拖别的东西
-            if (!_promoPressed) return;
-            _promoPressed = false;
-            ClaimPromo();
+            // 按下与松开都落在券上才算一次点击
+            if (_promo?.PointerUp() == true) ClaimPromo();
         }
 
         private void PromoClaim_Click(object sender, RoutedEventArgs e) => ClaimPromo();
@@ -186,13 +171,14 @@ namespace UEModManager
         private void ClaimPromo()
             => SafeEvent.Run(this, () =>
             {
-                if (_promoCampaign is not { } campaign || IsWithinPromoClickGuard()) return Task.CompletedTask;
+                // 误点保护、只放行 https、已下线的活动不再打开——都在 PromoBarSession / PromoBarService 里把关
+                var campaign = _promo?.Showing;
+                var action = _promo?.Claim() ?? PromoBarAction.None;
+                if (action == PromoBarAction.None) return Task.CompletedTask;
 
-                // 只放行 https、已下线的活动不再打开，这两条都在服务里把关
-                var result = PromoBarService?.Open(campaign) ?? PromoOpenResult.Blocked;
-                HidePromoBar();
+                CollapsePromoBar();
 
-                if (result == PromoOpenResult.Failed)
+                if (action == PromoBarAction.DismissAndOfferLink && campaign != null)
                 {
                     CyberMessageBox.Show(this,
                         UiText.Interpolate($"无法打开默认浏览器，请手动复制此链接到浏览器访问：\n\n{campaign.Url}"),
@@ -204,7 +190,7 @@ namespace UEModManager
         private void PromoClose_Click(object sender, RoutedEventArgs e)
             => SafeEvent.Run(this, () =>
             {
-                if (!IsWithinPromoClickGuard()) HidePromoBar();
+                if (_promo?.Close() == PromoBarAction.Dismiss) CollapsePromoBar();
                 return Task.CompletedTask;
             }, _logger, "关闭推广条");
     }

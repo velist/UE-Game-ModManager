@@ -550,7 +550,7 @@ public sealed class PromoBarViewTests : IDisposable
                 $"没有看到高光扫到半路、金额放大：位移 {move.X}（应在 {from} 与 {to} 之间），不透明度 {shine.Opacity}，金额缩放 {scale.ScaleX}");
             Assert.True(scale.ScaleX <= MotionAssist.ShinePulseScale + 0.001, $"金额放大过头了：{scale.ScaleX}");
 
-            // ── 收起：与 HidePromoBar 同样的两步。高光正扫到半路时点了「×」 ──
+            // ── 收起：与 CollapsePromoBar 同样的两步。高光正扫到半路时点了「×」 ──
             MotionAssist.StopShine(shine);
             MotionAssist.Conceal(bar);
 
@@ -628,9 +628,8 @@ public sealed class PromoBarViewTests : IDisposable
         Assert.True(MainWindow.PromoShineDelayMs > MotionAssist.RevealMs);
         Assert.Equal(3, MainWindow.PromoShineBursts);
 
-        // 误点保护要盖过整个滑入过程（那段时间工具栏还在往下走），但不能长到让人觉得点不动
-        Assert.True(MainWindow.PromoClickGuard > TimeSpan.FromMilliseconds(MotionAssist.RevealMs));
-        Assert.True(MainWindow.PromoClickGuard <= TimeSpan.FromSeconds(1));
+        // 软件一直开到活动下线之后：最多晚一分钟收起
+        Assert.Equal(TimeSpan.FromMinutes(1), MainWindow.PromoExpiryCheckInterval);
     }
 
     // ─── 预览图 ───
