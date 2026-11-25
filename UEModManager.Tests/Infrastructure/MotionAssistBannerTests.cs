@@ -1,8 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Threading;
 using UEModManager.Infrastructure;
 using UEModManager.Tests.Themes;
 using UEModManager.Tests.Views;
@@ -32,6 +30,14 @@ public sealed class MotionAssistBannerTests
     private const int NeverByItself = 3_600_000;
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public void 滑入比收起慢一点_都在三分之一秒以内()
+    {
+        // 展开要让人看清「上面多了一条」，收起是玩家自己点的、要利落；两个都不该拖到让人等
+        Assert.Equal(320, MotionAssist.RevealMs);
+        Assert.Equal(220, MotionAssist.ConcealMs);
+    }
 
     // ─── 滑入 ───
 
@@ -63,17 +69,19 @@ public sealed class MotionAssistBannerTests
             MotionAssist.Reveal(host, ms: 5000);
             Assert.Equal(Visibility.Visible, host.Visibility);
             Assert.True(host.HasAnimatedProperties);
-            if (!AnimationClockTicks()) return;
+            if (!DispatcherPump.AnimationClockTicks()) return;
 
             Assert.True(
-                PumpUntil(() => host.ActualHeight > 0 && host.ActualHeight < Banner.NaturalHeight && host.Opacity is > 0 and < 1,
+                DispatcherPump.Until(() => host.ActualHeight > 0 && host.ActualHeight < Banner.NaturalHeight && host.Opacity is > 0 and < 1,
                     TimeSpan.FromSeconds(4)),
                 $"没有看到展开途中的状态：高度 {host.ActualHeight}，不透明度 {host.Opacity}");
 
             // 正常速度再滑一次（途中再叫一次不会出错）。播完后动画不再压着属性：
-            // 高度回到 Auto，之后内容变高变矮（换语言、窗口变窄）都能跟着走
+            // 高度回到 Auto，之后内容变高变矮（换语言、窗口变窄）都能跟着走。
+            // 新动画下一帧才生效，所以先等过它的时长再看终态——否则它还没开始就已经"符合终态"了
             MotionAssist.Reveal(host, ms: 80);
-            Assert.True(PumpUntil(() => double.IsNaN(host.Height) && host.Opacity == 1.0, Patience),
+            Assert.True(
+                DispatcherPump.Past(TimeSpan.FromMilliseconds(250), () => double.IsNaN(host.Height) && host.Opacity == 1.0, Patience),
                 $"滑入播完后高度应回到 Auto、完全不透明：高度 {host.Height}，不透明度 {host.Opacity}");
             host.UpdateLayout();
             Assert.Equal(Banner.NaturalHeight, host.ActualHeight);
@@ -107,7 +115,7 @@ public sealed class MotionAssistBannerTests
             using var motion = MotionAssist.OverrideMotionForTests(true);
             using var banner = Banner.Show(visible: true);
             var host = banner.Host;
-            if (!AnimationClockTicks()) return;
+            if (!DispatcherPump.AnimationClockTicks()) return;
             var hidden = 0;
 
             MotionAssist.Conceal(host, () => hidden++, ms: 120);
@@ -118,7 +126,7 @@ public sealed class MotionAssistBannerTests
             Assert.True(host.HasAnimatedProperties);
 
             // 点「×」之后提示条必须真的消失 —— 这是整条推广条最不能坏的一处
-            Assert.True(PumpUntil(() => host.Visibility == Visibility.Collapsed, Patience), "收起动画播完后提示条没有折叠");
+            Assert.True(DispatcherPump.Until(() => host.Visibility == Visibility.Collapsed, Patience), "收起动画播完后提示条没有折叠");
             Assert.Equal(1, hidden);
             Assert.False(host.HasAnimatedProperties);
             Assert.True(double.IsNaN(host.Height));
@@ -174,7 +182,7 @@ public sealed class MotionAssistBannerTests
             Assert.False(MotionAssist.IsShining(banner.Band));
             Assert.Null(MotionAssist.AdvanceShine(banner.Band));
             // 给计时器（如果有的话）充分的机会：什么都不会发生
-            Assert.False(PumpUntil(() => banner.Band.HasAnimatedProperties, TimeSpan.FromMilliseconds(300)));
+            Assert.False(DispatcherPump.Until(() => banner.Band.HasAnimatedProperties, TimeSpan.FromMilliseconds(300)));
             Assert.Equal(0, banner.Band.Opacity);
             Assert.Equal(Transform.Identity, banner.Pulse.RenderTransform);   // 金额没被碰过
         });
@@ -348,7 +356,7 @@ public sealed class MotionAssistBannerTests
             banner.Track.Children.Remove(banner.Band);
 
             // Unloaded 是排进消息队列里异步触发的
-            Assert.True(PumpUntil(() => !MotionAssist.IsShining(banner.Band), Patience),
+            Assert.True(DispatcherPump.Until(() => !MotionAssist.IsShining(banner.Band), Patience),
                 "高光已经不在界面上了，计时器还挂着");
         });
 
@@ -362,7 +370,7 @@ public sealed class MotionAssistBannerTests
             MotionAssist.Shine(banner.Band, banner.Pulse, bursts: 1, delayMs: 40);
 
             Assert.False(banner.Band.HasAnimatedProperties);
-            Assert.True(PumpUntil(() => banner.Band.HasAnimatedProperties, Patience), "到点了高光没有扫");
+            Assert.True(DispatcherPump.Until(() => banner.Band.HasAnimatedProperties, Patience), "到点了高光没有扫");
         });
 
     [Fact]
@@ -371,7 +379,7 @@ public sealed class MotionAssistBannerTests
         {
             using var motion = MotionAssist.OverrideMotionForTests(true);
             using var banner = Banner.Show(visible: true);
-            if (!AnimationClockTicks()) return;
+            if (!DispatcherPump.AnimationClockTicks()) return;
 
             MotionAssist.Shine(banner.Band, null, bursts: 1000, delayMs: NeverByItself);
             Assert.Equal(1.0, PeakOpacity(banner.Band));
@@ -380,7 +388,7 @@ public sealed class MotionAssistBannerTests
             Assert.Equal(MotionAssist.ShineIdleOpacity, PeakOpacity(banner.Band));
 
             // 扫完自己回到透明，不留下一条停在右边的高光
-            Assert.True(PumpUntil(() => banner.Band.Opacity == 0, Patience), "扫完之后高光没有回到透明");
+            Assert.True(DispatcherPump.Until(() => banner.Band.Opacity == 0, Patience), "扫完之后高光没有回到透明");
         });
 
     [Theory]
@@ -479,20 +487,6 @@ public sealed class MotionAssistBannerTests
             return null;
         });
 
-    /// <summary>
-    /// 这个环境里 WPF 的动画时钟走不走。正常的桌面与 CI 都走；极少数没有合成器的宿主里不走，
-    /// 那里「等动画播完」的断言无从验证，相关用例直接返回，而不是报一个与被测代码无关的失败。
-    /// </summary>
-    private static bool AnimationClockTicks()
-    {
-        var probe = new TranslateTransform();
-        var completed = false;
-        var animation = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(30)) { FillBehavior = FillBehavior.Stop };
-        animation.Completed += (_, _) => completed = true;
-        probe.BeginAnimation(TranslateTransform.XProperty, animation);
-        return PumpUntil(() => completed, TimeSpan.FromSeconds(5));
-    }
-
     /// <summary>推一步扫光，读它播放时的不透明度。机器卡顿错过了这一次就再推一步。</summary>
     private static double PeakOpacity(FrameworkElement band)
     {
@@ -500,27 +494,9 @@ public sealed class MotionAssistBannerTests
         {
             Assert.Equal(true, MotionAssist.AdvanceShine(band)?.Swept);
             var seen = 0.0;
-            if (PumpUntil(() => (seen = band.Opacity) > 0, TimeSpan.FromMilliseconds(600))) return seen;
+            if (DispatcherPump.Until(() => (seen = band.Opacity) > 0, TimeSpan.FromMilliseconds(600))) return seen;
         }
         Assert.Fail("扫光时高光一直是透明的");
         return 0;
-    }
-
-    /// <summary>处理消息队列（含计时器与动画时钟），直到条件成立或超时。</summary>
-    private static bool PumpUntil(Func<bool> done, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (true)
-        {
-            if (done()) return true;
-            if (DateTime.UtcNow >= deadline) return false;
-
-            // 退出帧排在最低一档：比它优先的（计时器、渲染、布局、Unloaded）都处理完才返回
-            var frame = new DispatcherFrame();
-            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,
-                new Action(() => frame.Continue = false));
-            Dispatcher.PushFrame(frame);
-            if (!done()) Thread.Sleep(5);
-        }
     }
 }

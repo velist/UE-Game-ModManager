@@ -44,10 +44,10 @@ namespace UEModManager
         internal static readonly TimeSpan PromoClickGuard = TimeSpan.FromMilliseconds(800);
 
         /// <summary>开头连扫几次高光；之后降为每隔几秒一次的淡高光（节奏见 <see cref="MotionAssist.Shine"/>）。</summary>
-        private const int PromoShineBursts = 3;
+        internal const int PromoShineBursts = 3;
 
-        /// <summary>高光等入场滑完（320ms）再开始扫。</summary>
-        private const int PromoShineDelayMs = 420;
+        /// <summary>高光等入场滑完再开始扫：滑入的时长之外再留 100ms。</summary>
+        internal const int PromoShineDelayMs = MotionAssist.RevealMs + 100;
 
         private DispatcherTimer? _promoDelayTimer;
         private DispatcherTimer? _promoExpiryTimer;

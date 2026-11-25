@@ -7,12 +7,13 @@ using UEModManager.Infrastructure;
 using UEModManager.Localization;
 using UEModManager.Services;
 using UEModManager.Services.Promo;
+using UEModManager.Tests.Infrastructure;
 using UEModManager.Tests.Themes;
 
 namespace UEModManager.Tests.Views;
 
 /// <summary>
-/// 主窗口顶部推广条的界面回归（离屏渲染，不弹窗、不联网、不打开浏览器）。
+/// 主窗口顶部推广条的界面回归（不联网、不打开浏览器；除了最后两条「真窗口」用例，都是离屏排版、不显示窗口）。
 ///
 /// <para>
 /// 这里看的是<b>样子</b>：文字齐不齐、挤不挤、和另外两条提示条打不打架、票根是不是真的切出了缺口。
@@ -20,7 +21,7 @@ namespace UEModManager.Tests.Views;
 /// 动效的节奏——在 <c>MotionAssistBannerTests</c>。
 /// </para>
 /// </summary>
-// 要切界面语言：进程级状态，必须和其它改语言的测试一起独占运行。
+// 要切界面语言，也要钉住「系统是否允许动画」：两样都是进程级状态，必须和其它改语言的测试一起独占运行。
 [Collection(LanguageIntegrationCollection.Name)]
 public sealed class PromoBarViewTests : IDisposable
 {
@@ -33,6 +34,18 @@ public sealed class PromoBarViewTests : IDisposable
 
     /// <summary>右侧 MOD 详情面板展开后的宽度。</summary>
     private const double DetailPanelWidth = 360;
+
+    /// <summary>扫光计时器的首次延迟给到一小时：测试期间它自己不会响，由测试一步一步推。</summary>
+    private const int NeverByItself = 3_600_000;
+
+    /// <summary>等动画的耐心上限。正常几百毫秒就到，给足是为了机器忙的时候不误报。</summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+
+    /// <summary>滑入播完之后：它的时长再加一些余量。</summary>
+    private static readonly TimeSpan AfterReveal = TimeSpan.FromMilliseconds(MotionAssist.RevealMs + 150);
+
+    /// <summary>一次连扫从头到尾的时间：在这段时间里应该看得到高光扫到半路。</summary>
+    private static readonly TimeSpan SweepWindow = TimeSpan.FromMilliseconds(MotionAssist.ShineBurstSweepMs);
 
     private readonly bool _previousLanguage = LanguageManager.IsEnglish;
 
@@ -51,6 +64,9 @@ public sealed class PromoBarViewTests : IDisposable
                 // XAML 里的默认状态就是折叠：没有 code-behind 去叫它，它就永远不出现
                 Assert.Equal(Visibility.Collapsed, stage.Bar.Visibility);
                 Assert.Equal(0, stage.Bar.ActualHeight);
+                // 折叠着的时候不接主窗口的数据：券上的绑定不会去主窗口的视图模型上找活动的属性
+                Assert.Null(stage.Bar.DataContext);
+                Assert.NotNull(stage.Root.DataContext);
                 toolbarTopWithout = stage.BoundsOf(stage.Find<FrameworkElement>("MainToolbar")).Top;
             }
             using (var stage = PromoBarStage.Open(english: false))
@@ -461,6 +477,160 @@ public sealed class PromoBarViewTests : IDisposable
             }
             return null;
         });
+    }
+
+    // ─── 在真的显示出来的窗口里走一遍 ───
+
+    /// <summary>
+    /// <c>MainWindow.PromoBar.cs</c> 对这几个元素做的事（滑入 → 扫光 → 收起），在一个真的显示出来的窗口里照做一遍。
+    ///
+    /// <para>
+    /// 主窗口的 code-behind 要一整套服务才构造得出来，启动还会联网查更新，测试里跑不了；
+    /// 但它在界面上做的只有这几步调用，对象是 XAML 里这几个具名元素。
+    /// 上面那些离屏用例量的是静止的样子，<c>MotionAssistBannerTests</c> 用的是一条同构的假提示条——
+    /// 这里把两头接起来：真的推广条元素 + 真的动效 + 真的窗口句柄。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void 真窗口里_滑入把工具栏推下去_高光扫过_收起后一切复原()
+    {
+        ThemeResourceLoader.RunOnSta<object?>(() =>
+        {
+            using var motion = MotionAssist.OverrideMotionForTests(true);
+            using var stage = PromoBarStage.Open(english: false, showPromo: false, live: true);
+            if (!DispatcherPump.AnimationClockTicks()) return null;
+
+            var bar = stage.Bar;
+            var shine = stage.Find<Border>("PromoShine");
+            var amount = stage.Find<FrameworkElement>("PromoAmount");
+            var toolbar = stage.Find<FrameworkElement>("MainToolbar");
+            var restingTop = stage.BoundsOf(toolbar).Top;
+            Assert.Equal(Visibility.Collapsed, bar.Visibility);
+
+            // ── 出现：与 ShowPromoBar 同样的三步 ──
+            bar.DataContext = PromoCampaigns.GptTopUpCoupon;
+            MotionAssist.Reveal(bar);
+            MotionAssist.Shine(shine, amount, MainWindow.PromoShineBursts, NeverByItself);
+            Assert.Equal(Visibility.Visible, bar.Visibility);
+
+            // 滑入播完：推广条占满自己那一行，工具栏正好被推下去这么多，高度不再被动画压着
+            Assert.True(
+                DispatcherPump.Past(AfterReveal, () => double.IsNaN(bar.Height) && bar.Opacity == 1.0, Patience),
+                $"滑入一直没有播完：高度 {bar.Height}，不透明度 {bar.Opacity}");
+            Assert.Equal(88, bar.ActualHeight, 0.5);
+            Assert.Equal(restingTop + bar.ActualHeight, stage.BoundsOf(toolbar).Top, 0.5);
+
+            // 文字是那条活动的，真窗口里绑定一样生效
+            Assert.Contains(PromoCampaigns.GptTopUpCoupon.Title, stage.Texts());
+            Assert.Contains(PromoCampaigns.GptTopUpCoupon.ActionText, stage.Texts());
+
+            // ── 高光：在真的推广条上扫得起来（看得见、容器有尺寸），金额跟着脉冲 ──
+            Assert.Equal(new MotionAssist.ShineStep(MotionAssist.ShineBurstInterval, Swept: true, Pulsed: true),
+                MotionAssist.AdvanceShine(shine));
+
+            // XAML 里写的倾斜还在，位移是另加的
+            var group = Assert.IsType<TransformGroup>(shine.RenderTransform);
+            Assert.Equal(-20, Assert.Single(group.Children.OfType<SkewTransform>()).AngleX);
+            var move = Assert.Single(group.Children.OfType<TranslateTransform>());
+            var scale = MotionAssist.EnsureTransform<ScaleTransform>(amount);
+
+            // 扫的是整张券：从左边外面一直到右边外面
+            var (from, to) = MotionAssist.ShineTravel(shine.ActualWidth, shine.ActualHeight, stage.Card.ActualWidth);
+            Assert.Equal(-(150 + 36), from, 0.5);
+            Assert.Equal(stage.Card.ActualWidth + 36, to, 0.5);
+            bool MidSweep() => shine.Opacity == 1.0 && move.X > from && move.X < to && scale.ScaleX > 1.0;
+            var sawSweep = DispatcherPump.Until(MidSweep, SweepWindow);
+            // 金额放大的那一下只有半秒，机器卡顿可能正好错过：连扫还有两次，再看下一次
+            for (var retry = 1; !sawSweep && retry < MainWindow.PromoShineBursts; retry++)
+            {
+                Assert.Equal(true, MotionAssist.AdvanceShine(shine)?.Pulsed);
+                sawSweep = DispatcherPump.Until(MidSweep, SweepWindow);
+            }
+            Assert.True(sawSweep,
+                $"没有看到高光扫到半路、金额放大：位移 {move.X}（应在 {from} 与 {to} 之间），不透明度 {shine.Opacity}，金额缩放 {scale.ScaleX}");
+            Assert.True(scale.ScaleX <= MotionAssist.ShinePulseScale + 0.001, $"金额放大过头了：{scale.ScaleX}");
+
+            // ── 收起：与 HidePromoBar 同样的两步。高光正扫到半路时点了「×」 ──
+            MotionAssist.StopShine(shine);
+            MotionAssist.Conceal(bar);
+
+            // 高光与脉冲当场撤掉：高光回到透明，金额回到原大小
+            Assert.False(MotionAssist.IsShining(shine));
+            Assert.Equal(0, shine.Opacity);
+            Assert.Equal(1.0, scale.ScaleX);
+            Assert.Equal(1.0, scale.ScaleY);
+            Assert.Equal(Visibility.Visible, bar.Visibility);   // 推广条还在往回收，没到折叠的时候
+
+            Assert.True(DispatcherPump.Until(() => bar.Visibility == Visibility.Collapsed, Patience),
+                "点了关闭之后推广条没有消失");
+            stage.Root.UpdateLayout();
+            Assert.Equal(restingTop, stage.BoundsOf(toolbar).Top, 0.5);   // 工具栏回到原位
+            Assert.True(double.IsNaN(bar.Height));
+            Assert.Equal(1.0, bar.Opacity);
+            return null;
+        });
+    }
+
+    [Fact]
+    public void 真窗口里_系统关闭动画时_出现和消失都是一步到位_没有任何东西在动()
+    {
+        ThemeResourceLoader.RunOnSta<object?>(() =>
+        {
+            using var motion = MotionAssist.OverrideMotionForTests(false);
+            using var stage = PromoBarStage.Open(english: false, showPromo: false, live: true);
+
+            var bar = stage.Bar;
+            var shine = stage.Find<Border>("PromoShine");
+            var amount = stage.Find<FrameworkElement>("PromoAmount");
+            var toolbar = stage.Find<FrameworkElement>("MainToolbar");
+            var restingTop = stage.BoundsOf(toolbar).Top;
+
+            // 出现：立刻就是完整的一张券
+            bar.DataContext = PromoCampaigns.GptTopUpCoupon;
+            MotionAssist.Reveal(bar);
+            // 首次延迟给 0：要是它真的起了计时器，下面等的这一小会儿里就该扫起来了
+            MotionAssist.Shine(shine, amount, MainWindow.PromoShineBursts, delayMs: 0);
+            stage.Root.UpdateLayout();
+
+            Assert.Equal(Visibility.Visible, bar.Visibility);
+            Assert.Equal(88, bar.ActualHeight, 0.5);
+            Assert.Equal(1.0, bar.Opacity);
+            Assert.Equal(restingTop + bar.ActualHeight, stage.BoundsOf(toolbar).Top, 0.5);
+
+            // 高光没有启动，券上没有任何东西在动
+            Assert.False(MotionAssist.IsShining(shine));
+            Assert.False(
+                DispatcherPump.Until(
+                    () => bar.HasAnimatedProperties || shine.HasAnimatedProperties || shine.Opacity != 0,
+                    TimeSpan.FromMilliseconds(200)),
+                "系统关闭了动画，推广条上却有东西在动");
+            Assert.IsType<SkewTransform>(shine.RenderTransform);        // 高光连位移变换都没挂上
+            Assert.Equal(Transform.Identity, amount.RenderTransform);   // 金额没被碰过
+
+            // 消失：立刻折叠，工具栏立刻回到原位
+            MotionAssist.StopShine(shine);
+            MotionAssist.Conceal(bar);
+            stage.Root.UpdateLayout();
+
+            Assert.Equal(Visibility.Collapsed, bar.Visibility);
+            Assert.Equal(restingTop, stage.BoundsOf(toolbar).Top, 0.5);
+            return null;
+        });
+    }
+
+    [Fact]
+    public void 出现的时机与节奏()
+    {
+        // 「主窗口加载完成后延迟约 2 秒出现」
+        Assert.Equal(TimeSpan.FromSeconds(2), MainWindow.PromoBarDelay);
+
+        // 高光等滑入播完再开始扫，开头连扫 3 次
+        Assert.True(MainWindow.PromoShineDelayMs > MotionAssist.RevealMs);
+        Assert.Equal(3, MainWindow.PromoShineBursts);
+
+        // 误点保护要盖过整个滑入过程（那段时间工具栏还在往下走），但不能长到让人觉得点不动
+        Assert.True(MainWindow.PromoClickGuard > TimeSpan.FromMilliseconds(MotionAssist.RevealMs));
+        Assert.True(MainWindow.PromoClickGuard <= TimeSpan.FromSeconds(1));
     }
 
     // ─── 预览图 ───

@@ -19,6 +19,11 @@ namespace UEModManager.Tests.Views;
 /// code-behind。推广条的内容全靠绑定（DataContext 是 Core 里那条活动数据），所以这里把它设成可见、
 /// 给上数据，量出来的就是玩家看到的样子。
 /// </para>
+///
+/// <para>
+/// 默认不显示窗口，只按给定尺寸排版——量位置、取像素够用，也快。<c>live: true</c> 时窗口真的显示出来
+/// （放在屏幕外、不抢焦点）：动效要在挂着窗口句柄的视觉树上才播得起来。
+/// </para>
 /// </summary>
 internal sealed class PromoBarStage : IDisposable
 {
@@ -47,10 +52,15 @@ internal sealed class PromoBarStage : IDisposable
     /// <param name="showPromo">false 时推广条保持 XAML 里的默认状态（折叠）。</param>
     /// <param name="sampleLibrary">给列表填几个示例 MOD，让画面像一个用了一阵子的玩家的主窗口（预览图用）。</param>
     /// <param name="arrange">布局前的额外布置（例如把另外两条提示条也显示出来）。</param>
+    /// <param name="live">
+    /// 真的把窗口显示出来（屏幕外）。此时 <paramref name="width"/> / <paramref name="height"/> 是整个窗口的大小，
+    /// 缩放跟着系统走、<paramref name="scale"/> 不起作用；之后的排版由窗口自己负责，不要再调
+    /// <see cref="Resize"/> / <see cref="Relayout"/>。
+    /// </param>
     public static PromoBarStage Open(
         bool english, double width = 1440, double height = 864, double scale = 1.0,
         PromoCampaign? campaign = null, bool showPromo = true, bool sampleLibrary = false,
-        Action<Window>? arrange = null)
+        Action<Window>? arrange = null, bool live = false)
     {
         LanguageManager.SetEnglish(english);
         var window = ViewResourceLoader.Load(LanguageIntegrationTests.AppSource, "MainWindow.xaml");
@@ -73,7 +83,7 @@ internal sealed class PromoBarStage : IDisposable
             }
 
             arrange?.Invoke(window);
-            var root = ViewResourceLoader.Layout(window);
+            var root = live ? ShowOffscreen(window) : ViewResourceLoader.Layout(window);
             if (sampleLibrary) SizeSampleCards(window);
             // 圆角裁剪挂在 SizeChanged 上，第一次排版之后才有尺寸；再排一次让裁剪生效
             root.UpdateLayout();
@@ -84,6 +94,21 @@ internal sealed class PromoBarStage : IDisposable
             window.Close();
             throw;
         }
+    }
+
+    /// <summary>把窗口显示在屏幕外：不进任务栏、不抢焦点，但有真的窗口句柄和消息循环。</summary>
+    private static FrameworkElement ShowOffscreen(Window window)
+    {
+        window.ShowInTaskbar = false;
+        window.ShowActivated = false;
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = -20000;
+        window.Top = -20000;
+        window.Show();
+
+        var root = (FrameworkElement)window.Content;
+        root.UpdateLayout();
+        return root;
     }
 
     public T Find<T>(string name) where T : FrameworkElement

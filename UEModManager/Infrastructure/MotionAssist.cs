@@ -316,6 +316,12 @@ namespace UEModManager.Infrastructure
 
         internal static int CurrentRevealToken(DependencyObject host) => (int)host.GetValue(RevealTokenProperty);
 
+        /// <summary>提示条滑入的默认时长（毫秒）。</summary>
+        internal const int RevealMs = 320;
+
+        /// <summary>提示条收起的默认时长（毫秒）。收比展快：玩家点了「×」，就该利落地走。</summary>
+        internal const int ConcealMs = 220;
+
         private static int NextRevealToken(DependencyObject host)
         {
             var token = CurrentRevealToken(host) + 1;
@@ -333,7 +339,7 @@ namespace UEModManager.Infrastructure
         /// 系统关闭动画时直接显示。
         /// </para>
         /// </summary>
-        public static void Reveal(FrameworkElement host, int ms = 320)
+        public static void Reveal(FrameworkElement host, int ms = RevealMs)
         {
             NextRevealToken(host);   // 让还没播完的收起作废
             host.BeginAnimation(FrameworkElement.HeightProperty, null);
@@ -358,7 +364,7 @@ namespace UEModManager.Infrastructure
         /// 提示条收起：高度收回到 0 并淡出（220ms），结束后折叠，再调用 <paramref name="onHidden"/>。
         /// 系统关闭动画时立即折叠。已经是折叠状态时什么都不做（也不调用 <paramref name="onHidden"/>）。
         /// </summary>
-        public static void Conceal(FrameworkElement host, Action? onHidden = null, int ms = 220)
+        public static void Conceal(FrameworkElement host, Action? onHidden = null, int ms = ConcealMs)
         {
             if (host.Visibility != Visibility.Visible) return;
 
