@@ -46,11 +46,24 @@ public sealed class ButtonTextFitTests
         }
     }
 
+    /// <remarks>
+    /// 缩放比例由用例自己钉死（<see cref="VisualTreeHelper.SetRootDpi"/>），不跟着跑测试的机器走。
+    /// 以前不钉：没挂到窗口句柄上的视觉树用的是进程启动时的系统缩放，同一份代码在 100% 的屏幕上通过、
+    /// 切到 125%（比如换了远程桌面的虚拟显示器）就失败 —— 布局取整到设备像素后，按钮比
+    /// 「理想文字宽度 + 内边距」窄不到 2 个设备像素，而原来的容差是固定的 0.5。
+    /// 现在 100% 仍按 0.5 卡；其它缩放放宽到 2 个设备像素（左右内边距、边框、总宽各自取整的上限）。
+    /// 本用例要拦的是「内边距被模板整个丢掉」，那是几十像素的差距，这个容差放不过它。
+    /// </remarks>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void 所有窗口的按钮文字都不被挤压(bool english)
+    [InlineData(false, 1.0)]
+    [InlineData(true, 1.0)]
+    [InlineData(false, 1.25)]
+    [InlineData(true, 1.25)]
+    [InlineData(false, 1.5)]
+    [InlineData(true, 1.5)]
+    public void 所有窗口的按钮文字都不被挤压(bool english, double scale)
     {
+        var tolerance = scale == 1.0 ? 0.5 : 2.0 / scale;
         var previous = LanguageManager.IsEnglish;
         var failures = new StringBuilder();
         var examined = 0;
@@ -71,6 +84,7 @@ public sealed class ButtonTextFitTests
                     }
                     try
                     {
+                        VisualTreeHelper.SetRootDpi((Visual)window.Content, new DpiScale(scale, scale));
                         var root = ViewResourceLoader.Layout(window);
                         foreach (var button in Descendants(root).OfType<Button>())
                         {
@@ -84,7 +98,7 @@ public sealed class ButtonTextFitTests
                                 + button.Padding.Left + button.Padding.Right
                                 + button.BorderThickness.Left + button.BorderThickness.Right;
 
-                            if (needed > button.ActualWidth + 0.5)
+                            if (needed > button.ActualWidth + tolerance)
                                 failures.AppendLine(
                                     $"{path} 的按钮 '{Label(button)}' 需要 {needed:F1}px（内容 {content:F1} + 内边距 "
                                     + $"{button.Padding.Left:F0}/{button.Padding.Right:F0}），实际只有 {button.ActualWidth:F1}px");
@@ -102,7 +116,7 @@ public sealed class ButtonTextFitTests
         Assert.True(examined >= 20, $"只检查到 {examined} 个按钮，窗口加载或遍历可能已失效");
 
         Assert.True(failures.Length == 0,
-            $"语言={(english ? "en" : "zh")} 下按钮文字被挤压：\n{failures}");
+            $"语言={(english ? "en" : "zh")}、缩放 {scale:P0} 下按钮文字被挤压：\n{failures}");
     }
 
     /// <summary>内容的自然宽度，不包含内边距。不重新挂载已有父级的元素。</summary>
