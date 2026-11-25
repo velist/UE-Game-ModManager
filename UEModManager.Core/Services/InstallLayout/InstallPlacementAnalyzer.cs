@@ -69,13 +69,14 @@ namespace UEModManager.Services.InstallLayout
         private static bool HasOnlyLooseLoaderScripts(List<string[]> paths, InstallLayoutRules rules)
         {
             if (rules.LoaderScriptExtensions.Count == 0 || string.IsNullOrEmpty(rules.ScriptModsDirectory)) return false;
-            var modsDirectory = InstallLayoutNormalizer.Split(rules.ScriptModsDirectory);
             var scripts = paths.Where(p => rules.LoaderScriptExtensions.Contains(
                 Path.GetExtension(p[^1]), StringComparer.OrdinalIgnoreCase)).ToList();
             if (scripts.Count == 0) return false;
             // 只要有一个脚本已经在 MOD 目录下，这就是个正常的脚本 MOD。
-            return !scripts.Any(p => p.Length > modsDirectory.Length
-                && modsDirectory.Select((segment, i) => string.Equals(p[i], segment, StringComparison.OrdinalIgnoreCase)).All(x => x));
+            // 两种目录结构的 MOD 目录都算：自带老式 UE4SS 的包，脚本就在它自己的 Mods 目录里。
+            return !rules.AllScriptModsDirectories.Select(InstallLayoutNormalizer.Split).Any(modsDirectory =>
+                scripts.Any(p => p.Length > modsDirectory.Length
+                    && modsDirectory.Select((segment, i) => string.Equals(p[i], segment, StringComparison.OrdinalIgnoreCase)).All(x => x)));
         }
     }
 }

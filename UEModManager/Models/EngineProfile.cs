@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UEModManager.Services.Conflict;
 using UEModManager.Services.InstallLayout;
+using UEModManager.Services.Loaders;
 
 namespace UEModManager.Models
 {
@@ -84,10 +85,20 @@ namespace UEModManager.Models
         /// 代理 DLL（dwmapi.dll）与 <c>ue4ss/</c> 并列，脚本 MOD 在 <c>ue4ss/Mods/{MOD名}/</c>，
         /// Lua MOD 的入口是 <c>Scripts/main.lua</c>，C++ MOD 的入口是 <c>dlls/main.dll</c>。
         /// </summary>
+        /// <remarks>
+        /// 这里给的是默认值（现行结构）。游戏里实际装的是老式结构（<c>UE4SS.dll</c> 与 <c>Mods\</c> 直接在 exe 旁）时，
+        /// <c>GameConfigService.CurrentInstallLayoutRules</c> 会按探测结果把 <see cref="InstallLayoutRules.ScriptModsDirectory"/>
+        /// 换成 <c>Mods</c>；判定规则在 Core 的 <c>Ue4ssLoader</c>。
+        /// </remarks>
         public static readonly InstallLayoutRules UnrealInstallLayout = new()
         {
-            LoaderDirectories = ["ue4ss"],
-            ScriptModsDirectory = @"ue4ss\Mods",
+            LoaderDirectories = [Ue4ssLoader.LoaderDirectoryName],
+            ScriptModsDirectory = Ue4ssLoader.SubfolderModsDirectory,
+            ScriptModsDirectoryAliases = [Ue4ssLoader.SubfolderModsDirectory, Ue4ssLoader.FlatModsDirectory],
+            LoaderCoreFileNames = [Ue4ssLoader.CoreFileName],
+            LoaderSettingsFileNames = [Ue4ssLoader.SettingsFileName],
+            ScriptModEnableMarker = Ue4ssLoader.EnableMarkerFileName,
+            ScriptModListFileNames = ["mods.txt", "mods.json"],
             ScriptModMarkers = ["Scripts/main.lua", "dlls/main.dll"],
             LoaderScriptExtensions = [".lua"],
             SingletonConfigFileNames = ["Engine.ini", "Scalability.ini", "GameUserSettings.ini", "Game.ini", "Input.ini"],

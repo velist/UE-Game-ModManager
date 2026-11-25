@@ -58,9 +58,7 @@ public class ResolvedViewBuilder
 
         // 部署前把包内路径归位一遍（规则与导入时同一套）：老版本入库的包带着
         // PBZ\platform\steam\ue4ss\… 这类多余层级，不必重新导入也能落到游戏会读的位置。
-        var rules = _gameConfig.CurrentInstallLayoutRules;
-        var packages = InstallLayoutNormalizer.NormalizePackages(
-            _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase), profile, rules);
+        var (rules, packages) = NormalizeForProfile(profile);
         // 装不到有效位置的包（多选一的配置方案）不落盘：铺进游戏目录只会留下一堆游戏不读的文件，
         // 还让界面显示「部署成功」。原因由体检与导入结果告诉玩家。
         foreach (var issue in PlacementIssues(profile, packages, rules)
@@ -73,6 +71,27 @@ public class ResolvedViewBuilder
         var overrides = ConflictOverridePaths.Resolve(profile.ConflictOverrides, modPath, gamePath);
         // Candidate collection MUST precede winner selection. Equal logical MOD names still have distinct destinations.
         var candidates = ResolvedViewLayerBuilder.BuildDeploymentCandidates(profile, packages, _packageRepo.Store, modPath, gamePath);
+        // 缺启用标记的脚本 MOD 文件夹各补一个空的 enabled.txt（归在所属的包名下，停用时一起撤掉）。
+        // 包里自己带了同名文件的不会走到这里；万一别的包占了这个位置，下面按目标路径去重时包文件优先。
+        var enableMarkers = EnableMarkerTargets(profile, packages, rules, gamePath);
+        if (enableMarkers.Count > 0)
+        {
+            var emptyFile = await EnsureEmptyMarkerFileAsync();
+            candidates.AddRange(enableMarkers.Select(marker => new ResolvedEntry
+            {
+                DeploymentRootPath = Path.GetFullPath(gamePath),
+                TargetAbsolutePath = marker.TargetPath,
+                TargetRelativePath = Path.GetRelativePath(gamePath, marker.TargetPath),
+                SourceAbsolutePath = emptyFile,
+                Source = ResolvedEntrySource.Generated,
+                PackageKey = marker.PackageKey,
+                PackageDisplayName = packages[marker.PackageKey].DisplayName,
+                PackageKind = packages[marker.PackageKey].Kind,
+                // 排在所有包文件之后：同一位置有真文件时用真文件
+                Priority = int.MaxValue,
+                ArtifactType = ArtifactType.Other,
+            }));
+        }
         // 覆盖规则的键可能是"加载顺序路径"（MOD 的 @mod/RelativeTargetPath，不含 PackageKey 子目录，
         // 与 ConflictDetector.ComputeLoadConflictKey 同源），也可能是实际部署路径或 @game/ 相对路径。
         // 早先只用实际部署路径比对，而 MOD 的实际路径多一层 PackageKey，
@@ -189,9 +208,7 @@ public class ResolvedViewBuilder
             || !string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
             return new InstallPlacementSnapshot([], []);
 
-        var rules = _gameConfig.CurrentInstallLayoutRules;
-        var packages = InstallLayoutNormalizer.NormalizePackages(
-            _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase), profile, rules);
+        var (rules, packages) = NormalizeForProfile(profile);
         var issues = PlacementIssues(profile, packages, rules);
         foreach (var issue in issues.Where(issue => issue.Kind == PlacementIssueKind.ChoiceVariants))
             packages[issue.PackageKey] = InstallLayoutNormalizer.WithoutArtifacts(packages[issue.PackageKey]);
@@ -205,8 +222,71 @@ public class ResolvedViewBuilder
         var expected = ResolvedViewLayerBuilder
             .BuildDeploymentCandidates(known, packages, _packageRepo.Store, modPath, pluginRoot)
             .Select(e => new OwnedTarget(e.TargetAbsolutePath, e.PackageKey ?? string.Empty))
+            .Concat(EnableMarkerTargets(known, packages, rules, pluginRoot))
             .ToList();
         return new InstallPlacementSnapshot(expected, issues);
+    }
+
+    /// <summary>
+    /// 按方案把全部包归位，并给出这次用的归位规则。
+    ///
+    /// 规则里的脚本 MOD 目录跟着 UE4SS 的目录结构走。结构先看磁盘，再把「方案里启用了、这次部署才会落盘」的
+    /// 加载器本体算进去：否则一键安装 / 拖入旧版 UE4SS 的那一次部署里，脚本 MOD 会按「没装」的默认结构落位，
+    /// 和刚装上的 UE4SS 读的目录对不上。部署与体检（<see cref="DescribePlacement"/>）走的是同一个结果。
+    /// </summary>
+    private (InstallLayoutRules Rules, Dictionary<string, Package> Packages) NormalizeForProfile(InstanceProfile profile)
+    {
+        var all = _packageRepo.GetAllPackages().ToDictionary(p => p.PackageKey, StringComparer.OrdinalIgnoreCase);
+        var diskRules = _gameConfig.CurrentInstallLayoutRules;
+
+        var pending = new List<string>();
+        foreach (var entry in profile.Packages.Where(e => e.IsEnabled))
+        {
+            if (!all.TryGetValue(entry.PackageKey, out var package) || package.Kind == PackageKind.Mod) continue;
+            if (!string.IsNullOrWhiteSpace(entry.TargetRootPath ?? package.TargetRootPath)) continue;
+            var paths = InstallLayoutNormalizer.Normalize(
+                package.Artifacts.Select(a => a.RelativeTargetPath ?? string.Empty).ToList(), diskRules);
+            if (InstallLayoutNormalizer.IsLoaderRuntime(paths, diskRules)) pending.AddRange(paths);
+        }
+
+        var rules = pending.Count == 0 ? diskRules : _gameConfig.ResolveInstallLayoutRules(pending);
+        return (rules, InstallLayoutNormalizer.NormalizePackages(all, profile, rules));
+    }
+
+    /// <summary>
+    /// 方案里启用的脚本 MOD 包各自要补的启用标记（<c>enabled.txt</c>）的落盘位置。
+    /// 判定在 Core 的 <see cref="InstallLayoutNormalizer.MissingEnableMarkers"/>。
+    /// </summary>
+    private static List<OwnedTarget> EnableMarkerTargets(
+        InstanceProfile profile, IReadOnlyDictionary<string, Package> normalizedPackages, InstallLayoutRules rules, string pluginRoot)
+    {
+        var result = new List<OwnedTarget>();
+        if (string.IsNullOrEmpty(rules.ScriptModEnableMarker) || string.IsNullOrEmpty(pluginRoot)) return result;
+
+        foreach (var entry in profile.Packages.Where(e => e.IsEnabled))
+        {
+            if (!normalizedPackages.TryGetValue(entry.PackageKey, out var package) || package.Kind == PackageKind.Mod) continue;
+            // 玩家自己指定了安装子目录的包：位置是玩家定的，不是脚本 MOD 目录，不往里加东西
+            if (!string.IsNullOrWhiteSpace(entry.TargetRootPath ?? package.TargetRootPath)) continue;
+
+            var paths = package.Artifacts
+                .Where(a => a.ArtifactType != ArtifactType.PreviewImage)
+                .Select(a => a.RelativeTargetPath ?? string.Empty);
+            result.AddRange(InstallLayoutNormalizer.MissingEnableMarkers(paths, rules)
+                .Select(marker => new OwnedTarget(Path.GetFullPath(PathSanitizer.SafeCombine(pluginRoot, marker)), package.PackageKey)));
+        }
+        return result;
+    }
+
+    /// <summary>启用标记的内容：一个空文件（UE4SS 只看它在不在）。放在生成物目录里，所有包共用一份。</summary>
+    private async Task<string> EnsureEmptyMarkerFileAsync()
+    {
+        var directory = Path.Combine(_overwriteStore.OverwriteRoot, "Resolved", "Markers");
+        var path = Path.Combine(directory, "empty.txt");
+        if (File.Exists(path) && new FileInfo(path).Length == 0) return path;
+        Directory.CreateDirectory(directory);
+        await File.WriteAllBytesAsync(path, []);
+        return path;
     }
 
     /// <summary>方案里已启用的包中，装不到游戏会读取的位置的那些（供部署与体检共用）。</summary>

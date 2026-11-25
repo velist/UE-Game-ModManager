@@ -67,7 +67,61 @@ namespace UEModManager.Services
         /// <summary>
         /// 当前游戏的安装归位规则：引擎的加载器约定 + 游戏自己的本体目录锚点。
         /// </summary>
-        public InstallLayoutRules CurrentInstallLayoutRules => GetInstallLayoutRules(CurrentGameName);
+        /// <remarks>
+        /// UE 游戏会再按插件根里 UE4SS 的实际目录结构定脚本 MOD 目录（现行的 <c>ue4ss\Mods</c> 或老式的 <c>Mods</c>），
+        /// 所以这个属性会读磁盘（几次 exists 探测）。导入、部署、「装错位置」检测读的都是它，三处因此一致。
+        /// </remarks>
+        public InstallLayoutRules CurrentInstallLayoutRules => ResolveInstallLayoutRules(null);
+
+        /// <summary>
+        /// 当前游戏的安装归位规则，并把「这次部署之后才会出现在插件根里的文件」也算进 UE4SS 的探测。
+        ///
+        /// 方案里启用了一份加载器本体的包、而它还没落盘时（一键安装、拖入旧版 UE4SS 的那一次部署），
+        /// 只看磁盘会按「没装」处理，脚本 MOD 就会被装进这份 UE4SS 不读的目录。
+        /// </summary>
+        /// <param name="pendingFiles">即将装进插件根的文件（相对插件根）；没有传 null。</param>
+        public InstallLayoutRules ResolveInstallLayoutRules(IEnumerable<string>? pendingFiles)
+        {
+            var rules = GetInstallLayoutRules(CurrentGameName);
+            var detection = DetectUe4ss(pendingFiles);
+            return detection == null ? rules : Loaders.Ue4ssLoader.ApplyTo(rules, detection);
+        }
+
+        /// <summary>
+        /// 探测当前游戏插件根里的 UE4SS。不是 UE 游戏、或游戏路径没配好时返回 null。
+        /// </summary>
+        /// <param name="pendingFiles">即将装进插件根的文件（相对插件根），与磁盘上已有的一起算。</param>
+        public Loaders.Ue4ssDetection? DetectUe4ss(IEnumerable<string>? pendingFiles = null)
+        {
+            if (CurrentEngineType != EngineType.UnrealEngine) return null;
+            var root = CurrentPluginRootPath;
+            if (string.IsNullOrWhiteSpace(root)) return null;
+
+            var pendingSet = new HashSet<string>(
+                (pendingFiles ?? []).Select(p => string.Join('\\', p.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))),
+                StringComparer.OrdinalIgnoreCase);
+            bool PendingFile(string rel) => pendingSet.Contains(rel);
+            bool PendingDirectory(string rel) => pendingSet.Any(p => p.StartsWith(rel + "\\", StringComparison.OrdinalIgnoreCase));
+
+            bool FileExists(string rel) => PendingFile(rel) || SafeExists(File.Exists, root, rel);
+            bool DirectoryExists(string rel) => PendingDirectory(rel) || SafeExists(Directory.Exists, root, rel);
+
+            var detection = Loaders.Ue4ssLoader.Detect(FileExists, DirectoryExists);
+            // 有本体却没有常见名字的代理 DLL：作者可能把代理改成了别的名字。按内容再认一遍，
+            // 免得把玩家装得好好的 UE4SS 报成残缺。只在这一种情形下才读 DLL，平时不花这个开销。
+            if (detection.Problem == Loaders.Ue4ssProblem.MissingProxy)
+            {
+                var proxies = FindProxiesByContent(root);
+                if (proxies.Count > 0) detection = Loaders.Ue4ssLoader.Detect(FileExists, DirectoryExists, proxies);
+            }
+            return detection;
+
+            static bool SafeExists(Func<string, bool> probe, string root, string rel)
+            {
+                try { return probe(Path.Combine(root, rel)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
+            }
+        }
 
         /// <summary>指定游戏的安装归位规则。</summary>
         public InstallLayoutRules GetInstallLayoutRules(string? gameName)
@@ -85,6 +139,28 @@ namespace UEModManager.Services
                             StringSplitOptions.RemoveEmptyEntries)
                     ]
                 };
+        }
+
+        /// <summary>插件根里按内容认出的 UE4SS 代理 DLL（见 <see cref="Loaders.Ue4ssLoader.LooksLikeProxy"/>）。</summary>
+        private static List<string> FindProxiesByContent(string root)
+        {
+            var found = new List<string>();
+            try
+            {
+                foreach (var file in new DirectoryInfo(root).EnumerateFiles("*.dll").Take(64))
+                {
+                    if (file.Length > Loaders.Ue4ssLoader.MaxProxyFileSize
+                        || string.Equals(file.Name, Loaders.Ue4ssLoader.CoreFileName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    try
+                    {
+                        if (Loaders.Ue4ssLoader.LooksLikeProxy(File.ReadAllBytes(file.FullName))) found.Add(file.Name);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return found;
         }
 
         /// <summary>
