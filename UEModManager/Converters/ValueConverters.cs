@@ -118,6 +118,31 @@ namespace UEModManager.Converters
             value is true ? parameter : Binding.DoNothing;
     }
 
+    /// <summary>
+    /// 数值小于 ConverterParameter 时为 true。给「容器窄到一定程度就收起次要内容」的触发器用：
+    /// <c>{Binding ActualWidth, ElementName=…, Converter=…, ConverterParameter=440}</c>。
+    /// 值或参数不是数字时为 false——认不出来就照常显示，而不是把东西藏掉。
+    /// </summary>
+    public class LessThanConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is not double number || double.IsNaN(number)) return false;
+
+            var limit = parameter switch
+            {
+                double d => d,
+                // XAML 里写的参数是字符串；数字格式不跟着系统区域走
+                string s when double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
+                _ => double.NaN,
+            };
+            return number < limit;   // limit 为 NaN 时恒为 false
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            throw new NotImplementedException();
+    }
+
     public class NullToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
