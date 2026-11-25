@@ -30,6 +30,7 @@ namespace UEModManager.Services
         private readonly PackageRepository _packageRepo;
         private readonly ResolvedViewBuilder? _viewBuilder;
         private readonly DeploymentStateStore? _stateStore;
+        private readonly Ue4ssService? _ue4ss;
 
         public HealthCheckService(
             ILogger<HealthCheckService> logger,
@@ -37,8 +38,10 @@ namespace UEModManager.Services
             ProfileService profileService,
             PackageRepository packageRepo,
             ResolvedViewBuilder? viewBuilder = null,
-            DeploymentStateStore? stateStore = null)
+            DeploymentStateStore? stateStore = null,
+            Ue4ssService? ue4ss = null)
         {
+            _ue4ss = ue4ss;
             _logger = logger;
             _gameConfig = gameConfig;
             _profileService = profileService;
@@ -49,6 +52,9 @@ namespace UEModManager.Services
 
         /// <summary>体检项名称：已装文件是否都在游戏会读取的位置。</summary>
         public const string InstallPlacementCheckName = "InstallPlacement";
+
+        /// <summary>体检项名称：UE 游戏的脚本 MOD 加载器 UE4SS 是否就绪。</summary>
+        public const string Ue4ssCheckName = "UE4SS";
 
         /// <summary>
         /// 检查「已装的 MOD 是否都在游戏会读取的位置」。
@@ -113,6 +119,8 @@ namespace UEModManager.Services
                 await CheckInstallPlacementItemAsync(),
             };
 
+            if (CheckUe4ss() is { } ue4ss) checks.Add(ue4ss);
+
             var report = new HealthReport { Checks = checks };
 
             _logger.LogInformation(
@@ -149,6 +157,45 @@ namespace UEModManager.Services
                 return new("ModPath", HealthStatus.Warning,
                     UiText.Get("MOD 路径指向了脚本加载器的目录，pak 类 MOD 装在这里不会被游戏加载；请在设置里重新自动检测 MOD 路径"), path);
             return new("ModPath", HealthStatus.Ok, "OK", path);
+        }
+
+        /// <summary>
+        /// UE 游戏的脚本 MOD（Lua / C++）全靠 UE4SS 加载：没装的话位置放得再对也不生效，
+        /// 玩家只看到「部署成功、游戏里没效果」。没有脚本 MOD 的玩家用不上它，不报警告。
+        /// </summary>
+        private HealthCheck? CheckUe4ss()
+        {
+            var detection = _ue4ss?.Detect();
+            if (_ue4ss == null || detection == null) return null;
+
+            var root = _gameConfig.CurrentPluginRootPath;
+            var scriptMods = _ue4ss.EnabledScriptModNames();
+            // 正式版线没有一键安装：告诉玩家去官方发布页下载、拖进来装（2.2.0 线这里指向提示条里的「一键安装」）
+            const string fix = "从 UE4SS 官方发布页下载压缩包后拖进管理器即可安装；部分游戏需要 MOD 作者指定的 UE4SS 版本，以 MOD 说明为准";
+
+            switch (detection.State)
+            {
+                case Loaders.Ue4ssInstallState.Installed:
+                    return new(Ue4ssCheckName, HealthStatus.Ok,
+                        UiText.Interpolate($"已安装，脚本 MOD 目录：{detection.ScriptModsDirectory}"), root);
+
+                case Loaders.Ue4ssInstallState.Incomplete when detection.Problem == Loaders.Ue4ssProblem.MissingCore:
+                    return new(Ue4ssCheckName, HealthStatus.Warning,
+                        UiText.Get("UE4SS 安装不完整：找不到 UE4SS.dll（常见原因是被杀毒软件删除），脚本 MOD 不会生效，游戏启动时还可能弹出报错"),
+                        UiText.Get(fix));
+
+                case Loaders.Ue4ssInstallState.Incomplete:
+                    return new(Ue4ssCheckName, HealthStatus.Warning,
+                        UiText.Get("UE4SS 安装不完整：没有代理 DLL（如 dwmapi.dll），游戏启动时不会加载 UE4SS，脚本 MOD 不会生效"),
+                        UiText.Get(fix));
+
+                default:
+                    if (scriptMods.Count == 0)
+                        return new(Ue4ssCheckName, HealthStatus.Ok, UiText.Get("未安装（当前没有启用需要它的脚本 MOD）"), root);
+                    return new(Ue4ssCheckName, HealthStatus.Warning,
+                        UiText.Interpolate($"未安装 UE4SS：已启用的 {scriptMods.Count} 个脚本 MOD 不会生效"),
+                        UiText.Get(fix));
+            }
         }
 
         private HealthCheck CheckBackupPath()

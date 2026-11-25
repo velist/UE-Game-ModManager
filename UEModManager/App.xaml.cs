@@ -320,6 +320,7 @@ namespace UEModManager
                     // 回收上一次进程被强杀留下的解压临时目录。
                     services.AddSingleton<RepositoryReclaimService>();
                     services.AddSingleton<PackageImportService>();
+                    services.AddSingleton<Ue4ssService>();
                     services.AddSingleton<DataMigrationService>();
                     services.AddSingleton<AvatarLocationMigrator>();
 

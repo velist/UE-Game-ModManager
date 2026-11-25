@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
@@ -55,6 +57,12 @@ namespace UEModManager.Services
 
             /// <summary>首次使用引导是否已经看过（看完或跳过都算），只出现一次。</summary>
             public bool OnboardingGuideShown { get; set; }
+
+            /// <summary>
+            /// 玩家对「安装 UE4SS」提示选了「我已自行安装，不再提示」的游戏（按游戏名记）。
+            /// 有的游戏要用 MOD 作者定制的 UE4SS，或者玩家用了管理器认不出的加载方式，一直催装只会添乱。
+            /// </summary>
+            public List<string> Ue4ssPromptSuppressedGames { get; set; } = new();
 
             /// <summary>
             /// 已经就"这次没能按你选的方式部署"告知过用户的情形签名
@@ -528,6 +536,25 @@ namespace UEModManager.Services
 
         public static void SaveOnboardingGuideShown(bool shown)
             => Write(cfg => cfg.OnboardingGuideShown = shown, "保存新手引导状态");
+
+        /// <summary>这款游戏是否已选「不再提示安装 UE4SS」。</summary>
+        public static bool LoadUe4ssPromptSuppressed(string? gameName)
+            => !string.IsNullOrWhiteSpace(gameName)
+               && Read(cfg => (cfg.Ue4ssPromptSuppressedGames ?? []).Contains(gameName, StringComparer.OrdinalIgnoreCase),
+                   false, "读取 UE4SS 提示设置");
+
+        /// <summary>记住（或取消）这款游戏「不再提示安装 UE4SS」。</summary>
+        public static void SaveUe4ssPromptSuppressed(string? gameName, bool suppressed)
+        {
+            if (string.IsNullOrWhiteSpace(gameName)) return;
+            Write(cfg =>
+            {
+                var games = (cfg.Ue4ssPromptSuppressedGames ?? [])
+                    .Where(g => !string.Equals(g, gameName, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (suppressed) games.Add(gameName);
+                cfg.Ue4ssPromptSuppressedGames = games;
+            }, "保存 UE4SS 提示设置");
+        }
 
         /// <summary>读取"已经告知过的部署降级情形签名"；从没告知过返回 <c>null</c>。</summary>
         public static string? LoadDeployDegradationNotice()
