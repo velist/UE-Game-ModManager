@@ -43,6 +43,13 @@ internal sealed class DiskRefreshHost
     public required HealthCheckService Health { get; init; }
     public required MainViewModel Main { get; init; }
 
+    /// <summary>主视图模型的其余依赖：只有"从容器里解析视图模型"的用例用得到。</summary>
+    public required NewCategoryService Categories { get; init; }
+    public required PackageImportService Imports { get; init; }
+    public required DataMigrationService Migration { get; init; }
+    public required OverwriteStore Overwrites { get; init; }
+    public required ConfigMergeEngine Merge { get; init; }
+
     public string RepositoryRoot => Store.RepositoryRoot;
 
     /// <param name="backends">部署后端；默认只有复制（与正式版的注册一致）。</param>
@@ -101,8 +108,8 @@ internal sealed class DiskRefreshHost
         var categories = new NewCategoryService(NullLogger<NewCategoryService>.Instance, data);
         await categories.SetCurrentGameAsync(GameName);
 
-        var main = new MainViewModel(game, categories, profiles, repository, imports,
-            new DataMigrationService(NullLogger<DataMigrationService>.Instance, repository, store, game),
+        var migration = new DataMigrationService(NullLogger<DataMigrationService>.Instance, repository, store, game);
+        var main = new MainViewModel(game, categories, profiles, repository, imports, migration,
             planner, deployment, conflicts, overwrites, merge, views, launcher,
             NullLogger<MainViewModel>.Instance, reconcile);
 
@@ -112,6 +119,7 @@ internal sealed class DiskRefreshHost
             Store = store, Repository = repository, Profiles = profiles, Game = game, Views = views,
             States = states, Planner = planner, Deployment = deployment, Conflicts = conflicts,
             Reconcile = reconcile, Launcher = launcher, Health = health, Main = main,
+            Categories = categories, Imports = imports, Migration = migration, Overwrites = overwrites, Merge = merge,
         };
     }
 

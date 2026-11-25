@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using UEModManager.Models;
 using UEModManager.Services;
 using UEModManager.ViewModels;
@@ -750,8 +751,56 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     });
 
     // ═══════════════════════════════════════
-    //  没有核对服务的宿主
+    //  没有核对服务的宿主 / 容器接线
     // ═══════════════════════════════════════
+
+    /// <summary>
+    /// 程序里视图模型是从容器解析出来的，而核对服务是它的一个<b>可选</b>构造参数。
+    /// 这个依赖要是没注入进去，程序不会报任何错——点「刷新」永远只会说"没有发现问题"。
+    /// 所以两头都钉住：注册了就一定注入；注册那一行确实在。
+    /// </summary>
+    [Fact]
+    public Task ViewModelResolvedFromTheContainer_GetsTheReconcileServiceWhenItIsRegistered() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        var host = await OpenAsync();
+        await host.AddPackageAsync("gone", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("kept", ("k.bin", "KKKK"));
+        Directory.Delete(host.Store.GetPackageDirectory("gone"), recursive: true);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(host.Game).AddSingleton(host.Categories).AddSingleton(host.Profiles)
+            .AddSingleton(host.Repository).AddSingleton(host.Imports).AddSingleton(host.Migration)
+            .AddSingleton(host.Planner).AddSingleton(host.Deployment).AddSingleton(host.Conflicts)
+            .AddSingleton(host.Overwrites).AddSingleton(host.Merge).AddSingleton(host.Views)
+            .AddSingleton(host.Launcher).AddSingleton(host.States);
+        // 与 App.xaml.cs 同样的两行注册
+        services.AddSingleton<DiskReconcileService>();
+        services.AddTransient<MainViewModel>();
+        using var provider = services.BuildServiceProvider();
+
+        using var resolved = provider.GetRequiredService<MainViewModel>();
+        var prompts = new ScriptedPrompts().Answer(DiskRefreshQuestionKind.RemoveLost, DiskRefreshAnswer.Dismiss);
+        var result = await resolved.RefreshFromDiskAsync(prompts);
+
+        // 真的去核对了磁盘：发现了被删掉的那个包
+        Assert.NotNull(result.Report);
+        Assert.Equal("gone", Assert.Single(result.Report!.LostPackages).PackageKey);
+        Assert.Equal([DiskRefreshQuestionKind.RemoveLost], prompts.AskedKinds);
+    });
+
+    [Fact]
+    public void AppRegistersTheReconcileService()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "UEModManager.sln")))
+            directory = directory.Parent;
+        Assert.NotNull(directory);
+
+        var app = File.ReadAllText(Path.Combine(directory!.FullName, "UEModManager", "App.xaml.cs"));
+
+        Assert.Contains("services.AddSingleton<DiskReconcileService>();", app);
+    }
 
     [Fact]
     public async Task HostWithoutTheReconcileService_StillRebuildsTheListAndNeverAsksAnything()

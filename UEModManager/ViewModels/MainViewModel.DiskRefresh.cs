@@ -258,7 +258,9 @@ namespace UEModManager.ViewModels
             {
                 try
                 {
-                    await _diskReconcile!.ReleaseDeployedFilesAsync(findings.Select(f => f.PackageKey));
+                    // 读清单要逐个文件校验路径，放到后台线程
+                    var keys = findings.Select(f => f.PackageKey).ToList();
+                    await Task.Run(() => _diskReconcile!.ReleaseDeployedFilesAsync(keys));
                 }
                 catch (Exception ex)
                 {
@@ -276,10 +278,15 @@ namespace UEModManager.ViewModels
                 {
                     try
                     {
-                        // 包已经不在索引里时返回 false：那就只剩方案里的引用要清
-                        await _packageRepository.DeletePackageAsync(
-                            finding.PackageKey, _profileService.GetProfiles(), force: true);
-                        await _profileService.RemovePackageReferencesAsync(finding.PackageKey);
+                        // 删包目录是同步的磁盘操作（缺了一部分的包里可能还剩着大文件），同样放到后台线程。
+                        // 方案变更事件的订阅方自己会切回界面线程，这里不用管。
+                        await Task.Run(async () =>
+                        {
+                            // 包已经不在索引里时返回 false：那就只剩方案里的引用要清
+                            await _packageRepository.DeletePackageAsync(
+                                finding.PackageKey, _profileService.GetProfiles(), force: true);
+                            await _profileService.RemovePackageReferencesAsync(finding.PackageKey);
+                        });
 
                         work.Removed.Add(finding.DisplayName);
                         if (!keepGameFiles && finding.ManagedFileCount > 0) work.NeedsRedeploy = true;
