@@ -153,6 +153,13 @@ namespace UEModManager.Models
         /// <summary>流水线步骤列表。</summary>
         public List<LaunchStep> Steps { get; init; } = [];
 
+        /// <summary>
+        /// 启动前发现文件在游戏目录里丢了、并已重新装好的 MOD（显示名）。
+        /// 管理器记着它们已经装好，磁盘上却没有（被手动删除，或被游戏更新 / 重装清掉）。
+        /// 界面据此告诉玩家一声；空表示这次没有这种情况。
+        /// </summary>
+        public List<string> RestoredPackages { get; init; } = [];
+
         /// <summary>这次用的启动方式。</summary>
         public GameLaunchMethod LaunchMethod { get; set; }
 

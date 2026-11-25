@@ -122,7 +122,8 @@ namespace UEModManager.ViewModels
                     : ago.TotalHours < 24
                         ? UiText.Interpolate($"上次启动 {(int)ago.TotalHours} 小时前")
                         : UiText.Interpolate($"上次启动 {last.LaunchedAt:MM/dd HH:mm}");
-                LastEventInfo = last.Success ? UiText.Get("无异常") : ShortFailure(last);
+                // 上次启动前装回过丢失的 MOD 文件的话，这里接着显示，免得窗口一关这句话就没了
+                LastEventInfo = last.Success ? RestoredNotice(last) ?? UiText.Get("无异常") : ShortFailure(last);
             }
             else
             {
@@ -309,10 +310,14 @@ namespace UEModManager.ViewModels
                 if (session.Success)
                 {
                     StatusTitle = UiText.Get("启动成功");
-                    StatusSubtitle = session.LaunchMethod == GameLaunchMethod.Steam
+                    var launched = session.LaunchMethod == GameLaunchMethod.Steam
                         ? UiText.Get("游戏已通过 Steam 启动")
                         : $"PID: {session.ProcessId}";
-                    LastEventInfo = UiText.Get("无异常");
+                    // 启动前把丢失的 MOD 文件装回去了：这件事以前悄悄发生，现在说一声
+                    // （窗口随后就关，主窗口重新激活时还会用轻提示再说一遍）
+                    var restored = RestoredNotice(session);
+                    StatusSubtitle = restored == null ? launched : restored + Environment.NewLine + launched;
+                    LastEventInfo = restored ?? UiText.Get("无异常");
                 }
                 else if (session.Outcome != LaunchOutcome.NotStarted)
                 {
@@ -348,6 +353,12 @@ namespace UEModManager.ViewModels
                 CanLaunch = true;
             }
         }
+
+        /// <summary>这次启动前有 MOD 的文件丢了并已装回时的一句话；没有这种情况返回 null。</summary>
+        private static string? RestoredNotice(LaunchSession session)
+            => session.RestoredPackages.Count == 0
+                ? null
+                : DiskRefreshText.RestoredBeforeLaunch(session.RestoredPackages.Count);
 
         private void OnStepChanged(LaunchStep step)
         {
