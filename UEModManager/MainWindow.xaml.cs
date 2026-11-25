@@ -102,6 +102,7 @@ namespace UEModManager
                 _vm = sp.GetRequiredService<MainViewModel>();
                 DataContext = _vm;
                 _vm.ConfirmReleaseModifiedFiles = ConfirmReleaseModifiedFiles;
+                InitializeDiskRefresh();
                 // 列表整体重建（刷新、换分类 / 类型 / 搜索）时让卡片逐张入场；普通增删不触发
                 _vm.ModList.Mods.CollectionChanged += (_, e) =>
                 {
@@ -1897,6 +1898,7 @@ namespace UEModManager
         /// <summary>Esc 收起详情面板（面板开着时才有反应，不抢其它 Esc 用途）。</summary>
         private void MainWindow_KeyDown(object sender, KeyEventArgs e)
         {
+            if (HandleRefreshShortcut(e)) return;
             if (e.Key == Key.Escape && _vm.IsDetailPanelOpen)
             {
                 _vm.IsDetailPanelOpen = false;
