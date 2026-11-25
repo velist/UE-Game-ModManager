@@ -2289,6 +2289,7 @@ namespace UEModManager
                 name = LanguageManager.IsEnglish ? "All MODs" : UiText.Get("全部 MOD");
             ModCountText.Text = name;
             UpdateEmptyState();
+            RefreshUe4ssStatus();
         }
 
         private void UpdateEmptyState()

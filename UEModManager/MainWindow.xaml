@@ -802,6 +802,35 @@
                     </Grid>
                 </Border>
 
+                <!-- 加载器状态条：UE 游戏启用了脚本 MOD 而 UE4SS 没装或装残时出现。
+                     没装加载器时 MOD 部署得再对也不生效，所以放在列表正上方；
+                     样式与「新版本提示条」一致。控件名与 2.2.0 线的同一条状态条保持一致。 -->
+                <Border x:Name="LoaderStatusBar" DockPanel.Dock="Top" Visibility="Collapsed"
+                        Margin="32,4,32,4" Padding="16,10" CornerRadius="12"
+                        Background="#F20F0F11" BorderBrush="{StaticResource ConfigAmberBrush}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="LoaderStatusTitle" Foreground="{StaticResource Text100Brush}" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="LoaderStatusNotes" Foreground="{StaticResource Text400Brush}" FontSize="12"
+                                       TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- 有的游戏要用 MOD 作者定制的版本，玩家可以按游戏关掉这条提示 -->
+                            <Button x:Name="LoaderNeverButton" Content="{loc:Text '我已自行安装，不再提示'}"
+                                    Style="{StaticResource CyberSecondaryButton}" Margin="0,0,8,0" Padding="14,6"
+                                    Click="LoaderNever_Click"/>
+                            <Button x:Name="LoaderLaterButton" Content="{loc:Text '稍后'}" Style="{StaticResource CyberSecondaryButton}"
+                                    Margin="0,0,8,0" Padding="14,6" Click="LoaderLater_Click"/>
+                            <Button x:Name="LoaderInstallButton" Content="{loc:Text '打开 UE4SS 官方发布页'}" Style="{StaticResource CyberPrimaryButton}"
+                                    Padding="18,6" Click="LoaderInstall_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- ═ ModGrid / ModList ═ -->
                 <Grid x:Name="ModContentArea" Margin="26,8,26,16">
                         <!-- 卡片视图 -->
