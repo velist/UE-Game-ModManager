@@ -53,6 +53,9 @@ public sealed class ButtonTextFitTests
     /// 「理想文字宽度 + 内边距」窄不到 2 个设备像素，而原来的容差是固定的 0.5。
     /// 现在 100% 仍按 0.5 卡；其它缩放放宽到 2 个设备像素（左右内边距、边框、总宽各自取整的上限）。
     /// 本用例要拦的是「内边距被模板整个丢掉」，那是几十像素的差距，这个容差放不过它。
+    ///
+    /// 钉要钉两遍（<see cref="LayoutAtPinnedScale"/>）：只在布局前钉一次的话，按钮模板里的边框和文字
+    /// 那时还没生成，生成之后用的仍是进程的系统缩放，机器不是 100% 时 100% 这一档照样翻红。
     /// </remarks>
     [Theory]
     [InlineData(false, 1.0)]
@@ -84,8 +87,7 @@ public sealed class ButtonTextFitTests
                     }
                     try
                     {
-                        VisualTreeHelper.SetRootDpi((Visual)window.Content, new DpiScale(scale, scale));
-                        var root = ViewResourceLoader.Layout(window);
+                        var root = LayoutAtPinnedScale(window, scale);
                         foreach (var button in Descendants(root).OfType<Button>())
                         {
                             if (button.Visibility != Visibility.Visible || button.ActualWidth <= 0) continue;
@@ -117,6 +119,46 @@ public sealed class ButtonTextFitTests
 
         Assert.True(failures.Length == 0,
             $"语言={(english ? "en" : "zh")}、缩放 {scale:P0} 下按钮文字被挤压：\n{failures}");
+    }
+
+    /// <summary>
+    /// 按钉死的缩放比例把窗口内容排一遍版，<b>整棵视觉树</b>都用这个比例，不只是根节点。
+    ///
+    /// <para>
+    /// <see cref="VisualTreeHelper.SetRootDpi"/> 只给调用那一刻已经存在的元素打标记。
+    /// 按钮模板里的边框、文字要到第一次布局才生成；而新生成的子元素只有在进程开启了
+    /// 「按显示器缩放」时才继承父元素的比例（<c>Visual.AddVisualChild</c>）——测试宿主没有开，
+    /// 它们用的是进程的系统缩放。于是机器是 125% 时，钉成 100% 的按钮里装着按 125% 取整的边框：
+    /// 1px 的边框取整成 0.8，按钮比「文字 + 内边距 + 边框」窄 1px，超过 100% 这一档 0.5 的容差。
+    /// 同一批用例单独跑能过（那时进程还没被别的用例变成感知缩放的，系统缩放读到的是 100%），
+    /// 跟着全量跑就翻红。
+    /// </para>
+    ///
+    /// <para>
+    /// 所以排完第一遍、模板都展开之后再钉一遍，整棵树重新量。先换成另一个比例再换回来：
+    /// 比例没变的话 WPF 不会通知各元素（<c>OnDpiChanged</c>），缓存着旧比例的元素不会跟着变。
+    /// 重排可能又展开出新的元素，重复到元素数不再变化为止（实际一轮就稳定，上限三轮）。
+    /// </para>
+    /// </summary>
+    private static FrameworkElement LayoutAtPinnedScale(Window window, double scale)
+    {
+        var content = (Visual)window.Content;
+        var pinned = new DpiScale(scale, scale);
+        VisualTreeHelper.SetRootDpi(content, pinned);
+        var root = ViewResourceLoader.Layout(window);
+
+        for (var pass = 0; pass < 3; pass++)
+        {
+            var before = Descendants(content).Count();
+            VisualTreeHelper.SetRootDpi(content, new DpiScale(scale * 2, scale * 2));
+            VisualTreeHelper.SetRootDpi(content, pinned);
+            foreach (var element in Descendants(content).Prepend(content).OfType<UIElement>())
+                element.InvalidateMeasure();
+            root = ViewResourceLoader.Layout(window);
+            if (Descendants(content).Count() == before) break;
+        }
+
+        return root;
     }
 
     /// <summary>内容的自然宽度，不包含内边距。不重新挂载已有父级的元素。</summary>
