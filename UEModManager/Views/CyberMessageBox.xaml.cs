@@ -72,7 +72,8 @@ namespace UEModManager.Views
                     dlg.ButtonPanel.Children.Add(confirm);
                     break;
                 case MessageBoxButton.YesNoCancel:
-                    // 唯一的调用方（崩溃恢复）把 Cancel 用作"不再提醒"，不是安全项；Esc 落在 No 上
+                    // 调用方把 Cancel 用作另一个动作（崩溃恢复的"不再提醒"、「刷新」的第二个选择），
+                    // 不是安全项；Esc 落在 No 上
                     var cancelBtn = CreateButton(dlg, cancelText ?? "取消", MessageBoxResult.Cancel, ButtonKind.Secondary);
                     safe = CreateButton(dlg, noText ?? "否", MessageBoxResult.No, ButtonKind.Secondary);
                     confirm = CreateButton(dlg, yesText ?? "是", MessageBoxResult.Yes, danger ? ButtonKind.Danger : ButtonKind.Primary);

@@ -40,6 +40,9 @@ namespace UEModManager.ViewModels
                 Paragraphs(
                     UiText.Interpolate($"MOD 库所在的位置现在访问不到：{repositoryRoot}"),
                     UiText.Get("可能是移动硬盘没插好、网络盘掉线了，或者这个文件夹被移走、改了名。请先让它恢复可用，再点一次「刷新」。"),
+                    // 玩家自己把整个文件夹删了的话，"让它恢复可用"无从做起。重新打开管理器时这个位置会被重新建出来
+                    //（PackageRepository.SetCurrentGameAsync），那时再刷新走的是"一个都找不到"的提问，可以确认后移除。
+                    UiText.Get("如果是你自己把这个文件夹删掉了：请关掉管理器再重新打开，然后点一次「刷新」，就可以把这些 MOD 从列表里移除。"),
                     UiText.Get("为了安全，管理器没有改动任何 MOD 的记录。")),
                 IsToast: false);
 

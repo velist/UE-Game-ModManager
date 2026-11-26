@@ -913,6 +913,7 @@
   "找不到 MOD 库的位置": "Mod library location not found",
   "MOD 库所在的位置现在访问不到：{0}": "The location of your mod library cannot be reached right now: {0}",
   "可能是移动硬盘没插好、网络盘掉线了，或者这个文件夹被移走、改了名。请先让它恢复可用，再点一次「刷新」。": "An external drive may be unplugged, a network drive may be offline, or the folder may have been moved or renamed. Make it available again, then click Refresh once more.",
+  "如果是你自己把这个文件夹删掉了：请关掉管理器再重新打开，然后点一次「刷新」，就可以把这些 MOD 从列表里移除。": "If you deleted this folder yourself: close the manager and open it again, then click Refresh once more to remove these mods from the list.",
   "为了安全，管理器没有改动任何 MOD 的记录。": "To be safe, the manager has not changed any of your mod records.",
   "找不到游戏目录": "Game folder not found",
   "游戏目录现在访问不到：{0}": "The game folder cannot be reached right now: {0}",

@@ -275,6 +275,49 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     });
 
     [Fact]
+    public Task PlayerDeletedTheWholeLibraryFolder_NoticeSaysHowToClearTheList_AndThatPathWorks() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 玩家自己把整个 MOD 库文件夹删了：这时"请先让它恢复可用"无从做起，
+        // 而看不清的时候刷新又什么都不提议——只说那一句的话，这些 MOD 就永远留在列表里了。
+        // 提示里要给出走得通的路：重新打开管理器（那时这个位置会被重新建出来），再点刷新就能确认移除。
+        var first = await OpenAsync();
+        await first.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await first.AddPackageAsync("b", ("b.bin", "BBBB"));
+        await first.ShowListAsync();
+        Directory.Delete(first.RepositoryRoot, recursive: true);
+        var prompts = new ScriptedPrompts();
+
+        var result = await first.Main.RefreshFromDiskAsync(prompts);
+
+        Assert.True(result.Report!.RepositoryRootUnreachable);
+        Assert.Empty(prompts.Asked);
+        var notice = Assert.Single(prompts.Notices);
+        Assert.Equal(DiskRefreshNoticeKind.RepositoryUnreachable, notice.Kind);
+        Assert.Contains("如果是你自己把这个文件夹删掉了：请关掉管理器再重新打开，然后点一次「刷新」", notice.Message);
+        Assert.Empty(result.Removed);
+        Assert.True(first.IsListed("a") && first.IsListed("b"));
+        first.Main.Dispose();
+
+        // 照提示做：重新打开管理器，走真实的启动加载链
+        var host = _host = await DiskRefreshHost.OpenWithoutLoadingAsync(_root);
+        await host.Main.InitializeAsync();
+        Assert.True(Directory.Exists(host.RepositoryRoot));
+        Assert.True(host.IsListed("a") && host.IsListed("b"));
+        var confirm = new ScriptedPrompts()
+            .Answer(DiskRefreshQuestionKind.EverythingMissing, DiskRefreshAnswer.Primary);
+
+        var cleared = await host.Main.RefreshFromDiskAsync(confirm);
+
+        // 位置在、里面是空的：先当位置问题问一次，确认"确实删了"之后不再逐个追问
+        Assert.Equal([DiskRefreshQuestionKind.EverythingMissing], confirm.AskedKinds);
+        Assert.Equal(["MOD a", "MOD b"], cleared.Removed.OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Empty(cleared.Failures);
+        Assert.False(host.IsListed("a") || host.IsListed("b"));
+        Assert.False(host.IsInProfile("a") || host.IsInProfile("b"));
+        Assert.False(host.IsInIndexOnDisk("a") || host.IsInIndexOnDisk("b"));
+    });
+
+    [Fact]
     public Task DeletingAModWhileTheLibraryIsUnreachable_IsRefused_AndSaysWhy() => DiskRefreshHost.OnStaAsync(async () =>
     {
         // 不经过「刷新」、直接在列表里删 MOD 也一样：库访问不到时不删记录。
