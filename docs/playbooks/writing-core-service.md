@@ -27,7 +27,7 @@
 **Core 现有模块**（`UEModManager.Core/Services/` 下，新增前先看有没有能落进去的）：
 `Backends`（部署后端接口）、`Config`、`Conflict`、`Deployment`、`DeploymentPlanning`、
 `Detection`、`Import`、`InstallLayout`（插件根解析、安装位置归位、落位体检）、`Launch`、`Lock`、`Migration`、`Persistence`（含 `AtomicFileWriter`）、
-`Profile`、`Recovery`、`Repository`、`ResolvedViews`、`Security`（含 `PathSanitizer`）。
+`Profile`、`Reconciliation`（记录与磁盘对账）、`Recovery`、`Repository`、`ResolvedViews`、`Security`（含 `PathSanitizer`）。
 另有 `Core/Models`、`Core/Utils`、`Core/Logging`、`Core/Diagnostics`、`Core/Health`、`Core/Adapters`。
 跨 Core 与主项目的查询接口是 `IPackageQuery` / `IProfileQuery` / `IObjectStoreQuery`（在 `Core/Services/` 根）。
 

@@ -121,6 +121,8 @@ namespace UEModManager.Services
 
             if (CheckUe4ss() is { } ue4ss) checks.Add(ue4ss);
 
+            if (await CheckModFilesAsync() is { } modFiles) checks.Add(modFiles);
+
             var report = new HealthReport { Checks = checks };
 
             _logger.LogInformation(
@@ -131,6 +133,91 @@ namespace UEModManager.Services
         }
 
         // ─── 单项检查 ───
+
+        /// <summary>体检项名称：记着的 MOD 文件在磁盘上是不是都还在。</summary>
+        public const string ModFilesCheckName = "ModFiles";
+
+        /// <summary>
+        /// 记着的 MOD 文件在磁盘上是不是都还在：MOD 库里的源文件、游戏目录里装好的文件。
+        ///
+        /// <para>
+        /// 以前的体检只看几个目录在不在：MOD 路径不存在时只写一句"部署时会创建"，
+        /// 哪怕方案里明明有启用的包——到底是从没装进去、还是装过又被删了，报告里看不出来。
+        /// 这一项把它写明白，排查「MOD 没加载」时不用再猜。
+        /// </para>
+        ///
+        /// <para>
+        /// 与「刷新」用的是同一个核对（<see cref="DiskReconcileService"/>），只读、不改任何东西。
+        /// 没有部署清单可读的宿主（部分测试）里不出这一项。
+        /// </para>
+        /// </summary>
+        private async Task<HealthCheck?> CheckModFilesAsync()
+        {
+            if (_stateStore == null) return null;
+            try
+            {
+                var check = await new DiskReconcileService(
+                        _logger, _packageRepo, _profileService, _gameConfig, _stateStore, _viewBuilder)
+                    .CheckAsync();
+                var report = check.Report;
+                var problems = new List<string>();
+                string? detail = null;
+
+                if (report.RecordsUnknown)
+                    problems.Add(UiText.Get("当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件"));
+                if (report.RepositoryRootUnreachable)
+                {
+                    problems.Add(UiText.Get("MOD 库的位置访问不到，没法核对 MOD 文件"));
+                    detail ??= check.RepositoryRoot;
+                }
+                if (report.GameRootUnreachable)
+                {
+                    problems.Add(UiText.Get("游戏目录访问不到，没法核对已安装的 MOD 文件"));
+                    detail ??= check.GamePath;
+                }
+                if (report.DeploymentRecordUnknown)
+                    problems.Add(UiText.Get("已安装文件的记录读不出来，没法核对游戏目录里的 MOD 文件"));
+
+                if (report.UnknownEnabledKeys.Count > 0)
+                {
+                    var keys = string.Join(UiText.Get("、"), report.UnknownEnabledKeys);
+                    problems.Add(UiText.Interpolate($"方案里启用着 {report.UnknownEnabledKeys.Count} 个找不到记录的 MOD（{keys}），启用、禁用和启动都会因此失败"));
+                }
+
+                var broken = report.LostPackages.Concat(report.PartialPackages).ToList();
+                if (broken.Count > 0)
+                {
+                    var names = string.Join(UiText.Get("、"), broken.Select(f => f.PackageKey));
+                    problems.Add(UiText.Interpolate($"{broken.Count} 个 MOD 在 MOD 库里的文件丢失或不完整（{names}）"));
+                    detail ??= broken[0].MissingFiles.FirstOrDefault();
+                }
+
+                var missing = report.MissingDeployments.Where(d => d.IsEnabled).ToList();
+                if (missing.Count > 0)
+                {
+                    var names = string.Join(UiText.Get("、"), missing.Select(d => d.PackageKey));
+                    problems.Add(UiText.Interpolate($"{missing.Count} 个已启用 MOD 的文件在游戏目录里丢失（{names}），它们现在在游戏里不会生效"));
+                    detail ??= missing[0].MissingFiles.FirstOrDefault();
+                }
+
+                if (problems.Count > 0)
+                {
+                    // 记录没加载完整时，点刷新也只会得到同一句话，不往那里引
+                    if (!report.RecordsUnknown)
+                        problems.Add(UiText.Get("点 MOD 列表上方的「刷新」（F5）处理"));
+                    return new(ModFilesCheckName, HealthStatus.Warning, string.Join(UiText.Get("；"), problems), detail);
+                }
+
+                return new(ModFilesCheckName, HealthStatus.Ok,
+                    UiText.Interpolate($"{report.CheckedPackageCount} 个 MOD 的 {report.CheckedSourceFileCount} 个源文件、{report.CheckedManagedFileCount} 个已安装文件都在"));
+            }
+            catch (Exception ex)
+            {
+                // 体检只描述现状：这一项查不了不能连累其它项
+                _logger.LogWarning(ex, "[Health] MOD 文件核对失败");
+                return null;
+            }
+        }
 
         private HealthCheck CheckCurrentGamePath()
         {
@@ -212,7 +299,15 @@ namespace UEModManager.Services
             {
                 var root = _packageRepo.Store.RepositoryRoot;
                 if (!Directory.Exists(root))
-                    return new("ObjectStore", HealthStatus.Warning, $"仓库目录将延迟创建: {root}");
+                {
+                    // 一个包都没登记时，目录还没建是正常的（要到第一次导入才创建）。
+                    // 登记了包却找不到目录，就是位置访问不到了——再写"将延迟创建"会把排查的人带偏
+                    var registered = _packageRepo.GetTotalCount();
+                    return registered > 0
+                        ? new("ObjectStore", HealthStatus.Warning,
+                            UiText.Interpolate($"MOD 库的位置访问不到（登记了 {registered} 个 MOD）: {root}"))
+                        : new("ObjectStore", HealthStatus.Warning, $"仓库目录将延迟创建: {root}");
+                }
                 return new("ObjectStore", HealthStatus.Ok, "OK", root);
             }
             catch (Exception ex)

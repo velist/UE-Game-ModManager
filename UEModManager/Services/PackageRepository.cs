@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Repository;
@@ -39,6 +40,13 @@ namespace UEModManager.Services
         /// <summary>包索引。**只整体替换，不原地增删**，使无锁读取方的枚举始终安全。</summary>
         private List<Package> _packages = new();
 
+        /// <summary>
+        /// 内存里的索引比磁盘上的新：有改动还没写下去（改了内存之后写 manifest 或保存索引失败——
+        /// 见 <see cref="SaveIndexAsync"/>，失败时不回滚内存）。改内存时置位，索引保存成功才清。
+        /// 受 <see cref="_gate"/> 保护。<see cref="ReloadIndexAsync"/> 据此拒绝用磁盘上的旧内容覆盖内存。
+        /// </summary>
+        private bool _unsavedIndexChanges;
+
         /// <summary>当包列表发生变化时触发。</summary>
         public event Action? PackagesChanged;
 
@@ -62,6 +70,12 @@ namespace UEModManager.Services
         /// <summary>ObjectStore 实例。</summary>
         public ObjectStore Store => _objectStore;
 
+        /// <summary>
+        /// 包索引现在是为哪个游戏加载的；还没加载过时为空串。
+        /// 「磁盘核对」据此确认手里的包清单确实是当前游戏的——加载中途出错时，这里会停在上一个游戏。
+        /// </summary>
+        public string CurrentGameName => _currentGame;
+
         // ─── 初始化 ───
 
         /// <summary>
@@ -69,7 +83,21 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
-            _objectStore.EnsureInitialized();
+            var libraryReachable = true;
+            try
+            {
+                _objectStore.EnsureInitialized();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                           or NotSupportedException or ArgumentException)
+            {
+                // MOD 库的位置访问不到（移动硬盘没插、网络盘掉线、盘符变了）。包索引不在那里，照样要加载。
+                // 以前在这里把异常抛出去，整个初始化静默中断：列表是空的、没有任何提示，把硬盘接好也得重启
+                // 管理器才看得到 MOD；切换游戏时还会留下"方案是新游戏的、包索引是旧游戏的"这种半截状态。
+                // 现在列表照常显示，"文件访问不到"由「刷新」和部署时的报错如实告诉玩家。
+                libraryReachable = false;
+                _logger.LogWarning(ex, "MOD 库的位置访问不到，仍然加载包索引: {Root}", _objectStore.RepositoryRoot);
+            }
 
             if (!Directory.Exists(_dataDirectory))
                 Directory.CreateDirectory(_dataDirectory);
@@ -77,11 +105,89 @@ namespace UEModManager.Services
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                _currentGame = gameName;
-                var loaded = await LoadIndexAsync().ConfigureAwait(false);
+                var loaded = await LoadIndexAsync(GetIndexPath(gameName)).ConfigureAwait(false);
+                // 库访问不到时不去找预览图：一张都找不到，而掉线的网络盘上每探一次都要等超时
+                if (libraryReachable) RestorePreviewImagePaths(loaded);
 
-                // 恢复预览图路径
-                foreach (var pkg in loaded)
+                // 游戏名和包清单一起换，中间不留任何会抛异常的步骤。只换了名字、清单还是上一个游戏的话，
+                // 之后任何一次保存都会把上一个游戏的包写进这个游戏的索引文件，
+                // 「磁盘核对」也会把这份对不上号的清单当成当前游戏的。
+                _currentGame = gameName;
+                _packages = loaded;
+                _unsavedIndexChanges = false;
+                _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
+            }
+            finally { _gate.Release(); }
+        }
+
+        /// <summary>
+        /// 重新从磁盘读当前游戏的包索引，换掉内存里的那一份。
+        ///
+        /// <para>
+        /// 平时用不着：每次改动都是"改内存 + 立刻落盘"，两边本来就一致。留给「刷新」用——
+        /// 玩家点刷新就是在说"别信你记着的，去看磁盘"，索引文件被别的实例或手工恢复改过时也能跟上。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>读不出来就保持原样</b>，这一点与启动时的 <see cref="LoadIndexAsync"/> 相反：
+        /// 启动时读不出来只能从空列表开始；而这里内存里已经有一份好的，
+        /// 换成空列表等于把所有 MOD 从界面上抹掉，下一次保存还会把空列表写回磁盘。
+        /// 内存里有<b>还没写下去的改动</b>（上一次保存失败）时同样不读——那份改动只存在于内存，
+        /// 读回旧文件会把它丢掉，而仓库里对应的文件已经真实存在了。
+        /// </para>
+        /// </summary>
+        /// <returns>true = 已换成磁盘上的内容；false = 保持内存里的不变。</returns>
+        public async Task<bool> ReloadIndexAsync()
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (string.IsNullOrEmpty(_currentGame)) return false;
+                if (_unsavedIndexChanges)
+                {
+                    _logger.LogWarning("包索引有尚未写入磁盘的改动，本次不重新读取");
+                    return false;
+                }
+
+                var path = GetIndexPath();
+                if (!File.Exists(path)) return false;
+
+                List<Package> loaded;
+                try
+                {
+                    var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+                    loaded = JsonSerializer.Deserialize<List<Package>>(json)
+                        ?? throw new InvalidDataException("包索引内容为空");
+                    // 文件能解析、里面却有空记录：同样算读不出来。换进内存的话，所有遍历包清单的地方都会崩
+                    if (loaded.Any(package => package == null))
+                        throw new InvalidDataException("包索引里有空记录");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+                {
+                    _logger.LogWarning(ex, "重新读取包索引失败，继续使用内存里的索引: {Path}", path);
+                    return false;
+                }
+
+                // 库访问不到时不去找预览图（理由同 SetCurrentGameAsync）
+                if (Directory.Exists(_objectStore.RepositoryRoot)) RestorePreviewImagePaths(loaded);
+                _packages = loaded;
+                _logger.LogInformation("已重新读取 {Game} 的包索引: {Count} 个", _currentGame, loaded.Count);
+            }
+            finally { _gate.Release(); }
+
+            PackagesChanged?.Invoke();
+            return true;
+        }
+
+        /// <summary>
+        /// 索引里记的预览图路径失效时，改指向仓库里实际存在的那一张（只改内存）。
+        /// 某个包的目录列不出来（没权限、包键不合法）只跳过它：一张预览图不值得让整个索引加载失败。
+        /// </summary>
+        private void RestorePreviewImagePaths(List<Package> packages)
+        {
+            foreach (var pkg in packages)
+            {
+                try
                 {
                     if (string.IsNullOrEmpty(pkg.PreviewImagePath) || !File.Exists(pkg.PreviewImagePath))
                     {
@@ -90,11 +196,11 @@ namespace UEModManager.Services
                             pkg.PreviewImagePath = preview;
                     }
                 }
-
-                _packages = loaded;
-                _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    _logger.LogWarning(ex, "恢复预览图路径失败，跳过: {Key}", pkg.PackageKey);
+                }
             }
-            finally { _gate.Release(); }
         }
 
         // ─── 查询 ───
@@ -159,6 +265,8 @@ namespace UEModManager.Services
                 else
                 {
                     _packages = [.. _packages, package];
+                    // 从这一刻起内存比磁盘新：下面写 manifest 就可能失败，不必等到保存索引那一步
+                    _unsavedIndexChanges = true;
                     await WriteManifestAsync(package).ConfigureAwait(false);
                     await SaveIndexAsync().ConfigureAwait(false);
                     _logger.LogInformation("包已注册: {Key} ({Kind})", package.PackageKey, package.Kind);
@@ -196,6 +304,8 @@ namespace UEModManager.Services
         /// <summary>把 <paramref name="updated"/> 的元数据合并进 <paramref name="existing"/>。调用方必须已持有 <see cref="_gate"/>。</summary>
         private async Task<Package> UpdatePackageLockedAsync(Package existing, Package updated)
         {
+            // 内存先改，manifest 与索引后写：中间任何一步失败，内存都比磁盘新
+            _unsavedIndexChanges = true;
             existing.DisplayName = updated.DisplayName;
             existing.Note = updated.Note;
             existing.Tags = new List<string>(updated.Tags);
@@ -229,7 +339,44 @@ namespace UEModManager.Services
             finally { _gate.Release(); }
         }
 
+        /// <summary>
+        /// 按索引里的记录重写一个包的 manifest.json。包不在索引里时返回 false。
+        ///
+        /// 给「从游戏目录找回」用：玩家把仓库里的包文件夹整个删掉时 manifest 跟着没了，
+        /// 文件找回来之后要把它补上——没有 manifest 的包目录会被完整性检查当成导入残留。
+        /// </summary>
+        public async Task<bool> RewriteManifestAsync(string packageKey)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var package = FindByKey(packageKey);
+                if (package == null) return false;
+
+                await WriteManifestAsync(package).ConfigureAwait(false);
+                return true;
+            }
+            finally { _gate.Release(); }
+        }
+
         // ─── 删除 ───
+
+        /// <summary>
+        /// MOD 库的位置访问不到时抛 <see cref="IOException"/>，说明为什么没有删除这个包。
+        ///
+        /// <see cref="DeletePackageAsync(string, IEnumerable{InstanceProfile}?, bool)"/> 自己会查；
+        /// 删除之前还要先做别的事的调用方（先把它从游戏目录撤掉）应当一开始就调一次，
+        /// 免得撤完才发现记录删不了，留下"删了一半"。
+        /// </summary>
+        public void ThrowIfLibraryUnreachable(Package package)
+        {
+            ArgumentNullException.ThrowIfNull(package);
+            if (Directory.Exists(_objectStore.RepositoryRoot)) return;
+
+            var name = string.IsNullOrWhiteSpace(package.DisplayName) ? package.PackageKey : package.DisplayName;
+            throw new IOException(UiText.Interpolate(
+                $"MOD 库的位置现在访问不到，所以没有删除「{name}」，它的记录也没有改动。请先让 MOD 库恢复可用（接好移动硬盘或网络盘）再试：{_objectStore.RepositoryRoot}"));
+        }
 
         /// <summary>
         /// 计算给定 packageKey 在所有 Profile 中的引用情况，并产生删除决策。
@@ -254,7 +401,7 @@ namespace UEModManager.Services
         /// <param name="allProfiles">所有 Profile（用于引用计数）。传 null 表示跳过检查（仅供测试）。</param>
         /// <param name="force">true = 即使被引用也强制删除（必须先自行回滚部署）。</param>
         /// <returns>(成功否, 决策详情)。Decision=ActivelyDeployed 且 force=false 时返回 (false, plan)。</returns>
-        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足）。此时索引未被改动。</exception>
+        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足），或 MOD 库的位置访问不到。此时索引未被改动。</exception>
         public async Task<(bool Success, PackageDeletionPlan? Plan)> DeletePackageAsync(
             string packageKey,
             IEnumerable<InstanceProfile>? allProfiles,
@@ -284,6 +431,13 @@ namespace UEModManager.Services
                         return (false, plan);
                     }
                 }
+
+                // MOD 库的位置访问不到（移动硬盘没插、网络盘掉线）时不删。这时包目录"不存在"只是因为看不见它：
+                // ObjectStore.DeletePackage 会当成"没什么可删"返回成功，接着索引里的记录被抹掉——
+                // 硬盘接回来以后，那个文件夹就成了索引里没有记录、界面上也找不到的残留。
+                // 「刷新」只在看得清仓库时才提议移除；这里是所有删除路径的最后一道闸，
+                // 核对之后、动手之前硬盘刚好断开的那一瞬间也由它挡住。
+                ThrowIfLibraryUnreachable(package);
 
                 // 先删仓库文件、再动索引。反过来的话文件删不掉（被游戏占用/权限不足）
                 // 就会留下"索引里没有、磁盘上还在几十 GB"的孤儿目录，而且用户重试也删不掉了
@@ -544,16 +698,41 @@ namespace UEModManager.Services
 
         // ─── 持久化 ───
 
-        private string GetIndexPath() => Path.Combine(_dataDirectory, $"{_currentGame}_packages.json");
+        private string GetIndexPath() => GetIndexPath(_currentGame);
 
-        private async Task<List<Package>> LoadIndexAsync()
+        private string GetIndexPath(string gameName) => Path.Combine(_dataDirectory, $"{gameName}_packages.json");
+
+        /// <summary>读一个游戏的包索引。<b>从不抛异常</b>：读不出来回落空列表（原文件先备份）。</summary>
+        private async Task<List<Package>> LoadIndexAsync(string path)
         {
-            var path = GetIndexPath();
             try
             {
                 if (!File.Exists(path)) return new List<Package>();
                 var json = await File.ReadAllTextAsync(path);
-                return JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
+                var loaded = JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
+
+                // 文件能解析、里面却夹着空记录（手工改过、合并出错）。空记录不带任何信息：丢掉它们、
+                // 留下其余的——一条坏记录不该让玩家整个游戏的 MOD 列表都看不到。留着更不行：
+                // 换进内存以后，所有遍历包清单的地方都会崩。
+                var dropped = loaded.RemoveAll(package => package == null);
+                if (dropped > 0)
+                {
+                    BackupUnusableIndexFile(path,
+                        new InvalidDataException($"包索引里有 {dropped} 条空记录，已忽略，其余 {loaded.Count} 条照常加载"));
+                    // 当场把清理后的索引写回去，这件事只发生一次；不写的话每次启动都会再备份一遍。
+                    // 写不进去不要紧：内存里已经是干净的，下一次保存照样会重写它。
+                    try
+                    {
+                        await AtomicFileWriter.WriteAllTextAsync(path,
+                            JsonSerializer.Serialize(loaded, new JsonSerializerOptions { WriteIndented = true }));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 什么原因都一样处理：这里再往外抛，外层会当成"索引读不出来"把刚读好的清单丢掉
+                        _logger.LogWarning(ex, "清理后的包索引没能写回: {Path}", path);
+                    }
+                }
+                return loaded;
             }
             catch (Exception ex)
             {
@@ -607,9 +786,12 @@ namespace UEModManager.Services
             {
                 var json = JsonSerializer.Serialize(_packages, new JsonSerializerOptions { WriteIndented = true });
                 await AtomicFileWriter.WriteAllTextAsync(path, json);
+                _unsavedIndexChanges = false;
             }
             catch (Exception ex)
             {
+                // 内存不回滚（见上），所以从这一刻起内存比磁盘新
+                _unsavedIndexChanges = true;
                 _logger.LogError(ex, "保存包索引失败: {Path}", path);
                 throw;
             }

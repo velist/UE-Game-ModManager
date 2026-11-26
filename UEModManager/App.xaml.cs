@@ -377,6 +377,9 @@ namespace UEModManager
                     // Phase 11: 健康检查
                     services.AddSingleton<HealthCheckService>();
 
+                    // 「刷新」：把记着的东西和磁盘对一遍（仓库源文件、游戏目录里装好的文件）
+                    services.AddSingleton<DiskReconcileService>();
+
                     // Phase 12: Profile lock 导出/导入
                     services.AddSingleton<ProfileLockService>();
 

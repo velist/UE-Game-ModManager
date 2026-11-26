@@ -110,6 +110,70 @@ public sealed class DeploymentStateStore
         return AtomicFileWriter.WriteAllTextAsync(GetPath(state), JsonSerializer.Serialize(state, JsonOptions));
     }
 
+    /// <summary>
+    /// 把这些包名下的文件移出清单：文件<b>原样留在游戏目录里</b>，以后不再由管理器管理。
+    ///
+    /// <para>
+    /// 给"仓库里的 MOD 文件没了、游戏目录里那份还在"用。照常走部署计划的话，
+    /// 这个包不再启用 = 它名下的文件要撤掉，游戏里仅剩的那一份就被删了。
+    /// 先把它们移出清单，之后任何一次部署都不会再碰这些文件。
+    /// </para>
+    ///
+    /// <para>
+    /// 直接改清单而不是经过部署计划：计划要先构建最终视图，而别的已启用 MOD 只要有一个缺源文件，
+    /// 视图就建不出来。"不删玩家的文件"这件事不能挂在一个可能失败的前置步骤后面。
+    /// 这些文件替换过的游戏原文件不会被还原（备份仍留在 Originals 里）——现在放在那里的是 MOD 的文件，
+    /// 而它正是要保留的那一份。
+    /// </para>
+    /// </summary>
+    /// <returns>被移出清单的文件；清单里本来就没有这些包的文件时返回空，且不写任何东西。</returns>
+    public async Task<IReadOnlyList<ManagedDeploymentFile>> ReleasePackagesAsync(
+        string hostGameName, string gameRootPath, string modRootPath, IEnumerable<string> packageKeys)
+    {
+        var keys = new HashSet<string>(
+            (packageKeys ?? []).Where(key => !string.IsNullOrWhiteSpace(key)), StringComparer.OrdinalIgnoreCase);
+        if (keys.Count == 0) return [];
+
+        // 先不加锁看一眼：没有要移出的就什么都不碰（加锁会创建锁文件）
+        var current = await ReadAsync(hostGameName, gameRootPath, modRootPath);
+        if (!current.Files.Any(file => keys.Contains(file.PackageKey))) return [];
+
+        using var lease = await LockAsync(current);
+        current = await ReadAsync(hostGameName, gameRootPath, modRootPath);
+        var released = current.Files.Where(file => keys.Contains(file.PackageKey)).ToList();
+        if (released.Count == 0) return [];
+
+        await WriteAsync(new DeploymentState
+        {
+            HostGameName = current.HostGameName, GameRootPath = current.GameRootPath,
+            ModRootPath = current.ModRootPath, PluginRootPath = current.PluginRootPath,
+            // 换一个修订号：在此之前生成的部署计划全部作废（它们还以为这些文件归管理器管）
+            Revision = Guid.NewGuid(),
+            Files = current.Files.Where(file => !keys.Contains(file.PackageKey)).ToList(),
+        });
+        _logger.LogInformation("已把 {Count} 个文件移出部署清单（文件保留在游戏目录）: {Keys}",
+            released.Count, string.Join(", ", keys));
+        return released;
+    }
+
+    /// <summary>
+    /// 有没有旧版本留下、还没认领进清单的部署记录。
+    ///
+    /// <para>
+    /// 清单从没写过（修订号为空）时，部署计划会先把旧版本的已提交事务认领进来
+    /// （<c>DeploymentPlanner.AdoptLegacyFilesAsync</c>）。在那之前清单是空的，
+    /// 游戏目录里却可能装着这些事务留下的文件——只看清单会以为"什么都没装"。
+    /// 判据比认领本身宽：只要存在一条旧格式、已提交、往游戏目录里写过东西的事务就算有。
+    /// 宽一点的后果只是核对时少下一些结论，不会误动任何文件。
+    /// </para>
+    /// </summary>
+    internal async Task<bool> HasUnadoptedLegacyDeploymentsAsync(DeploymentState state)
+        => (await ReadLegacyTransactionsAsync(state)).Any(transaction =>
+            transaction.Status == DeploymentStatus.Committed
+            && transaction.StateBefore == null && transaction.StateAfter == null
+            && transaction.ExecutedOperations.Concat(transaction.PlannedOperations)
+                .Any(operation => operation.Type != DeploymentOperationType.Remove));
+
     internal async Task<string> PreserveOriginalAsync(DeploymentState state, string sourcePath)
     {
         ValidateTarget(state, sourcePath);

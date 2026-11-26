@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Config;
 using UEModManager.Services.Conflict;
@@ -128,7 +129,15 @@ public class ResolvedViewBuilder
         {
             if (overriddenLosers.Contains(entry.TargetAbsolutePath)) continue;
             if (!File.Exists(entry.SourceAbsolutePath))
-                throw new FileNotFoundException($"仓库源文件不存在: {entry.SourceAbsolutePath}", entry.SourceAbsolutePath);
+            {
+                // 以前只抛一个仓库里的路径，玩家看不懂、也不知道下一步怎么办。
+                // 缺源文件的 MOD 只要还启用着，任何部署都会停在这里，所以要说清是哪一个、点哪里能处理。
+                var modName = entry.PackageDisplayName ?? entry.PackageKey ?? Path.GetFileName(entry.SourceAbsolutePath);
+                _logger.LogWarning("仓库源文件不存在: {Path}（包 {Key}）", entry.SourceAbsolutePath, entry.PackageKey);
+                throw new FileNotFoundException(
+                    UiText.Interpolate($"「{modName}」在 MOD 库里的文件不见了，处理它之前没法往游戏里装或撤任何 MOD。请点 MOD 列表上方的「刷新」（F5），管理器会帮你处理。"),
+                    entry.SourceAbsolutePath);
+            }
             var priority = entry.Priority;
             if (entry.LoadConflictKey != null && effectiveOverrides.TryGetValue(entry.LoadConflictKey, out var winner))
                 priority = string.Equals(winner, entry.PackageKey, StringComparison.OrdinalIgnoreCase)
@@ -225,6 +234,28 @@ public class ResolvedViewBuilder
             .Concat(EnableMarkerTargets(known, packages, rules, pluginRoot))
             .ToList();
         return new InstallPlacementSnapshot(expected, issues);
+    }
+
+    /// <summary>
+    /// 仓库里的全部包，按当前方案归位之后的样子（顺序与仓库一致）——部署认的就是这一份。
+    ///
+    /// 「磁盘核对」拿它判断一个包里哪些源文件是<b>要装进游戏的</b>：老版本把安装树里的图片一律登记成预览图，
+    /// 归位时其中带目录的会被改判成要装的文件（<see cref="InstallLayoutNormalizer.EffectiveArtifactType"/>）。
+    /// 核对如果照着索引里的原始类型看，这类图片丢了它看不见，部署却会因为它失败——
+    /// 玩家被报错叫去点「刷新」，刷新又说没有问题。
+    ///
+    /// 只算路径和类型，不读任何 MOD 文件。没有方案、或方案不是当前游戏的时候不会有部署，原样返回。
+    /// </summary>
+    public IReadOnlyList<Package> PackagesAsDeployed()
+    {
+        var packages = _packageRepo.GetAllPackages();
+        var profile = _profileService.CurrentProfile;
+        if (profile == null
+            || !string.Equals(profile.HostGameName, _gameConfig.CurrentGameName, StringComparison.OrdinalIgnoreCase))
+            return packages;
+
+        var normalized = NormalizeForProfile(profile).Packages;
+        return packages.Select(p => normalized.TryGetValue(p.PackageKey, out var deployed) ? deployed : p).ToList();
     }
 
     /// <summary>

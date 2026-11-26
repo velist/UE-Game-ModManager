@@ -6,6 +6,7 @@ using UEModManager.Services;
 using UEModManager.Services.Backends;
 using UEModManager.Services.Config;
 using UEModManager.Services.Conflict;
+using UEModManager.Services.Conflict.Model;
 using UEModManager.Services.DeploymentPlanning;
 using System.Windows.Threading;
 using UEModManager.Tests.Infrastructure;
@@ -196,6 +197,48 @@ public sealed class ConflictModuleIntegrationTests : IDisposable
         // 内容相同的不写：写进去没有行为差异，只会撑大方案文件。
         Assert.DoesNotContain(f.Conflicts.GetOverrides().Keys,
             key => key.EndsWith("mods.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// MOD 库的位置访问不到时（移动硬盘没插、网络盘掉线），版本和文件时间一个都读不到，
+    /// 共享组件"留哪一份"只能按顺序取一个。这种没有依据的裁决只用来显示，不能写进方案：
+    /// 写进去就把此前按文件新旧选好的结果翻掉了，硬盘接回来后的下一次部署会装上错的那一份。
+    /// </summary>
+    [Fact]
+    public async Task MOD库访问不到时_冲突分析不改写共享组件的覆盖规则()
+    {
+        var f = await ConflictTestHost.OpenAsync(_root);
+        await f.ImportArchiveAsync(CreateArchive(_root,
+            ("插件甲", [("b1/Binaries/Win64/version.dll", "VERSION-DLL-OLD")]),
+            ("插件乙", [("b1/Binaries/Win64/version.dll", "VERSION-DLL-NEW-PLUS")])));
+        await f.EnableAllAsync();
+        static SharedComponent Contested(ConflictReport report)
+            => Assert.Single(report.SharedComponents, c => !c.Providers.All(p => p.IdenticalToChosen));
+
+        // 没有任何依据时会被选中的是排在第一个的那一份；让"另一份"的文件更新，有依据时该选的就是它
+        var first = Contested(await f.Conflicts.AnalyzeAsync()).Providers[0].PackageKey;
+        var other = f.Repository.GetAllPackages().Select(p => p.PackageKey).Single(key => key != first);
+        var store = f.Repository.Store;
+        foreach (var (key, year) in new[] { (first, 2020), (other, 2024) })
+            foreach (var file in Directory.EnumerateFiles(store.GetPackageFilesDirectory(key), "*", SearchOption.AllDirectories))
+                File.SetLastWriteTimeUtc(file, new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(other, Contested(await f.Conflicts.AnalyzeAsync()).ChosenPackageKey);
+        var rule = Assert.Single(f.Conflicts.GetOverrides(),
+            kv => kv.Key.EndsWith("version.dll", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(other, rule.Value);
+
+        // 移动硬盘被拔掉之后又分析了一次（打开启动中心、冲突面板都会触发）
+        Directory.Move(store.RepositoryRoot, store.RepositoryRoot + "-unplugged");
+        var blind = Contested(await f.Conflicts.AnalyzeAsync());
+
+        // 这一次确实是没有依据地取了第一个——但它没有被写进方案
+        Assert.Equal(first, blind.ChosenPackageKey);
+        Assert.Equal(other, f.Conflicts.GetOverrides()[rule.Key]);
+
+        // 接回去再分析：仍然是按文件新旧选出来的那一份
+        Directory.Move(store.RepositoryRoot + "-unplugged", store.RepositoryRoot);
+        Assert.Equal(other, Contested(await f.Conflicts.AnalyzeAsync()).ChosenPackageKey);
+        Assert.Equal(other, f.Conflicts.GetOverrides()[rule.Key]);
     }
 
     /// <summary>同一个 pak 导两次：第二次在入口被拦，仓库里仍然只有一个包。</summary>

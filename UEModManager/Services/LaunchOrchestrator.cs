@@ -11,6 +11,7 @@ using UEModManager.Models;
 using UEModManager.Services.Conflict;
 using UEModManager.Services.Launch;
 using UEModManager.Services.Persistence;
+using UEModManager.Services.Reconciliation;
 
 namespace UEModManager.Services
 {
@@ -260,7 +261,7 @@ namespace UEModManager.Services
                 LaunchStepType.ValidateGamePath => ValidateGamePath(step, context),
                 LaunchStepType.ValidateExecutable => ValidateExecutable(step, context),
                 LaunchStepType.BuildResolvedView => await BuildView(step, context, session, preparation),
-                LaunchStepType.Deploy => await DeployIfNeeded(step, preparation),
+                LaunchStepType.Deploy => await DeployIfNeeded(step, session, preparation),
                 LaunchStepType.ConflictCheck => await CheckConflicts(step, context),
                 LaunchStepType.LaunchProcess => await LaunchProcessAsync(step, context, session),
                 _ => true
@@ -304,11 +305,28 @@ namespace UEModManager.Services
             return eval.Passed;
         }
 
-        private async Task<bool> DeployIfNeeded(LaunchStep step, LaunchPreparation preparation)
+        /// <summary>
+        /// 启动前把游戏目录对齐到当前方案。
+        ///
+        /// <para>
+        /// <b>以磁盘为准，不是以部署清单为准。</b>计划器对清单里和方案里的每个目标都会看一眼磁盘
+        /// （<c>DeploymentPlanner.CreatePlanForViewAsync</c> 里的 <c>File.Exists</c> + 哈希）：
+        /// 清单说装过、磁盘上没有的文件会排成"新增"重新装进去，所以"MOD 文件夹被手动删掉 / 被游戏更新清掉"
+        /// 在这一步就会被补回来，不需要另写一套修复。
+        /// </para>
+        ///
+        /// <para>
+        /// 以前这件事悄悄发生：步骤只写"已部署 N 个操作"，玩家不知道自己的 MOD 刚才并不在游戏里。
+        /// 现在把"丢了又装回去"的那部分从计划里认出来（<see cref="DeploymentRestoration"/>），
+        /// 记进会话，由界面告诉玩家。
+        /// </para>
+        /// </summary>
+        private async Task<bool> DeployIfNeeded(LaunchStep step, LaunchSession session, LaunchPreparation preparation)
         {
             // 异常交由 LaunchAsync 记录并终止流水线，与失败事务保持同一语义。
             var plan = await _deployPlanner.CreatePlanForViewAsync(
                 preparation.View ?? throw new InvalidOperationException("尚未构建部署视图"));
+            var restored = DeploymentRestoration.FindRestoredFiles(plan);
             var skipEval = LaunchStepEvaluator.EvaluateDeploymentSkip(plan.Operations.Count);
 
             if (skipEval.Status == LaunchStepStatus.Skipped)
@@ -333,6 +351,16 @@ namespace UEModManager.Services
             var tx = await _deployService.ExecuteAsync(plan);
             var resultEval = LaunchStepEvaluator.EvaluateDeploymentResult(
                 tx.Status, tx.CompletedOperations, tx.ErrorMessage);
+
+            if (resultEval.Passed && restored.Count > 0)
+            {
+                // 事务提交时逐个文件核对过哈希，走到这里说明丢的那些确实已经回到游戏目录里了
+                session.RestoredPackages.AddRange(restored.Select(r => r.DisplayName));
+                _logger.LogWarning(
+                    "Launch: {Packages} 个 MOD 的 {Files} 个文件在游戏目录里丢失，已重新部署: {Names}",
+                    restored.Count, restored.Sum(r => r.FileCount),
+                    string.Join(", ", restored.Select(r => r.PackageKey)));
+            }
 
             step.Message = resultEval.Message;
             return resultEval.Passed;
