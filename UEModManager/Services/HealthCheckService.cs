@@ -299,7 +299,15 @@ namespace UEModManager.Services
             {
                 var root = _packageRepo.Store.RepositoryRoot;
                 if (!Directory.Exists(root))
-                    return new("ObjectStore", HealthStatus.Warning, $"仓库目录将延迟创建: {root}");
+                {
+                    // 一个包都没登记时，目录还没建是正常的（要到第一次导入才创建）。
+                    // 登记了包却找不到目录，就是位置访问不到了——再写"将延迟创建"会把排查的人带偏
+                    var registered = _packageRepo.GetTotalCount();
+                    return registered > 0
+                        ? new("ObjectStore", HealthStatus.Warning,
+                            UiText.Interpolate($"MOD 库的位置访问不到（登记了 {registered} 个 MOD）: {root}"))
+                        : new("ObjectStore", HealthStatus.Warning, $"仓库目录将延迟创建: {root}");
+                }
                 return new("ObjectStore", HealthStatus.Ok, "OK", root);
             }
             catch (Exception ex)

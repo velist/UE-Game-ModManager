@@ -990,5 +990,7 @@
   "MOD 的记录没有加载完整": "Mod records were not fully loaded",
   "管理器这次没能把当前游戏的 MOD 记录加载完整，现在核对出来的结果不可信。": "The manager could not fully load the mod records for the current game this time, so the result of this check cannot be trusted.",
   "为了安全，这次没有改动任何东西。": "To be safe, nothing was changed this time.",
-  "当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件": "The mod records for the current game were not fully loaded, so mod files could not be checked"
+  "当前游戏的 MOD 记录没有加载完整，没法核对 MOD 文件": "The mod records for the current game were not fully loaded, so mod files could not be checked",
+  "MOD 库的位置现在访问不到，所以没有删除「{0}」，它的记录也没有改动。请先让 MOD 库恢复可用（接好移动硬盘或网络盘）再试：{1}": "The mod library location cannot be reached right now, so \"{0}\" was not deleted and its record was left unchanged. Make the mod library available again (reconnect the external or network drive), then try again: {1}",
+  "MOD 库的位置访问不到（登记了 {0} 个 MOD）: {1}": "The mod library location cannot be reached ({0} mod(s) registered): {1}"
 }

@@ -33,12 +33,28 @@ namespace UEModManager.Services
             PackageRepository repository,
             ObjectStore objectStore,
             GameConfigService gameConfig)
+            : this(logger, repository, objectStore, gameConfig, AppPaths.DataDirectory)
+        {
+        }
+
+        /// <summary>
+        /// 指定索引目录的构造函数（测试用）。DI 走上面的四参数构造函数——
+        /// 容器无法解析 string，不会误选此重载。理由同 <see cref="PackageRepository"/>：
+        /// 不注入位置的话，凡是走 <c>MainViewModel.InitializeAsync</c> 的测试都会去读开发者真实的
+        /// <c>%LOCALAPPDATA%</c>，那里要是恰好有同名游戏的旧数据，还会真的跑一次迁移。
+        /// </summary>
+        public DataMigrationService(
+            ILogger<DataMigrationService> logger,
+            PackageRepository repository,
+            ObjectStore objectStore,
+            GameConfigService gameConfig,
+            string dataDirectory)
         {
             _logger = logger;
             _repository = repository;
             _objectStore = objectStore;
             _gameConfig = gameConfig;
-            _dataDirectory = AppPaths.DataDirectory;
+            _dataDirectory = dataDirectory;
         }
 
         /// <summary>

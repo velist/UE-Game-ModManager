@@ -196,6 +196,54 @@ public sealed class DiskReconcileServiceTests : IDisposable
         Assert.True(partial.CanRecoverEverything);
     });
 
+    [Fact]
+    public Task Check_ImageInAPluginWithAPlayerChosenFolder_IsNotCounted_BecauseDeploymentSkipsIt() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 反过来的那一面：玩家自己指定了安装子目录、又不保留安装布局的插件包，部署不改判图片——
+        // 登记成预览图的就不装。核对如果自己按"带目录的图片都算"来判，这里就会多报
+        var host = await OpenAsync();
+        await host.AddPluginAsync("tool", preservesInstallLayout: false, targetRootPath: "Plugins",
+            (@"tool\main.bin", "MAIN"), (@"tool\shots\shot.png", "SCREENSHOT"));
+        await host.EnableAsync("tool");
+        Assert.True(File.Exists(host.PluginFile(@"Plugins\tool\main.bin")));
+        Assert.False(File.Exists(host.PluginFile(@"Plugins\tool\shots\shot.png")));
+        Assert.Empty(Directory.EnumerateFiles(host.GamePath, "shot.png", SearchOption.AllDirectories));
+        File.Delete(host.RepositoryFile("tool", @"tool\shots\shot.png"));
+
+        // 部署照常能算出来
+        await host.Views.BuildAsync();
+        var report = (await host.Reconcile.CheckAsync()).Report;
+
+        Assert.False(report.HasFindings);
+        Assert.Equal(1, report.CheckedSourceFileCount);
+    });
+
+    [Fact]
+    public Task Check_InstallPositionsCannotBeWorkedOut_FallsBackToTheRawRecordsInsteadOfFailing() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 索引里某个插件包的文件清单是坏的（手工改过、写到一半）：部署自己会停下并报错，
+        // 但核对不能跟着整个失败——别的 MOD 丢没丢，玩家还是要能看到
+        var host = await OpenAsync();
+        await host.AddPackageAsync("gone", ("g.bin", "GGGG"));
+        await host.AddPackageAsync("fine", ("f.bin", "FFFF"));
+        await host.AddLayoutPluginAsync("broken", (@"broken\main.bin", "MAIN"));
+        Directory.Delete(host.Store.GetPackageDirectory("gone"), recursive: true);
+        var indexPath = Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json");
+        var index = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(indexPath))!.AsArray();
+        var broken = index.Single(node => node!["PackageKey"]!.GetValue<string>() == "broken")!;
+        broken["Artifacts"]!.AsArray().Add(null);
+        await File.WriteAllTextAsync(indexPath, index.ToJsonString());
+        Assert.True(await host.Repository.ReloadIndexAsync());
+        // 归位确实算不出来
+        Assert.ThrowsAny<Exception>(() => host.Views.PackagesAsDeployed());
+
+        var report = (await host.Reconcile.CheckAsync()).Report;
+
+        Assert.Equal("gone", Assert.Single(report.LostPackages).PackageKey);
+        Assert.Empty(report.PartialPackages);
+        Assert.Equal(3, report.CheckedPackageCount);
+    });
+
     // ═══════════════════════════════════════
     //  手里的记录不是当前游戏的
     // ═══════════════════════════════════════
@@ -211,6 +259,7 @@ public sealed class DiskReconcileServiceTests : IDisposable
 
         // 切换游戏只换了一半（加载中途出错）：设置已经是新游戏，包索引和方案还停在上一个
         host.Game.Config.GameName = "另一个游戏";
+        var before = host.Fingerprint();
         var report = (await host.Reconcile.CheckAsync()).Report;
 
         Assert.True(report.RecordsUnknown);
@@ -218,6 +267,11 @@ public sealed class DiskReconcileServiceTests : IDisposable
         Assert.Empty(report.LostPackages);
         Assert.Empty(report.UnknownEnabledKeys);
         Assert.Empty(report.MissingDeployments);
+        Assert.Equal(before, host.Fingerprint());
+
+        // 游戏名只差大小写不算两个游戏（部署的前置条件也是这么比的）
+        host.Game.Config.GameName = DiskRefreshHost.GameName.ToUpperInvariant();
+        Assert.False((await host.Reconcile.CheckAsync()).Report.RecordsUnknown);
 
         // 反过来：包索引是当前游戏的，方案却是别的游戏的
         host.Game.Config.GameName = DiskRefreshHost.GameName;
@@ -248,8 +302,95 @@ public sealed class DiskReconcileServiceTests : IDisposable
 
         Assert.Equal(["a", "b"], reopened.GetAllPackages().Select(p => p.PackageKey));
         Assert.Equal(DiskRefreshHost.GameName, reopened.CurrentGameName);
-        // 没有把那个位置顺手建出来
-        Assert.False(Directory.Exists(host.RepositoryRoot));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task SetCurrentGame_IndexHoldsAnEmptyRecord_DropsItKeepsTheRestAndBacksUpTheOriginal(bool libraryUnplugged)
+        => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 能解析、里面却夹着空记录（手工改过、合并出错）：丢掉空的、留下其余的。
+        // 留着不行——换进内存以后所有遍历包清单的地方都会崩（库访问不到时不找预览图，更没有别的步骤会先拦住它）；
+        // 整份不要也不行——一条坏记录不该让整个列表消失。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.AddPackageAsync("b", ("b.bin", "BBBB"));
+        var indexPath = Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json");
+        var index = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(indexPath))!.AsArray();
+        index.Insert(1, null);
+        var damaged = index.ToJsonString();
+        await File.WriteAllTextAsync(indexPath, damaged);
+        if (libraryUnplugged) host.UnplugLibrary();
+
+        // 重新打开管理器
+        var store = new ObjectStore(NullLogger<ObjectStore>.Instance, host.RepositoryRoot);
+        var reopened = new PackageRepository(NullLogger<PackageRepository>.Instance, store, host.DataDirectory);
+        await reopened.SetCurrentGameAsync(DiskRefreshHost.GameName);
+
+        Assert.Equal(["a", "b"], reopened.GetAllPackages().Select(p => p.PackageKey));
+        Assert.Equal(DiskRefreshHost.GameName, reopened.CurrentGameName);
+        // 原样备份了一份，索引文件当场重写成干净的
+        var backup = Assert.Single(Directory.GetFiles(host.DataDirectory, "*_packages.json.corrupt-*.bak"));
+        Assert.Equal(damaged, await File.ReadAllTextAsync(backup));
+        var rewritten = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(indexPath))!.AsArray();
+        Assert.Equal(2, rewritten.Count);
+        Assert.All(rewritten, node => Assert.NotNull(node));
+
+        // 只发生这一次：再打开不会再备份一份
+        await new PackageRepository(NullLogger<PackageRepository>.Instance, store, host.DataDirectory)
+            .SetCurrentGameAsync(DiskRefreshHost.GameName);
+        Assert.Single(Directory.GetFiles(host.DataDirectory, "*_packages.json.corrupt-*.bak"));
+    });
+
+    // ═══════════════════════════════════════
+    //  MOD 库的位置访问不到时，不删任何包的记录
+    // ═══════════════════════════════════════
+
+    [Fact]
+    public Task Delete_LibraryLocationUnreachable_IsRefusedAndTheRecordStays() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 这时包目录"不存在"只是因为看不见它。以前会当成"没什么可删"、把索引里的记录抹掉并报成功：
+        // 硬盘接回来以后，那个文件夹就成了索引里没有记录、界面上也找不到的残留。
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        var plugBackIn = host.UnplugLibrary();
+
+        var error = await Assert.ThrowsAsync<IOException>(() =>
+            host.Repository.DeletePackageAsync("a", host.Profiles.GetProfiles(), force: true));
+
+        Assert.Contains("MOD 库的位置现在访问不到", error.Message);
+        Assert.Contains("「MOD a」", error.Message);
+        Assert.Contains(host.RepositoryRoot, error.Message);
+        Assert.NotNull(host.Repository.GetByKey("a"));
+        Assert.True(host.IsInIndexOnDisk("a"));
+
+        // 接回去以后照常能删，文件夹也一起删掉
+        plugBackIn();
+        Assert.True((await host.Repository.DeletePackageAsync("a", host.Profiles.GetProfiles(), force: true)).Success);
+        Assert.Null(host.Repository.GetByKey("a"));
+        Assert.False(host.IsInIndexOnDisk("a"));
+        Assert.False(Directory.Exists(host.Store.GetPackageDirectory("a")));
+    });
+
+    [Fact]
+    public Task MergeDuplicates_LibraryLocationUnreachable_DeletesNothing() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 「合并相同文件」走的是同一个删除入口：库访问不到时一个都不删，并说明跳过的原因
+        var host = await OpenAsync();
+        await host.AddPackageAsync("one", ("same.bin", "SAME-CONTENT"));
+        await host.AddPackageAsync("two", ("same.bin", "SAME-CONTENT"));
+        Assert.Single(host.Repository.GetDuplicateGroups());
+        // 都不在任何方案里才会被当成可以直接合并的
+        await host.Profiles.RemovePackageReferencesAsync("one");
+        await host.Profiles.RemovePackageReferencesAsync("two");
+        host.UnplugLibrary();
+
+        var result = await host.Repository.MergeDuplicateGroupsAsync(host.Profiles.GetProfiles());
+
+        Assert.Equal(0, result.DeletedCount);
+        Assert.Contains("MOD 库的位置现在访问不到", Assert.Single(result.Skipped));
+        Assert.True(host.IsInIndexOnDisk("one") && host.IsInIndexOnDisk("two"));
     });
 
     [Fact]
@@ -461,6 +602,20 @@ public sealed class DiskReconcileServiceTests : IDisposable
         Assert.False(await host.Repository.ReloadIndexAsync());
 
         Assert.NotNull(host.Repository.GetByKey("a"));
+    });
+
+    [Fact]
+    public Task ReloadIndex_FileParsesButHoldsAnEmptyRecord_KeepsWhatIsInMemory() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 能解析、里面却有空记录：换进内存的话，所有遍历包清单的地方都会崩
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await File.WriteAllTextAsync(
+            Path.Combine(host.DataDirectory, $"{DiskRefreshHost.GameName}_packages.json"), "[null]");
+
+        Assert.False(await host.Repository.ReloadIndexAsync());
+
+        Assert.Equal(["a"], host.Repository.GetAllPackages().Select(p => p.PackageKey));
     });
 
     [Fact]

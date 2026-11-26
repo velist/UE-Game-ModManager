@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UEModManager.Localization;
 using UEModManager.Models;
 using UEModManager.Services.Persistence;
 using UEModManager.Services.Repository;
@@ -82,6 +83,7 @@ namespace UEModManager.Services
         /// </summary>
         public async Task SetCurrentGameAsync(string gameName)
         {
+            var libraryReachable = true;
             try
             {
                 _objectStore.EnsureInitialized();
@@ -93,6 +95,7 @@ namespace UEModManager.Services
                 // 以前在这里把异常抛出去，整个初始化静默中断：列表是空的、没有任何提示，把硬盘接好也得重启
                 // 管理器才看得到 MOD；切换游戏时还会留下"方案是新游戏的、包索引是旧游戏的"这种半截状态。
                 // 现在列表照常显示，"文件访问不到"由「刷新」和部署时的报错如实告诉玩家。
+                libraryReachable = false;
                 _logger.LogWarning(ex, "MOD 库的位置访问不到，仍然加载包索引: {Root}", _objectStore.RepositoryRoot);
             }
 
@@ -102,10 +105,14 @@ namespace UEModManager.Services
             await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                _currentGame = gameName;
-                var loaded = await LoadIndexAsync().ConfigureAwait(false);
-                RestorePreviewImagePaths(loaded);
+                var loaded = await LoadIndexAsync(GetIndexPath(gameName)).ConfigureAwait(false);
+                // 库访问不到时不去找预览图：一张都找不到，而掉线的网络盘上每探一次都要等超时
+                if (libraryReachable) RestorePreviewImagePaths(loaded);
 
+                // 游戏名和包清单一起换，中间不留任何会抛异常的步骤。只换了名字、清单还是上一个游戏的话，
+                // 之后任何一次保存都会把上一个游戏的包写进这个游戏的索引文件，
+                // 「磁盘核对」也会把这份对不上号的清单当成当前游戏的。
+                _currentGame = gameName;
                 _packages = loaded;
                 _unsavedIndexChanges = false;
                 _logger.LogInformation("已加载 {Game} 的包索引: {Count} 个", gameName, loaded.Count);
@@ -151,6 +158,9 @@ namespace UEModManager.Services
                     var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                     loaded = JsonSerializer.Deserialize<List<Package>>(json)
                         ?? throw new InvalidDataException("包索引内容为空");
+                    // 文件能解析、里面却有空记录：同样算读不出来。换进内存的话，所有遍历包清单的地方都会崩
+                    if (loaded.Any(package => package == null))
+                        throw new InvalidDataException("包索引里有空记录");
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
                 {
@@ -158,7 +168,8 @@ namespace UEModManager.Services
                     return false;
                 }
 
-                RestorePreviewImagePaths(loaded);
+                // 库访问不到时不去找预览图（理由同 SetCurrentGameAsync）
+                if (Directory.Exists(_objectStore.RepositoryRoot)) RestorePreviewImagePaths(loaded);
                 _packages = loaded;
                 _logger.LogInformation("已重新读取 {Game} 的包索引: {Count} 个", _currentGame, loaded.Count);
             }
@@ -351,6 +362,23 @@ namespace UEModManager.Services
         // ─── 删除 ───
 
         /// <summary>
+        /// MOD 库的位置访问不到时抛 <see cref="IOException"/>，说明为什么没有删除这个包。
+        ///
+        /// <see cref="DeletePackageAsync(string, IEnumerable{InstanceProfile}?, bool)"/> 自己会查；
+        /// 删除之前还要先做别的事的调用方（先把它从游戏目录撤掉）应当一开始就调一次，
+        /// 免得撤完才发现记录删不了，留下"删了一半"。
+        /// </summary>
+        public void ThrowIfLibraryUnreachable(Package package)
+        {
+            ArgumentNullException.ThrowIfNull(package);
+            if (Directory.Exists(_objectStore.RepositoryRoot)) return;
+
+            var name = string.IsNullOrWhiteSpace(package.DisplayName) ? package.PackageKey : package.DisplayName;
+            throw new IOException(UiText.Interpolate(
+                $"MOD 库的位置现在访问不到，所以没有删除「{name}」，它的记录也没有改动。请先让 MOD 库恢复可用（接好移动硬盘或网络盘）再试：{_objectStore.RepositoryRoot}"));
+        }
+
+        /// <summary>
         /// 计算给定 packageKey 在所有 Profile 中的引用情况，并产生删除决策。
         /// 不做任何 IO；调用方根据返回的 Plan 决定是否调用 <see cref="DeletePackageAsync"/>。
         /// </summary>
@@ -373,7 +401,7 @@ namespace UEModManager.Services
         /// <param name="allProfiles">所有 Profile（用于引用计数）。传 null 表示跳过检查（仅供测试）。</param>
         /// <param name="force">true = 即使被引用也强制删除（必须先自行回滚部署）。</param>
         /// <returns>(成功否, 决策详情)。Decision=ActivelyDeployed 且 force=false 时返回 (false, plan)。</returns>
-        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足）。此时索引未被改动。</exception>
+        /// <exception cref="IOException">仓库文件删不掉（被占用/权限不足），或 MOD 库的位置访问不到。此时索引未被改动。</exception>
         public async Task<(bool Success, PackageDeletionPlan? Plan)> DeletePackageAsync(
             string packageKey,
             IEnumerable<InstanceProfile>? allProfiles,
@@ -403,6 +431,13 @@ namespace UEModManager.Services
                         return (false, plan);
                     }
                 }
+
+                // MOD 库的位置访问不到（移动硬盘没插、网络盘掉线）时不删。这时包目录"不存在"只是因为看不见它：
+                // ObjectStore.DeletePackage 会当成"没什么可删"返回成功，接着索引里的记录被抹掉——
+                // 硬盘接回来以后，那个文件夹就成了索引里没有记录、界面上也找不到的残留。
+                // 「刷新」只在看得清仓库时才提议移除；这里是所有删除路径的最后一道闸，
+                // 核对之后、动手之前硬盘刚好断开的那一瞬间也由它挡住。
+                ThrowIfLibraryUnreachable(package);
 
                 // 先删仓库文件、再动索引。反过来的话文件删不掉（被游戏占用/权限不足）
                 // 就会留下"索引里没有、磁盘上还在几十 GB"的孤儿目录，而且用户重试也删不掉了
@@ -663,16 +698,41 @@ namespace UEModManager.Services
 
         // ─── 持久化 ───
 
-        private string GetIndexPath() => Path.Combine(_dataDirectory, $"{_currentGame}_packages.json");
+        private string GetIndexPath() => GetIndexPath(_currentGame);
 
-        private async Task<List<Package>> LoadIndexAsync()
+        private string GetIndexPath(string gameName) => Path.Combine(_dataDirectory, $"{gameName}_packages.json");
+
+        /// <summary>读一个游戏的包索引。<b>从不抛异常</b>：读不出来回落空列表（原文件先备份）。</summary>
+        private async Task<List<Package>> LoadIndexAsync(string path)
         {
-            var path = GetIndexPath();
             try
             {
                 if (!File.Exists(path)) return new List<Package>();
                 var json = await File.ReadAllTextAsync(path);
-                return JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
+                var loaded = JsonSerializer.Deserialize<List<Package>>(json) ?? new List<Package>();
+
+                // 文件能解析、里面却夹着空记录（手工改过、合并出错）。空记录不带任何信息：丢掉它们、
+                // 留下其余的——一条坏记录不该让玩家整个游戏的 MOD 列表都看不到。留着更不行：
+                // 换进内存以后，所有遍历包清单的地方都会崩。
+                var dropped = loaded.RemoveAll(package => package == null);
+                if (dropped > 0)
+                {
+                    BackupUnusableIndexFile(path,
+                        new InvalidDataException($"包索引里有 {dropped} 条空记录，已忽略，其余 {loaded.Count} 条照常加载"));
+                    // 当场把清理后的索引写回去，这件事只发生一次；不写的话每次启动都会再备份一遍。
+                    // 写不进去不要紧：内存里已经是干净的，下一次保存照样会重写它。
+                    try
+                    {
+                        await AtomicFileWriter.WriteAllTextAsync(path,
+                            JsonSerializer.Serialize(loaded, new JsonSerializerOptions { WriteIndented = true }));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 什么原因都一样处理：这里再往外抛，外层会当成"索引读不出来"把刚读好的清单丢掉
+                        _logger.LogWarning(ex, "清理后的包索引没能写回: {Path}", path);
+                    }
+                }
+                return loaded;
             }
             catch (Exception ex)
             {

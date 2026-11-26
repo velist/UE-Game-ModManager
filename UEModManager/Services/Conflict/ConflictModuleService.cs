@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -97,7 +98,13 @@ public sealed class ConflictModuleService
             filled, _rules, _assetIndexService.CollectProvenance(packages));
 
         LastReport = report;
-        await PersistSharedComponentChoicesAsync(report);
+        // MOD 库的位置访问不到时（移动硬盘没插、网络盘掉线），版本和文件时间一个都读不到，
+        // 共享组件"留哪一份"只能按顺序瞎取一个。这种裁决只用来显示，不能写进方案：
+        // 写进去就把此前按版本选好的结果翻掉了，硬盘接回来后的下一次部署会装上错的那一份。
+        if (Directory.Exists(_packageRepository.Store.RepositoryRoot))
+            await PersistSharedComponentChoicesAsync(report);
+        else
+            _logger.LogWarning("MOD 库的位置访问不到，本次冲突分析不改写共享组件的覆盖规则");
 
         _logger.LogInformation(
             "冲突分析完成: {Mods} 个已启用包, {Assets} 个资产; {Groups} 组冲突, "

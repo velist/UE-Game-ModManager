@@ -53,7 +53,17 @@ internal sealed class DiskRefreshHost
     public string RepositoryRoot => Store.RepositoryRoot;
 
     /// <param name="backends">部署后端；默认只有复制（与正式版的注册一致）。</param>
-    public static async Task<DiskRefreshHost> OpenAsync(string root, params IDeploymentBackend[] backends)
+    public static Task<DiskRefreshHost> OpenAsync(string root, params IDeploymentBackend[] backends)
+        => OpenCoreAsync(root, load: true, backends);
+
+    /// <summary>
+    /// 只把服务装配好，<b>不加载任何数据</b>——和程序刚启动、主窗口还没初始化时一样。
+    /// 之后由用例调 <c>Main.InitializeAsync()</c>，走的就是真实的启动 / 切换游戏那条加载链。
+    /// </summary>
+    public static Task<DiskRefreshHost> OpenWithoutLoadingAsync(string root)
+        => OpenCoreAsync(root, load: false, []);
+
+    private static async Task<DiskRefreshHost> OpenCoreAsync(string root, bool load, IDeploymentBackend[] backends)
     {
         var data = Path.Combine(root, "Data");
         var gamePath = Path.Combine(root, "Game");
@@ -70,12 +80,15 @@ internal sealed class DiskRefreshHost
         game.Config.ModPath = modPath;
         game.Config.ExecutableName = "Game.exe";
 
-        await repository.SetCurrentGameAsync(GameName);
-        await profiles.SetCurrentGameAsync(GameName);
+        if (load)
+        {
+            await repository.SetCurrentGameAsync(GameName);
+            await profiles.SetCurrentGameAsync(GameName);
+        }
 
         var overwrites = new OverwriteStore(NullLogger<OverwriteStore>.Instance, repository, null!,
             data, Path.Combine(root, "Overwrites"));
-        await overwrites.SetCurrentGameAsync(GameName);
+        if (load) await overwrites.SetCurrentGameAsync(GameName);
 
         var indexes = new AssetIndexService(NullLogger<AssetIndexService>.Instance, store, data);
         var imports = new PackageImportService(NullLogger<PackageImportService>.Instance,
@@ -84,7 +97,7 @@ internal sealed class DiskRefreshHost
             indexes);
         var conflicts = new ConflictModuleService(NullLogger<ConflictModuleService>.Instance,
             repository, profiles, game, indexes);
-        await conflicts.SetCurrentGameAsync(GameName);
+        if (load) await conflicts.SetCurrentGameAsync(GameName);
 
         var merge = new ConfigMergeEngine(NullLogger<ConfigMergeEngine>.Instance);
         var views = new ResolvedViewBuilder(NullLogger<ResolvedViewBuilder>.Instance, repository, profiles,
@@ -106,9 +119,9 @@ internal sealed class DiskRefreshHost
             game, profiles, repository, views, states);
 
         var categories = new NewCategoryService(NullLogger<NewCategoryService>.Instance, data);
-        await categories.SetCurrentGameAsync(GameName);
+        if (load) await categories.SetCurrentGameAsync(GameName);
 
-        var migration = new DataMigrationService(NullLogger<DataMigrationService>.Instance, repository, store, game);
+        var migration = new DataMigrationService(NullLogger<DataMigrationService>.Instance, repository, store, game, data);
         var main = new MainViewModel(game, categories, profiles, repository, imports, migration,
             planner, deployment, conflicts, overwrites, merge, views, launcher,
             NullLogger<MainViewModel>.Instance, reconcile);
@@ -177,7 +190,16 @@ internal sealed class DiskRefreshHost
     /// 图片一律登记成预览图——老版本就是这么入库的。部署时其中带目录的会被改判成要装的文件
     /// （<c>InstallLayoutNormalizer.EffectiveArtifactType</c>），包根上的才是真的预览图。
     /// </summary>
-    public async Task<Package> AddLayoutPluginAsync(string key, params (string RelativePath, string Content)[] files)
+    public Task<Package> AddLayoutPluginAsync(string key, params (string RelativePath, string Content)[] files)
+        => AddPluginAsync(key, preservesInstallLayout: true, targetRootPath: null, files);
+
+    /// <summary>
+    /// 同上，可以指定包是否保留安装布局、以及玩家自己指定的安装子目录。
+    /// 玩家指定了安装子目录、包又不保留安装布局时，部署不改判图片：登记成预览图的就一直是预览图，不会装进游戏。
+    /// </summary>
+    public async Task<Package> AddPluginAsync(
+        string key, bool preservesInstallLayout, string? targetRootPath,
+        params (string RelativePath, string Content)[] files)
     {
         var artifacts = new List<PackageArtifact>();
         long total = 0;
@@ -204,7 +226,8 @@ internal sealed class DiskRefreshHost
         var package = new Package
         {
             PackageKey = key, DisplayName = "插件 " + key, HostGameName = GameName, Kind = PackageKind.Plugin,
-            PreservesInstallLayout = true, Tags = ["未分类"], TotalSize = total, Artifacts = artifacts,
+            PreservesInstallLayout = preservesInstallLayout, TargetRootPath = targetRootPath,
+            Tags = ["未分类"], TotalSize = total, Artifacts = artifacts,
             ContentHash = string.Join("|", artifacts.Select(a => a.FileHash)),
         };
         await Repository.RegisterPackageAsync(package);

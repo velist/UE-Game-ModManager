@@ -234,8 +234,9 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     [Fact]
     public Task ManagerStartedWhileTheLibraryIsUnreachable_StillListsTheMods_AndRefreshNamesTheLocation() => DiskRefreshHost.OnStaAsync(async () =>
     {
-        // 以前：启动时 MOD 库所在的盘没接上 → 加载在半路中断 → 列表是空的、没有任何提示，
-        // 点刷新还会说"没有发现问题"。现在列表照常显示，刷新如实说找不到 MOD 库的位置。
+        // 以前：启动时 MOD 库所在的盘没接上 → 建不出仓库目录、加载在半路中断 → 列表是空的、没有任何提示。
+        // 这时点刷新，方案里没有启用的 MOD 就说"没有发现问题"，有的话说"读不出 MOD 的记录"，都没说到点子上。
+        // 现在列表照常显示，刷新如实说找不到 MOD 库的位置。
         var first = await OpenAsync();
         await first.AddPackageAsync("a", ("a.bin", "AAAA"));
         await first.AddPackageAsync("b", ("b.bin", "BBBB"));
@@ -243,9 +244,9 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
         first.Main.Dispose();
         var plugBackIn = first.UnplugLibrary();
 
-        // 重新打开管理器
-        var host = await OpenAsync();
-        await host.ShowListAsync();
+        // 重新打开管理器：服务只装配、不预先加载，由主视图模型走真实的启动加载链
+        var host = _host = await DiskRefreshHost.OpenWithoutLoadingAsync(_root);
+        await host.Main.InitializeAsync();
         Assert.True(host.IsListed("a") && host.IsListed("b"));
         Assert.True(host.IsEnabled("a"));
         var before = host.Fingerprint();
@@ -274,9 +275,39 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
     });
 
     [Fact]
+    public Task DeletingAModWhileTheLibraryIsUnreachable_IsRefused_AndSaysWhy() => DiskRefreshHost.OnStaAsync(async () =>
+    {
+        // 不经过「刷新」、直接在列表里删 MOD 也一样：库访问不到时不删记录。
+        // 以前这里会报"删除成功"——记录没了，硬盘上的文件夹却原封不动，接回来就成了没人认领的残留
+        var host = await OpenAsync();
+        await host.AddPackageAsync("a", ("a.bin", "AAAA"));
+        await host.EnableAsync("a");
+        var plugBackIn = host.UnplugLibrary();
+
+        var result = await host.Main.DeletePackageModAsync(host.Main.AllMods.Single(m => m.RealName == "a"));
+
+        Assert.False(result.Success);
+        Assert.Contains("MOD 库的位置现在访问不到", result.Error);
+        Assert.Contains("「MOD a」", result.Error);
+        Assert.True(host.IsListed("a"));
+        Assert.True(host.IsInProfile("a"));
+        Assert.True(host.IsInIndexOnDisk("a"));
+        // 一开始就停下，不是"删了一半"：它还启用着，游戏里装着的那一份也没被撤掉
+        Assert.True(host.IsEnabled("a"));
+        Assert.Equal("AAAA", await File.ReadAllTextAsync(host.GameFile("a", "a.bin")));
+
+        // 接回去：文件一个没少，刷新也说没问题
+        plugBackIn();
+        Assert.Equal("AAAA", await File.ReadAllTextAsync(host.RepositoryFile("a", "a.bin")));
+        var prompts = new ScriptedPrompts();
+        Assert.False((await host.Main.RefreshFromDiskAsync(prompts)).Report!.HasFindings);
+    });
+
+    [Fact]
     public Task RecordsStuckOnThePreviousGame_NothingIsOfferedAndNothingChanges() => DiskRefreshHost.OnStaAsync(async () =>
     {
-        // 切换游戏时加载在半路出了错：方案已经是新游戏的，包索引还停在上一个游戏。
+        // 切换游戏时加载在半路出了错：方案已经换成新游戏的，包索引还停在上一个游戏。
+        // （加载链是"先方案、后包索引"，中间任何一步抛异常都会停在这里。这个状态在这里是手工摆出来的。）
         // 照常核对的话，新游戏方案里启用的每个 MOD 都"找不到记录"，会被提议从方案里去掉。
         var host = await OpenAsync();
         await host.AddPackageAsync("old-game-mod", ("o.bin", "OOOO"));
@@ -286,6 +317,7 @@ public sealed class DiskRefreshEndToEndTests : IDisposable
         await host.Profiles.AddPackagesToCurrentProfileAsync([mod]);
         await host.Profiles.SetPackageEnabledFlagAsync("new-game-mod", true);
         host.Game.Config.GameName = newGame;
+        Assert.Equal(DiskRefreshHost.GameName, host.Repository.CurrentGameName);
         await host.ShowListAsync();
         var before = host.Fingerprint();
         var prompts = new ScriptedPrompts();

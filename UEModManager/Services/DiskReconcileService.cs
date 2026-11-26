@@ -96,11 +96,18 @@ namespace UEModManager.Services
             var recordsKnown = SameGame(_repository.CurrentGameName, gameName)
                                && (profile == null || SameGame(profile.HostGameName, gameName));
             if (!recordsKnown)
+            {
+                // 结论已经定了：不读部署清单、不探磁盘。判定仍然归 Core（它对这种输入只回一个标志）
                 _logger.LogWarning(
                     "[Reconcile] 手里的记录不是当前游戏的（当前 {Game}，包索引 {RepoGame}，方案 {ProfileGame}），本次不核对",
                     gameName, _repository.CurrentGameName, profile?.HostGameName);
+                var unknown = DiskReconciler.Reconcile(
+                    new DiskReconcileInput { Packages = [], RecordsKnown = false },
+                    new DiskProbes(_ => FileProbe.Unknown, _ => FileProbe.Unknown, _ => true));
+                return new DiskCheck(unknown, repositoryRoot, gamePath);
+            }
 
-            var packages = recordsKnown ? PackagesAsDeployed() : [];
+            var packages = PackagesAsDeployed();
             var enabled = profile?.Packages
                 .Where(entry => entry.IsEnabled)
                 .Select(entry => entry.PackageKey)
@@ -144,7 +151,6 @@ namespace UEModManager.Services
                 // 还没装过任何东西时（清单为空），游戏目录在不在都不影响结论
                 GameRootReachable = managed.Count == 0 || session.IsDirectoryReadable(gamePath),
                 ManagedFilesKnown = managedKnown,
-                RecordsKnown = recordsKnown,
             };
 
             var probes = new DiskProbes(
@@ -160,8 +166,9 @@ namespace UEModManager.Services
         /// <summary>
         /// 仓库里的包，按部署的口径归位之后的那一份：哪些产物算"要装进游戏的文件"由归位决定。
         ///
-        /// 归位算不出来时（索引里有重复的包键等——这时部署自己也会停下并报错）退回索引里的原始记录：
-        /// 少认几张图，不会多报，更不会因此整次核对失败。
+        /// 归位算不出来时退回索引里的原始记录（索引里有重复的包键、某个包的文件清单是坏的……
+        /// 这时部署自己也会停下并报错）。退回去只会少认几张图、不会多报，所以什么异常都接：
+        /// 为了几张图的口径让整次核对失败，玩家连"哪个 MOD 丢了"都看不到。
         /// </summary>
         private IReadOnlyList<Package> PackagesAsDeployed()
         {
@@ -170,8 +177,7 @@ namespace UEModManager.Services
             {
                 return _views.PackagesAsDeployed();
             }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException
-                                           or IOException or UnauthorizedAccessException)
+            catch (Exception ex)
             {
                 _logger.LogWarning(ex, "[Reconcile] 包的安装位置算不出来，按索引里的原始记录核对");
                 return _repository.GetAllPackages().ToList();

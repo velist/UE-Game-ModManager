@@ -422,6 +422,11 @@ namespace UEModManager.Services.Reconciliation
         /// <b>口径必须和部署一致，所以这里只认类型、不看路径和扩展名</b>：一张图到底算预览图还是要装的贴图，
         /// 由归位（<c>InstallLayoutNormalizer.EffectiveArtifactType</c>）说了算，
         /// 传进来的包已经是归位之后的（见 <see cref="DiskReconcileInput.Packages"/>）。
+        ///
+        /// 已知的代价：2.1.4 及更早的版本部署时不装这类贴图，所以升级之后、第一次重新部署之前，
+        /// 游戏目录里没有它们。这个窗口里如果 MOD 库里的整包丢了，游戏里那一份凑不齐全部必需文件，
+        /// 不会提供"找回"，只能选择从列表移除（游戏里的文件默认留下）。宁可如此，
+        /// 也不把一份缺贴图的包"找回"成看似完整、一部署就报缺文件的样子。
         /// </summary>
         private static List<PackageArtifact> RegisteredFiles(Package package)
         {

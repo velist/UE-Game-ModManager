@@ -216,12 +216,16 @@ public sealed class LaunchRestoreTests : IDisposable
         await host.AddPackageAsync("b", ("b.bin", "BBBB"));
         Directory.Move(host.RepositoryRoot, host.RepositoryRoot + "-unplugged");
 
-        var check = ModFilesCheck(await host.Health.CheckAsync());
+        var report = await host.Health.CheckAsync();
+        var check = ModFilesCheck(report);
 
         Assert.Equal(HealthStatus.Warning, check.Status);
         Assert.Contains("MOD 库的位置访问不到，没法核对 MOD 文件", check.Message);
         Assert.DoesNotContain("丢失或不完整", check.Message);
         Assert.Equal(host.RepositoryRoot, check.Detail);
+        // 同一份报告里的"仓库目录"那一项不能再说"将延迟创建"：登记着包，就不是还没建
+        var objectStore = Assert.Single(report.Checks, c => c.Name == "ObjectStore");
+        Assert.Contains("MOD 库的位置访问不到（登记了 2 个 MOD）", objectStore.Message);
     });
 
     [Fact]

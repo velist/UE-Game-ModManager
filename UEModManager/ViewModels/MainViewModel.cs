@@ -1014,6 +1014,10 @@ namespace UEModManager.ViewModels
                     return OperationResult.Fail(UiText.Interpolate($"仓库中找不到 MOD「{mod.Name}」对应的包记录，可能已被删除。"));
                 }
 
+                // MOD 库的位置访问不到时一开始就停下：往下走的话会先把它从游戏目录撤掉，
+                // 再发现记录删不了（仓库那一头看不见，不能删），留下"删了一半"
+                _packageRepository.ThrowIfLibraryUnreachable(package);
+
                 // 先卸载已部署的文件；这一步失败就不能继续删仓库，否则游戏目录里会留下孤儿文件
                 var undeploy = await DeployToggleAsync(package.PackageKey, false);
                 if (!undeploy.Success)
