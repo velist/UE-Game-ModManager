@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using UEModManager.Infrastructure;
 using UEModManager.Models;
 using UEModManager.Services.Categories;
+using UEModManager.Services.Persistence;
 
 namespace UEModManager.Services
 {
@@ -502,14 +503,10 @@ namespace UEModManager.Services
             {
                 try
                 {
-                    var tempFile = filePath + ".tmp";
                     var json = JsonSerializer.Serialize(categories, new JsonSerializerOptions { WriteIndented = true });
-                    await File.WriteAllTextAsync(tempFile, json);
-
-                    if (File.Exists(filePath))
-                        File.Replace(tempFile, filePath, null);
-                    else
-                        File.Move(tempFile, filePath);
+                    // 以前这里自己写"固定名字的 .tmp + File.Replace"：两次保存撞在一起时会互相覆盖、
+                    // 互删对方的临时文件。交给 AtomicFileWriter——同一个文件的写入在那里排队。
+                    await AtomicFileWriter.WriteAllTextAsync(filePath, json);
 
                     return;
                 }

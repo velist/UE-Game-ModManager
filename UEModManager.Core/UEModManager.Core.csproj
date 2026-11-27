@@ -17,4 +17,9 @@
          属于主项目 Infrastructure 层职责，不应渗入 Domain 内核。-->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- 只给本库自己的单测开：有些残局（比如文件替换被打断在半路）靠真实并发才撞得出来，
+         测试要能直接摆出那个状态。主项目与其它程序集仍然只看得到公开接口。 -->
+    <InternalsVisibleTo Include="UEModManager.Core.Tests" />
+  </ItemGroup>
 </Project>
